@@ -4,7 +4,9 @@
 
 **Last updated:** 2026-10-14
 
-**Latest (2026-10-14, bootstrap):** Imported the exported studio into Git, applied the bootstrap fixes below, set up CI, the Vercel project and the `development` / `moaz-playground` branches.
+**Latest (2026-10-14, pipeline test):** End-to-end pipeline check: this change went `ci/pipeline-smoke` → PR into `development` → CI on the PR + Vercel Preview → merge → `development` Preview deploy.
+
+**Earlier (2026-10-14, bootstrap):** Imported the exported studio into Git, applied the bootstrap fixes below, set up CI and the `development` / `moaz-playground` branches. The owner created the Vercel project (Git-linked); the first Production deploy from `main` succeeded and the studio shell loads on the production domain.
 
 ## The plan
 
@@ -25,6 +27,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 
 - **Analysis against the engineering bootstrap guide.** Findings: no Git history; repository is public but the export assumed private and carried real brand names, hosted configurator URLs and a historical source archive; no lint gate (113 errors); CI used tag-pinned actions, no permissions block, no secret scan, wrong branch (`testing`); no `.gitattributes`/`.nvmrc`; no living files (`CLAUDE.md`, `PROGRESS.md`, `BACKLOG.md`), CODEOWNERS or Dependabot; all files carried executable mode from Windows.
 - **Fixes:** configurator presets moved to `NEXT_PUBLIC_CONFIGURATOR_PRESETS` with validation and tests; synthetic test fixtures; `archive/` and the export checksum list kept out of Git; CI rewritten (SHA-pinned actions, least-privilege token, lint + typecheck + test + build, gitleaks over full history, pinned and checksummed); lint script added, 5 real lint errors fixed (a function misnamed as a hook, `prefer-const`, reassigned `module` in tests), legacy rules downgraded as tracked debt; `.gitattributes` (LF), `.nvmrc` (24), hardened `.gitignore`, CODEOWNERS, Dependabot; README/AGENTS updated for the new branch model.
+- **Verified on GitHub/Vercel:** CI (`verify`, `secrets`) green on `main`, `development` and `moaz-playground`; Vercel Production deployment of `main` reported success and the home page renders.
 - **Verified locally:** `npm ci`, lint (0 errors), typecheck, 162/162 tests, production build; gitleaks over the source tree found nothing.
 
 ## Decisions made (must be remembered)
@@ -41,6 +44,8 @@ _Waiting on owner_
 - Google OAuth redirect URIs and R2 CORS for the Vercel domains.
 
 _Carried_
+
+- The agent's Vercel connection cannot see or create projects in the team (404/403), so deployment checks go through GitHub's deployment statuses. Re-authorising the Vercel connection with project access would let the agent read build logs directly.
 
 - Lint debt (BACKLOG #4).
 - `docs/VERIFICATION.md` describes the original export; it predates this repository.
