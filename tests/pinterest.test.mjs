@@ -1,0 +1,17 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {checkedPinterestUrl,pinMetadata,publicFetch,boundedBytes} from '../lib/pinterest.ts';
+import {captureBounds} from '../lib/live-capture.ts';
+test('pin metadata accepts attribute order and escaped image links',()=>{const m=pinMetadata(`<meta content="https://i.pinimg.com/736x/test.jpg?a=1&amp;b=2" name="og:image"><meta property='og:title' content='Light &amp; Shadow'>`);assert.equal(m.title,'Light & Shadow');assert.equal(m.image,'https://i.pinimg.com/736x/test.jpg?a=1&b=2')});
+test('pin fetch rejects private hosts, credentials, ports and deceptive domains',()=>{for(const u of ['http://pinterest.com/pin/1/','https://pinterest.com.evil.test/pin/1','https://127.0.0.1','https://user@pinterest.com','https://pinterest.com:444/pin/1'])assert.throws(()=>checkedPinterestUrl(u));assert.throws(()=>pinMetadata('<meta property="og:image" content="https://localhost/secret">'));assert.equal(checkedPinterestUrl('https://www.pinterest.co.uk/pin/1/').hostname,'www.pinterest.co.uk')});
+test('redirect destination is revalidated before requesting',async()=>{let calls=0;await assert.rejects(publicFetch('https://pin.it/example',false,async()=>{calls++;return new Response(null,{status:302,headers:{location:'https://127.0.0.1/secret'}})}));assert.equal(calls,1)});
+test('stream size is enforced without content length',async()=>{await assert.rejects(boundedBytes(new Response(new Uint8Array(100)),50));assert.equal((await boundedBytes(new Response(new Uint8Array(10)),50)).length,10)});
+test('capture crop matches scaled video coordinates and rejects clipped views',()=>{assert.deepEqual(captureBounds({left:100,top:50,width:600,height:400},{width:1000,height:800},{width:2000,height:1600}),{x:200,y:100,w:1200,h:800});assert.throws(()=>captureBounds({left:0,top:-10,width:600,height:400},{width:1000,height:800},{width:2000,height:1600}))});
+test('automatic capture takes a fresh frame, crops only the iframe and detaches video',async()=>{
+ const {snapshotStream}=await import('../lib/live-capture.ts');let frameNumber=0,draws=[];let video;
+ globalThis.location={origin:'https://studio.test'};globalThis.window={innerWidth:1000,innerHeight:800};globalThis.requestAnimationFrame=fn=>{fn();return 1};
+ globalThis.document={createElement:tag=>tag==='video'?(video={muted:false,srcObject:null,videoWidth:2000,videoHeight:1600,play:async()=>{},pause:()=>{},requestVideoFrameCallback:fn=>{frameNumber++;fn()}}):{getContext:()=>({drawImage:(...args)=>draws.push(args.slice(1))}),toDataURL:()=>`data:image/png;base64,frame${frameNumber}`}};
+ const track={readyState:'live',getCaptureHandle:()=>({handle:'mine',origin:'https://studio.test'})};const stream={getVideoTracks:()=>[track]};const frame={scrollIntoView:()=>{},getBoundingClientRect:()=>({left:100,top:50,width:600,height:400})};
+ assert.equal(await snapshotStream(stream,frame,'mine'),'data:image/png;base64,frame1');assert.equal(await snapshotStream(stream,frame,'mine'),'data:image/png;base64,frame2');assert.deepEqual(draws[0],[200,100,1200,800,0,0,1200,800]);assert.equal(video.srcObject,null);
+ track.getCaptureHandle=()=>({handle:'other',origin:'https://studio.test'});await assert.rejects(snapshotStream(stream,frame,'mine'),/This Tab/);assert.equal(draws.length,2);
+ delete globalThis.document;delete globalThis.window;delete globalThis.location;delete globalThis.requestAnimationFrame;
+});

@@ -1,0 +1,25 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://YOUR-STUDIO.vercel.app",
+      "http://localhost:3000"
+    ],
+    "AllowedMethods": [
+      "GET",
+      "HEAD",
+      "PUT"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ],
+    "ExposeHeaders": [
+      "ETag",
+      "Content-Length",
+      "Content-Type",
+      "Content-Disposition",
+      "Accept-Ranges",
+      "Content-Range"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]

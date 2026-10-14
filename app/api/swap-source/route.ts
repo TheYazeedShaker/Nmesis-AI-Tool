@@ -1,0 +1,6 @@
+import {readStudioForm} from '@/lib/portable/uploads';
+export const runtime='nodejs';
+export const maxDuration=300;
+import {bucket,context,fail,StudioError} from '@/lib/studio-server';
+import {verifiedMp4Info} from '@/lib/video-metadata';
+export async function POST(request:Request){try{const ctx=await context(request,true);const size=Number(request.headers.get('content-length')||0);if(size>50_000_000)throw new StudioError('Choose an MP4 under 48 MB.',413);const form=await readStudioForm(request,ctx,50_000_000);const file=form.get('video');if(!(file instanceof File)||!file.size||file.size>48_000_000||!file.name.toLowerCase().endsWith('.mp4')||(file.type&&file.type!=='video/mp4'&&file.type!=='application/octet-stream'))throw new StudioError('Choose an MP4 under 48 MB.');const bytes=new Uint8Array(await file.arrayBuffer());if(new TextDecoder().decode(bytes.slice(4,8))!=='ftyp')throw new StudioError('This file is not a valid MP4.');const info=await verifiedMp4Info(bytes),id=crypto.randomUUID(),store=bucket(ctx.BUCKET),key=ctx.prefix+'swap-sources/'+id;await store.put(key+'.mp4',bytes,{httpMetadata:{contentType:'video/mp4'}});await store.put(key+'.json',JSON.stringify(info),{httpMetadata:{contentType:'application/json'}});return Response.json({id,duration:info.duration,width:info.width,height:info.height,url:'/api/swap-source/'+id})}catch(e){return fail(e)}}

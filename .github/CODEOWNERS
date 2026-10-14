@@ -1,0 +1,12 @@
+# Human-review tier: changes here need the owner's review.
+# Ensure "Require review from Code Owners" is on in the main branch ruleset.
+/.github/            @TheYazeedShaker
+/drizzle/            @TheYazeedShaker
+/db/                 @TheYazeedShaker
+/lib/portable/       @TheYazeedShaker
+/lib/secret-crypto.ts @TheYazeedShaker
+/lib/credentials.ts  @TheYazeedShaker
+/app/api/auth/       @TheYazeedShaker
+/CLAUDE.md           @TheYazeedShaker
+/AGENTS.md           @TheYazeedShaker
+/vercel.json         @TheYazeedShaker

@@ -1,0 +1,38 @@
+# --- Secrets: this repository may become public; nothing below may ever be committed ---
+.env*
+!.env.example
+.envrc
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*credentials*.json
+*service-account*.json
+
+# --- Dependencies and build output ---
+node_modules/
+.next/
+.vercel/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# --- Local data, logs, scratch ---
+*.log
+*.db
+*.db-shm
+*.db-wal
+.wrangler/
+outputs/
+work/
+.DS_Store
+Thumbs.db
+
+# --- Historical export archive: kept on the owner machine only (contains third-party names) ---
+archive/
+# Original export checksum list (superseded by Git history)
+SOURCE-SHA256.txt

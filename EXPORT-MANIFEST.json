@@ -1,0 +1,12 @@
+{
+  "name": "Nmesis Studio",
+  "exportDate": "2026-10-14",
+  "baselineCommit": "8c013d449373ce8930c59ff32e341e092486c3be",
+  "baselineSitesVersion": 67,
+  "target": "Next.js on Vercel",
+  "includesUserData": false,
+  "includesApiKeys": false,
+  "futureDevelopmentBranch": "development",
+  "verifiedTests": 161,
+  "nextVersion": "16.4.0"
+}

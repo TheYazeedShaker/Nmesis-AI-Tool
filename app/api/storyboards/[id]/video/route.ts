@@ -1,0 +1,9 @@
+import {mediaRedirect} from '@/lib/portable/storage';
+import {readStudioForm} from '@/lib/portable/uploads';
+export const runtime='nodejs';
+export const maxDuration=300;
+import {context,bucket,fail,StudioError} from '@/lib/studio-server';
+import {boardRow,withBoard} from '@/lib/storyboard-server';
+import {verifiedMp4Info} from '@/lib/video-metadata';
+export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){try{const ctx=await context(request,true),{id}=await params;if(Number(request.headers.get('content-length')||0)>32_000_000)throw new StudioError('The film must be under 32 MB.');const form=await readStudioForm(request,ctx,32_000_000),file=form.get('video');if(!(file instanceof File)||file.size>30_000_000)throw new StudioError('Choose an MP4 under 30 MB.');const bytes=new Uint8Array(await file.arrayBuffer());const info=await verifiedMp4Info(bytes);if(Math.abs(info.duration-15)>.15)throw new StudioError('The finished film must be 15 seconds.');const board=await withBoard(ctx,id,Number(form.get('revision')),async(b,save)=>{const key=ctx.prefix+'story-films/'+id+'/'+crypto.randomUUID()+'.mp4';await bucket(ctx.BUCKET).put(key,bytes,{httpMetadata:{contentType:'video/mp4'}});b.finalUrl='/api/storyboards/'+id+'/video?v='+key.split('/').pop();await save(b)});return Response.json({board})}catch(e){return fail(e)}}
+export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){try{const ctx=await context(request),{id}=await params,b=await boardRow(ctx,id);if(!b.finalUrl)throw new StudioError('Assemble your film first.',404);const file=new URL(b.finalUrl,'https://studio.test').searchParams.get('v')!;if(!/^[a-z0-9-]+\.mp4$/.test(file))throw new StudioError('Film unavailable.',404);return mediaRedirect(ctx.prefix+'story-films/'+id+'/'+file,new URL(request.url).searchParams.has('download')?'nmesis-story.mp4':undefined)}catch(e){return fail(e)}}

@@ -1,0 +1,17 @@
+CREATE TABLE `image_jobs` (
+	`id` text PRIMARY KEY NOT NULL,
+	`owner` text NOT NULL,
+	`payer` text NOT NULL,
+	`status` text DEFAULT 'draft' NOT NULL,
+	`data` text NOT NULL,
+	`provider_id` text,
+	`estimate` integer DEFAULT 0 NOT NULL,
+	`reserved_day` text,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	`lock_until` integer DEFAULT 0 NOT NULL,
+	`error` text
+);
+--> statement-breakpoint
+CREATE INDEX `image_jobs_owner_created` ON `image_jobs` (`owner`,`created_at`);--> statement-breakpoint
+CREATE INDEX `image_jobs_payer_day` ON `image_jobs` (`payer`,`reserved_day`);

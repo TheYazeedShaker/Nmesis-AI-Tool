@@ -1,0 +1,76 @@
+# CLAUDE.md
+
+Operating manual. Permanent standards only; session state lives in `PROGRESS.md`, the work queue in `BACKLOG.md`.
+
+## What this is
+
+**Nmesis Studio**: an automotive creative studio (key visuals, lineups, films, storyboards, car swap, upscaling) built on Next.js 16 (App Router) and deployed on Vercel. It is being grown into a full platform.
+
+- Auth: NextAuth (Google) with an email allow-list (`STUDIO_ALLOWED_EMAILS`).
+- Data: Turso/libSQL via Drizzle (`db/`, `drizzle/` migrations, `scripts/migrate.mjs`).
+- Media: private Cloudflare R2 (S3 API), signed direct uploads/downloads.
+- Providers: OpenAI, Google AI Studio, Higgsfield, Topaz; per-user keys encrypted server-side (`lib/secret-crypto.ts`).
+
+## Governing documents
+
+1. `CLAUDE.md` (this file): standards; wins conflicts on process.
+2. `docs/adr/`: one decision per file; later ADRs supersede earlier ones.
+3. `AGENTS.md`: short collaboration rules for any coding agent.
+4. `README.md`: setup and hosting. `docs/VERIFICATION.md`: what the original export verified.
+
+## Priorities when things conflict
+
+1. Correctness, user-data isolation and observability: never traded.
+2. Ship speed and low cost: cut scope, never gates.
+3. Product quality (premium feel, accessibility, performance).
+4. Scalable architecture: structure for growth, build only what the phase needs.
+
+## Branches and environments (ADR 0001)
+
+| Branch            | Vercel environment | Rule                                                   |
+| ----------------- | ------------------ | ------------------------------------------------------ |
+| `main`            | Production         | PR only, from `development`. Owner merges.             |
+| `development`     | Preview (staging)  | Integration branch. Feature PRs target it.             |
+| `moaz-playground` | Preview            | Personal sandbox. Never merged directly into `main`.   |
+| `feat/*`, `fix/*` | Preview per push   | Branch from `development`, PR back into `development`. |
+
+Preview deployments must use separate database, storage, secrets and provider budgets from Production.
+
+## Non-negotiable engineering rules
+
+- **The repository is public.** No secrets, no infrastructure identifiers, no real third-party brand names, no customer data in source, tests, commits or PR text. Sample data is synthetic ("Demo SUV"). Real configurator presets live in `NEXT_PUBLIC_CONFIGURATOR_PRESETS`.
+- Every API route authenticates first and scopes every read/write to the signed-in owner. Never trust an owner id from the request body.
+- Provider credentials stay server-side and encrypted; never logged, never sent to the browser.
+- Inputs are validated at every boundary (zod or explicit checks).
+- Every external call has a timeout and a defined failure mode. An empty `catch` is a merge blocker.
+- No new `any`. Existing `any` and the other rules downgraded in `eslint.config.mjs` are tracked debt (BACKLOG `LINT-DEBT`); do not add violations.
+- Schema changes go through new Drizzle migrations only; never edit an applied migration.
+
+## Build loop
+
+```
+branch from development → change → local gate → PR into development → CI green + Preview checked
+→ owner merges → (release) PR development → main → Production deploy → smoke check
+```
+
+**Local gate before every push** (CI runs the same): `npm run lint && npm run typecheck && npm test && npm run build`.
+
+Commits: Conventional Commits (`feat(films): …`, `fix(auth): …`, `ci: …`, `docs: …`). Squash-merge PRs.
+
+## Working rules
+
+- Agents never push to `main`, merge PRs, approve PRs, change branch protection, or edit Vercel/GitHub settings unless the owner explicitly asks in the session.
+- Hosted actions (env vars, secrets, DNS, database on hosted Turso, R2 settings) belong to the owner; the agent writes exact steps.
+- Write commit messages and PR bodies to a file (`git commit -F`), not heredocs.
+- Human-only text (legal, privacy, consent) is never invented.
+
+## Gotchas
+
+- `NEXT_PUBLIC_*` variables are inlined at build time: redeploy after changing them in Vercel.
+- Vercel env changes apply only to new deployments.
+- Vercel limits function request/response bodies to 4.5 MB; large media must use the signed direct-upload path.
+- Development happens on Windows; `.gitattributes` forces LF so Linux CI matches.
+
+## Session protocol
+
+Read `CLAUDE.md` → `PROGRESS.md` → `BACKLOG.md`. Never re-ask a decision recorded in `PROGRESS.md`. Update `PROGRESS.md` and `BACKLOG.md` at every stop.
