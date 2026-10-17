@@ -4,7 +4,9 @@ import {readFileSync} from 'node:fs';
 import crypto from 'node:crypto';
 import vm from 'node:vm';
 import ts from 'typescript';
-import {createClient} from '@libsql/client';
+import {testDatabase} from './helpers/pg.mjs';
+import {StudioDatabase,toPositional} from '../lib/portable/database.ts';
+import {RESERVE_FILM_SQL,RESERVE_SWAP_SQL,RESERVE_IMAGE_SQL} from '../lib/film-policy.ts';
 import * as s3 from '@aws-sdk/client-s3';
 import * as signing from '@aws-sdk/s3-request-presigner';
 async function moduleAt(path,imports={},extra={}){
@@ -13,17 +15,29 @@ async function moduleAt(path,imports={},extra={}){
  const m=new vm.SourceTextModule(code,{context:scope});await m.link(s=>{assert.ok(imports[s],`Missing import ${s}`);return new vm.SyntheticModule(Object.keys(imports[s]),function(){for(const [k,v] of Object.entries(imports[s]))this.setExport(k,v)},{context:scope})});await m.evaluate();return m.namespace;
 }
 class StudioError extends Error{constructor(message,status=400){super(message);this.status=status}}
-test('portable SQL adapter preserves rows, bind isolation and atomic job reservation',async()=>{
- const client=createClient({url:'file::memory:'});try{
- const {StudioDatabase}=await moduleAt('lib/portable/database.ts',{'@libsql/client':{createClient}});const db=new StudioDatabase(client);
- await client.execute('CREATE TABLE jobs(id TEXT PRIMARY KEY, owner TEXT, status TEXT)');
+test('portable SQL adapter preserves rows, bind isolation and atomic job reservation on Postgres',async()=>{
+ const t=await testDatabase();try{const db=t.db;
+ await t.pg.exec('CREATE TABLE jobs(id TEXT PRIMARY KEY, owner TEXT, status TEXT)');
  await db.prepare('INSERT INTO jobs VALUES(?,?,?)').bind('job','owner','draft').run();
  const lock=()=>db.prepare("UPDATE jobs SET status='submitted' WHERE id=? AND owner=? AND status='draft'").bind('job','owner').run();
  const first=await lock(),second=await lock();assert.equal(first.meta.changes,1);assert.equal(second.meta.changes,0);
  assert.equal(await db.prepare('SELECT * FROM jobs WHERE owner=?').bind('other').first(),null);
  assert.equal((await db.prepare('SELECT * FROM jobs').all()).results[0].status,'submitted');
  assert.equal(await db.prepare('SELECT status FROM jobs').first('status'),'submitted');
- }finally{client.close()}
+ await db.prepare('INSERT INTO jobs VALUES(?,?,?)').bind('maybe',undefined,'it?s').run();
+ assert.deepEqual(await db.prepare("SELECT owner, status, 'literal ?' AS q FROM jobs WHERE id=?").bind('maybe').first(),{owner:null,status:'it?s',q:'literal ?'});
+ }finally{await t.close()}
+});
+test('placeholder rewriting skips literals and comments; serialized statements take the advisory lock first',async()=>{
+ assert.equal(toPositional("SELECT ? , '?' , \"a?\" -- ?\n /* ? */ ?::bigint"),"SELECT $1 , '?' , \"a?\" -- ?\n /* ? */ $2::bigint");
+ assert.throws(()=>toPositional("SELECT 'open"));
+ const log=[];const executor={async query(text){log.push(text);return{rows:[],changes:1}},async transaction(fn){log.push('BEGIN');const r=await fn(executor);log.push('COMMIT');return r}};
+ const db=new StudioDatabase(executor);
+ await db.prepare('UPDATE t SET a=? WHERE b=?').bind(1,2).run();
+ assert.deepEqual(log,['UPDATE t SET a=$1 WHERE b=$2']);log.length=0;
+ await db.prepare('/*serialize:budget*/ UPDATE t SET a=?').bind(1).run();
+ assert.deepEqual(log,['BEGIN','SELECT pg_advisory_xact_lock(hashtext($1))','/*serialize:budget*/ UPDATE t SET a=$1','COMMIT']);
+ for(const sql of [RESERVE_FILM_SQL,RESERVE_SWAP_SQL,RESERVE_IMAGE_SQL])assert.match(sql,/^\/\*serialize:budget\*\//);
 });
 test('storage adapter handles streamed bytes, conditional writes, listing and missing objects',async()=>{
  const calls=[];const client={send:async cmd=>{calls.push(cmd);if(cmd instanceof s3.HeadObjectCommand){const e=new Error('Missing');e.$metadata={httpStatusCode:404};throw e}if(cmd instanceof s3.PutObjectCommand){if(cmd.input.IfNoneMatch){const e=new Error('Conflict');e.$metadata={httpStatusCode:412};throw e}return {ETag:'"abc"'}}if(cmd instanceof s3.ListObjectsV2Command)return {Contents:[{Key:'owner/a',Size:4,ETag:'"abc"'}],IsTruncated:true,NextContinuationToken:'next'};if(cmd instanceof s3.GetObjectCommand)return {ETag:'"abc"',ContentLength:4,ContentType:'image/png',Body:{transformToWebStream:()=>new Response('test').body}};return {}}};

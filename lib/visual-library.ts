@@ -50,7 +50,7 @@ export async function cleanEmptyVisuals(ctx:Context){
     if(await store.head(imageKey(ctx.prefix,row.id)))continue;
     // Retain the row, reservation and request receipt. Archived jobs still count
     // toward the daily budget; uncertain/active submissions are never archived.
-    const result=await db.prepare("UPDATE image_jobs SET data=json_set(data,'$.archivedStatus',status),status='archived',updated_at=? WHERE id=? AND owner=? AND status=? AND lock_until<?").bind(Date.now(),row.id,ctx.prefix,row.status,Date.now()).run();removed+=result.meta.changes;
+    const result=await db.prepare("UPDATE image_jobs SET data=jsonb_set(data::jsonb,'{archivedStatus}',to_jsonb(status))::text,status='archived',updated_at=? WHERE id=? AND owner=? AND status=? AND lock_until<?").bind(Date.now(),row.id,ctx.prefix,row.status,Date.now()).run();removed+=result.meta.changes;
   }
   const objects=await allVisualObjects(store,ctx.prefix);
   for(const item of objects){const record=await store.get(item.key);if(!record)continue;let visual:Visual;try{visual=await record.json<Visual>()}catch{continue}

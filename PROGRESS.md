@@ -2,9 +2,11 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-10-14
+**Last updated:** 2026-10-17
 
-**Latest (2026-10-14, pipeline test):** End-to-end pipeline check: this change went `ci/pipeline-smoke` → PR into `development` → CI on the PR + Vercel Preview → merge → `development` Preview deploy.
+**Latest (2026-10-17, database):** Replaced Turso (SQLite) with Supabase Postgres (ADR 0002) on `feat/supabase-postgres`, PR into `development`. Same query surface; fresh Postgres migration baseline; budget reservations serialised with an advisory lock; one-active-upscale rule moved into a partial unique index; RLS on and client-role access revoked on every table. Unit tests now run on PGlite; a new CI `postgres` job runs migrations and concurrency tests on a real server.
+
+**Earlier (2026-10-14, pipeline test):** End-to-end pipeline check: this change went `ci/pipeline-smoke` → PR into `development` → CI on the PR + Vercel Preview → merge → `development` Preview deploy.
 
 **Earlier (2026-10-14, bootstrap):** Imported the exported studio into Git, applied the bootstrap fixes below, set up CI and the `development` / `moaz-playground` branches. The owner created the Vercel project (Git-linked); the first Production deploy from `main` succeeded and the studio shell loads on the production domain.
 
@@ -17,7 +19,8 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Track                         | Status | Notes                                                                 |
 | ----------------------------- | ------ | --------------------------------------------------------------------- |
 | Source in Git                 | ✅     | `main`, `development`, `moaz-playground`                              |
-| CI (`verify`, `secrets`)      | ✅     | `.github/workflows/ci.yml`                                            |
+| CI (`verify`, `postgres`, `secrets`) | ✅ | `.github/workflows/ci.yml`; `postgres` added 2026-10-17          |
+| Database                      | 🟡     | Supabase Postgres in code (ADR 0002); projects + migrations are owner steps |
 | Vercel project + Git deploys  | ✅     | `main` → Production, other branches → Preview                         |
 | Hosted env vars               | ⏳     | Owner (BACKLOG #2). App builds and serves pages without them; sign-in and generation need them. |
 | Branch rulesets on `main`     | ⏳     | Owner (BACKLOG #3)                                                    |
@@ -34,10 +37,13 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 
 - **Repository visibility:** stays public; scrub third-party names and infrastructure identifiers before pushing (owner, 2026-10-14). ADR 0001.
 - **Branch model:** `main` = Production, `development` = staging, `moaz-playground` = sandbox; feature PRs into `development` (owner, 2026-10-14). ADR 0001.
+- **Database:** Supabase Postgres instead of Turso, one Supabase project per environment; auth stays NextAuth and media stays R2 for now (owner, 2026-10-17). ADR 0002.
 
 ## Known issues / TODOs
 
 _Waiting on owner_
+
+- Supabase: create Production and Preview projects, set `DATABASE_URL` per environment in Vercel, run `npm run db:migrate` against each (README §2).
 
 - Vercel env vars for Production and Preview (separate resources per environment), including `NEXT_PUBLIC_CONFIGURATOR_PRESETS`.
 - GitHub ruleset on `main`; required checks `verify` and `secrets`.
@@ -54,5 +60,5 @@ _Carried_
 
 State: the studio is in Git, CI is green, Vercel deploys every branch. Nothing works end to end until hosted env vars exist.
 
-0. Check whether the owner finished BACKLOG #2 and #3.
+0. Check the database PR was merged into `development` and the owner created the Supabase projects and ran the migrations; then BACKLOG #2 and #3.
 1. Take the owner's platform vision and write the first spec(s) and ADRs (BACKLOG #5).

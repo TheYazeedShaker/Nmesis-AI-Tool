@@ -2,15 +2,15 @@ import {encode} from 'fast-png';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {DatabaseSync} from 'node:sqlite';
+import {testDatabase} from './helpers/pg.mjs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {imageDimensions} from '../lib/image-dimensions.ts';
 const root=new URL('../',import.meta.url),png=Buffer.from(encode({width:1672,height:941,channels:3,depth:8,data:new Uint8Array(1672*941*3).fill(128)}));
 const processId='11111111-2222-4333-8444-555555555555';
 async function harness(){
- const sql=new DatabaseSync(':memory:');sql.exec(readFileSync(new URL('drizzle/0004_wet_gorilla_man.sql',root),'utf8'));
- const db={prepare(query){return{bind(...args){const st=sql.prepare(query);return {first:async()=>st.get(...args)||null,all:async()=>({results:st.all(...args)}),run:async()=>({meta:{changes:st.run(...args).changes}})}}}}};
+ const pg=await testDatabase();
+ const db=pg.db;
  const objects=new Map();const store={get:async k=>{const v=objects.get(k);return v===undefined?null:{json:async()=>JSON.parse(v),size:typeof v==='string'?v.length:v.byteLength,arrayBuffer:async()=>v}},head:async k=>objects.has(k)?{}:null,put:async(k,v)=>objects.set(k,v),delete:async k=>objects.delete(k)};
  const ctx={prefix:'owner/',BUCKET:store,DB:db,KEY_ENCRYPTION_SECRET:'a'.repeat(64)};
  const parent={id:'parent-1234',title:'Car',src:'/api/assets/parent-1234',status:'ready',...imageDimensions(png),sourceId:'car-1234',provider:'openai'};
@@ -27,7 +27,7 @@ async function harness(){
  ]);
  async function load(name){if(mods.has(name))return mods.get(name);const code=ts.transpileModule(readFileSync(new URL(name+'.ts',root),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;const m=new vm.SourceTextModule(code,{context});mods.set(name,m);await m.link(s=>load(s.startsWith('./')?'lib/'+s.slice(2):s));return m}
  const mod=await load('lib/topaz-server');await mod.evaluate();const api=mod.namespace;await api.saveTopazKey(ctx,'test-key-for-topaz-only');
- return{api,ctx,objects,parent,calls,sql,get submits(){return submits},get leaked(){return leaked},set mode(v){mode=v},set downloadFails(v){downloadFails=v},set status(v){status=v}};
+ return{api,ctx,objects,parent,calls,pg,get submits(){return submits},get leaked(){return leaked},set mode(v){mode=v},set downloadFails(v){downloadFails=v},set status(v){status=v}};
 }
 test('HF3 uses encrypted credentials, submits once, saves an owner-scoped separate visual and downloads without key',async()=>{
  const h=await harness();assert.doesNotMatch(h.objects.get('owner/credentials/topaz.json'),/test-key-for-topaz-only/);
@@ -50,5 +50,5 @@ test('failed saving can recover the completed output without generating again',a
  const h=await harness();let job=await h.api.startTopaz(h.ctx,'upscale-1234',h.parent.id,3840);h.downloadFails=true;await assert.rejects(h.api.refreshTopaz(h.ctx,job.id),/downloading/);h.downloadFails=false;job=await h.api.refreshTopaz(h.ctx,job.id);assert.equal(job.status,'ready');assert.equal(h.submits,1);
 });
 test('a provider receipt recovers an interrupted acceptance without resubmitting',async()=>{
- const h=await harness();const job=await h.api.startTopaz(h.ctx,'upscale-1234',h.parent.id,3840);h.sql.prepare("UPDATE topaz_jobs SET provider_id=NULL,status='unknown' WHERE id=?").run(job.id);const recovered=await h.api.refreshTopaz(h.ctx,job.id);assert.equal(recovered.status,'ready');assert.equal(h.submits,1);
+ const h=await harness();const job=await h.api.startTopaz(h.ctx,'upscale-1234',h.parent.id,3840);await h.pg.run("UPDATE topaz_jobs SET provider_id=NULL,status='unknown' WHERE id=?",job.id);const recovered=await h.api.refreshTopaz(h.ctx,job.id);assert.equal(recovered.status,'ready');assert.equal(h.submits,1);
 });
