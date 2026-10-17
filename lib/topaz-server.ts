@@ -46,7 +46,7 @@ export async function startTopaz(ctx:Ctx,id:string,parentId:string,edge:number){
   const target=upscaleTarget(dims.width,dims.height,edge),now=Date.now();
   const data:Data={parent:{...parent,width:dims.width,height:dims.height},...target,fingerprint:await keyFingerprint(key)};
   // A single atomic insert prevents duplicate clicks and concurrent tabs for this source.
-  const inserted=await db.prepare("INSERT INTO topaz_jobs(id,owner,parent_id,status,data,created_at,updated_at,lock_until) SELECT ?,?,?,'submitting',?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM topaz_jobs WHERE owner=? AND parent_id=? AND status IN ('submitting','unknown','queued','processing','archiving')) ON CONFLICT(id) DO NOTHING").bind(id,ctx.prefix,parentId,JSON.stringify(data),now,now,now+90000,ctx.prefix,parentId).run();
+  const inserted=await db.prepare("INSERT INTO topaz_jobs(id,owner,parent_id,status,data,created_at,updated_at,lock_until) SELECT ?::text,?::text,?::text,'submitting',?::text,?::bigint,?::bigint,?::bigint WHERE NOT EXISTS (SELECT 1 FROM topaz_jobs WHERE owner=? AND parent_id=? AND status IN ('submitting','unknown','queued','processing','archiving')) ON CONFLICT DO NOTHING").bind(id,ctx.prefix,parentId,JSON.stringify(data),now,now,now+90000,ctx.prefix,parentId).run();
   if(!inserted.meta.changes){const row=await db.prepare("SELECT * FROM topaz_jobs WHERE owner=? AND (id=? OR (parent_id=? AND status IN ('submitting','unknown','queued','processing','archiving'))) ORDER BY created_at DESC LIMIT 1").bind(ctx.prefix,id,parentId).first<Row>();if(row)return publicTopaz(ctx,row);throw new StudioError('This request is already being handled.',409)}
   let acceptedId:string|undefined;
   try{

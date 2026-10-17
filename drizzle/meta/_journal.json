@@ -1,40 +1,19 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1791136500161,
-      "tag": "0000_nebulous_adam_warlock",
+      "version": "7",
+      "when": 1792242475042,
+      "tag": "0000_baseline",
       "breakpoints": true
     },
     {
       "idx": 1,
-      "version": "6",
-      "when": 1791185065814,
-      "tag": "0001_groovy_jigsaw",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1791283674494,
-      "tag": "0002_oval_shiva",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1791291013567,
-      "tag": "0003_vengeful_havok",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1791716892540,
-      "tag": "0004_wet_gorilla_man",
+      "version": "7",
+      "when": 1792242483785,
+      "tag": "0001_lock_down_client_roles",
       "breakpoints": true
     }
   ]

@@ -1,4 +1,5 @@
-import {createClient} from '@libsql/client';
-import {drizzle} from 'drizzle-orm/libsql';
+import {drizzle} from 'drizzle-orm/postgres-js';
+import {createPostgresClient} from '@/lib/portable/database';
 import * as schema from './schema';
-export function getDb(){if(!process.env.TURSO_DATABASE_URL)throw new Error('Configure TURSO_DATABASE_URL.');return drizzle(createClient({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN}),{schema});}
+// Typed query builder for new platform code. Existing studio code uses getDatabase().
+export function getDb(){if(!process.env.DATABASE_URL)throw new Error('Configure DATABASE_URL.');return drizzle(createPostgresClient(process.env.DATABASE_URL),{schema});}

@@ -13,7 +13,7 @@ The automotive creative studio, exported as a standard Next.js codebase for GitH
 - Private media library, soft delete/restore, per-user encrypted provider connections and shared-account budget logic.
 - Tests, database migrations, Vercel settings, and GitHub checks.
 
-The existing design and generation logic are retained. Hosting-specific connections have changed: Google sign-in replaces Sites sign-in; Turso replaces the managed D1 database; a private R2 bucket replaces managed media storage. The library starts empty instead of displaying the old campaign examples. Existing configurator URLs remain as selectable presets; they are external sites, not car image files included in this project.
+The existing design and generation logic are retained. Hosting-specific connections have changed: Google sign-in replaces Sites sign-in; Supabase Postgres replaces the managed D1 database (ADR 0002); a private R2 bucket replaces managed media storage. The library starts empty instead of displaying the old campaign examples. Existing configurator URLs remain as selectable presets; they are external sites, not car image files included in this project.
 
 **Uploading this source alone is not enough to generate images.** The services below must be configured. No deployment or new service account has been created for you. Provider model access, billing and availability depend on your accounts. The original hosted studio is unchanged.
 
@@ -48,9 +48,14 @@ Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `NEXTAUTH_URL`. Add your emai
 
 Generate two different secrets using `openssl rand -base64 32` twice. Use one as `NEXTAUTH_SECRET` and the other as `KEY_ENCRYPTION_SECRET`. Keep both private. Do not change the encryption secret once you have stored provider keys unless you intend to reconnect those providers.
 
-### Database: Turso
+### Database: Supabase Postgres
 
-Create a new [Turso](https://turso.tech/) database and an authentication token. Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. No previous database export is needed.
+Create a [Supabase](https://supabase.com/) project (one for Production, a separate one for Preview). In the project, open **Connect** and copy:
+
+- the **Transaction pooler** string (port `6543`) into `DATABASE_URL`: this is what Vercel uses at runtime;
+- optionally the **Session pooler** string (port `5432`) into `MIGRATION_DATABASE_URL`, used only by `npm run db:migrate`.
+
+Replace `[YOUR-PASSWORD]` with the database password. The studio connects directly as the database owner and does not use Supabase's Data API; the migrations enable row-level security with no policies and revoke table access from the `anon` and `authenticated` roles, so the project's publishable key can read nothing.
 
 From the repository folder, with Node.js 24 installed:
 
@@ -89,7 +94,7 @@ In Vercel, choose **Add New → Project → your GitHub repository**:
 
 Use Vercel Pro for this commercial studio and the longer image-generation requests. This code sets 300-second generation route limits. Enable Fluid compute if required by your project settings; availability and platform limits depend on your plan. Add all values from `.env.local` to Vercel's **Production environment variables**, not to GitHub. Set `NEXTAUTH_URL` to your final HTTPS domain and register that same domain's OAuth callback and R2 CORS origin. If you configure variables after the first deployment, redeploy.
 
-For Preview/testing, use separate Turso and R2 resources, separate secrets and a stable preview domain with matching OAuth/CORS configuration. Do not reuse production keys merely to make previews run.
+For Preview/testing, use a separate Supabase project and R2 bucket, separate secrets and a stable preview domain with matching OAuth/CORS configuration. Do not reuse production keys merely to make previews run.
 
 ## 4. Connect generators and start fresh
 
@@ -105,6 +110,8 @@ Select a configurator or add its URL, capture a car view, paste a Pinterest link
 npm run dev
 npm run lint
 npm test
+# optional, needs a disposable Postgres database:
+# DATABASE_URL=postgres://... npm run test:pg
 npm run typecheck
 npm run build
 npm start

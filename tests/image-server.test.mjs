@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {DatabaseSync} from 'node:sqlite';
+import {testDatabase} from './helpers/pg.mjs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {randomBytes} from 'node:crypto';
@@ -9,8 +9,8 @@ import {draftFor} from '../lib/films.ts';
 // Run the real server functions with an in-memory D1-compatible SQLite binding,
 // private object storage and a provider boundary. No paid API request is made.
 async function harness(){
- const sqlite=new DatabaseSync(':memory:');for(const migration of ['0000_nebulous_adam_warlock.sql','0001_groovy_jigsaw.sql','0002_oval_shiva.sql','0003_vengeful_havok.sql'])sqlite.exec(readFileSync(new URL('../drizzle/'+migration,import.meta.url),'utf8'));
- const db={prepare(sql){let values=[];return{bind(...v){values=v;return this},async first(){return sqlite.prepare(sql).get(...values)||null},async all(){return{results:sqlite.prepare(sql).all(...values)}},async run(){return{meta:{changes:sqlite.prepare(sql).run(...values).changes}}}}}};
+ const pg=await testDatabase();
+ const db=pg.db;
  const objects=new Map();const store={async list({prefix,cursor}){const keys=[...objects.keys()].filter(k=>k.startsWith(prefix)).sort();const start=Number(cursor||0),page=keys.slice(start,start+30);return{objects:page.map(key=>({key})),truncated:start+30<keys.length,cursor:String(start+30)}},async get(k){const item=objects.get(k);if(!item)return null;return{body:new Blob([item.bytes]).stream(),size:item.bytes.length,httpMetadata:item.metadata,arrayBuffer:async()=>item.bytes.buffer,json:async()=>JSON.parse(new TextDecoder().decode(item.bytes))}},async head(k){return objects.has(k)?{size:objects.get(k).bytes.length}:null},async put(k,v,o={}){const bytes=new Uint8Array(await new Response(v).arrayBuffer());objects.set(k,{bytes,metadata:o.httpMetadata})},async delete(k){objects.delete(k)}};
  const calls=[];let handler=async()=>{throw new Error('Unexpected provider call')};
  const sandbox=vm.createContext({crypto,Buffer,TextEncoder,TextDecoder,URL,Headers,Response,Request,Blob,AbortSignal,TransformStream,Uint8Array,Date,console,fetch:async(...args)=>{calls.push(args);return handler(...args)}});
@@ -20,7 +20,7 @@ async function harness(){
  const main=await module('film-server');await main.evaluate();const server=main.namespace;const imagesModule=await module('image-server');await imagesModule.evaluate();const images=imagesModule.namespace;const libraryModule=await module('visual-library');await libraryModule.evaluate();const library=libraryModule.namespace;const ctx={DB:db,BUCKET:store,prefix:'users/'+'a'.repeat(64)+'/',email:'owner@example.com',KEY_ENCRYPTION_SECRET:randomBytes(32).toString('hex')};const key='synthetic-key-for-tests-only';await server.saveVideoCredential(ctx,key);for(const id of ['source-1234','mood-1234','parent-1234'])await store.put(ctx.prefix+'images/'+id,'image',{httpMetadata:{contentType:'image/png'}});
  async function draft(){const id=crypto.randomUUID();await db.prepare('INSERT INTO films(id,owner,payer,status,data,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind(id,ctx.prefix,ctx.prefix,'draft',JSON.stringify(draftFor('source-1234','KV','Car')),1,1).run();return await server.filmRow(ctx,id)}
  const json=value=>Response.json(value);const normal=async(url,options)=>{if(url.includes('generate-upload-url'))return json({public_url:'https://cdn.example.com/source.png',upload_url:'https://storage.example.com/upload',upload_headers:{'Content-Type':'image/png','x-amz-tagging':'retention=temporary'}});if(url.includes('storage.example.com')){assert.equal(options.headers.get('x-amz-tagging'),'retention=temporary');assert.equal(options.headers.has('authorization'),false);return new Response(null,{status:200})}if(url.includes('/estimate/'))return json({usd:'0.50'});throw new Error('Unexpected call '+url)};
- return {images,library,store,server,ctx,key,db,objects,calls,draft,json,normal,setHandler:h=>handler=h,close:()=>sqlite.close()};
+ return {images,library,store,server,ctx,key,db,objects,calls,draft,json,normal,setHandler:h=>handler=h,close:()=>pg.close()};
 }
 const input=()=>({id:crypto.randomUUID(),sourceId:'source-1234',moodId:'mood-1234',parentId:'parent-1234',size:'2048x1152',brief:'An SUV by the desert at sunset.',vehicle:'DEMO-SUV',title:'Campaign'});
 test('Higgsfield image quoting uploads all references and never submits a generation',async()=>{const h=await harness();try{h.setHandler(h.normal);let row=await h.images.createImage(h.ctx,input());await h.images.quoteImage(h.ctx,row);row=await h.images.imageRow(h.ctx,row.id);const d=JSON.parse(row.data);assert.equal(d.body.image_urls.length,3);assert.equal(d.body.resolution,'2k');assert.equal(row.estimate,500000);assert.equal(row.status,'quoted');assert.equal(h.calls.filter(([u])=>u.endsWith('/xai/grok-imagine-image-2.0')&&!u.includes('estimate/')).length,0);const pub=h.images.publicImage(row);assert.equal(pub.body,undefined);assert.equal(pub.fingerprint,undefined);assert.equal(pub.provider,'higgsfield');await assert.rejects(()=>h.images.imageRow({...h.ctx,prefix:'other/'},row.id),/not found/)}finally{h.close()}});

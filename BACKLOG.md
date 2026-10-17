@@ -16,5 +16,5 @@ Status: `queued` · `in-progress` · `blocked` (reason required) · `done` · `a
 
 _(agent appends: date · task · reason)_
 
-- 2026-10-14 · HOSTED-ENV · needs the owner's service accounts (Google OAuth, Turso, R2, secrets).
+- 2026-10-14 · HOSTED-ENV · needs the owner's service accounts (Google OAuth, Supabase, R2, secrets).
 - 2026-10-14 · BRANCH-RULESETS · repository settings are an owner action.
