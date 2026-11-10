@@ -1,15 +1,16 @@
 import {readStudioForm} from '@/lib/portable/uploads';
 export const runtime='nodejs';
 export const maxDuration=300;
+import {validId as referenceIdValid} from '@/lib/studio-server';
 import {bucket,context,fail,imageKey,StudioError,validId,str,providerError} from '@/lib/studio-server';
 import {googleKey,renderGoogleImage} from '@/lib/gemini-server';
-import {geminiImageModel} from '@/lib/image-models';
+import {geminiImageModel,openaiImageModel,supportsDrawnRegion} from '@/lib/image-models';
 import {googleAreaInputs,googleAreaPrompt,normalizeGoogleArea} from '@/lib/google-area-edit';
 import {apiKey} from '@/lib/credentials';
 import {database} from '@/lib/film-server';
 import {publicImage,type ImageRow} from '@/lib/image-server';
 import {imageDimensions} from '@/lib/image-dimensions';
-import {areaSize,areaRenderSize,readPng,selectionMask,providerMask,compositeArea,areaPrompt,edgeBlend,featherSelection,contentAwareMatte,contextRegion,cropSelection,cropWorkingImage,areaIntent,resolveAreaIntent} from '@/lib/area-edit';
+import {providerMarkup,markupAreaPrompt,areaSize,areaRenderSize,readPng,selectionMask,providerMask,compositeArea,areaPrompt,edgeBlend,featherSelection,contentAwareMatte,contextRegion,cropSelection,cropWorkingImage,areaIntent,resolveAreaIntent} from '@/lib/area-edit';
 import {encode} from 'fast-png';
 import {textureFill} from '@/lib/texture-fill';
 import {placementBounds,objectLayerPrompt,compositeObjectLayer} from '@/lib/object-layer';
@@ -23,7 +24,8 @@ export async function POST(request:Request){let record:Visual|undefined,store:R2
   const id=form.get('id'),parentId=form.get('parentId'),instruction=str(form.get('instruction'),1500);
   if(!validId(id)||!validId(parentId))throw new StudioError('Choose a saved visual.');if(instruction.length<3)throw new StudioError('Describe the change for the selected area.');
   const provider=form.get('provider')||'openai';if(provider!=='openai'&&provider!=='google')throw new StudioError('Choose ChatGPT or Google for area editing.');
-  let model:string;try{model=provider==='google'?geminiImageModel(form.get('model')).id:ctx.OPENAI_IMAGE_MODEL||'gpt-image-2.5-sunburst'}catch(e){throw new StudioError((e as Error).message)}
+  let model:string;try{model=provider==='google'?geminiImageModel(form.get('model')).id:openaiImageModel(form.get('model')??ctx.OPENAI_IMAGE_MODEL).id}catch(e){throw new StudioError((e as Error).message)}
+  const guidance=form.get('guidance')||'mask';if(!['mask','markup'].includes(String(guidance))||guidance==='markup'&&(provider!=='openai'||!supportsDrawnRegion(model)))throw new StudioError('Choose a supported area guidance mode.');
   const saved=await store.get(ctx.prefix+'visuals/'+parentId+'.json');let parent:Visual|null=saved?await saved.json<Visual>():null;
   if(!parent){const row=await database(ctx).prepare('SELECT * FROM image_jobs WHERE id=? AND owner=?').bind(parentId,ctx.prefix).first<ImageRow>();if(row)parent=publicImage(row)}
   const original=await store.get(imageKey(ctx.prefix,parentId));if(!parent||parent.status!=='ready'||!original)throw new StudioError('The original visual is unavailable.',404);
@@ -31,7 +33,7 @@ export async function POST(request:Request){let record:Visual|undefined,store:R2
   const fileBytes=async(name:string,limit:number)=>{const f=form.get(name);if(!(f instanceof File)||!f.size||f.size>limit)throw new StudioError('Invalid '+name+' image.');return new Uint8Array(await f.arrayBuffer())};
   let base=originalBytes;let working:Uint8Array=await fileBytes('working',12_000_000);const maskBytes=await fileBytes('selection',10_000_000);
   try{dimensions=imageDimensions(originalBytes);work=areaSize(dimensions.width,dimensions.height);if(dimensions.type!=='image/png'||originalBytes[24]!==8||![0,2,4,6].includes(originalBytes[25])){base=await fileBytes('normalized',30_000_000);const d=imageDimensions(base);if(d.width!==dimensions.width||d.height!==dimensions.height)throw new Error('The edit image dimensions changed.')}const w=readPng(working,2048*2048);if(w.width!==work.width||w.height!==work.height)throw new Error('The working image dimensions changed.');mask=selectionMask(maskBytes,dimensions.width,dimensions.height)}catch(e){throw new StudioError((e as Error).message)}
-  const reference=form.get('reference');let referenceBytes:Uint8Array|undefined,referenceType='';if(reference instanceof File&&reference.size){if(reference.size>8_000_000)throw new StudioError('Choose a reference under 8 MB.');referenceBytes=new Uint8Array(await reference.arrayBuffer());try{referenceType=imageDimensions(referenceBytes).type}catch{throw new StudioError('Choose a PNG, JPEG or WebP reference.')}}
+  const reference=form.get('reference');const savedReferenceId=form.get('referenceId');let referenceBytes:Uint8Array|undefined,referenceType='';if(savedReferenceId){if(!referenceIdValid(savedReferenceId))throw new StudioError('Choose a valid area reference.');const asset=await store.get(imageKey(ctx.prefix,savedReferenceId));if(!asset||asset.size>8_000_000)throw new StudioError('The area reference is unavailable.');referenceBytes=new Uint8Array(await asset.arrayBuffer());referenceType=imageDimensions(referenceBytes).type;}if(reference instanceof File&&reference.size){if(reference.size>8_000_000)throw new StudioError('Choose a reference under 8 MB.');referenceBytes=new Uint8Array(await reference.arrayBuffer());try{referenceType=imageDimensions(referenceBytes).type}catch{throw new StudioError('Choose a PNG, JPEG or WebP reference.')}}
   let blending:number;try{blending=edgeBlend(form.get('edgeBlending'))}catch(e){throw new StudioError((e as Error).message)}
   const awareValue=form.get('contentAware');if(awareValue!==null&&awareValue!=='true'&&awareValue!=='false')throw new StudioError('Choose a supported repair setting.');
   let contentAware=awareValue==='true';let intent;try{intent=resolveAreaIntent(areaIntent(form.get('intent')),instruction)}catch(e){throw new StudioError((e as Error).message)}
@@ -44,18 +46,17 @@ export async function POST(request:Request){let record:Visual|undefined,store:R2
   else if(work.width*work.height<1024*1024){work=areaRenderSize(dimensions.width,dimensions.height);working=cropWorkingImage(base,{x:0,y:0,width:dimensions.width,height:dimensions.height},work)}
   const key=provider==='google'?await googleKey(ctx):await apiKey(ctx);if(!key)throw new StudioError('Connect OpenAI to use area editing.',503);
   const googleInput=provider==='google'?googleAreaInputs(working,editMask,maskWidth,maskHeight,work):undefined;
-  if(googleInput&&googleInput.images.reduce((n,i)=>n+i.bytes.length,referenceBytes?.length||0)>12_000_000)throw new StudioError('Use a smaller area reference; Nano Banana inputs must stay under 12 MB total.');
-  const prompt=provider==='google'?googleAreaPrompt(instruction,!!referenceBytes,intent,contentAware):addObject?objectLayerPrompt(instruction,placementBounds(mask,dimensions.width,dimensions.height,region!),!!referenceBytes):areaPrompt(instruction,!!referenceBytes,intent,contentAware),maskId=crypto.randomUUID(),referenceId=referenceBytes?crypto.randomUUID():undefined;
-  record={...parent,id,title:parent.title+' · area edit',src:'/api/assets/'+id,status:'pending',createdAt:new Date().toISOString(),provider,model,prompt,error:undefined,upscale:undefined,estimate:undefined,jobStatus:undefined,revision:undefined,pricingDescription:undefined,areaEdit:{parentId,parentSrc:parent.src,maskId,referenceId,instruction,contentAware,intent,method:addObject?'object-layer':contentAware?'scene-fill':'masked-edit',region,edgeBlending:blending,renderWidth:work.width,renderHeight:work.height}};
+  const prompt=provider==='google'?googleAreaPrompt(instruction,!!referenceBytes,intent,contentAware):addObject?objectLayerPrompt(instruction,placementBounds(mask,dimensions.width,dimensions.height,region!),!!referenceBytes):(guidance==='markup'?markupAreaPrompt:areaPrompt)(instruction,!!referenceBytes,intent,contentAware),maskId=crypto.randomUUID(),referenceId=referenceBytes?(typeof savedReferenceId==='string'?savedReferenceId:crypto.randomUUID()):undefined;
+  record={...parent,id,title:parent.title+' · area edit',src:'/api/assets/'+id,status:'pending',createdAt:new Date().toISOString(),provider,model,prompt,smartReview:undefined,smartPlanId:undefined,smartPriority:undefined,smartTest:undefined,error:undefined,upscale:undefined,estimate:undefined,jobStatus:undefined,revision:undefined,pricingDescription:undefined,areaEdit:{guidance:addObject?undefined:guidance as 'mask'|'markup',parentId,parentSrc:parent.src,maskId,referenceId,instruction,contentAware,intent,method:addObject?'object-layer':contentAware?'scene-fill':'masked-edit',region,edgeBlending:blending,renderWidth:work.width,renderHeight:work.height}};
   recordKey=ctx.prefix+'visuals/'+id+'.json';reserved=!!await store.put(recordKey,JSON.stringify(record),{onlyIf:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'application/json'}});if(!reserved)throw new StudioError('This edit has already been submitted. Refresh saved visuals before retrying.',409);
-  await store.put(imageKey(ctx.prefix,maskId),maskBytes,{httpMetadata:{contentType:'image/png'}});if(referenceBytes&&referenceId)await store.put(imageKey(ctx.prefix,referenceId),referenceBytes,{httpMetadata:{contentType:referenceType}});
+  await store.put(imageKey(ctx.prefix,maskId),maskBytes,{httpMetadata:{contentType:'image/png'}});if(referenceBytes&&referenceId&&!savedReferenceId)await store.put(imageKey(ctx.prefix,referenceId),referenceBytes,{httpMetadata:{contentType:referenceType}});
   let candidate:Uint8Array;
   if(googleInput){
    const inputs=[...googleInput.images];if(referenceBytes)inputs.push({bytes:referenceBytes,type:referenceType});
    const rendered=await renderGoogleImage(key,model,'2048x1152',prompt,inputs,googleInput.aspectRatio);
    try{candidate=normalizeGoogleArea(rendered.bytes,googleInput.frame,googleInput.region,work)}catch(e){throw new StudioError((e as Error).message,502)}
   }else{
-  const payload=new FormData();payload.set('model',record.model!);payload.set('prompt',prompt);payload.set('size',work.width+'x'+work.height);payload.set('quality','high');payload.set('n','1');payload.set('output_format','png');payload.append('image[]',new Blob([working as BlobPart],{type:'image/png'}),'visual.png');if(referenceBytes)payload.append('image[]',new Blob([referenceBytes as BlobPart],{type:referenceType}),'area-reference.'+(referenceType==='image/jpeg'?'jpg':referenceType==='image/webp'?'webp':'png'));if(addObject)payload.set('background','transparent');else payload.set('mask',new Blob([providerMask(editMask,maskWidth,maskHeight,work) as BlobPart],{type:'image/png'}),'mask.png');
+  const payload=new FormData();payload.set('model',record.model!);if(supportsDrawnRegion(model))payload.set('complexity','low');payload.set('prompt',prompt);payload.set('size',work.width+'x'+work.height);payload.set('quality','high');payload.set('n','1');payload.set('output_format','png');payload.append('image[]',new Blob([working as BlobPart],{type:'image/png'}),'visual.png');if(referenceBytes)payload.append('image[]',new Blob([referenceBytes as BlobPart],{type:referenceType}),'area-reference.'+(referenceType==='image/jpeg'?'jpg':referenceType==='image/webp'?'webp':'png'));if(addObject)payload.set('background','transparent');else if(guidance==='markup')payload.set('markup',new Blob([providerMarkup(editMask,maskWidth,maskHeight,work) as BlobPart],{type:'image/png'}),'region.png');else payload.set('mask',new Blob([providerMask(editMask,maskWidth,maskHeight,work) as BlobPart],{type:'image/png'}),'mask.png');
   const response=await fetch('https://api.openai.com/v1/images/edits',{method:'POST',headers:{Authorization:'Bearer '+key},body:payload,signal:AbortSignal.timeout(240000)});if(!response.ok)throw await providerError(response);
   const result:any=await response.json(),encoded=result.data?.[0]?.b64_json;if(typeof encoded!=='string'||encoded.length>35_000_000)throw new StudioError('The image service returned no usable edit.',502);
   candidate=Buffer.from(encoded,'base64');result.data=undefined;

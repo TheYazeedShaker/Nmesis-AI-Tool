@@ -1,8 +1,8 @@
 export const runtime='nodejs';
 export const maxDuration=300;
-import {context,fail,StudioError} from '@/lib/studio-server';
+import {context,fail,StudioError,providerError} from '@/lib/studio-server';
 import {sponsorship} from '@/lib/sponsored-access';
-import {saveKey,removeKey} from '@/lib/credentials';
+import {apiKey,saveKey,removeKey} from '@/lib/credentials';
 function sameOrigin(request:Request){
  if(request.headers.get('origin')!==new URL(request.url).origin)throw new StudioError('Open connection settings in your studio to continue.',403);
 }
@@ -27,3 +27,12 @@ export async function DELETE(request:Request){try{
  const ctx=await context(request,true);sameOrigin(request);await removeKey(ctx);
  return Response.json({removed:true},{headers:{'Cache-Control':'no-store'}});
  }catch(e){return fail(e)}}
+
+// A read-only check distinguishes a saved credential from actual model access.
+export async function GET(request:Request){try{
+ const ctx=await context(request),key=await apiKey(ctx),model=ctx.OPENAI_IMAGE_MODEL||'gpt-image-2.5-sunburst';
+ if(!key)throw new StudioError('Connect OpenAI before checking access.',503);
+ const r=await fetch('https://api.openai.com/v1/models/'+encodeURIComponent(model),{headers:{Authorization:'Bearer '+key},signal:AbortSignal.timeout(20000),redirect:'manual'});
+ if(!r.ok)throw await providerError(r);
+ return Response.json({model,notice:'OpenAI recognizes your key and gives it access to '+model+'. A generation may still be blocked by billing, image write permissions or account verification. No paid image was started.'},{headers:{'Cache-Control':'no-store'}});
+}catch(e){return fail(e)}}

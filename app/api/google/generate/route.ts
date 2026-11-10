@@ -19,7 +19,7 @@ export async function POST(request:Request){
     const key=await googleKey(ctx),inputs:GoogleImageInput[]=[];let totalBytes=0;
     for(const id of [d.sourceId,d.moodId,...d.parentId?[d.parentId]:[],...extraIds]){
       const asset=await store.get(imageKey(ctx.prefix,id));if(!asset)throw new StudioError('A reference is missing. Please select it again.',404);
-      totalBytes+=asset.size;if(totalBytes>12_000_000)throw new StudioError('Use smaller references, up to 12 MB total for Nano Banana.');
+      totalBytes+=asset.size;if(totalBytes>80_000_000)throw new StudioError('Use fewer references; these exceed the studio processing limit.');
       inputs.push({bytes:new Uint8Array(await asset.arrayBuffer()),type:asset.httpMetadata?.contentType||'image/png'});
     }
     let prompt=generationPrompt({provider:'google',referenceMode:mode,brief,vehicle:str(d.vehicle,100),finish:str(d.finish,120),angle:str(d.angle,120),scene:str(d.scene,1500),variant:Number.isInteger(d.variant)?Math.max(0,d.variant):0,hasMood:true,refinement:str(d.refinement,1000),refinementReferenceCount:extraIds.length});

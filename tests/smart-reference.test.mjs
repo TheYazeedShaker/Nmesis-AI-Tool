@@ -23,7 +23,7 @@ async function harness(){
  const m=new vm.SourceTextModule(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText,{context:scope,importModuleDynamically:async s=>{const child=await load(resolve(s));if(child.status==='linked')await child.evaluate();return child}});await m.link(s=>load(resolve(s)));return m})();modules.set(path,promise);return promise}
  const server=await load('lib/smart-reference-server');await server.evaluate();const pure=await load('lib/smart-reference');if(pure.status==='linked')await pure.evaluate();
  for(const id of ['source-1234','mood-1234'])await store.put('owner/images/'+id,png,{httpMetadata:{contentType:'image/png'}});
- const input=(patch={})=>server.namespace.smartInput({sourceId:'source-1234',moodId:'mood-1234',provider:'google',model:'gemini-3-pro-image',size:'2048x1152',brief:'A luxury car by a concrete museum',priority:'balanced',...patch},ctx);
+ const input=(patch={})=>server.namespace.smartInput({sourceId:'source-1234',moodId:'mood-1234',provider:'google',model:patch.provider==='openai'?'gpt-image-2.5-sunburst':'gemini-3-pro-image',size:'2048x1152',brief:'A luxury car by a concrete museum',priority:'balanced',...patch},ctx);
  const post=async(path,d)=>{const m=await load(path);if(m.status==='linked')await m.evaluate();return m.namespace.POST(new Request('https://studio.test/api',{method:'POST',body:JSON.stringify(d)}))};
  return{ctx,store,objects,calls,input,post,pure:pure.namespace,server:server.namespace,setHandler:f=>handler=f};
 }
@@ -34,3 +34,19 @@ test('both generation routes use the server-saved tailored prompt and source cro
 test('planning failures release the reservation and never generate an image',async()=>{const h=await harness();h.setHandler(async()=>Response.json({status:'incomplete'}));await assert.rejects(()=>h.server.buildSmartPlan(h.ctx,h.input()),/incomplete/);assert.equal(h.calls.length,1);assert(![...h.objects.keys()].some(k=>k.endsWith('.lock')));assert(![...h.objects.keys()].some(k=>k.includes('/visuals/')))});
 test('failed AI review keeps the generated image ready and does not repeat paid checks',async()=>{const h=await harness(),i=h.input(),{plan}=await h.server.buildSmartPlan(h.ctx,i);await h.store.put('owner/images/render-1234',png,{httpMetadata:{contentType:'image/png'}});await h.store.put('owner/visuals/render-1234.json',JSON.stringify({id:'render-1234',status:'ready',sourceId:i.sourceId,moodId:i.moodId,smartPlanId:plan.id}));h.calls.length=0;h.setHandler(async()=>new Response(null,{status:429}));const r=await h.post('app/api/smart-review/route',{id:'render-1234'});assert.equal(r.status,200);const {visual}=await r.json();assert.equal(visual.status,'ready');assert.equal(visual.smartReview.status,'failed');await h.post('app/api/smart-review/route',{id:'render-1234'});assert.equal(h.calls.length,1);assert(h.objects.has('owner/images/render-1234'));});
 test('provider errors distinguish quota and permissions and redact secrets',async()=>{for(const [status,error,pattern] of [[400,{message:'Unsupported option at https://example.test/private using sk-example-secret'},/failed \(400\).*\[redacted\]/],[403,{message:'Denied'},/permissions/],[429,{code:'insufficient_quota'},/API credit/]]){const h=await harness();h.setHandler(async()=>Response.json({error},{status}));await assert.rejects(()=>h.server.visionJson(h.ctx,'JSON','test',[]),e=>pattern.test(e.message)&&!e.message.includes('sk-example')&&!e.message.includes('example.test'));}});
+
+for(const model of ['gpt-image-2.5-sunburst','gpt-image-2.6-sunburst','gpt-image-2.6-flare'])test(model+' generation selects and persists the requested model, including smart prompts',async()=>{
+ for(const smart of [false,true]){
+  const h=await harness(),i=h.input({provider:'openai',model});
+  const plan=smart?(await h.server.buildSmartPlan(h.ctx,i)).plan:undefined;
+  h.calls.length=0;h.setHandler(async()=>Response.json({data:[{b64_json:Buffer.from(png).toString('base64')}]}));
+  const response=await h.post('app/api/generate/route',{...i,id:'model-test-1234',smartPlanId:plan?.id});
+  assert.equal(response.status,200,await response.clone().text());const {visual}=await response.json();assert.equal(visual.model,model);assert.equal(visual.status,'ready');assert.equal(h.calls.length,1);
+  assert.equal(h.calls[0][1].body.get('model'),model);assert.equal(h.calls[0][1].body.get('complexity'),model.includes('2.6')?'high':null);
+ }
+});
+test('OpenAI rejects unknown image models before a paid call or pending record',async()=>{
+ const h=await harness();const i=h.input({provider:'openai'});
+ const response=await h.post('app/api/generate/route',{...i,id:'invalid-model-1234',model:'not-a-real-model'});
+ assert.equal(response.status,400);assert.equal(h.calls.length,0);assert.equal(h.objects.has('owner/visuals/invalid-model-1234.json'),false);
+});

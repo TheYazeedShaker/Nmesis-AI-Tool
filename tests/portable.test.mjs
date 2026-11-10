@@ -45,14 +45,15 @@ test('upload tickets are owner-bound, route-bound, expire, reject tampering, and
  assert.throws(()=>api.verifyTicket(ticket+'x','owner/','/api/area-edits'));
  assert.throws(()=>api.verifyTicket(api.signTicket({...data,expires:0}),'owner/','/api/area-edits'));
  assert.equal(api.uploadTarget('/api/connection'),false);
+ const originalTarget='/api/assets/reference-123/original';assert.equal(api.uploadTarget(originalTarget),true);assert.equal(api.uploadTarget('/api/assets/../credentials/original'),false);const originalTicket=api.signTicket({...data,target:originalTarget});assert.equal(api.verifyTicket(originalTicket,'owner/',originalTarget).target,originalTarget);assert.throws(()=>api.verifyTicket(originalTicket,'other/',originalTarget));assert.throws(()=>api.verifyTicket(originalTicket,'owner/','/api/assets/another-123/original'));
  const request=()=>new Request('https://studio.test/api/area-edits',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({uploadToken:ticket})});
  await assert.rejects(()=>api.readStudioForm(request(),{prefix:'owner/'},4_000_000));assert.equal(deleted,false);
  const reconstructed=await api.readStudioForm(request(),{prefix:'owner/'},45_000_000);assert.equal(reconstructed.get('instruction'),'Edit only this area');assert.equal(reconstructed.get('working').size,5_000_000);assert.equal(deleted,true);
 });
-test('browser upload sends large files to storage and only a ticket to the generation route',async()=>{
+for(const target of ['/api/assets','/api/assets/reference-123/original'])test('browser upload sends large files directly to storage for '+target,async()=>{
  const calls=[];const mock=async(url,init)=>{calls.push({url,init});return calls.length===1?Response.json({url:'https://bucket.test/upload',token:'signed-ticket'}):calls.length===2?new Response(null,{status:200}):Response.json({visual:{id:'ready'}})};
  const {studioFetch}=await moduleAt('lib/studio-fetch.ts',{}, {fetch:mock,window:{location:{origin:'https://studio.test'}}});const form=new FormData();form.set('image',new Blob([new Uint8Array(5_000_000)]),'frame.png');
- await studioFetch('/api/assets',{method:'POST',body:form});assert.equal(calls.length,3);assert.equal(calls[1].url,'https://bucket.test/upload');assert.equal(calls[1].init.credentials,'omit');assert.equal(calls[1].init.body.size>5_000_000,true);assert.equal(calls[2].url,'/api/assets');assert.equal(calls[2].init.body,JSON.stringify({uploadToken:'signed-ticket'}));
+ await studioFetch(target,{method:target.endsWith('/original')?'PUT':'POST',body:form});assert.equal(calls.length,3);assert.equal(calls[1].url,'https://bucket.test/upload');assert.equal(calls[1].init.credentials,'omit');assert.equal(calls[1].init.body.size>5_000_000,true);assert.equal(calls[2].url,target);assert.equal(calls[2].init.method,target.endsWith('/original')?'PUT':'POST');assert.equal(calls[2].init.body,JSON.stringify({uploadToken:'signed-ticket'}));
 });
 test('portable identity uses a verified session and denies removed users; no provider credentials means signed out',async()=>{
  const imports={'next-auth':{getServerSession:async()=>({user:{email:'Owner@Example.test',name:'Owner'}})},'next/navigation':{redirect:()=>{throw new Error('redirect')}},'@/lib/portable/auth-options':{authOptions:{},allowedEmail:email=>email==='owner@example.test'}};

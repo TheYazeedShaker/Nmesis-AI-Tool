@@ -1,3 +1,16 @@
+// Keep the established model as the default; new models are explicit choices.
+export const OPENAI_IMAGE_MODEL='gpt-image-2.5-sunburst';
+export const OPENAI_IMAGE_MODELS=[
+ {id:OPENAI_IMAGE_MODEL,label:'Sunburst 2.5 · Original',description:'Your existing OpenAI generation and editing workflow.'},
+ {id:'gpt-image-2.6-sunburst',label:'Sunburst 2.6 · Detail',description:'For detailed visuals and precise edits. Supports masks and drawn regions.'},
+ {id:'gpt-image-2.6-flare',label:'Flare 2.6 · Fast',description:'For faster visual iterations and area edits. Supports masks and drawn regions.'},
+] as const;
+export function openaiImageModel(value:unknown=OPENAI_IMAGE_MODEL){
+ const model=OPENAI_IMAGE_MODELS.find(m=>m.id===value);
+ if(!model)throw new Error('Choose a supported OpenAI image model.');
+ return model;
+}
+export function supportsDrawnRegion(model:string){return model==='gpt-image-2.6-sunburst'||model==='gpt-image-2.6-flare'}
 export const GEMINI_IMAGE_MODELS = [
   {id:'gemini-3-pro-image',label:'Nano Banana Pro',description:'Recommended for precise car details and complex reference edits.'},
   {id:'gemini-nano-banana-2.1',label:'Nano Banana 2.1',description:'Faster creative exploration and reference-based variations.'},
@@ -13,7 +26,7 @@ export function geminiSize(value:unknown){
   if(value==='3840x2160')return '4K';
   throw new Error('Choose 1K, 2K or 4K for Nano Banana.');
 }
-export type GoogleConnectionStatus={connected:boolean;keySetup:boolean;models:string[];checkedAt?:string};
+export type GoogleConnectionStatus={connected:boolean;keySetup:boolean;sponsored?:boolean;models:string[];checkedAt?:string};
 
 export const HIGGSFIELD_IMAGE_MODEL='xai/grok-imagine-image-2.0';
 export const HIGGSFIELD_IMAGE_MODELS=[
@@ -32,15 +45,15 @@ export function higgsImageModel(model:unknown=HIGGSFIELD_IMAGE_MODEL){
  if(!found)throw new Error('This image model is not connected to the studio. Choose Sunburst, Flare or Grok.');
  return found;
 }
-export function imageSettings(provider:unknown,size:unknown,model:unknown=HIGGSFIELD_IMAGE_MODEL){
+export function imageSettings(provider:unknown,size:unknown,model?:unknown){
  if(provider==='google'){const info=geminiImageModel(model);geminiSize(size);return {provider:'google' as ImageProvider,size:size as string,model:info.id}}
  if(provider!==undefined&&provider!=='openai'&&provider!=='higgsfield')throw new Error('Choose OpenAI or Higgsfield.');
  const selected=provider==='higgsfield'?'higgsfield':'openai';
  const value=typeof size==='string'?size:'2048x1152';
- const info=selected==='higgsfield'?higgsImageModel(model):null;
+ const info=selected==='higgsfield'?higgsImageModel(model??HIGGSFIELD_IMAGE_MODEL):null;
  const allowed=info?['1024x576','2048x1152',...(info.max4k?['3840x2160']:[])]:OPENAI_IMAGE_SIZES;
  if(!allowed.includes(value as never))throw new Error(info?'Choose a supported output size. Grok supports 1K or 2K; Sunburst and Flare also support 4K.':'Choose Preview, 2K or 4K.');
- return {provider:selected as ImageProvider,size:value,model:info?.id};
+ return {provider:selected as ImageProvider,size:value,model:info?.id??openaiImageModel(model).id};
 }
 export function higgsImageBody(prompt:string,size:string,imageUrls:string[],model:unknown=HIGGSFIELD_IMAGE_MODEL){
  imageSettings('higgsfield',size,model);const info=higgsImageModel(model);

@@ -23,6 +23,22 @@ async function harness(){
  return {images,library,store,server,ctx,key,db,objects,calls,draft,json,normal,setHandler:h=>handler=h,close:()=>sqlite.close()};
 }
 const input=()=>({id:crypto.randomUUID(),sourceId:'source-1234',moodId:'mood-1234',parentId:'parent-1234',size:'2048x1152',brief:'An SUV by the desert at sunset.',vehicle:'DEMO-SUV',title:'Campaign'});
+test('stalled synchronous requests stop spinning without mutating records or starting a paid retry',async()=>{const h=await harness();try{
+ const old={id:'stalled-1234',title:'Demo · 01',status:'pending',provider:'openai',createdAt:new Date(Date.now()-11*60_000).toISOString(),sourceId:'source-1234',src:'/api/assets/stalled-1234'};
+ await h.store.put(h.ctx.prefix+'visuals/'+old.id+'.json',JSON.stringify(old));
+ const result=(await h.library.visualLibrary(h.ctx)).visuals.find(v=>v.id===old.id);assert.equal(result.status,'failed');assert.equal(result.jobStatus,'interrupted');assert.match(result.error,/No automatic retry/);
+ assert.equal((await(await h.store.get(h.ctx.prefix+'visuals/'+old.id+'.json')).json()).status,'pending');assert.equal(h.calls.length,0);
+ // A late saved image wins over the stale record on the next read.
+ await h.store.put(h.ctx.prefix+'images/'+old.id,'image');assert.equal((await h.library.resolveVisual(h.ctx,old)).status,'ready');
+ await h.library.deleteVisual(h.ctx,old.id);assert.equal((await h.library.visualLibrary(h.ctx)).visuals.length,0);await h.library.restoreVisual(h.ctx,old.id);assert.equal((await h.library.visualLibrary(h.ctx)).visuals[0].status,'ready');
+}finally{h.close()}});
+test('recent and asynchronous provider requests are never expired by synchronous recovery',async()=>{const h=await harness();try{
+ const base={id:'active-1234',status:'pending',provider:'openai',createdAt:new Date().toISOString()};
+ assert.equal((await h.library.resolveVisual(h.ctx,base)).status,'pending');
+ assert.equal((await h.library.resolveVisual(h.ctx,{...base,createdAt:'invalid'})).status,'pending');
+ assert.equal((await h.library.resolveVisual(h.ctx,{...base,provider:'higgsfield',createdAt:'2020-01-01'})).status,'pending');
+ assert.equal((await h.library.resolveVisual(h.ctx,{...base,provider:'google',createdAt:'2020-01-01'})).jobStatus,'interrupted');assert.equal(h.calls.length,0);
+}finally{h.close()}});
 test('Higgsfield image quoting uploads all references and never submits a generation',async()=>{const h=await harness();try{h.setHandler(h.normal);let row=await h.images.createImage(h.ctx,input());await h.images.quoteImage(h.ctx,row);row=await h.images.imageRow(h.ctx,row.id);const d=JSON.parse(row.data);assert.equal(d.body.image_urls.length,3);assert.equal(d.body.resolution,'2k');assert.equal(row.estimate,500000);assert.equal(row.status,'quoted');assert.equal(h.calls.filter(([u])=>u.endsWith('/xai/grok-imagine-image-2.0')&&!u.includes('estimate/')).length,0);const pub=h.images.publicImage(row);assert.equal(pub.body,undefined);assert.equal(pub.fingerprint,undefined);assert.equal(pub.provider,'higgsfield');await assert.rejects(()=>h.images.imageRow({...h.ctx,prefix:'other/'},row.id),/not found/)}finally{h.close()}});
 test('image approval rejects stale price and blocks duplicate submission',async()=>{const h=await harness();try{h.setHandler(h.normal);let row=await h.images.createImage(h.ctx,input());await h.images.quoteImage(h.ctx,row);row=await h.images.imageRow(h.ctx,row.id);await assert.rejects(()=>h.images.renderImage(h.ctx,row,row.estimate,1),/Approve/);h.setHandler(async(u,o)=>u.includes('/estimate/')?h.json({usd:0.6}):h.normal(u,o));await assert.rejects(()=>h.images.renderImage(h.ctx,row,row.estimate,row.updated_at),/price or billing terms changed/);row=await h.images.imageRow(h.ctx,row.id);let submits=0;h.setHandler(async(u,o)=>{if(u.includes('/estimate/'))return h.json({usd:0.6});if(u.endsWith('/xai/grok-imagine-image-2.0')){submits++;return h.json({request_id:'image-request',status:'queued'})}return h.normal(u,o)});await h.images.renderImage(h.ctx,row,row.estimate,row.updated_at);row=await h.images.imageRow(h.ctx,row.id);assert.equal(row.status,'queued');await assert.rejects(()=>h.images.renderImage(h.ctx,row,row.estimate,row.updated_at),/Approve/);assert.equal(submits,1)}finally{h.close()}});
 test('lost image submissions recover with the same request key; completed PNG is archived privately',async()=>{const h=await harness();try{h.setHandler(h.normal);let row=await h.images.createImage(h.ctx,input());await h.images.quoteImage(h.ctx,row);row=await h.images.imageRow(h.ctx,row.id);const ids=[];h.setHandler(async(u,o)=>{if(u.includes('/estimate/'))return h.normal(u,o);ids.push(o.headers['Idempotency-Key']);throw new Error('Response lost')});await h.images.renderImage(h.ctx,row,row.estimate,row.updated_at);row=await h.images.imageRow(h.ctx,row.id);assert.equal(row.status,'unknown');h.setHandler(async(u,o)=>{if(u.includes('/estimate/'))return h.normal(u,o);ids.push(o.headers['Idempotency-Key']);return h.json({request_id:'image-request',status:'queued'})});await h.images.recoverImage(h.ctx,row);assert.deepEqual(ids,[row.id,row.id]);row=await h.images.imageRow(h.ctx,row.id);const png=Buffer.alloc(24);png[0]=137;png.writeUInt32BE(2048,16);png.writeUInt32BE(1152,20);h.setHandler(async u=>u.endsWith('/status')?h.json({request_id:'image-request',status:'completed',images:[{url:'https://cdn.example.com/image.png'}]}):new Response(png));await h.images.refreshImage(h.ctx,row);row=await h.images.imageRow(h.ctx,row.id);assert.equal(row.status,'ready');const v=h.images.publicImage(row);assert.equal(v.width,2048);assert.equal(v.height,1152);assert.ok(h.objects.has(h.ctx.prefix+'images/'+row.id))}finally{h.close()}});
@@ -103,3 +119,24 @@ test('Higgsfield refinement of a refinement uploads the selected child, not the 
  const next=await h.images.createImage(h.ctx,{...input(),parentId:first.id,referenceMode:'match-inspiration',refinement:'Change the cone to blue'});const uploads=[];h.setHandler(async(u,o)=>{if(u.includes('storage.example.com'))uploads.push(await new Response(o.body).text());return h.normal(u,o)});await h.images.quoteImage(h.ctx,next);const data=JSON.parse((await h.images.imageRow(h.ctx,next.id)).data);
  assert.deepEqual(uploads,['image','image','first edited pixels']);assert.equal(data.visual.parentId,first.id);assert.match(data.body.prompt,/Image 3 is the CURRENT SELECTED VERSION/);assert.doesNotMatch(data.body.prompt,/continuity only|STRICT INSPIRATION MATCH/);
 }finally{h.close()}});
+test('six-car Higgsfield submissions preserve twelve views, inspiration and current edit on both large-capacity models',async()=>{
+ for(const model of ['marketing-studio/image/sunburst','marketing-studio/image/flare'])for(const strictReference of [false,true]){
+ const h=await harness();try{
+  const cars=Array.from({length:6},(_,i)=>({id:'lineup-car-'+i,name:'Model '+i,configurator:'',finish:'Pearl',x:10+i*15,y:70,scale:14,views:[0,1].map(j=>({id:`capture-${i}-${j}`,label:j?'Detail':'Primary'}))}));
+  for(const car of cars)for(const v of car.views)await h.store.put(h.ctx.prefix+'images/'+v.id,v.id,{httpMetadata:{contentType:'image/png'}});
+  const uploaded=[];let uploads=0,submitted;
+  h.setHandler(async(u,o)=>{
+   if(u.includes('generate-upload-url')){uploads++;return h.json({public_url:`https://cdn.example.com/${uploads}.png`,upload_url:'https://storage.example.com/upload'})}
+   if(u.includes('storage.example.com')){uploaded.push(await new Response(o.body).text());return new Response(null,{status:200})}
+   if(u.endsWith('/'+model)&&!u.includes('/estimate/')){submitted=JSON.parse(o.body);return h.json({request_id:'six-car-request',status:'queued'})}
+   return h.normal(u,o);
+  });
+  const data={...input(),model,sourceId:cars[0].views[0].id,refinement:'Correct the wheels of the sixth car',lineup:{cars,layout:'inspiration',heroId:cars[0].id,targetCarId:cars[5].id,strictReference}};
+  const row=await h.images.createImage(h.ctx,data);await h.images.generateImage(h.ctx,row);
+  const refs=cars.flatMap(c=>c.views.map(v=>v.id));assert.deepEqual(uploaded,strictReference?['image',...refs,'image']:[...refs,'image','image']);assert.equal(uploads,14);assert.equal(submitted.image_urls.length,14);assert.equal(new Set(submitted.image_urls).size,14);assert.match(submitted.prompt,/Input Image 14 is the CURRENT SELECTED LINEUP/);assert.match(submitted.prompt,/Change ONLY CAR 6/);assert.equal((await h.images.imageRow(h.ctx,row.id)).status,'queued');
+ }finally{h.close()}
+ }
+});
+test('six-car requests reject smaller Higgsfield models before any uploads or billing',async()=>{
+ const h=await harness();try{const cars=Array.from({length:6},(_,i)=>({id:'lineup-car-'+i,name:'Model '+i,configurator:'',finish:'',x:10+i*15,y:70,scale:14,views:[{id:'capture-'+i,label:'Primary'}]}));await assert.rejects(()=>h.images.createImage(h.ctx,{...input(),sourceId:cars[0].views[0].id,lineup:{cars,layout:'inspiration',heroId:cars[0].id}}),/cannot fit/);assert.equal(h.calls.length,0)}finally{h.close()}
+});

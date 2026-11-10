@@ -1,3 +1,5 @@
+export const MAX_LINEUP_CARS=6;
+export const MIN_LINEUP_SCALE=12;
 export type LineupCar={id:string;name:string;configurator:string;finish:string;views:{id:string;label:string}[];x:number;y:number;scale:number};
 export type Lineup={strictReference?:boolean;cars:LineupCar[];layout:'inspiration'|'hero'|'straight'|'staggered';heroId:string;targetCarId?:string};
 export const LINEUP_LAYOUTS=[{id:'inspiration',name:'Match inspiration',description:'Follow the reference staging and atmosphere.'},{id:'hero',name:'Hero + supporting',description:'One lead car, with the others behind.'},{id:'straight',name:'Straight lineup',description:'An even row with clear space between cars.'},{id:'staggered',name:'Staggered lineup',description:'Alternating depth for a more dynamic group.'}] as const;
@@ -5,7 +7,7 @@ const idOk=(v:unknown):v is string=>typeof v==='string'&&/^[a-z0-9-]{8,80}$/.tes
 const clean=(v:unknown,n:number)=>typeof v==='string'?v.trim().slice(0,n):'';
 export function parseLineup(value:unknown):Lineup|undefined{
  if(value===undefined)return;
- const d=value as Lineup;if(!d||!Array.isArray(d.cars)||d.cars.length<2||d.cars.length>4)throw new Error('Choose 2–4 cars for your lineup.');
+ const d=value as Lineup;if(!d||!Array.isArray(d.cars)||d.cars.length<2||d.cars.length>MAX_LINEUP_CARS)throw new Error('Choose 2–6 cars for your lineup.');
  if(d.strictReference!==undefined&&typeof d.strictReference!=='boolean')throw new Error('Choose whether to lock the reference.');
  if(!LINEUP_LAYOUTS.some(x=>x.id===d.layout))throw new Error('Choose a lineup layout.');
  const seen=new Set<string>(),images=new Set<string>();
@@ -13,14 +15,27 @@ export function parseLineup(value:unknown):Lineup|undefined{
  if(!clean(c.name,100))throw new Error(`Name car ${i+1}.`);
  if(!Array.isArray(c.views)||c.views.length<1||c.views.length>2)throw new Error(`Add one or two views for ${clean(c.name,100)}.`);
  const views=c.views.map(v=>{if(!v||!idOk(v.id)||images.has(v.id))throw new Error('Use separate reference images for each car.');images.add(v.id);return{id:v.id,label:clean(v.label,100)||'Selected angle'}});
- if(!Number.isFinite(c.x)||c.x<5||c.x>95||!Number.isFinite(c.y)||c.y<25||c.y>90||!Number.isFinite(c.scale)||c.scale<15||c.scale>60)throw new Error('Keep car positions and sizes within the composition preview.');
+ if(!Number.isFinite(c.x)||c.x<5||c.x>95||!Number.isFinite(c.y)||c.y<25||c.y>90||!Number.isFinite(c.scale)||c.scale<MIN_LINEUP_SCALE||c.scale>60)throw new Error('Keep car positions and sizes within the composition preview.');
  return{id:c.id,name:clean(c.name,100),configurator:clean(c.configurator,2000),finish:clean(c.finish,200),views,x:c.x,y:c.y,scale:c.scale};});
  if(!seen.has(d.heroId))throw new Error('Choose the hero car.');if(d.targetCarId&&!seen.has(d.targetCarId))throw new Error('Choose a car in this lineup to refine.');
  return{cars,layout:d.strictReference?'inspiration':d.layout,heroId:d.heroId,strictReference:d.strictReference===true,...d.targetCarId?{targetCarId:d.targetCarId}:{}};
 }
 export function lineupImageIds(lineup:Lineup,moodId:string,parentId?:string){return [...(lineup.strictReference?[moodId]:[]),...lineup.cars.flatMap(c=>c.views.map(v=>v.id)),...(!lineup.strictReference?[moodId]:[]),...parentId?[parentId]:[]]}
 export function lineupCapacity(lineup:Lineup,max:number,hasParent=false){if(lineup.cars.reduce((n,c)=>n+c.views.length,0)+1+Number(hasParent)>max)throw new Error('This model cannot fit all lineup references. Choose ChatGPT, Sunburst or Flare.');}
-export function arrangeCars(cars:LineupCar[],layout:Lineup['layout'],heroId:string):LineupCar[]{return cars.map((c,i)=>{const width=cars.length===2?40:cars.length===3?30:23;const inset=width/2+3;const x=inset+i*(100-inset*2)/(cars.length-1);if(layout==='hero')return {...c,x:c.id===heroId?50:(i+1)*100/(cars.length+1),y:c.id===heroId?78:51,scale:c.id===heroId?48:28};return{...c,x,y:layout==='straight'?72:i%2?58:76,scale:width}})}
+export function arrangeCars(cars:LineupCar[],layout:Lineup['layout'],heroId:string):LineupCar[]{
+ const width=cars.length===2?40:cars.length===3?30:cars.length===4?23:(94-2*(cars.length-1))/cars.length;
+ const inset=width/2+3,support=cars.filter(c=>c.id!==heroId);
+ return cars.map((c,i)=>{
+  const x=inset+i*(100-inset*2)/Math.max(1,cars.length-1);
+  if(layout==='hero'){
+   if(c.id===heroId)return {...c,x:50,y:78,scale:48};
+   if(cars.length<=4)return {...c,x:(i+1)*100/(cars.length+1),y:51,scale:28};
+   const scale=(94-2*(support.length-1))/support.length,left=3+scale/2;
+   return {...c,x:left+support.findIndex(s=>s.id===c.id)*(scale+2),y:35,scale};
+  }
+  return {...c,x,y:layout==='straight'?72:i%2?58:76,scale:width};
+ });
+}
 export const STRICT_LINEUP_REFERENCE_PROMPT=`STRICT REFERENCE MATCH — MULTI-CAR REPLACEMENT
 EDIT THE FIRST INPUT IMAGE IN PLACE. It is the base photograph and mandatory shot blueprint. Replace its vehicles with the selected cars and update only necessary vehicle shadows/reflections. Preserve the surroundings; do not redesign or beautify the scene.
 IDENTITY: Each car's captures define only its model, proportions, paint, trim, wheels, lamps, grille, roof, glass, mirrors and badges. Never mix designs, duplicate vehicles or retain donor cars. Ignore configurator backgrounds and lighting. Reorient each product into its assigned reference pose without stretching geometry or mirroring logos.
