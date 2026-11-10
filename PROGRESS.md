@@ -50,7 +50,7 @@ _Waiting on owner_
 
 _Carried_
 
-- The agent's Vercel connection cannot see or create projects in the team (404/403), so deployment checks go through GitHub's deployment statuses. Re-authorising the Vercel connection with project access would let the agent read build logs directly.
+- The deployment connection can now read deployment status and build logs (verified during the feature sync). The feature Preview built successfully and the signed-out workspace renders; authenticated provider flows remain unverified.
 
 - Lint debt (BACKLOG #4).
 - Dependency audit still reports the existing Zod 3 constrained-collection advisory (GHSA-mrhx-c7xc-m3w5). The available fix requires a major-version upgrade, which is outside this feature sync. Next.js critical advisories were resolved.
