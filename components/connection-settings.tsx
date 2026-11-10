@@ -5,6 +5,7 @@ import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/u
 export type ConnectionStatus={generation:boolean;storage:boolean;personalKey?:boolean;keySetup?:boolean;signedOut?:boolean;sponsored?:boolean;sponsorPending?:boolean;sharingWith?:string[]};
 export function ConnectionSettings({open,onOpenChange,status,onUpdate}:{open:boolean;onOpenChange:(value:boolean)=>void;status:ConnectionStatus|null;onUpdate:()=>Promise<void>}){
  const [key,setKey]=useState('');const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');
+ async function check(){setBusy(true);setError('');setNotice('');try{const r=await fetch('/api/connection',{cache:'no-store',signal:AbortSignal.timeout(30000)});const d=await r.json() as {error?:string;notice:string};if(!r.ok)throw new Error(d.error||'Access check failed.');setNotice(d.notice)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
  function changeOpen(value:boolean){if(busy)return;setKey('');setError('');setNotice('');onOpenChange(value)}
  async function submit(remove=false){
   setBusy(true);setError('');setNotice('');
@@ -23,6 +24,7 @@ export function ConnectionSettings({open,onOpenChange,status,onUpdate}:{open:boo
  <p id="key-storage-note" className="helper key-storage-note">Encrypted before saving. Used by the studio server to contact OpenAI; never included in images, exports or browser storage.</p>
  <button className="generate" type="submit" disabled={busy||!key.trim()||!status?.keySetup||status?.signedOut}>{busy?<LoaderCircle size={17} className="spin"/>:<ShieldCheck size={17}/>} {busy?'Updating connection…':'Verify & save key'}</button>
  </form>}
+ <button className="secondary" disabled={busy||!status?.generation} onClick={()=>void check()}>{busy?'Checking connection…':'Check image access (no charge)'}</button>
  {error&&<p className="field-error" role="alert">{error}</p>}{notice&&<p className="key-notice" role="status">{notice}</p>}
  {status?.sponsored?(status.sponsorPending&&<p className="helper">Ask the studio owner to open this studio once while signed in. Your connection will activate automatically.</p>):status?.signedOut?<p className="helper">Sign in to the studio before adding your key.</p>:!status?.keySetup&&<p className="helper">Secure key storage is not ready. Please check again after the studio is published.</p>}
  {!status?.sponsored&&<div className="connection-links"><a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">Get an OpenAI API key ↗</a>{status?.personalKey&&<button className="remove-key" onClick={()=>void submit(true)} disabled={busy}><Trash2 size={14}/>Remove saved key</button>}</div>}

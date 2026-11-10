@@ -143,3 +143,32 @@ test('successive Nano Banana refinements keep the immediate parent bytes and lin
   const r=await h.post(h.input({model,referenceMode,parentId:first.id,refinement:'Change the cone to blue'}));assert.equal(r.status,200);assert.equal((await r.json()).visual.parentId,first.id);
  }
 });
+test('named sponsored guests use Google owner credentials without exposing or changing them',async()=>{
+ const h=await harness(),owner={...h.ctx,prefix:'users/'+'a'.repeat(64)+'/',email:'owner@example.com',SHARED_OPENAI_OWNER_EMAIL:'owner@example.com',SHARED_OPENAI_GUEST_EMAILS:'guest-one@example.com,guest-two@example.com'};
+ await h.server.saveGoogleKey(owner,h.key);await h.server.googleStatus(owner);
+ for(const email of owner.SHARED_OPENAI_GUEST_EMAILS.split(',')){
+  const guest={...owner,email,prefix:'users/'+'b'.repeat(64)+'/'};const status=await h.server.googleStatus(guest);
+  assert.equal(status.connected,true);assert.equal(status.sponsored,true);assert.equal(status.keySetup,false);assert(!JSON.stringify(status).includes(h.key));assert.equal(await h.server.googleKey(guest),h.key);
+  const calls=h.calls.length;await assert.rejects(()=>h.server.saveGoogleKey(guest,'replacement-key'),e=>e.status===403);await assert.rejects(()=>h.server.removeGoogleKey(guest),e=>e.status===403);assert.equal(h.calls.length,calls);
+  assert.equal((await h.server.googleStatus({...guest,SHARED_OPENAI_GUEST_EMAILS:''})).connected,false);
+ }
+ assert.equal((await h.server.googleStatus({...owner,email:'stranger@example.com',prefix:'users/stranger/'})).connected,false);
+ assert.equal(await h.server.googleKey(owner),h.key);
+});
+
+test('large Nano Banana reference sets use Files API without changing bytes, then clean up temporary files',async()=>{
+ const h=await harness();let n=0;const large=new Uint8Array(6_100_000);large.set(png);let uploads=0;
+ h.setHandler((url,options)=>{
+  const u=String(url);
+  if(options.method==='DELETE'){assert.match(u,/\/v1beta\/files\/ref[12]$/);return new Response(null,{status:200})}
+  if(u.endsWith('/upload/v1beta/files'))return new Response(null,{headers:{'x-goog-upload-url':'https://generativelanguage.googleapis.com/upload/session'+(++n)}});
+  if(u.includes('/upload/session')){assert.equal(options.body.length,large.length);assert.deepEqual(options.body,large);uploads++;return Response.json({file:{name:'files/ref'+n,uri:'https://generativelanguage.googleapis.com/v1beta/files/ref'+n,state:'ACTIVE'}})}
+  const body=JSON.parse(options.body);assert.equal(uploads,2);assert.equal(body.input[1].uri,'https://generativelanguage.googleapis.com/v1beta/files/ref1');assert.equal(body.input[2].uri,'https://generativelanguage.googleapis.com/v1beta/files/ref2');assert.equal(body.input[1].data,undefined);return Response.json({output_image:{data:Buffer.from(png).toString('base64')}});
+ });
+ await h.server.renderGoogleImage(h.key,h.models[0],'2048x1152','Use this exact car',[{bytes:large,type:'image/png'},{bytes:large,type:'image/png'}]);
+ assert.equal(h.calls.filter(([,o])=>o.method==='DELETE').length,2);assert.equal(h.calls.filter(([u])=>String(u).endsWith('/interactions')).length,1);
+});
+test('Google reference upload refuses off-domain destinations before transmitting image bytes',async()=>{
+ const h=await harness();h.setHandler(()=>new Response(null,{headers:{'x-goog-upload-url':'https://attacker.example/upload'}}));
+ await assert.rejects(()=>h.server.renderGoogleImage(h.key,h.models[0],'2048x1152','Test',[{bytes:new Uint8Array(6_100_000),type:'image/png'},{bytes:new Uint8Array(6_100_000),type:'image/png'}]),/invalid reference upload/);assert.equal(h.calls.length,1);
+});

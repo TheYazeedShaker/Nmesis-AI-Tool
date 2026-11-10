@@ -3,6 +3,7 @@ import {database,type FilmContext} from './film-server';
 import {publicImage,type ImageRow} from './image-server';
 import {imageDimensions} from './image-dimensions';
 import type {Visual} from './studio';
+import {stalledGeneration,interruptedGenerationMessage} from './generation-status';
 type Context=FilmContext;
 export async function allVisualObjects(store:R2Bucket,prefix:string){
   const objects:R2Object[]=[];let cursor:string|undefined;
@@ -20,7 +21,7 @@ export async function deleteVisual(ctx:Context,id:string){
  const row=await database(ctx).prepare('SELECT * FROM image_jobs WHERE id=? AND owner=?').bind(id,ctx.prefix).first<ImageRow>();
  if(!record&&!row)throw new StudioError('Image not found.',404);
  if(row&&(['queued','in_progress','archiving','unknown','submitting'].includes(row.status)||row.lock_until>Date.now()))throw new StudioError('Wait for this generation to finish before deleting it.',409);
- if(record){const visual=await record.json<Visual>();if(visual.status==='pending')throw new StudioError('Wait for this generation to finish before deleting it.',409)}
+ if(record){const visual=await record.json<Visual>();if(visual.status==='pending'&&!stalledGeneration(visual))throw new StudioError('Wait for this generation to finish before deleting it.',409)}
  // A library tombstone preserves source assets, dependent edits and billing rows.
  await store.put(ctx.prefix+'deleted-visuals/'+id+'.json',JSON.stringify({id,deletedAt:new Date().toISOString()}),{httpMetadata:{contentType:'application/json'}});
  return {deleted:true,id};
@@ -29,18 +30,21 @@ export async function restoreVisual(ctx:Context,id:string){
  if(!validId(id))throw new StudioError('Image not found.',404);const store=bucket(ctx.BUCKET),key=ctx.prefix+'deleted-visuals/'+id+'.json';
  if(!await store.head(key))throw new StudioError('Deleted image not found.',404);await store.delete(key);return {restored:true,id};
 }
+export async function resolveVisual(ctx:Context,visual:Visual):Promise<Visual>{
+ const store=bucket(ctx.BUCKET);
+ if(visual.status!=='ready'&&visual.provider==='higgsfield')return visual;
+ const exists=await store.head(imageKey(ctx.prefix,visual.id));
+ if(exists){if(visual.status!=='ready'){const image=await store.get(imageKey(ctx.prefix,visual.id));let dimensions={};try{dimensions=imageDimensions(new Uint8Array(await image!.arrayBuffer()))}catch{console.warn('Saved image dimensions could not be recovered.')}return{...visual,...dimensions,status:'ready',error:undefined}}return visual}
+ if(visual.status==='ready')return{...visual,status:visual.provider==='higgsfield'?'pending':'failed',jobStatus:visual.provider==='higgsfield'?'archiving':visual.jobStatus,error:visual.provider==='higgsfield'?'Restoring the completed image from Higgsfield…':'The saved image file is missing. Its record is preserved; this is not an empty draft.'};
+ if(stalledGeneration(visual))return{...visual,status:'failed',jobStatus:'interrupted',error:interruptedGenerationMessage};
+ return visual;
+}
 export async function visualLibrary(ctx:Context,deleted=false){
   const store=bucket(ctx.BUCKET);const objects=await allVisualObjects(store,ctx.prefix);const warnings:string[]=[];
   const deletedIds=await deletedVisualIds(ctx);
   const saved=await eachBatch(objects,async item=>{try{const record=await store.get(item.key);return record?await record.json<Visual>():null}catch{warnings.push('A saved record could not be read.');return null}});
   const jobs=await database(ctx).prepare("SELECT * FROM image_jobs WHERE owner=? AND status<>'archived' ORDER BY created_at DESC").bind(ctx.prefix).all<ImageRow>();
-  const visuals=await eachBatch([...saved.filter((v):v is Visual=>!!v),...jobs.results.map(publicImage)].filter(v=>deletedIds.has(v.id)===deleted),async visual=>{
-    if(visual.status!=='ready'&&visual.provider==='higgsfield')return visual;
-    const exists=await store.head(imageKey(ctx.prefix,visual.id));
-    if(exists){if(visual.status!=='ready'){const image=await store.get(imageKey(ctx.prefix,visual.id));let dimensions={};try{dimensions=imageDimensions(new Uint8Array(await image!.arrayBuffer()))}catch{}return{...visual,...dimensions,status:'ready' as const,error:undefined}}return visual}
-    if(visual.status==='ready')return{...visual,status:visual.provider==='higgsfield'?'pending' as const:'failed' as const,jobStatus:visual.provider==='higgsfield'?'archiving':visual.jobStatus,error:visual.provider==='higgsfield'?'Restoring the completed image from Higgsfield…':'The saved image file is missing. Its record is preserved; this is not an empty draft.'};
-    return visual;
-  });
+  const visuals=await eachBatch([...saved.filter((v):v is Visual=>!!v),...jobs.results.map(publicImage)].filter(v=>deletedIds.has(v.id)===deleted),visual=>resolveVisual(ctx,visual));
   return {visuals:visuals.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),warning:warnings.length?'Some image records could not be read. Refresh to try again.':undefined};
 }
 export async function cleanEmptyVisuals(ctx:Context){

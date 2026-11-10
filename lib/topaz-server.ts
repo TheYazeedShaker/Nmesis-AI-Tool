@@ -1,5 +1,6 @@
 import {bucket,StudioError,imageKey,validId} from './studio-server';
 import {database,type FilmContext} from './film-server';
+import {credentialContext,sponsorship} from './sponsored-access';
 import {sealKey,unsealKey,type SealedKey} from './secret-crypto';
 import {keyFingerprint,publicMediaUrl} from './film-policy';
 import {publicImage,type ImageRow} from './image-server';
@@ -16,15 +17,16 @@ export async function topazRequest(key:string,path:string,form?:FormData){
   let r:Response;try{r=await fetch('https://api.topazlabs.com/'+path,{method:form?'POST':'GET',headers:{'X-API-Key':key},...(form?{body:form}:{}),signal:AbortSignal.timeout(45000),redirect:'manual'})}catch{throw new StudioError('The Topaz connection was interrupted. Refresh the saved request before starting another upscale.',504)}
   if(!r.ok)throw new TopazFailure(r.status);return await r.json() as Record<string,any>;
 }
-export async function topazStatus(ctx:Ctx){const saved=await bucket(ctx.BUCKET).get(secretPath(ctx));const data=saved?await saved.json<SealedKey&{credits?:number}>():null;return {connected:!!data,keySetup:!!ctx.KEY_ENCRYPTION_SECRET,checkedAt:data?.verifiedAt,credits:data?.credits}}
-export async function topazKey(ctx:Ctx){const saved=await bucket(ctx.BUCKET).get(secretPath(ctx));if(!saved||!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Connect your Topaz API key before upscaling.',503);try{return await unsealKey(await saved.json<SealedKey>(),ctx.KEY_ENCRYPTION_SECRET,ctx.prefix+'topaz')}catch{throw new StudioError('Reconnect your Topaz API key.',503)}}
+export async function topazStatus(ctx:Ctx){const owner=await credentialContext(ctx),sponsored=sponsorship(ctx).isGuest;const saved=owner?await bucket(owner.BUCKET).get(secretPath(owner)):null;const data=saved?await saved.json<SealedKey&{credits?:number}>():null;return {connected:!!data,keySetup:!sponsored&&!!ctx.KEY_ENCRYPTION_SECRET,sponsored,checkedAt:data?.verifiedAt,credits:data?.credits}}
+export async function topazKey(ctx:Ctx){const owner=await credentialContext(ctx);if(!owner)throw new StudioError('Ask your studio owner to open the studio and connect Topaz.',503);ctx=owner;const saved=await bucket(ctx.BUCKET).get(secretPath(ctx));if(!saved||!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Connect your Topaz API key before upscaling.',503);try{return await unsealKey(await saved.json<SealedKey>(),ctx.KEY_ENCRYPTION_SECRET,ctx.prefix+'topaz')}catch{throw new StudioError('Reconnect your Topaz API key.',503)}}
 export async function saveTopazKey(ctx:Ctx,key:string){
+  if(sponsorship(ctx).isGuest)throw new StudioError('Your studio owner manages the Topaz connection.',403);
   if(!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Secure key storage is not ready.',503);
   const balance=await topazRequest(key,'account/v1/credits/balance');
   if(typeof balance.available_credits!=='number'||!Number.isFinite(balance.available_credits))throw new StudioError('Topaz did not return a verifiable credit balance. Your key was not saved.',502);
   await bucket(ctx.BUCKET).put(secretPath(ctx),JSON.stringify({...await sealKey(key,ctx.KEY_ENCRYPTION_SECRET,ctx.prefix+'topaz'),credits:balance.available_credits}),{httpMetadata:{contentType:'application/json'}});
 }
-export async function removeTopazKey(ctx:Ctx){await bucket(ctx.BUCKET).delete(secretPath(ctx))}
+export async function removeTopazKey(ctx:Ctx){if(sponsorship(ctx).isGuest)throw new StudioError('Your studio owner manages the Topaz connection.',403);await bucket(ctx.BUCKET).delete(secretPath(ctx))}
 export async function topazRow(ctx:Ctx,id:string){if(!validId(id))throw new StudioError('Upscale request not found.',404);const row=await database(ctx).prepare('SELECT * FROM topaz_jobs WHERE id=? AND owner=?').bind(id,ctx.prefix).first<Row>();if(!row)throw new StudioError('Upscale request not found.',404);return row}
 export async function publicTopaz(ctx:Ctx,row:Row):Promise<TopazJob>{const d=JSON.parse(row.data) as Data;const saved=row.status==='ready'?await bucket(ctx.BUCKET).get(ctx.prefix+'visuals/'+row.id+'.json'):null;return{id:row.id,parentId:row.parent_id,status:row.status,progress:d.progress||0,createdAt:row.created_at,error:row.error||undefined,width:d.width,height:d.height,credits:d.credits,visual:saved?await saved.json<Visual>():undefined}}
 export async function listTopaz(ctx:Ctx,parentId:string){if(!validId(parentId))throw new StudioError('Choose a saved visual.');const rows=await database(ctx).prepare('SELECT * FROM topaz_jobs WHERE owner=? AND parent_id=? ORDER BY created_at DESC LIMIT 10').bind(ctx.prefix,parentId).all<Row>();return await Promise.all(rows.results.map(row=>publicTopaz(ctx,row)))}

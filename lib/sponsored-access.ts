@@ -10,7 +10,7 @@ export function sponsorship(ctx:SponsorContext){
 const pointerKey=(owner:string)=>'studio/sponsorship/'+encodeURIComponent(owner)+'.json';
 export async function registerSponsor(ctx:SponsorContext){
  const access=sponsorship(ctx);if(!access.isOwner||!access.guests.length||!ctx.BUCKET)return;
- if(!await ctx.BUCKET.head(ctx.prefix+'credentials/openai.json')&&!await ctx.BUCKET.head(ctx.prefix+'credentials/higgsfield.json'))return;
+ if(!(await Promise.all(['openai','higgsfield','google','topaz'].map(provider=>ctx.BUCKET!.head(ctx.prefix+'credentials/'+provider+'.json')))).some(Boolean))return;
  const key=pointerKey(access.owner),previous=await ctx.BUCKET.get(key);
  if(previous){const value=await previous.json<{owner:string;prefix:string}>();if(value.owner===access.owner&&value.prefix===ctx.prefix)return;}
  await ctx.BUCKET.put(key,JSON.stringify({owner:access.owner,prefix:ctx.prefix}),{httpMetadata:{contentType:'application/json'}});
@@ -21,4 +21,11 @@ export async function sponsoredPrefix(ctx:SponsorContext){
  const value=await record.json<{owner:string;prefix:string}>();
  if(value.owner!==access.owner||typeof value.prefix!=='string'||!/^users\/[a-f0-9]{64}\/$/.test(value.prefix))return null;
  return value.prefix;
+}
+
+// Resolve credentials only; callers retain their own context for images and jobs.
+export async function credentialContext<T extends SponsorContext>(ctx:T):Promise<T|null>{
+ await registerSponsor(ctx);
+ if(!sponsorship(ctx).isGuest)return ctx;
+ const prefix=await sponsoredPrefix(ctx);return prefix?{...ctx,prefix}:null;
 }

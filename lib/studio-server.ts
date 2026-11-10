@@ -19,11 +19,15 @@ export function fail(error:unknown){if(error instanceof StudioError)return Respo
 export async function readJson(request:Request,maxBytes=16000):Promise<Record<string,any>>{if(Number(request.headers.get('content-length')||0)>maxBytes)throw new StudioError('The brief is too long.',413);let data:unknown;try{const text=await request.text();if(new TextEncoder().encode(text).length>maxBytes)throw new StudioError('The brief is too long.',413);data=JSON.parse(text)}catch(e){if(e instanceof StudioError)throw e;throw new StudioError('The request could not be read.')}if(!data||typeof data!=='object'||Array.isArray(data))throw new StudioError('Invalid request.');return data as Record<string,any>}
 export function imageType(bytes:Uint8Array){if(bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71)return 'image/png';if(bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'image/jpeg';if(new TextDecoder().decode(bytes.slice(0,4))==='RIFF'&&new TextDecoder().decode(bytes.slice(8,12))==='WEBP')return 'image/webp';return null}
 export async function providerError(response:Response){
- const body=await response.json().catch(()=>null) as {error?:{message?:unknown;param?:unknown;code?:unknown}}|null;
+ const body=await response.json().catch(()=>null) as {error?:{message?:unknown;param?:unknown;code?:unknown;type?:unknown}}|null;
  const safeTag=(v:unknown)=>typeof v==='string'&&/^[a-zA-Z0-9_.\[\]-]{1,80}$/.test(v)?v:undefined;
- console.error('Image provider rejected request',JSON.stringify({status:response.status,code:safeTag(body?.error?.code),param:safeTag(body?.error?.param),requestId:safeTag(response.headers.get('x-request-id'))}));
- if(response.status===400&&typeof body?.error?.message==='string'){
-  const detail=body.error.message.replace(/sk-[a-zA-Z0-9_-]+/g,'[redacted]').replace(/https?:\/\/\S+/g,'[link]').replace(/[\r\n]+/g,' ').slice(0,500);
-  return new StudioError('OpenAI rejected the edit request: '+detail,400);
- }
- if(response.status===401||response.status===403)return new StudioError('Image generation access needs attention. Ask your studio owner to check the OpenAI connection.',503);if(response.status===429)return new StudioError('Generation is currently at its limit. Check account credit or try again later.',429);return new StudioError('The image service could not complete this request. Your references and brief are preserved.',502)}
+ const code=safeTag(body?.error?.code),type=safeTag(body?.error?.type);
+ console.error('Image provider rejected request',JSON.stringify({status:response.status,code,param:safeTag(body?.error?.param),requestId:safeTag(response.headers.get('x-request-id'))}));
+ const detail=typeof body?.error?.message==='string'?body.error.message.replace(/sk-[a-zA-Z0-9_-]+/g,'[redacted]').replace(/Bearer\s+\S+/gi,'Bearer [redacted]').replace(/https?:\/\/\S+/g,'[link]').replace(/[A-Za-z0-9_+=.\/-]{60,}/g,'[redacted]').replace(/[\r\n]+/g,' ').slice(0,500):'';
+ if(response.status===401)return new StudioError('OpenAI rejected the saved API key. The studio owner needs to reconnect an active key in Settings → OpenAI connection.'+(code?' ('+code+')':''),503);
+ if(response.status===403)return new StudioError('OpenAI denied image generation access. '+(detail||'Check image-model access and image write permissions for the connected project.')+(code?' ('+code+')':''),503);
+ if(response.status===404)return new StudioError('The configured OpenAI image model is unavailable to this project. '+detail,400);
+ if(response.status===429){const quota=code==='insufficient_quota'||type==='insufficient_quota'||/quota|billing|credit|balance/i.test(detail);return new StudioError(quota?'OpenAI API credits or spending limit are exhausted. The studio owner needs to check API billing and project limits.':'OpenAI temporarily rate-limited this request. Wait before starting another generation.',429)}
+ if(response.status===400)return new StudioError('OpenAI rejected the edit request: '+(detail||'Check the reference images and output settings.'),400);
+ return new StudioError('OpenAI could not complete this request. Your references and brief are preserved.',502);
+}

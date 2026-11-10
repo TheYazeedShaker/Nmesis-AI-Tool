@@ -1,16 +1,19 @@
 import {bucket,StudioError,type StudioEnv} from './studio-server';
+import {credentialContext,sponsorship} from './sponsored-access';
 import {sealKey,unsealKey,type SealedKey} from './secret-crypto';
 import {GEMINI_IMAGE_MODELS,geminiImageModel,geminiSize} from './image-models';
 import {imageDimensions} from './image-dimensions';
-type Context=StudioEnv&{prefix:string};
+type Context=StudioEnv&{prefix:string;email?:string};
 type GoogleSecret=SealedKey&{models:string[]};
 const credentialPath=(ctx:Context)=>ctx.prefix+'credentials/google.json';
 export async function googleStatus(ctx:Context){
-  const record=await ctx.BUCKET?.get(credentialPath(ctx));
+  const owner=await credentialContext(ctx),sponsored=sponsorship(ctx).isGuest;
+  const record=owner?await owner.BUCKET?.get(credentialPath(owner)):null;
   const saved=record?await record.json<GoogleSecret>():null;
-  return {connected:!!saved,keySetup:!!ctx.BUCKET&&!!ctx.KEY_ENCRYPTION_SECRET,models:saved?.models||[],checkedAt:saved?.verifiedAt};
+  return {connected:!!saved,keySetup:!sponsored&&!!ctx.BUCKET&&!!ctx.KEY_ENCRYPTION_SECRET,sponsored,models:saved?.models||[],checkedAt:saved?.verifiedAt};
 }
 export async function googleKey(ctx:Context){
+  const owner=await credentialContext(ctx);if(!owner)throw new StudioError('Ask your studio owner to open the studio and connect Google.',503);ctx=owner;
   const record=await bucket(ctx.BUCKET).get(credentialPath(ctx));
   if(!record)throw new StudioError('Connect Google AI Studio before generating with Nano Banana.',503);
   if(!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Secure Google key storage is unavailable.',503);
@@ -18,6 +21,7 @@ export async function googleKey(ctx:Context){
   catch{throw new StudioError('Reconnect your Google AI Studio key.',503)}
 }
 export async function saveGoogleKey(ctx:Context,key:string){
+  if(sponsorship(ctx).isGuest)throw new StudioError('Your studio owner manages the Google connection.',403);
   if(!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Secure key storage is not ready.',503);
   // Read-only model checks never start a paid image request.
   const checks=await Promise.all(GEMINI_IMAGE_MODELS.map(async model=>{
@@ -35,7 +39,7 @@ export async function saveGoogleKey(ctx:Context,key:string){
   await bucket(ctx.BUCKET).put(credentialPath(ctx),JSON.stringify({...sealed,models}),{httpMetadata:{contentType:'application/json'}});
   return models;
 }
-export async function removeGoogleKey(ctx:Context){await bucket(ctx.BUCKET).delete(credentialPath(ctx))}
+export async function removeGoogleKey(ctx:Context){if(sponsorship(ctx).isGuest)throw new StudioError('Your studio owner manages the Google connection.',403);await bucket(ctx.BUCKET).delete(credentialPath(ctx))}
 export function googleFailure(status:number){
   if(status===401||status===403)return new StudioError('Google access was denied. Check the connected key and Gemini API permissions.',503);
   if(status===429)return new StudioError('Google quota is exhausted or billing is not enabled. Check billing and limits in Google AI Studio.',429);
@@ -59,11 +63,28 @@ export async function renderGoogleImage(key:string,model:string,size:string,prom
   if(!['1:1','16:9','9:16','4:3','3:4','3:2','2:3'].includes(aspectRatio))throw new StudioError('Unsupported image shape.');
   if(images.length<2||images.length>14)throw new StudioError('Nano Banana accepts 2–14 reference images in this studio.');
   const input:Array<Record<string,string>>=[{type:'text',text:prompt}];
-  let total=0;
+  const total=images.reduce((n,i)=>n+i.bytes.length,0);
+  if(total>80_000_000)throw new StudioError('These references exceed the studio processing limit. Use fewer images.');
+  for(const image of images)if(!['image/png','image/jpeg','image/webp'].includes(image.type))throw new StudioError('Use PNG, JPEG or WebP references.');
+  const temporaryFiles:string[]=[];
+  try{
+  // Inline remains fast for small requests. Larger sets use file URIs instead
+  // of another lossy compression pass or a base64-expanded request body.
   for(const image of images){
-    if(!['image/png','image/jpeg','image/webp'].includes(image.type))throw new StudioError('Use PNG, JPEG or WebP references.');
-    total+=image.bytes.length;if(total>12_000_000)throw new StudioError('These references are too large together. Use smaller images, up to 12 MB total.');
-    input.push({type:'image',mime_type:image.type,data:Buffer.from(image.bytes).toString('base64')});
+    if(total<=12_000_000)input.push({type:'image',mime_type:image.type,data:Buffer.from(image.bytes).toString('base64')});
+    else{
+      const start=await fetch('https://generativelanguage.googleapis.com/upload/v1beta/files',{method:'POST',headers:{'x-goog-api-key':key,'Content-Type':'application/json','X-Goog-Upload-Protocol':'resumable','X-Goog-Upload-Command':'start','X-Goog-Upload-Header-Content-Length':String(image.bytes.length),'X-Goog-Upload-Header-Content-Type':image.type},body:JSON.stringify({file:{display_name:'Nmesis generation reference'}}),signal:AbortSignal.timeout(30000),redirect:'manual'});
+      if(!start.ok)throw await googleResponseFailure(start,key);
+      const uploadUrl=new URL(start.headers.get('x-goog-upload-url')||'');
+      if(uploadUrl.protocol!=='https:'||uploadUrl.hostname!=='generativelanguage.googleapis.com'||uploadUrl.username||uploadUrl.password)throw new StudioError('Google returned an invalid reference upload address.',502);
+      const upload=await fetch(uploadUrl,{method:'POST',headers:{'Content-Type':image.type,'X-Goog-Upload-Offset':'0','X-Goog-Upload-Command':'upload, finalize'},body:new Uint8Array(image.bytes),signal:AbortSignal.timeout(60000),redirect:'manual'});
+      if(!upload.ok)throw await googleResponseFailure(upload,key);
+      const result=await upload.json() as {file?:{name?:unknown;uri?:unknown;state?:unknown}},file=result.file;
+      if(typeof file?.name!=='string'||!/^files\/[a-zA-Z0-9_-]+$/.test(file.name))throw new StudioError('Google did not save a usable reference file.',502);
+      temporaryFiles.push(file.name);
+      if(file.uri!=='https://generativelanguage.googleapis.com/v1beta/'+file.name||file.state&&file.state!=='ACTIVE')throw new StudioError('Google has not finished preparing a reference. No image request was started.',502);
+      input.push({type:'image',mime_type:image.type,uri:file.uri});
+    }
   }
   let response:Response;
   try{response=await fetch('https://generativelanguage.googleapis.com/v1beta/interactions',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({model,input,store:false,response_format:{type:'image',mime_type:'image/jpeg',aspect_ratio:aspectRatio,image_size:resolution}}),signal:AbortSignal.timeout(240000),redirect:'manual'})}
@@ -75,4 +96,7 @@ export async function renderGoogleImage(key:string,model:string,size:string,prom
   const bytes=Buffer.from(output.data,'base64');let dimensions;
   try{dimensions=imageDimensions(bytes)}catch{throw new StudioError('Google returned an unreadable image.',502)}
   return {bytes,...dimensions};
+  }finally{
+    for(const name of temporaryFiles){try{await fetch('https://generativelanguage.googleapis.com/v1beta/'+name,{method:'DELETE',headers:{'x-goog-api-key':key},signal:AbortSignal.timeout(10000),redirect:'manual'})}catch{console.warn('Temporary reference cleanup could not finish; provider expiration remains active.')} }
+  }
 }
