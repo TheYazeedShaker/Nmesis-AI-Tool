@@ -28,6 +28,9 @@ test('capture messages require the expected origin, window and request id',async
  try{
   const promise=requestFrameCapture({contentWindow:source},'https://config.example/view');
   assert.equal(request.origin,'https://config.example');
+  assert.equal(request.message.type,'nmesis:capture-probe');
+  handler({source,origin:request.origin,data:{type:'nmesis:capture-ready'}});
+  assert.equal(request.message.quality,'original');assert.equal(request.message.width,7680);
   const data={type:'nmesis:capture-result',requestId:request.message.requestId,image:'data:image/png;base64,AA=='};
   handler({source,origin:'https://wrong.example',data});assert.ok(handler);
   handler({source:{},origin:request.origin,data});assert.ok(handler);

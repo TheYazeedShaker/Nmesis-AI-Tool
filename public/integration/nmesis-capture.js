@@ -3,7 +3,9 @@
  * Install inside a configurator page you control:
  * <script src="https://YOUR-STUDIO.vercel.app/integration/nmesis-capture.js"
  *         data-studio-origin="https://YOUR-STUDIO.vercel.app" defer></script>
- * Optional window.nmesisCaptureView() adapter returns {image,angle,finish}.
+ * Optional window.nmesisCaptureView({quality, width, height}) adapter returns {image,angle,finish}.
+ * Prefer the original selected frame. Renderers may honor the requested size using
+ * their own offscreen render target; never upscale a small bitmap as a substitute.
  * Pannellum adapter follows https://pannellum.org/documentation/api/
  */
 (function(){
@@ -19,11 +21,11 @@
   const r=el.getBoundingClientRect();return r.width>100&&r.height>70;
  }
  async function dataUrl(blob){
-  if(blob.size>8000000||!['image/png','image/jpeg','image/webp'].includes(blob.type))throw new Error('Unsupported image');
+  if(blob.size>40000000||!['image/png','image/jpeg','image/webp'].includes(blob.type))throw new Error('Unsupported image');
   return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob)});
  }
- async function currentImage(){
-  if(typeof window.nmesisCaptureView==='function')return await window.nmesisCaptureView();
+ async function currentImage(options){
+  if(typeof window.nmesisCaptureView==='function')return await window.nmesisCaptureView(options);
   const pano=window.pannellumViewer;
   if(pano?.isLoaded?.()&&visible(pano.getContainer())){
    const rad=Math.PI/180;
@@ -35,7 +37,7 @@
   const el=known||candidates[0];if(!el)throw new Error('No visible frame');
   if(el instanceof HTMLImageElement){
    const url=el.currentSrc||el.src;if(!url||!el.complete||!el.naturalWidth)throw new Error('Frame still loading');
-   const response=await fetch(url,{signal:AbortSignal.timeout(1500)});if(!response.ok)throw new Error('Image not available');
+   const response=await fetch(url,{signal:AbortSignal.timeout(12000)});if(!response.ok)throw new Error('Image not available');
    return {image:await dataUrl(await response.blob()),angle:'Current exterior / detail frame',finish:['#tbTrimLabel','#tbColorLabel'].map(s=>document.querySelector(s)?.textContent?.trim()).filter(Boolean).join(' · ')||'Selected configurator finish'};
   }
   const canvas=document.createElement('canvas');canvas.width=el.videoWidth||el.width;canvas.height=el.videoHeight||el.height;
@@ -49,7 +51,7 @@
   if(event.origin===origin&&event.source===window.parent&&event.data?.type==='nmesis:capture-probe'){window.parent.postMessage({type:'nmesis:capture-ready'},origin);return;}
   if(event.origin!==origin||event.source!==window.parent||event.data?.type!=='nmesis:capture'||typeof event.data.requestId!=='string'||event.data.requestId.length>80||busy)return;
   busy=true;
-  try{const capture=await currentImage();if(!capture||typeof capture.image!=='string'||!/^data:image\/(png|jpeg|webp);base64,/.test(capture.image)||capture.image.length>=12000000)throw new Error('Invalid frame');window.parent.postMessage({type:'nmesis:capture-result',requestId:event.data.requestId,image:capture.image,angle:String(capture.angle||'Current view').slice(0,100),finish:String(capture.finish||'Selected finish').slice(0,120)},origin)}
+  try{const capture=await currentImage({quality:'original',width:7680,height:4320});if(!capture||typeof capture.image!=='string'||!/^data:image\/(png|jpeg|webp);base64,/.test(capture.image)||capture.image.length>=54000000)throw new Error('Invalid frame');window.parent.postMessage({type:'nmesis:capture-result',requestId:event.data.requestId,image:capture.image,angle:String(capture.angle||'Current view').slice(0,100),finish:String(capture.finish||'Selected finish').slice(0,120)},origin)}
   catch{window.parent.postMessage({type:'nmesis:capture-result',requestId:event.data.requestId,error:'Use a screenshot for this view'},origin)}finally{busy=false}
  });
 })();

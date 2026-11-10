@@ -37,3 +37,19 @@ test('second OpenAI refinement edits the saved first refinement bytes, with no o
   const prompt=form.get('prompt');assert.match(prompt,/Image 3 is the CURRENT SELECTED VERSION and the BASE IMAGE TO EDIT/);assert.match(prompt,/preserve every previous edit/);assert.match(prompt,/Change the cone to blue/);assert.doesNotMatch(prompt,/continuity only|Hero treatment|Correct any drift from Image 2|An SUV in the desert/);
  }
 });
+test('six-car OpenAI generation and refinement send all fourteen images in exact prompt order',async()=>{
+ for(const strictReference of [false,true]){
+  const h=await harness(),cars=Array.from({length:6},(_,i)=>({id:'car-test-'+i,name:'Model '+i,configurator:'https://example.com/'+i,finish:'Pearl',x:10+i*15,y:70,scale:14,views:[0,1].map(j=>({id:`reference-${i}-${j}`,label:j?'Wheel detail':'Primary'}))}));
+  for(const car of cars)for(const view of car.views)h.objects.set('owner/images/'+view.id,Buffer.from(view.id));
+  const draft={cars,layout:'inspiration',heroId:cars[0].id,strictReference};
+  for(const parentId of [null,'base-1234']){
+   const r=await h.submit({id:parentId?'lineup-refined':'lineup-created',lineup:parentId?{...draft,targetCarId:cars[5].id}:draft,sourceId:cars[0].views[0].id,parentId,refinementReferenceIds:[],refinement:parentId?'Correct wheels on car six':''});assert.equal(r.status,200,await r.clone().text());const visual=(await r.json()).visual;assert.equal(visual.lineup.cars.length,6);
+   const form=h.calls.at(-1)[1].body,bytes=await Promise.all(form.getAll('image[]').map(i=>i.text()));assert.deepEqual(bytes,lineup.lineupImageIds(draft,'mood-1234',parentId));assert.equal(bytes.length,parentId?14:13);
+   assert.match(form.get('prompt'),parentId?/Change ONLY CAR 6/:/EXACTLY 6/);
+  }
+ }
+});
+test('seventh car or missing sixth-car reference rejects before a paid request',async()=>{
+ const h=await harness();const cars=Array.from({length:7},(_,i)=>({id:'car-test-'+i,name:'Model '+i,configurator:'',finish:'',x:50,y:70,scale:15,views:[{id:'reference-'+i,label:'Primary'}]}));for(const car of cars)h.objects.set('owner/images/'+car.views[0].id,Buffer.from('car'));
+ const submit=()=>h.submit({lineup:{cars,layout:'inspiration',heroId:cars[0].id},sourceId:cars[0].views[0].id,parentId:null,refinementReferenceIds:[]});assert.equal((await submit()).status,400);cars.pop();h.objects.delete('owner/images/reference-5');assert.equal((await submit()).status,404);assert.equal(h.calls.length,0);
+});

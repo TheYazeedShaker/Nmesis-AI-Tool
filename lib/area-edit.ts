@@ -34,6 +34,23 @@ export function providerMask(selection:Uint8Array,width:number,height:number,wor
  }
  return encode({...work,data,channels:4,depth:8});
 }
+// A separate transparent annotation layer; never paint onto the source photo.
+export function providerMarkup(selection:Uint8Array,width:number,height:number,work:{width:number;height:number}){
+ const mask=readPng(providerMask(selection,width,height,work)),data=new Uint8Array(work.width*work.height*4);
+ const selected=(x:number,y:number)=>x>=0&&y>=0&&x<work.width&&y<work.height&&mask.data[(y*work.width+x)*4+3]===0;
+ const radius=Math.max(2,Math.round(Math.max(work.width,work.height)/600));
+ for(let y=0;y<work.height;y++)for(let x=0;x<work.width;x++)if(selected(x,y)){
+  const edge=!selected(x-radius,y)||!selected(x+radius,y)||!selected(x,y-radius)||!selected(x,y+radius);
+  if(edge)data.set([255,60,30,255],(y*work.width+x)*4);
+ }
+ return encode({...work,data,channels:4,depth:8});
+}
+export function markupAreaPrompt(instruction:string,hasReference:boolean,intent:AreaIntent,contentAware:boolean){
+ return areaPrompt(instruction,hasReference,intent,contentAware)
+ .replace('LOCAL MASKED EDIT','LOCAL REGION EDIT')
+ .replace('The transparent part of the supplied mask is the only editable area.','The separate transparent markup layer outlines the editable region in red. Edit only inside that outline. The red outline is an instruction, not part of the photograph; omit it entirely from the output.')
+ .replaceAll('inside the mask','inside the outlined region').replaceAll('The mask includes','The outlined region includes').replaceAll('unmasked pixels','pixels outside the outlined region');
+}
 export const EDGE_BLENDING=[{value:6,label:'Precise'},{value:16,label:'Natural (recommended)'},{value:32,label:'Soft'},{value:0,label:'Off'}] as const;
 export function edgeBlend(value:unknown){const n=value===null||value===undefined?16:Number(value);if(!EDGE_BLENDING.some(v=>v.value===n))throw new Error('Choose a supported edge blending setting.');return n}
 export type AreaIntent='edit'|'add'|'remove'|'insert'|'repair';

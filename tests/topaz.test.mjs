@@ -52,3 +52,15 @@ test('failed saving can recover the completed output without generating again',a
 test('a provider receipt recovers an interrupted acceptance without resubmitting',async()=>{
  const h=await harness();const job=await h.api.startTopaz(h.ctx,'upscale-1234',h.parent.id,3840);h.sql.prepare("UPDATE topaz_jobs SET provider_id=NULL,status='unknown' WHERE id=?").run(job.id);const recovered=await h.api.refreshTopaz(h.ctx,job.id);assert.equal(recovered.status,'ready');assert.equal(h.submits,1);
 });
+test('named sponsored guests use Topaz owner credentials and cannot change the shared connection',async()=>{
+ const h=await harness(),owner={...h.ctx,prefix:'users/'+'a'.repeat(64)+'/',email:'owner@example.com',SHARED_OPENAI_OWNER_EMAIL:'owner@example.com',SHARED_OPENAI_GUEST_EMAILS:'guest-one@example.com,guest-two@example.com'};
+ await h.api.saveTopazKey(owner,'test-key-for-topaz-only');await h.api.topazStatus(owner);
+ for(const email of owner.SHARED_OPENAI_GUEST_EMAILS.split(',')){
+  const guest={...owner,email,prefix:'users/'+'b'.repeat(64)+'/'};const status=await h.api.topazStatus(guest);
+  assert.equal(status.connected,true);assert.equal(status.sponsored,true);assert.equal(status.keySetup,false);assert(!JSON.stringify(status).includes('test-key-for-topaz-only'));assert.equal(await h.api.topazKey(guest),'test-key-for-topaz-only');
+  const calls=h.calls.length;await assert.rejects(()=>h.api.saveTopazKey(guest,'replacement-key'),e=>e.status===403);await assert.rejects(()=>h.api.removeTopazKey(guest),e=>e.status===403);assert.equal(h.calls.length,calls);
+  assert.equal((await h.api.topazStatus({...guest,SHARED_OPENAI_GUEST_EMAILS:''})).connected,false);
+ }
+ assert.equal((await h.api.topazStatus({...owner,email:'stranger@example.com',prefix:'users/stranger/'})).connected,false);
+ assert.equal(await h.api.topazKey(owner),'test-key-for-topaz-only');h.sql.close();
+});

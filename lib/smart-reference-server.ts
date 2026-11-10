@@ -1,6 +1,6 @@
 import {apiKey} from './credentials';
 import {bucket,imageKey,StudioError,validId,str,type StudioEnv} from './studio-server';
-import {geminiImageModel,imageSettings} from './image-models';
+import {geminiImageModel,imageSettings,openaiImageModel} from './image-models';
 import {SMART_VERSION,smartPriority,parseSmartAnalysis,smartPrompt,type SmartInput,type SmartPlan} from './smart-reference';
 import {nanoDetailInputs} from './nano-detail-inputs';
 type Context=StudioEnv&{prefix:string;email?:string};
@@ -10,7 +10,7 @@ const REVIEW_SCHEMA={type:'object',additionalProperties:false,required:['verdict
 export function smartInput(d:any,ctx:Context):SmartInput{
  if(!validId(d.sourceId)||!validId(d.moodId))throw new StudioError('Choose a saved car and inspiration.');
  if(!['openai','google'].includes(d.provider))throw new StudioError('Smart prompts support OpenAI and Nano Banana.');
- let priority,model,size;try{priority=smartPriority(d.priority);model=d.provider==='google'?geminiImageModel(d.model).id:ctx.OPENAI_IMAGE_MODEL||'gpt-image-2.5-sunburst';size=imageSettings(d.provider,d.size,d.model).size}catch(e){throw new StudioError((e as Error).message)}
+ let priority,model,size;try{priority=smartPriority(d.priority);model=d.provider==='google'?geminiImageModel(d.model).id:openaiImageModel(d.model===undefined||d.model==='openai'||d.model==='marketing-studio/image/sunburst'?ctx.OPENAI_IMAGE_MODEL:d.model).id;size=imageSettings(d.provider,d.size,model).size}catch(e){throw new StudioError((e as Error).message)}
  const brief=str(d.brief);if(brief.length<8)throw new StudioError('Add a short idea for the image.');
  return{sourceId:d.sourceId,moodId:d.moodId,brief,provider:d.provider,model,size,priority};
 }

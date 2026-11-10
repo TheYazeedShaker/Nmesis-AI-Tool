@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import ts from 'typescript';
+import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
+const require=createRequire(import.meta.url),exports={};
+const code=ts.transpileModule(readFileSync(new URL('../components/progressive-gallery.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2022}}).outputText;
+new Function('require','exports',code)(require,exports);
+const cards=Array.from({length:19},(_,i)=>React.createElement('img',{key:i,src:'/private-test-'+i+'.jpg',alt:'Image '+i,loading:'lazy'}));
+test('gallery sends only six image elements in initial markup, with a manual loading fallback',()=>{const html=renderToStaticMarkup(React.createElement(exports.ProgressiveGallery,null,cards));assert.equal((html.match(/<img /g)||[]).length,6);assert.match(html,/6 of 19 visuals/);assert.match(html,/Load more images/);assert.doesNotMatch(html,/private-test-6\.jpg/)});
+test('loading state does not request placeholder images; small galleries do not offer excess pages',()=>{const pending=renderToStaticMarkup(React.createElement(exports.ProgressiveGallery,{loading:true},cards));assert.doesNotMatch(pending,/<img /);assert.match(pending,/Loading your gallery/);const small=renderToStaticMarkup(React.createElement(exports.ProgressiveGallery,null,cards.slice(0,3)));assert.match(small,/3 of 3 visuals/);assert.doesNotMatch(small,/Load more images/)});

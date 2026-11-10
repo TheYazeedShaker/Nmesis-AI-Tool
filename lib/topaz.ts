@@ -1,7 +1,7 @@
 import type {Visual} from './studio';
 export const TOPAZ_MODEL = 'Upscale High Fidelity V3';
 export const TOPAZ_MODEL_ID = 'topaz-high-fidelity-3';
-export type TopazConnectionStatus={connected:boolean;keySetup:boolean;checkedAt?:string;credits?:number};
+export type TopazConnectionStatus={connected:boolean;keySetup:boolean;sponsored?:boolean;checkedAt?:string;credits?:number};
 export type TopazJob={id:string;parentId:string;status:string;progress:number;createdAt:number;error?:string;credits?:number;width:number;height:number;visual?:Visual};
 export const topazActive=(status:string)=>['submitting','unknown','queued','processing','archiving'].includes(status);
 // Core fields follow the Enhance endpoint schema; model options follow the HF3 model page.
