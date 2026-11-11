@@ -38,7 +38,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 - **Storage**: AWS S3 by default (`S3_REGION` required, no endpoint, virtual-hosted addresses), timeouts, conditional writes verified by tests; `docs/s3-setup.md` and `docs/s3-cors.example.json`.
 - **Configurator presets** moved out of the browser bundle to `/api/configurators` (server-only `CONFIGURATOR_PRESETS`; the `s08` first-preset rule still works).
 - `npm run check:setup` now checks the live database (schema, search path, migrations, no access to `public`) and bucket (probe put/conditional put/get/delete under `staging/`).
-- Local verification: lint (0 errors; warnings identical to `development`), typecheck, 235/235 tests (7 Postgres tests skipped without `TEST_DATABASE_URL`), production build. See the S1 PR for what ran against a real Postgres.
+- Local verification: lint (0 errors; warnings identical to `development`), typecheck, 235/235 tests (7 Postgres tests skipped without `TEST_DATABASE_URL`), production build. **Not run locally:** the Postgres checks (V1: `tests/postgres.test.mjs`, migrations twice, privileges) and the end-to-end flow (V2: `scripts/verify/studio-flow.mjs` with a local S3 stand-in), because no Postgres was available on the development machine. The reviewer runs both against a disposable Postgres 17.
 
 ## Decisions made (must be remembered)
 
@@ -66,7 +66,8 @@ _Carried_
 
 ## Next session — start here
 
-1. Owner: review the S1 PR into `development`; follow its owner steps (Supabase SQL in the main and staging projects, S3 buckets, IAM users, CORS, lifecycle, Vercel variables), then run `npm run db:migrate` and `npm run check:setup` against each environment.
-2. Smoke-test sign-in, an upload and the library on the Preview deployment once its variables are set.
-3. PR S2 (accounts, sign-in, configurator assignment, plan features): replace `currentOrg()` in `lib/portable/tenancy.ts` with the signed-in member's organization, add membership-based RLS policies, and narrow `/api/configurators` to the client's presets.
-4. Continue the lint-debt queue (BACKLOG #4).
+1. Reviewer: run `TEST_DATABASE_URL=… npm test` (superuser URL of a disposable Postgres 17 database) and then `scripts/verify/studio-flow.mjs` against it; both were not run locally. Fix anything they find before merging.
+2. Owner: review the S1 PR into `development`; follow its owner steps (Supabase SQL in the main and staging projects, S3 buckets, IAM users, CORS, lifecycle, Vercel variables), then run `npm run db:migrate` and `npm run check:setup` against each environment.
+3. Smoke-test sign-in, an upload and the library on the Preview deployment once its variables are set.
+4. PR S2 (accounts, sign-in, configurator assignment, plan features): replace `currentOrg()` in `lib/portable/tenancy.ts` with the signed-in member's organization, add membership-based RLS policies, and narrow `/api/configurators` to the client's presets.
+5. Continue the lint-debt queue (BACKLOG #4).
