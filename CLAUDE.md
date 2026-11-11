@@ -7,8 +7,8 @@ Operating manual. Permanent standards only; session state lives in `PROGRESS.md`
 **Nmesis Studio**: an automotive creative studio (key visuals, lineups, films, storyboards, car swap, upscaling) built on Next.js 16 (App Router) and deployed on Vercel. It is being grown into a full platform.
 
 - Auth: NextAuth (Google) with an email allow-list (`STUDIO_ALLOWED_EMAILS`).
-- Data: Turso/libSQL via Drizzle (`db/`, `drizzle/` migrations, `scripts/migrate.mjs`).
-- Media: private Cloudflare R2 (S3 API), signed direct uploads/downloads.
+- Data: Supabase Postgres, schema `studio`, own role `studio_app` (`lib/portable/database.ts`, `supabase/migrations/`, `scripts/migrate.mjs`).
+- Media: private AWS S3, signed direct uploads/downloads; keys under `orgs/<org>/users/<user>/` (`lib/portable/tenancy.ts`).
 - Providers: OpenAI, Google AI Studio, Higgsfield, Topaz; per-user keys encrypted server-side (`lib/secret-crypto.ts`).
 
 ## Governing documents
@@ -38,7 +38,7 @@ Preview deployments must use separate database, storage, secrets and provider bu
 
 ## Non-negotiable engineering rules
 
-- **The repository is public.** No secrets, no infrastructure identifiers, no real third-party brand names, no customer data in source, tests, commits or PR text. Sample data is synthetic ("Demo SUV"). Real configurator presets live in `NEXT_PUBLIC_CONFIGURATOR_PRESETS`.
+- **The repository is public.** No secrets, no infrastructure identifiers, no real third-party brand names, no customer data in source, tests, commits or PR text. Sample data is synthetic ("Demo SUV"). Real configurator presets live in the server-only `CONFIGURATOR_PRESETS`.
 - Every API route authenticates first and scopes every read/write to the signed-in owner. Never trust an owner id from the request body.
 - Provider credentials stay server-side and encrypted; never logged, never sent to the browser.
 - Inputs are validated at every boundary (zod or explicit checks).
@@ -60,7 +60,7 @@ Commits: Conventional Commits (`feat(films): …`, `fix(auth): …`, `ci: …`, 
 ## Working rules
 
 - Agents never push to `main`, merge PRs, approve PRs, change branch protection, or edit Vercel/GitHub settings unless the owner explicitly asks in the session.
-- Hosted actions (env vars, secrets, DNS, database on hosted Turso, R2 settings) belong to the owner; the agent writes exact steps.
+- Hosted actions (env vars, secrets, DNS, hosted Supabase projects, S3 buckets and IAM) belong to the owner; the agent writes exact steps.
 - Write commit messages and PR bodies to a file (`git commit -F`), not heredocs.
 - Human-only text (legal, privacy, consent) is never invented.
 
