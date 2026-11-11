@@ -1,45 +1,23 @@
 // End-to-end check of the studio's real route handlers against a Postgres database
 // (connected as studio_app, migrations applied) and a local in-memory S3 stand-in.
-// Sign-in is replaced ONLY inside this harness by stubbing '@/app/chatgpt-auth';
-// no application code is changed. It uploads a reference through a signed URL,
+// Sign-in is replaced ONLY inside this harness: hooks.mjs resolves '@/app/chatgpt-auth'
+// to auth-stub.mjs; no application code is changed. It uploads a reference through a signed URL,
 // creates and lists a storyboard, sets and reserves a budget (two concurrent
 // reservations against one limit), lists the library and archives an empty draft.
 // Use a disposable local database only; it writes rows and never cleans them up.
+// The studio's TypeScript runs on Node's own module loader through hooks.mjs (alias,
+// extensionless imports, transpiling with the repository's TypeScript); Node 20.6+.
 // usage (after npm run db:migrate against that database):
 //   STUDIO_DB=postgres://studio_app:<password>@127.0.0.1:5432/<db>?sslmode=disable \
-//   node --experimental-vm-modules scripts/verify/studio-flow.mjs
-import vm from 'node:vm';
-import {readFileSync,statSync} from 'node:fs';
-import {createRequire} from 'node:module';
-import {pathToFileURL,fileURLToPath} from 'node:url';
-import {join,dirname} from 'node:path';
+//   node scripts/verify/studio-flow.mjs
+import {register} from 'node:module';
+import {encode} from 'fast-png';
 import {startS3} from './s3-standin.mjs';
 if(!process.env.STUDIO_DB){console.error('Set STUDIO_DB to a studio_app connection string for a disposable database.');process.exit(1)}
-const ROOT=fileURLToPath(new URL('../../',import.meta.url)),req=createRequire(join(ROOT,'package.json'));
-const ts=(await import(pathToFileURL(req.resolve('typescript')).href)).default;
-const {encode}=await import(pathToFileURL(req.resolve('fast-png')).href);
+register('./hooks.mjs',import.meta.url);
 const s3=await startS3();
 Object.assign(process.env,{DATABASE_URL:process.env.STUDIO_DB,S3_REGION:'eu-central-1',S3_BUCKET:'studio-local',S3_ENDPOINT:s3.url,S3_FORCE_PATH_STYLE:'true',S3_ACCESS_KEY_ID:'local',S3_SECRET_ACCESS_KEY:'local-secret',KEY_ENCRYPTION_SECRET:'k'.repeat(48),NEXTAUTH_SECRET:'n'.repeat(48)});
-const USER={userId:'google-email:owner@example.test',displayName:'Test Owner',email:'owner@example.test',fullName:'Test Owner'};
-const stubs={'@/app/chatgpt-auth':{getChatGPTUser:async()=>USER,chatGPTSignInPath:()=>'/',chatGPTSignOutPath:()=>'/',requireChatGPTUser:async()=>USER}};
-const cache=new Map();
-function file(spec,from){
- const base=spec.startsWith('@/')?join(ROOT,spec.slice(2)):join(dirname(from),spec);
- for(const c of [base,base+'.ts',base+'.tsx',join(base,'index.ts')]){try{if(statSync(c).isFile())return c}catch{/* try the next candidate */}}
- throw new Error('Cannot resolve '+spec+' from '+from);
-}
-async function load(spec,from=ROOT+'/x.ts'){
- if(stubs[spec]){const s=stubs[spec];return cache.get(spec)??(cache.set(spec,new vm.SyntheticModule(Object.keys(s),function(){for(const [k,v] of Object.entries(s))this.setExport(k,v)})),cache.get(spec))}
- if(!spec.startsWith('.')&&!spec.startsWith('@/')){
-  if(cache.has(spec))return cache.get(spec);
-  const ns=await import(spec.startsWith('node:')?spec:pathToFileURL(req.resolve(spec)).href);
-  const m=new vm.SyntheticModule(Object.keys(ns),function(){for(const k of Object.keys(ns))this.setExport(k,ns[k])});cache.set(spec,m);return m;
- }
- const path=file(spec,from);if(cache.has(path))return cache.get(path);
- const code=ts.transpileModule(readFileSync(path,'utf8'),{fileName:path,compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
- const m=new vm.SourceTextModule(code,{identifier:path});cache.set(path,m);await m.link(s=>load(s,path));return m;
-}
-async function route(path){const m=await load('@/'+path);if(m.status!=='evaluated')await m.evaluate();return m.namespace}
+const route=path=>import('@/'+path);
 const ORIGIN='http://studio.local';
 const call=async(mod,method,path,body,params)=>{const r=await mod[method](new Request(ORIGIN+path,{method,headers:{origin:ORIGIN,'content-type':'application/json'},...body!==undefined?{body:JSON.stringify(body)}:{}}),params?{params:Promise.resolve(params)}:undefined);const data=await r.json().catch(()=>null);console.log(`${method} ${path} -> ${r.status}`);if(!r.ok)throw new Error(JSON.stringify(data));return data};
 

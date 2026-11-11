@@ -25,14 +25,20 @@ function closing(sql:string,start:number,quote:string){
  for(let i=start+1;i<sql.length;i++){if(sql[i]===quote){if(sql[i+1]===quote){i++;continue}return i}}
  return sql.length-1;
 }
+// Plain fields, not constructor parameter properties: tests import this file
+// under Node's strip-only TypeScript mode, which rejects parameter properties.
 export class StudioDatabase {
- constructor(private sql:Sql) {}
+ private sql:Sql;
+ constructor(sql:Sql) { this.sql=sql; }
  prepare(text:string) { return new Statement(this.sql, text); }
  // D1 batch: every statement in one transaction, in order; any error rolls back all.
  async batch(statements:Statement[]) { return this.sql.begin(async tx=>{const out=[];for(const s of statements)out.push(await s.runIn(tx as unknown as Sql));return out}); }
 }
 class Statement {
- constructor(private sql:Sql, private text:string, private args:Param[] = []) {}
+ private sql:Sql;
+ private text:string;
+ private args:Param[];
+ constructor(sql:Sql, text:string, args:Param[] = []) { this.sql=sql; this.text=text; this.args=args; }
  bind(...values: unknown[]) { return new Statement(this.sql,this.text,values.map(v=>v===undefined?null:v) as Param[]); }
  private execute(sql:Sql=this.sql) { return sql.unsafe(toPositional(this.text),this.args); }
  async runIn(sql:Sql) {return this.result(await this.execute(sql));}
