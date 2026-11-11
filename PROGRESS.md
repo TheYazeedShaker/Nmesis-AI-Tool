@@ -2,9 +2,11 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-10
+**Last updated:** 2026-11-11
 
-**Latest (2026-11-10, studio sync):** Synced the current studio feature updates into a feature branch from `development`, retaining the repository’s authentication, database and private-media adapters. The owner authorized feature PR → `development` → promotion PR → `main`. No hosted settings, production data, generated media or archives are included.
+**Latest (2026-11-11, data layer S1):** Moved the studio from Turso + R2 to Supabase Postgres (own schema and role) + AWS S3, ready for multiple client organizations. Branch `feat/postgres-s3` → PR into `development`. No hosted system was touched; the owner steps are in the PR body, `docs/supabase-setup.sql` and `docs/s3-setup.md`.
+
+**Earlier (2026-11-10, studio sync):** Synced the current studio feature updates into a feature branch from `development`, retaining the repository’s authentication, database and private-media adapters. The owner authorized feature PR → `development` → promotion PR → `main`. No hosted settings, production data, generated media or archives are included.
 
 **Earlier (2026-10-14, pipeline test):** End-to-end pipeline check: this change went `ci/pipeline-smoke` → PR into `development` → CI on the PR + Vercel Preview → merge → `development` Preview deploy.
 
@@ -24,29 +26,35 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Hosted env vars               | ⏳     | Owner (BACKLOG #2). App builds and serves pages without them; sign-in and generation need them. |
 | Branch rulesets on `main`     | ✅     | Active; PRs, required `verify` / `secrets`, squash only, no bypass (verified 2026-11-10). |
 | Lint debt                     | 🟡     | Enforced; legacy rules downgraded to warnings (BACKLOG #4)            |
+| Data layer (Postgres + S3)    | 🟡     | PR S1 into `development`; hosted Supabase/S3 setup is an owner step   |
+| Accounts, client configurators, plans | ⏳ | PR S2 (owner's platform plan)                                |
 
 ## What was built last session
 
-- Synced the simpler key-visual workspace, progressive gallery, clipboard references, improved Pinterest import, safer isolated configurator capture, six-car lineups, image-model and area-edit choices, and stalled-generation handling.
-- Retained Google sign-in, the allow-list, Turso/Drizzle, encrypted provider credentials and owner-scoped private R2 media. Shared Google and Topaz connections use the existing configured sponsorship rules; image and job ownership stays separate.
-- Adapted full-resolution originals (up to 40 MB) to signed direct R2 uploads. Prepared references and originals both avoid the hosting request-body limit; originals remain immutable and authenticated.
-- Included the film-model choice and optional driving-motion controls; no paid generation ran during this sync.
-- Updated Next.js and its matching ESLint configuration from 16.4.0 to 16.4.6 after the production build blocked the older version for security advisories.
-- Local verification: lint (0 errors, existing warnings), typecheck, 230/230 tests, and production build passed. Browser review confirmed the compiled workspace, model switching, and six-car limit. Authenticated generation was not tested in the clean local checkout because it has no hosted credentials or data.
-- Source and fixtures are synthetic. No credentials, uploaded references, generated media, private infrastructure identifiers or archive updates are part of the sync.
+- **Database adapter** (`lib/portable/database.ts`): the same D1-style `prepare().bind().first/all/run` surface (plus D1 `batch` as one transaction) over the `postgres` client through the Supabase transaction pooler: small per-instance pool, no prepared statements, TLS, `search_path` = `studio`. `?` placeholders become `$1…$n` once per statement, skipping string literals, quoted identifiers and comments. Bigint values return as numbers.
+- **Schema and migrations**: `supabase/migrations/0001_studio.sql` (idempotent) creates the six job tables with `org_id`, bigint time and money columns, RLS on with no policies, and revoked privileges for every other role; `scripts/migrate.mjs` applies it through `DATABASE_URL_DIRECT` with the same checksum guard and an advisory lock. `docs/supabase-setup.sql` is the owner's one-time role and schema setup. Drizzle, `db/`, `drizzle/` and `@libsql/client` were removed.
+- **SQLite→Postgres fixes**: budget reservations now lock the payer's budget row first (Postgres runs writers concurrently); one active upscale per image is a partial unique index; bigint sums are cast back to numbers; untyped `SELECT ?` values are cast; the SQLite-only `json_set` became a compare-and-swap; a non-integer storyboard revision no longer reaches a numeric comparison.
+- **Organizations**: one helper builds every storage prefix (`orgs/<org>/users/<user>/`); inserts carry `org_id`; list queries filter by it; shared-account pointers stay inside the organization.
+- **Storage**: AWS S3 by default (`S3_REGION` required, no endpoint, virtual-hosted addresses), timeouts, conditional writes verified by tests; `docs/s3-setup.md` and `docs/s3-cors.example.json`.
+- **Configurator presets** moved out of the browser bundle to `/api/configurators` (server-only `CONFIGURATOR_PRESETS`; the `s08` first-preset rule still works).
+- `npm run check:setup` now checks the live database (schema, search path, migrations, no access to `public`) and bucket (probe put/conditional put/get/delete under `staging/`).
+- Local verification: lint (0 errors; warnings identical to `development`), typecheck, 235/235 tests (7 Postgres tests skipped without `TEST_DATABASE_URL`), production build. **Not run locally:** the Postgres checks (V1: `tests/postgres.test.mjs`, migrations twice, privileges) and the end-to-end flow (V2: `scripts/verify/studio-flow.mjs` with a local S3 stand-in), because no Postgres was available on the development machine. The reviewer's Postgres 16 run passed V1 (242/242) only with transform-types; the strip-only load failure in `lib/portable/database.ts` and the harness's module loader were then fixed, and neither has been re-run against Postgres yet.
 
 ## Decisions made (must be remembered)
 
 - **Repository visibility:** stays public; scrub third-party names and infrastructure identifiers before pushing (owner, 2026-10-14). ADR 0001.
+- **Data layer (owner, 2026-11-11):** Supabase Postgres in schema `studio` with its own login role `studio_app`; Preview uses a separate staging Supabase project. Media in a private AWS S3 bucket in `eu-central-1` with an IAM user scoped to that bucket; one bucket and IAM user per environment.
+- **Multi-client (owner, 2026-11-11):** every row carries `org_id`; every object lives under `orgs/<org>/users/<user>/`. Until S2 all users belong to the studio's own organization (`lib/portable/tenancy.ts`).
+- **Configurator presets:** server-only `CONFIGURATOR_PRESETS`, served to signed-in users by `/api/configurators`, no longer in the browser bundle.
 - **Branch model:** `main` = Production, `development` = staging, `moaz-playground` = sandbox; feature PRs into `development` (owner, 2026-10-14). ADR 0001.
 
 ## Known issues / TODOs
 
 _Waiting on owner_
 
-- Vercel env vars for Production and Preview (separate resources per environment), including `NEXT_PUBLIC_CONFIGURATOR_PRESETS`.
+- Supabase setup in the main and staging projects, S3 buckets and IAM users, then Vercel variables for Production and Preview: `DATABASE_URL`, `DATABASE_URL_DIRECT`, `S3_*`, `CONFIGURATOR_PRESETS` (exact steps in the S1 PR). Remove the old `TURSO_*`, `S3_ENDPOINT` and `NEXT_PUBLIC_CONFIGURATOR_PRESETS` values.
 - Confirm hosted Preview and Production service configuration before running paid end-to-end generation tests.
-- Google OAuth redirect URIs and R2 CORS for the Vercel domains.
+- Google OAuth redirect URIs and S3 CORS for the Vercel domains.
 
 _Carried_
 
@@ -58,7 +66,8 @@ _Carried_
 
 ## Next session — start here
 
-1. Confirm the feature sync and promotion PR checks/deployments in GitHub before further releases.
-2. Verify separate Preview and Production service configuration (BACKLOG #2); this session did not change or copy hosted credentials.
-3. Run authenticated upload and generation smoke tests against an isolated Preview account when configured.
-4. Continue the existing lint-debt queue and request the platform specification before new architecture work.
+1. Reviewer: re-run `TEST_DATABASE_URL=… npm test` (superuser URL of a disposable Postgres database; expect 242/242) and then `node scripts/verify/studio-flow.mjs` against it, after the strip-only and loader fixes. Fix anything they find before merging.
+2. Owner: review the S1 PR into `development`; follow its owner steps (Supabase SQL in the main and staging projects, S3 buckets, IAM users, CORS, lifecycle, Vercel variables), then run `npm run db:migrate` and `npm run check:setup` against each environment.
+3. Smoke-test sign-in, an upload and the library on the Preview deployment once its variables are set.
+4. PR S2 (accounts, sign-in, configurator assignment, plan features): replace `currentOrg()` in `lib/portable/tenancy.ts` with the signed-in member's organization, add membership-based RLS policies, and narrow `/api/configurators` to the client's presets.
+5. Continue the lint-debt queue (BACKLOG #4).

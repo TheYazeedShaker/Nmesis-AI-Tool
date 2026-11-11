@@ -1,5 +1,11 @@
 // Keep money in integer USD millionths. Reservations include failed/canceled jobs;
 // provider refunds are not inferred from a render status.
+// Postgres runs writers concurrently (SQLite serialized them). Each reservation runs
+// in one transaction right after its LOCK_*_BUDGET_SQL, a no-op update that locks the
+// payer's budget row; the reservation's sums then see every reservation committed before it.
+export const LOCK_FILM_BUDGET_SQL='UPDATE film_budgets SET paused=paused WHERE payer=(SELECT payer FROM films WHERE id=? AND owner=?)';
+export const LOCK_SWAP_BUDGET_SQL='UPDATE film_budgets SET paused=paused WHERE payer=(SELECT payer FROM swap_jobs WHERE id=? AND owner=?)';
+export const LOCK_IMAGE_BUDGET_SQL='UPDATE film_budgets SET paused=paused WHERE payer=(SELECT payer FROM image_jobs WHERE id=? AND owner=?)';
 export const RESERVE_FILM_SQL=`UPDATE films SET status='submitting', reserved_day=?, updated_at=?, lock_until=?
  WHERE id=? AND owner=? AND status='quoted'
  AND EXISTS(SELECT 1 FROM film_budgets WHERE payer=films.payer AND paused=0

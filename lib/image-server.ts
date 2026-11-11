@@ -1,7 +1,8 @@
 import {parseLineup,lineupImageIds,lineupPrompt,lineupCapacity} from './lineup';
 import {bucket,imageKey,validId,str,StudioError,imageType} from './studio-server';
 import {database,provider,quotePrice,videoCredential,budget,ProviderFailure,type FilmContext} from './film-server';
-import {budgetDay,keyFingerprint,publicMediaUrl,providerUrl,requestUrls,RESERVE_IMAGE_SQL} from './film-policy';
+import {budgetDay,keyFingerprint,publicMediaUrl,providerUrl,requestUrls,LOCK_IMAGE_BUDGET_SQL,RESERVE_IMAGE_SQL} from './film-policy';
+import {orgOf} from './portable/tenancy';
 import {higgsImageBody,imageSettings,imageBudgetIssue,higgsImageModel,TOKEN_IMAGE_RESERVATION,tokenImagePricing,refinementReferences} from './image-models';
 import {generationPrompt,safePinterest,referenceMode,type Visual} from './studio';
 type ImageData={visual:Visual;body?:Record<string,unknown>;quoteAt?:number;fingerprint?:string;parentId?:string;pricingDescription?:string};
@@ -18,7 +19,7 @@ export async function createImage(ctx:FilmContext,d:Record<string,any>){
  let selectedReferenceMode;try{selectedReferenceMode=referenceMode(d.referenceMode)}catch(e){throw new StudioError((e as Error).message)}
  const prompt=lineup?lineupPrompt(lineup,brief,!!d.parentId,str(d.refinement,1000)):generationPrompt({referenceMode:selectedReferenceMode,brief,vehicle:str(d.vehicle,100),finish:str(d.finish,120),angle:str(d.angle,120),scene:str(d.scene,1500),variant:Number.isInteger(d.variant)?Math.max(0,d.variant):0,hasMood:true,refinementReferenceCount:refinementReferenceIds.length,refinement:str(d.refinement,1000)});
  const now=Date.now(),visual:Visual={id:d.id,lineup,title:str(d.title,100)||'Campaign visual',src:'/api/assets/'+d.id,status:'pending',createdAt:new Date(now).toISOString(),prompt,brief,vehicle:str(d.vehicle,100),configurator:str(d.configurator,2000),finish:str(d.finish,120),angle:str(d.angle,120),sourceId:d.sourceId,moodId:d.moodId,parentId:d.parentId||null,refinementReferenceIds,pin:safePinterest(str(d.pin,600))||'',size,provider:'higgsfield',model,referenceMode:selectedReferenceMode};
- const inserted=await database(ctx).prepare("INSERT INTO image_jobs(id,owner,payer,status,data,created_at,updated_at) VALUES(?,?,?,'draft',?,?,?) ON CONFLICT(id) DO NOTHING").bind(d.id,ctx.prefix,cred.prefix,JSON.stringify({visual,parentId:d.parentId}),now,now).run();if(!inserted.meta.changes)throw new StudioError('This image request already exists. Refresh your visuals before retrying.',409);return imageRow(ctx,d.id);
+ const inserted=await database(ctx).prepare("INSERT INTO image_jobs(id,org_id,owner,payer,status,data,created_at,updated_at) VALUES(?,?,?,?,'draft',?,?,?) ON CONFLICT(id) DO NOTHING").bind(d.id,orgOf(ctx.prefix),ctx.prefix,cred.prefix,JSON.stringify({visual,parentId:d.parentId}),now,now).run();if(!inserted.meta.changes)throw new StudioError('This image request already exists. Refresh your visuals before retrying.',409);return imageRow(ctx,d.id);
 }
 async function quoteImagePrice(key:string,d:ImageData){
  const model=higgsImageModel(d.visual.model);
@@ -45,7 +46,7 @@ async function submitImage(ctx:FilmContext,row:ImageRow,key:string){const d=JSON
 }
 export async function renderImage(ctx:FilmContext,row:ImageRow,approved:unknown,revision:unknown){
  if(row.status!=='quoted'||approved!==row.estimate||revision!==row.updated_at)throw new StudioError('Approve the current image estimate before generating.',409);const d=JSON.parse(row.data) as ImageData;if(!d.body||!d.quoteAt||Date.now()-d.quoteAt>600000)throw new StudioError('This estimate expired. Get a fresh estimate.',409);const cred=await videoCredential(ctx);if(cred.prefix!==row.payer||await keyFingerprint(cred.key)!==d.fingerprint)throw new StudioError('Your Higgsfield connection changed. Get a fresh estimate.',409);const pricing=await quoteImagePrice(cred.key,d),price=pricing.estimate;if(price>row.estimate||pricing.pricingDescription!==d.pricingDescription){d.pricingDescription=pricing.pricingDescription;await database(ctx).prepare('UPDATE image_jobs SET data=? WHERE id=? AND owner=?').bind(JSON.stringify(d),row.id,ctx.prefix).run();await database(ctx).prepare('UPDATE image_jobs SET estimate=?,updated_at=? WHERE id=? AND owner=?').bind(price,Math.max(Date.now(),row.updated_at+1),row.id,ctx.prefix).run();throw new StudioError('The price or billing terms changed. Review the new estimate.',409)}
- const day=budgetDay();const reserved=await database(ctx).prepare(RESERVE_IMAGE_SQL).bind(day,Date.now(),row.id,ctx.prefix,day,day,day).run();if(!reserved.meta.changes){const current=await budget(ctx,cred.prefix);throw new StudioError(imageBudgetIssue(current,row.estimate)||'This image request has already changed. Refresh your visuals before retrying.',409);}await submitImage(ctx,row,cred.key);
+ const day=budgetDay();const db=database(ctx);const [,reserved]=await db.batch([db.prepare(LOCK_IMAGE_BUDGET_SQL).bind(row.id,ctx.prefix),db.prepare(RESERVE_IMAGE_SQL).bind(day,Date.now(),row.id,ctx.prefix,day,day,day)]);if(!reserved.meta.changes){const current=await budget(ctx,cred.prefix);throw new StudioError(imageBudgetIssue(current,row.estimate)||'This image request has already changed. Refresh your visuals before retrying.',409);}await submitImage(ctx,row,cred.key);
 }
 export async function refreshImage(ctx:FilmContext,row:ImageRow){
  if(row.status==='ready'&&row.provider_id&&!await bucket(ctx.BUCKET).head(imageKey(ctx.prefix,row.id)))row={...row,status:'archiving'};

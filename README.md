@@ -13,7 +13,7 @@ The automotive creative studio, exported as a standard Next.js codebase for GitH
 - Private media library, soft delete/restore, per-user encrypted provider connections and shared-account budget logic.
 - Tests, database migrations, Vercel settings, and GitHub checks.
 
-The existing design and generation logic are retained. Hosting-specific connections have changed: Google sign-in replaces Sites sign-in; Turso replaces the managed D1 database; a private R2 bucket replaces managed media storage. The library starts empty instead of displaying the old campaign examples. Existing configurator URLs remain as selectable presets; they are external sites, not car image files included in this project.
+The existing design and generation logic are retained. Hosting-specific connections have changed: Google sign-in replaces Sites sign-in; Supabase Postgres replaces the managed D1 database; a private AWS S3 bucket replaces managed media storage. The library starts empty instead of displaying the old campaign examples. Existing configurator URLs remain as selectable presets; they are external sites, not car image files included in this project.
 
 **Uploading this source alone is not enough to generate images.** The services below must be configured. No deployment or new service account has been created for you. Provider model access, billing and availability depend on your accounts. The original hosted studio is unchanged.
 
@@ -48,9 +48,17 @@ Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `NEXTAUTH_URL`. Add your emai
 
 Generate two different secrets using `openssl rand -base64 32` twice. Use one as `NEXTAUTH_SECRET` and the other as `KEY_ENCRYPTION_SECRET`. Keep both private. Do not change the encryption secret once you have stored provider keys unless you intend to reconnect those providers.
 
-### Database: Turso
+### Database: Supabase Postgres
 
-Create a new [Turso](https://turso.tech/) database and an authentication token. Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. No previous database export is needed.
+The studio keeps its job records in its own schema, `studio`, inside a Supabase Postgres project, reached with its own login role `studio_app` that can touch nothing else. Production uses the main project; Preview uses a separate staging project with the same schema (the staging project's users, data and keys never mix with real clients').
+
+In each project, once:
+
+1. Open the SQL editor and run [`docs/supabase-setup.sql`](docs/supabase-setup.sql) after replacing its password placeholder with a new random password (a different one per project). It creates the `studio_app` role and the `studio` schema owned by it.
+2. Keep `studio` out of the Data API's exposed schemas.
+3. From **Connect**, copy two connection strings and replace the user with `studio_app` (the pooler expects `studio_app.<project ref>`) and the password with the one you chose:
+   - `DATABASE_URL`: the **transaction pooler** (port `6543`), used by the running studio.
+   - `DATABASE_URL_DIRECT`: the **session pooler** or direct connection (port `5432`), used only by migrations.
 
 From the repository folder, with Node.js 24 installed:
 
@@ -58,22 +66,21 @@ From the repository folder, with Node.js 24 installed:
 npm ci
 cp .env.example .env.local
 # Fill .env.local with your own service settings, then:
-npm run check:setup
 npm run db:migrate
+npm run check:setup
 ```
 
-The migration command creates only schema and its migration journal; it does not seed campaign content. It can be rerun safely. It stops if a previously applied migration has changed. Run it against a fresh database, and do not share the production database with Preview deployments.
+`db:migrate` applies `supabase/migrations/*.sql` as `studio_app`: the tables, row level security (on, with no policies, so only the studio role reads or writes them) and revoked privileges for every other role. It seeds no content, can be rerun safely, and stops if a previously applied migration has changed. `check:setup` connects with `DATABASE_URL` and confirms the schema, the search path, that migrations are current and that the role cannot read schema `public`. Never point Preview deployments at the production project.
 
-### Media storage: private Cloudflare R2
+### Media storage: private AWS S3
 
-Create a private [R2 bucket](https://developers.cloudflare.com/r2/get-started/) and a bucket-scoped S3 API key with object read/write permissions. Set:
+Create one private S3 bucket per environment in `eu-central-1` and an IAM user that can reach only that bucket; [`docs/s3-setup.md`](docs/s3-setup.md) has the exact bucket settings, lifecycle rule, CORS and IAM policy. Set:
 
-- `S3_ENDPOINT`: the S3 API endpoint shown by R2, generally `https://ACCOUNT_ID.r2.cloudflarestorage.com`.
-- `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`.
-- `S3_REGION=auto`.
+- `S3_REGION` (for example `eu-central-1`) and `S3_BUCKET`.
+- `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` of that IAM user.
+- Leave `S3_ENDPOINT` unset for AWS. It exists only for a local S3-compatible stand-in during development.
 
-Keep public bucket access disabled. Copy the CORS policy in `docs/r2-cors.example.json` into the bucket's CORS settings, replacing the domain. Add your stable testing/preview domain explicitly. Configure a lifecycle rule to delete objects with prefix `staging/` after one day; these are temporary multipart uploads. Do not apply that expiration to `users/`, which contains saved media and encrypted connections.
-
+Keep Block Public Access on. Copy the CORS rules in `docs/s3-cors.example.json` into the bucket's CORS configuration, replacing the domain; add your stable testing/preview domain explicitly. The lifecycle rule deletes objects under `staging/` after one day (temporary uploads); never apply it to `orgs/`, which holds saved media and encrypted connections. Every stored object lives under `orgs/<organization>/users/<user>/…`.
 Large images and videos upload directly to this private bucket with short-lived signed permissions. The studio authenticates the final request, checks the uploaded size and parses the original form before generation. Image/video downloads use short-lived signed redirects; CORS must allow GET/HEAD for comparison, editing and browser film assembly. [Vercel limits function request/response payloads to 4.5 MB](https://vercel.com/docs/functions/limitations), which is why regular multipart proxy uploads are unsuitable here.
 
 ## 3. Import into Vercel
@@ -87,9 +94,9 @@ In Vercel, choose **Add New → Project → your GitHub repository**:
 - Build: `npm run build`.
 - Production branch: **main**.
 
-Use Vercel Pro for this commercial studio and the longer image-generation requests. This code sets 300-second generation route limits. Enable Fluid compute if required by your project settings; availability and platform limits depend on your plan. Add all values from `.env.local` to Vercel's **Production environment variables**, not to GitHub. Set `NEXTAUTH_URL` to your final HTTPS domain and register that same domain's OAuth callback and R2 CORS origin. If you configure variables after the first deployment, redeploy.
+Use Vercel Pro for this commercial studio and the longer image-generation requests. This code sets 300-second generation route limits. Enable Fluid compute if required by your project settings; availability and platform limits depend on your plan. Add all values from `.env.local` to Vercel's **Production environment variables**, not to GitHub. Set `NEXTAUTH_URL` to your final HTTPS domain and register that same domain's OAuth callback and S3 CORS origin. Set `CONFIGURATOR_PRESETS` (server-only, see `.env.example`) for the configurator presets. If you configure variables after the first deployment, redeploy.
 
-For Preview/testing, use separate Turso and R2 resources, separate secrets and a stable preview domain with matching OAuth/CORS configuration. Do not reuse production keys merely to make previews run.
+For Preview/testing, use the staging Supabase project and a separate S3 bucket and IAM user, separate secrets and a stable preview domain with matching OAuth/CORS configuration. Do not reuse production keys merely to make previews run.
 
 ## 4. Connect generators and start fresh
 

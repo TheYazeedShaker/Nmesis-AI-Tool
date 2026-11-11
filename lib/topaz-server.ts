@@ -8,6 +8,7 @@ import {imageDimensions} from './image-dimensions';
 import {upscaleTarget} from './upscale-models';
 import {TOPAZ_MODEL,TOPAZ_MODEL_ID,topazForm,topazProcessId,type TopazJob} from './topaz';
 import type {Visual} from './studio';
+import {orgOf} from './portable/tenancy';
 type Ctx=FilmContext;
 type Row={id:string;owner:string;parent_id:string;status:string;data:string;provider_id:string|null;created_at:number;updated_at:number;lock_until:number;error:string|null};
 type Data={parent:Visual;width:number;height:number;fingerprint:string;progress?:number;credits?:number};
@@ -29,7 +30,7 @@ export async function saveTopazKey(ctx:Ctx,key:string){
 export async function removeTopazKey(ctx:Ctx){if(sponsorship(ctx).isGuest)throw new StudioError('Your studio owner manages the Topaz connection.',403);await bucket(ctx.BUCKET).delete(secretPath(ctx))}
 export async function topazRow(ctx:Ctx,id:string){if(!validId(id))throw new StudioError('Upscale request not found.',404);const row=await database(ctx).prepare('SELECT * FROM topaz_jobs WHERE id=? AND owner=?').bind(id,ctx.prefix).first<Row>();if(!row)throw new StudioError('Upscale request not found.',404);return row}
 export async function publicTopaz(ctx:Ctx,row:Row):Promise<TopazJob>{const d=JSON.parse(row.data) as Data;const saved=row.status==='ready'?await bucket(ctx.BUCKET).get(ctx.prefix+'visuals/'+row.id+'.json'):null;return{id:row.id,parentId:row.parent_id,status:row.status,progress:d.progress||0,createdAt:row.created_at,error:row.error||undefined,width:d.width,height:d.height,credits:d.credits,visual:saved?await saved.json<Visual>():undefined}}
-export async function listTopaz(ctx:Ctx,parentId:string){if(!validId(parentId))throw new StudioError('Choose a saved visual.');const rows=await database(ctx).prepare('SELECT * FROM topaz_jobs WHERE owner=? AND parent_id=? ORDER BY created_at DESC LIMIT 10').bind(ctx.prefix,parentId).all<Row>();return await Promise.all(rows.results.map(row=>publicTopaz(ctx,row)))}
+export async function listTopaz(ctx:Ctx,parentId:string){if(!validId(parentId))throw new StudioError('Choose a saved visual.');const rows=await database(ctx).prepare('SELECT * FROM topaz_jobs WHERE org_id=? AND owner=? AND parent_id=? ORDER BY created_at DESC LIMIT 10').bind(orgOf(ctx.prefix),ctx.prefix,parentId).all<Row>();return await Promise.all(rows.results.map(row=>publicTopaz(ctx,row)))}
 export async function startTopaz(ctx:Ctx,id:string,parentId:string,edge:number){
   if(!validId(id)||!validId(parentId))throw new StudioError('Choose a saved visual.');
   const db=database(ctx),store=bucket(ctx.BUCKET);
@@ -48,7 +49,7 @@ export async function startTopaz(ctx:Ctx,id:string,parentId:string,edge:number){
   const target=upscaleTarget(dims.width,dims.height,edge),now=Date.now();
   const data:Data={parent:{...parent,width:dims.width,height:dims.height},...target,fingerprint:await keyFingerprint(key)};
   // A single atomic insert prevents duplicate clicks and concurrent tabs for this source.
-  const inserted=await db.prepare("INSERT INTO topaz_jobs(id,owner,parent_id,status,data,created_at,updated_at,lock_until) SELECT ?,?,?,'submitting',?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM topaz_jobs WHERE owner=? AND parent_id=? AND status IN ('submitting','unknown','queued','processing','archiving')) ON CONFLICT(id) DO NOTHING").bind(id,ctx.prefix,parentId,JSON.stringify(data),now,now,now+90000,ctx.prefix,parentId).run();
+  const inserted=await db.prepare("INSERT INTO topaz_jobs(id,org_id,owner,parent_id,status,data,created_at,updated_at,lock_until) SELECT ?,?,?,?,'submitting',?,CAST(? AS BIGINT),CAST(? AS BIGINT),CAST(? AS BIGINT) WHERE NOT EXISTS (SELECT 1 FROM topaz_jobs WHERE owner=? AND parent_id=? AND status IN ('submitting','unknown','queued','processing','archiving')) ON CONFLICT DO NOTHING").bind(id,orgOf(ctx.prefix),ctx.prefix,parentId,JSON.stringify(data),now,now,now+90000,ctx.prefix,parentId).run();
   if(!inserted.meta.changes){const row=await db.prepare("SELECT * FROM topaz_jobs WHERE owner=? AND (id=? OR (parent_id=? AND status IN ('submitting','unknown','queued','processing','archiving'))) ORDER BY created_at DESC LIMIT 1").bind(ctx.prefix,id,parentId).first<Row>();if(row)return publicTopaz(ctx,row);throw new StudioError('This request is already being handled.',409)}
   let acceptedId:string|undefined;
   try{

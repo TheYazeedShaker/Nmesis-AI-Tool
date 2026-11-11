@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 const scope=vm.createContext({Response,console:{error(){}},Error});
 const m=new vm.SourceTextModule(ts.transpileModule(readFileSync(new URL('../lib/studio-server.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText,{context:scope});
-const imports={'@/lib/portable/database':{getDatabase:()=>undefined},'@/lib/portable/storage':{getStorage:()=>undefined},'@/app/chatgpt-auth':{getChatGPTUser:async()=>null}};
+const imports={'@/lib/portable/tenancy':{currentOrg:()=>'nmesis',userPrefix:()=>''},'@/lib/portable/database':{getDatabase:()=>undefined},'@/lib/portable/storage':{getStorage:()=>undefined},'@/app/chatgpt-auth':{getChatGPTUser:async()=>null}};
 await m.link(s=>new vm.SyntheticModule(Object.keys(imports[s]),function(){for(const [k,v] of Object.entries(imports[s]))this.setExport(k,v)},{context:scope}));await m.evaluate();
 const error=(status,body)=>m.namespace.providerError(Response.json({error:body},{status}));
 test('image failures distinguish invalid keys, missing permissions, model access, quota and rate limits',async()=>{

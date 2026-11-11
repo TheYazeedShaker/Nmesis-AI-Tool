@@ -7,16 +7,18 @@ import {useEffect,useRef,useState} from 'react';
 import {Camera,ArrowUpRight,ImagePlus,X,Check} from 'lucide-react';
 import {CONFIGURATORS,normalizeConfiguratorUrl,type Configurator} from '@/lib/configurators';
 import {ConfiguratorPicker} from './configurator-picker';
+import {useConfiguratorPresets,mergePresets} from '@/lib/configurator-presets';
 import {requestFrameCapture} from '@/lib/capture';
 import {snapshotStream,highResolutionDisplayOptions,captureSharedTab} from '@/lib/live-capture';
 import type {CarView} from '@/lib/storyboards';
 export function CarCapture({config,refs,onConfig,onViews,disabled=false,maxViews=10}:{config:Configurator;refs:CarView[];onConfig:(c:Configurator)=>void;onViews:(views:CarView[])=>void;disabled?:boolean;maxViews?:number}){
  const [items,setItems]=useState<Configurator[]>(CONFIGURATORS),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[cropImage,setCropImage]=useState(''),[cropBox,setCropBox]=useState<{x:number;y:number;w:number;h:number}|null>(null),[uploadLabel,setUploadLabel]=useState(''),[captureOpen,setCaptureOpen]=useState(false);
+ const presets=useConfiguratorPresets(list=>setItems(mergePresets(list)));
  const frame=useRef<HTMLIFrameElement>(null),image=useRef<HTMLImageElement>(null),drag=useRef<{x:number;y:number}|null>(null),imageInput=useRef<HTMLInputElement>(null),captureHandle=useRef('');
  const setRefs=(fn:(prev:CarView[])=>CarView[])=>onViews(fn(refs));
  useEffect(()=>{captureHandle.current=crypto.randomUUID();const media=navigator.mediaDevices as MediaDevices&{setCaptureHandleConfig?:(v:unknown)=>void};try{media?.setCaptureHandleConfig?.({handle:captureHandle.current,exposeOrigin:true,permittedOrigins:[location.origin]})}catch{};try{const saved=JSON.parse(localStorage.getItem('nmesis-configurators-v1')||'[]');setItems([...CONFIGURATORS,...saved.filter((x:any)=>x&&typeof x.name==='string'&&!CONFIGURATORS.some(c=>c.url===x.url)).map((x:Configurator)=>({...x,url:normalizeConfiguratorUrl(x.url)}))])}catch{}},[]);
  useEffect(()=>{setItems(p=>p.some(x=>x.url===config.url)?p:[...p,config])},[config]);
- function addConfig(c:Configurator){const next=items.some(x=>x.url===c.url)?items:[...items,c];setItems(next);onConfig(c);try{localStorage.setItem('nmesis-configurators-v1',JSON.stringify(next.filter(x=>!CONFIGURATORS.some(v=>v.url===x.url))))}catch{}}
+ function addConfig(c:Configurator){const next=items.some(x=>x.url===c.url)?items:[...items,c];setItems(next);onConfig(c);try{localStorage.setItem('nmesis-configurators-v1',JSON.stringify(next.filter(x=>!presets.some(v=>v.url===x.url))))}catch{}}
  function selectConfig(c:Configurator){onConfig(c)}
  async function addImage(file:File,label:string){if(refs.length>=maxViews)return;setBusy('upload');try{const original=cropImage?await(await studioFetch(cropImage)).blob():file;const d=await uploadReference(file,original);setRefs(p=>[...p,{id:d.id,label}]);setNotice('View added. Give it a descriptive label below.')}catch(e){setError((e as Error).message)}finally{setBusy('')}}
  async function screenCapture(){setCaptureOpen(false);setError('');let stream:MediaStream|undefined;try{if(!navigator.mediaDevices?.getDisplayMedia)throw new Error('This browser cannot capture tabs. Upload a screenshot instead.');stream=await navigator.mediaDevices.getDisplayMedia(highResolutionDisplayOptions());const image=await captureSharedTab(stream,frame.current,captureHandle.current);setCropImage(image);setCropBox(null);setUploadLabel('Captured car view');}catch(e){setError((e as Error).name==='NotAllowedError'?'Tab sharing was canceled.':(e as Error).message)}finally{stream?.getTracks().forEach(t=>t.stop())}}

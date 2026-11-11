@@ -3,6 +3,7 @@ import {database,type FilmContext} from './film-server';
 import {publicImage,type ImageRow} from './image-server';
 import {imageDimensions} from './image-dimensions';
 import type {Visual} from './studio';
+import {orgOf} from './portable/tenancy';
 import {stalledGeneration,interruptedGenerationMessage} from './generation-status';
 type Context=FilmContext;
 export async function allVisualObjects(store:R2Bucket,prefix:string){
@@ -43,18 +44,20 @@ export async function visualLibrary(ctx:Context,deleted=false){
   const store=bucket(ctx.BUCKET);const objects=await allVisualObjects(store,ctx.prefix);const warnings:string[]=[];
   const deletedIds=await deletedVisualIds(ctx);
   const saved=await eachBatch(objects,async item=>{try{const record=await store.get(item.key);return record?await record.json<Visual>():null}catch{warnings.push('A saved record could not be read.');return null}});
-  const jobs=await database(ctx).prepare("SELECT * FROM image_jobs WHERE owner=? AND status<>'archived' ORDER BY created_at DESC").bind(ctx.prefix).all<ImageRow>();
+  const jobs=await database(ctx).prepare("SELECT * FROM image_jobs WHERE org_id=? AND owner=? AND status<>'archived' ORDER BY created_at DESC").bind(orgOf(ctx.prefix),ctx.prefix).all<ImageRow>();
   const visuals=await eachBatch([...saved.filter((v):v is Visual=>!!v),...jobs.results.map(publicImage)].filter(v=>deletedIds.has(v.id)===deleted),visual=>resolveVisual(ctx,visual));
   return {visuals:visuals.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),warning:warnings.length?'Some image records could not be read. Refresh to try again.':undefined};
 }
 export async function cleanEmptyVisuals(ctx:Context){
   const store=bucket(ctx.BUCKET),db=database(ctx);let removed=0;
-  const rows=await db.prepare("SELECT * FROM image_jobs WHERE owner=? AND status IN ('draft','quoted','failed','nsfw','canceled') AND lock_until<?").bind(ctx.prefix,Date.now()).all<ImageRow>();
+  const rows=await db.prepare("SELECT * FROM image_jobs WHERE org_id=? AND owner=? AND status IN ('draft','quoted','failed','nsfw','canceled') AND lock_until<?").bind(orgOf(ctx.prefix),ctx.prefix,Date.now()).all<ImageRow>();
   for(const row of rows.results){
     if(await store.head(imageKey(ctx.prefix,row.id)))continue;
     // Retain the row, reservation and request receipt. Archived jobs still count
     // toward the daily budget; uncertain/active submissions are never archived.
-    const result=await db.prepare("UPDATE image_jobs SET data=json_set(data,'$.archivedStatus',status),status='archived',updated_at=? WHERE id=? AND owner=? AND status=? AND lock_until<?").bind(Date.now(),row.id,ctx.prefix,row.status,Date.now()).run();removed+=result.meta.changes;
+    let archived:string;try{archived=JSON.stringify({...JSON.parse(row.data),archivedStatus:row.status})}catch{continue}
+    // Unchanged data and status (compare-and-swap) keep this as atomic as the former json_set.
+    const result=await db.prepare("UPDATE image_jobs SET data=?,status='archived',updated_at=? WHERE id=? AND owner=? AND status=? AND lock_until<? AND data=?").bind(archived,Date.now(),row.id,ctx.prefix,row.status,Date.now(),row.data).run();removed+=result.meta.changes;
   }
   const objects=await allVisualObjects(store,ctx.prefix);
   for(const item of objects){const record=await store.get(item.key);if(!record)continue;let visual:Visual;try{visual=await record.json<Visual>()}catch{continue}

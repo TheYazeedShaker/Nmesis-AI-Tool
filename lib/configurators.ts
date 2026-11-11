@@ -1,11 +1,11 @@
 export type Configurator={id:string;name:string;url:string};
 // Preset configurators are deployment data, not source: real vehicle names and
-// hosted configurator URLs stay out of the (public) repository. Set
-// NEXT_PUBLIC_CONFIGURATOR_PRESETS in Vercel to a JSON array of
-// {"id","name","url"} objects (see .env.example). It is inlined at build time,
-// so a change needs a redeploy. Invalid entries are skipped; with no valid
-// entries the synthetic demo preset keeps every page usable.
-const DEMO_CONFIGURATOR:Configurator={id:'demo',name:'Demo vehicle',url:'https://configurator.example.com/demo/'};
+// hosted configurator URLs stay out of the (public) repository and out of the
+// browser bundle. Set CONFIGURATOR_PRESETS (server-only) in Vercel to a JSON array
+// of {"id","name","url"} objects (see .env.example); signed-in pages load them from
+// /api/configurators (useConfiguratorPresets). Invalid entries are skipped; with no
+// valid entries the synthetic demo preset keeps every page usable.
+export const DEMO_CONFIGURATOR:Configurator={id:'demo',name:'Demo vehicle',url:'https://configurator.example.com/demo/'};
 export function parseConfiguratorPresets(raw:string|undefined):Configurator[]{
  if(!raw)return[];
  let data:unknown;
@@ -20,8 +20,10 @@ export function parseConfiguratorPresets(raw:string|undefined):Configurator[]{
  }
  return out;
 }
-const presets=parseConfiguratorPresets(process.env.NEXT_PUBLIC_CONFIGURATOR_PRESETS);
-export const CONFIGURATORS:Configurator[]=presets.length?presets:[DEMO_CONFIGURATOR];
+// What every page shows until the signed-in presets arrive (and when there are none).
+export const CONFIGURATORS:Configurator[]=[DEMO_CONFIGURATOR];
+// Server only: the presets this deployment offers. PR S2 narrows them to the signed-in client.
+export function configuratorPresets(raw=process.env.CONFIGURATOR_PRESETS):Configurator[]{const presets=parseConfiguratorPresets(raw);return presets.length?presets:CONFIGURATORS}
 export function normalizeConfiguratorUrl(value:string){
  const u=new URL(value.trim());
  if(u.protocol!=='https:'||u.username||u.password)throw new Error('Use an HTTPS configurator page link without a username or password.');

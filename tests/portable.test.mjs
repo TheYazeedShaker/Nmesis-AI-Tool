@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import crypto from 'node:crypto';
 import vm from 'node:vm';
 import ts from 'typescript';
-import {createClient} from '@libsql/client';
+import {DatabaseSync} from 'node:sqlite';
 import * as s3 from '@aws-sdk/client-s3';
 import * as signing from '@aws-sdk/s3-request-presigner';
 async function moduleAt(path,imports={},extra={}){
@@ -13,17 +13,33 @@ async function moduleAt(path,imports={},extra={}){
  const m=new vm.SourceTextModule(code,{context:scope});await m.link(s=>{assert.ok(imports[s],`Missing import ${s}`);return new vm.SyntheticModule(Object.keys(imports[s]),function(){for(const [k,v] of Object.entries(imports[s]))this.setExport(k,v)},{context:scope})});await m.evaluate();return m.namespace;
 }
 class StudioError extends Error{constructor(message,status=400){super(message);this.status=status}}
-test('portable SQL adapter preserves rows, bind isolation and atomic job reservation',async()=>{
- const client=createClient({url:'file::memory:'});try{
- const {StudioDatabase}=await moduleAt('lib/portable/database.ts',{'@libsql/client':{createClient}});const db=new StudioDatabase(client);
- await client.execute('CREATE TABLE jobs(id TEXT PRIMARY KEY, owner TEXT, status TEXT)');
- await db.prepare('INSERT INTO jobs VALUES(?,?,?)').bind('job','owner','draft').run();
+// A stand-in for the `postgres` client: runs the translated statement ($n → ?n) on SQLite.
+function sqliteSql(){const db=new DatabaseSync(':memory:');const calls=[];const sql={db,calls,unsafe:async(text,args=[])=>{calls.push({text,args});const st=db.prepare(text.replace(/\$(\d+)/g,'?$1'));if(st.columns().length){const rows=st.all(...args);rows.count=rows.length;return rows}const rows=[];rows.count=Number(st.run(...args).changes);return rows},begin:async fn=>{calls.push({text:'BEGIN'});db.exec('BEGIN');try{const out=await fn(sql);db.exec('COMMIT');return out}catch(e){db.exec('ROLLBACK');throw e}}};return sql}
+const postgresStub={default:()=>{throw new Error('No network in tests')}};
+test('placeholders become $1…$n once per statement, never inside literals, identifiers or comments',async()=>{
+ const {toPositional}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub});
+ assert.equal(toPositional("SELECT * FROM t WHERE a=? AND b='?' AND c=\"?x\" AND d=?"),"SELECT * FROM t WHERE a=$1 AND b='?' AND c=\"?x\" AND d=$2");
+ assert.equal(toPositional("SELECT 'it''s ?' AS x, ? -- why?\n, ? /* ? */ , ?"),"SELECT 'it''s ?' AS x, $1 -- why?\n, $2 /* ? */ , $3");
+ assert.equal(toPositional('SELECT 1'),'SELECT 1');
+ const {RESERVE_FILM_SQL,RESERVE_SWAP_SQL,RESERVE_IMAGE_SQL}=await import('../lib/film-policy.ts');
+ for(const [sql,n] of [[RESERVE_FILM_SQL,8],[RESERVE_SWAP_SQL,8],[RESERVE_IMAGE_SQL,7]]){const out=toPositional(sql);assert.equal(out.includes('?'),false);assert.ok(out.includes('$'+n)&&!out.includes('$'+(n+1)))}
+});
+test('portable SQL adapter preserves rows, bind isolation, changes and transactional batches',async()=>{
+ const sql=sqliteSql();try{
+ const {StudioDatabase}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub});const db=new StudioDatabase(sql);
+ sql.db.exec('CREATE TABLE jobs(id TEXT PRIMARY KEY, owner TEXT, status TEXT, note TEXT)');
+ const insert=db.prepare('INSERT INTO jobs VALUES(?,?,?,?)');await insert.bind('job','owner','draft',undefined).run();
+ assert.equal(sql.calls.at(-1).text,'INSERT INTO jobs VALUES($1,$2,$3,$4)');assert.deepEqual([...sql.calls.at(-1).args],['job','owner','draft',null]);
  const lock=()=>db.prepare("UPDATE jobs SET status='submitted' WHERE id=? AND owner=? AND status='draft'").bind('job','owner').run();
- const first=await lock(),second=await lock();assert.equal(first.meta.changes,1);assert.equal(second.meta.changes,0);
+ const first=await lock(),second=await lock();assert.equal(first.meta.changes,1);assert.equal(second.meta.changes,0);assert.equal(first.success,true);assert.equal(first.meta.last_row_id,0);
  assert.equal(await db.prepare('SELECT * FROM jobs WHERE owner=?').bind('other').first(),null);
  assert.equal((await db.prepare('SELECT * FROM jobs').all()).results[0].status,'submitted');
  assert.equal(await db.prepare('SELECT status FROM jobs').first('status'),'submitted');
- }finally{client.close()}
+ const results=await db.batch([db.prepare("UPDATE jobs SET note='a' WHERE id=?").bind('job'),db.prepare("UPDATE jobs SET status='done' WHERE id=?").bind('job')]);
+ assert.deepEqual([...results.map(r=>r.meta.changes)],[1,1]);assert.ok(sql.calls.some(c=>c.text==='BEGIN'));
+ await assert.rejects(()=>db.batch([db.prepare("UPDATE jobs SET note='b' WHERE id=?").bind('job'),db.prepare('INSERT INTO jobs VALUES(?,?,?,?)').bind('job','x','y','z')]));
+ assert.equal(await db.prepare('SELECT note FROM jobs WHERE id=?').bind('job').first('note'),'a');
+ }finally{sql.db.close()}
 });
 test('storage adapter handles streamed bytes, conditional writes, listing and missing objects',async()=>{
  const calls=[];const client={send:async cmd=>{calls.push(cmd);if(cmd instanceof s3.HeadObjectCommand){const e=new Error('Missing');e.$metadata={httpStatusCode:404};throw e}if(cmd instanceof s3.PutObjectCommand){if(cmd.input.IfNoneMatch){const e=new Error('Conflict');e.$metadata={httpStatusCode:412};throw e}return {ETag:'"abc"'}}if(cmd instanceof s3.ListObjectsV2Command)return {Contents:[{Key:'owner/a',Size:4,ETag:'"abc"'}],IsTruncated:true,NextContinuationToken:'next'};if(cmd instanceof s3.GetObjectCommand)return {ETag:'"abc"',ContentLength:4,ContentType:'image/png',Body:{transformToWebStream:()=>new Response('test').body}};return {}}};
@@ -62,4 +78,30 @@ test('portable identity uses a verified session and denies removed users; no pro
  imports['@/lib/portable/auth-options'].allowedEmail=()=>false;
  auth=await moduleAt('app/chatgpt-auth.ts',imports,{process:{env:{NEXTAUTH_SECRET:'test',GOOGLE_CLIENT_ID:'test',GOOGLE_CLIENT_SECRET:'test'}}});assert.equal(await auth.getChatGPTUser(),null);
  assert.equal(auth.chatGPTSignInPath('//evil.test'),'/api/auth/signin?callbackUrl=%2F');
+});
+test('S3 conditional writes: If-Match carries the ETag, If-None-Match only "*", and 412/409 mean "not written"',async()=>{
+ const calls=[];let fail=0;const client={send:async cmd=>{calls.push(cmd);if(fail){const e=new Error('Precondition');e.$metadata={httpStatusCode:fail};throw e}return {ETag:'"new"'}}};
+ const {StudioBucket}=await moduleAt('lib/portable/storage.ts',{'@aws-sdk/client-s3':s3,'@aws-sdk/s3-request-presigner':signing});const store=new StudioBucket(client,'private');
+ assert.deepEqual({...await store.put('lock','x',{onlyIf:{etagDoesNotMatch:'*'}})},{key:'lock',etag:'new',size:1});assert.equal(calls.at(-1).input.IfNoneMatch,'*');assert.equal(calls.at(-1).input.IfMatch,undefined);
+ await store.put('cache','y',{onlyIf:{etagMatches:'abc'}});assert.equal(calls.at(-1).input.IfMatch,'"abc"');assert.equal(calls.at(-1).input.IfNoneMatch,undefined);
+ fail=412;assert.equal(await store.put('lock','x',{onlyIf:{etagDoesNotMatch:'*'}}),null);assert.equal(await store.put('cache','y',{onlyIf:{etagMatches:'stale'}}),null);
+ fail=409;assert.equal(await store.put('lock','x',{onlyIf:{etagDoesNotMatch:'*'}}),null);
+ fail=500;await assert.rejects(()=>store.put('lock','x',{onlyIf:{etagDoesNotMatch:'*'}}));
+ fail=0;const before=calls.length;await assert.rejects(()=>store.put('lock','x',{onlyIf:{etagDoesNotMatch:'abc'}}),/create-if-absent/);assert.equal(calls.length,before);
+});
+test('storage defaults to AWS S3: region required, no custom endpoint, virtual-hosted addresses',async()=>{
+ const {storageClient,getStorage}=await moduleAt('lib/portable/storage.ts',{'@aws-sdk/client-s3':s3,'@aws-sdk/s3-request-presigner':signing},{process:{env:{S3_BUCKET:'example-bucket',S3_ACCESS_KEY_ID:'AKIDEXAMPLE',S3_SECRET_ACCESS_KEY:'example-secret'}}});
+ assert.equal(getStorage(),undefined);
+ const env={S3_REGION:'eu-central-1',S3_ACCESS_KEY_ID:'AKIDEXAMPLE',S3_SECRET_ACCESS_KEY:'example-secret',S3_FORCE_PATH_STYLE:'true'};
+ const aws=storageClient(env);assert.equal(aws.config.isCustomEndpoint,false);assert.equal(aws.config.forcePathStyle,false);assert.equal(await aws.config.region(),'eu-central-1');
+ const {StudioBucket}=await moduleAt('lib/portable/storage.ts',{'@aws-sdk/client-s3':s3,'@aws-sdk/s3-request-presigner':signing});
+ const url=new URL(await new StudioBucket(aws,'example-bucket').uploadUrl('staging/probe','image/png',4));assert.equal(url.host,'example-bucket.s3.eu-central-1.amazonaws.com');assert.equal(url.pathname,'/staging/probe');
+ const local=storageClient({...env,S3_ENDPOINT:'http://127.0.0.1:9000'});assert.equal(local.config.isCustomEndpoint,true);assert.equal(local.config.forcePathStyle,true);
+});
+test('one helper builds every org-scoped storage prefix and rejects anything else',async()=>{
+ const t=await moduleAt('lib/portable/tenancy.ts');const hash='a'.repeat(64);
+ assert.equal(t.userPrefix(t.currentOrg(),hash),'orgs/nmesis/users/'+hash+'/');assert.equal(t.orgOf(t.userPrefix('client-2',hash)),'client-2');
+ assert.equal(t.isUserPrefix('orgs/nmesis/users/'+hash+'/'),true);assert.equal(t.isUserPrefix('users/'+hash+'/'),false);assert.equal(t.isUserPrefix('orgs/../users/'+hash+'/'),false);
+ assert.throws(()=>t.userPrefix('Bad Org',hash));assert.throws(()=>t.userPrefix('nmesis','../x'));assert.throws(()=>t.orgOf('users/'+hash+'/'));assert.throws(()=>t.orgKey('../x','y'));
+ assert.equal(t.orgKey('nmesis','sponsorship/x.json'),'orgs/nmesis/sponsorship/x.json');
 });

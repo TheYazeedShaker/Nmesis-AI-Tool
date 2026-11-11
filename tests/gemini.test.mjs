@@ -144,10 +144,10 @@ test('successive Nano Banana refinements keep the immediate parent bytes and lin
  }
 });
 test('named sponsored guests use Google owner credentials without exposing or changing them',async()=>{
- const h=await harness(),owner={...h.ctx,prefix:'users/'+'a'.repeat(64)+'/',email:'owner@example.com',SHARED_OPENAI_OWNER_EMAIL:'owner@example.com',SHARED_OPENAI_GUEST_EMAILS:'guest-one@example.com,guest-two@example.com'};
+ const h=await harness(),owner={...h.ctx,prefix:'orgs/nmesis/users/'+'a'.repeat(64)+'/',email:'owner@example.com',SHARED_OPENAI_OWNER_EMAIL:'owner@example.com',SHARED_OPENAI_GUEST_EMAILS:'guest-one@example.com,guest-two@example.com'};
  await h.server.saveGoogleKey(owner,h.key);await h.server.googleStatus(owner);
  for(const email of owner.SHARED_OPENAI_GUEST_EMAILS.split(',')){
-  const guest={...owner,email,prefix:'users/'+'b'.repeat(64)+'/'};const status=await h.server.googleStatus(guest);
+  const guest={...owner,email,prefix:'orgs/nmesis/users/'+'b'.repeat(64)+'/'};const status=await h.server.googleStatus(guest);
   assert.equal(status.connected,true);assert.equal(status.sponsored,true);assert.equal(status.keySetup,false);assert(!JSON.stringify(status).includes(h.key));assert.equal(await h.server.googleKey(guest),h.key);
   const calls=h.calls.length;await assert.rejects(()=>h.server.saveGoogleKey(guest,'replacement-key'),e=>e.status===403);await assert.rejects(()=>h.server.removeGoogleKey(guest),e=>e.status===403);assert.equal(h.calls.length,calls);
   assert.equal((await h.server.googleStatus({...guest,SHARED_OPENAI_GUEST_EMAILS:''})).connected,false);

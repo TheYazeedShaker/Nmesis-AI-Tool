@@ -2,10 +2,11 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
+import {studioSchemaSql,userPrefix} from './sqlite-schema.mjs';
 import vm from 'node:vm';
 import ts from 'typescript';
 async function harness(){
- const sql=new DatabaseSync(':memory:');sql.exec(readFileSync(new URL('../drizzle/0002_oval_shiva.sql',import.meta.url),'utf8'));
+ const sql=new DatabaseSync(':memory:');sql.exec(studioSchemaSql());
  const db={prepare(query){let args=[];return{bind(...values){args=values;return this},async first(){return sql.prepare(query).get(...args)||null},async run(){return{meta:{changes:sql.prepare(query).run(...args).changes}}}}}};
  const objects=new Map(),store={async head(k){return objects.has(k)?{}:null},async get(k){const v=objects.get(k);return v?{httpMetadata:{contentType:'image/png'},arrayBuffer:async()=>v, json:async()=>JSON.parse(new TextDecoder().decode(v))}:null},async put(k,v,o={}){if(o.onlyIf&&objects.has(k))return null;objects.set(k,typeof v==='string'?new TextEncoder().encode(v):v);return{etag:'etag'}}};
  const calls=[];let fetcher=async()=>{throw new Error('No paid calls in tests')};
@@ -13,8 +14,8 @@ async function harness(){
  const sandbox=vm.createContext({crypto,Buffer,TextEncoder,TextDecoder,URL,Response,Blob,FormData,AbortSignal,Date,console,fetch:async(...args)=>{calls.push(args);return fetcher(...args)}});
  const stubs={'./studio-server':{bucket:x=>x,context:()=>{},imageKey:(p,id)=>p+'images/'+id,StudioError,validId:x=>typeof x==='string'&&/^[a-z0-9-]{8,80}$/.test(x),providerError:async()=>new StudioError('Provider rejected',502)},'./film-server':{database:c=>c.DB},'./credentials':{apiKey:async()=> 'synthetic-test-key'}};
  const cache=new Map();async function module(name){if(cache.has(name))return cache.get(name);let m;if(stubs[name]){const stub=stubs[name];m=new vm.SyntheticModule(Object.keys(stub),function(){for(const [k,v]of Object.entries(stub))this.setExport(k,v)},{context:sandbox})}else{const code=ts.transpileModule(readFileSync(new URL('../lib/'+name.replace('./','')+'.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;m=new vm.SourceTextModule(code,{context:sandbox})}cache.set(name,m);await m.link(module);return m}
- const mod=await module('./storyboard-server');await mod.evaluate();const ctx={DB:db,BUCKET:store,prefix:'users/test/'};
- const shot={id:'shot-1234',title:'Hero',visual:'Sunset dunes.',motion:'Push in.',viewId:'view-1234',selected:true,versions:[],oldFilmIds:[],status:'draft'};const b={id:'board-1234',revision:1,title:'Test',vehicle:'SUV',configurator:'https://example.com',views:[{id:'view-1234',label:'front'}],idea:'Desert sunset',direction:'Warm',moodId:'',pin:'',shots:[shot],model:'test',brand:'',tagline:'',updatedAt:1};sql.prepare('INSERT INTO storyboards(id,owner,data,created_at,updated_at) VALUES(?,?,?,?,?)').run(b.id,ctx.prefix,JSON.stringify(b),1,1);await store.put(ctx.prefix+'images/view-1234',new Uint8Array([137,80,78,71]));
+ const mod=await module('./storyboard-server');await mod.evaluate();const ctx={DB:db,BUCKET:store,prefix:userPrefix('a')};
+ const shot={id:'shot-1234',title:'Hero',visual:'Sunset dunes.',motion:'Push in.',viewId:'view-1234',selected:true,versions:[],oldFilmIds:[],status:'draft'};const b={id:'board-1234',revision:1,title:'Test',vehicle:'SUV',configurator:'https://example.com',views:[{id:'view-1234',label:'front'}],idea:'Desert sunset',direction:'Warm',moodId:'',pin:'',shots:[shot],model:'test',brand:'',tagline:'',updatedAt:1};sql.prepare('INSERT INTO storyboards(id,org_id,owner,data,created_at,updated_at) VALUES(?,?,?,?,?,?)').run(b.id,'nmesis',ctx.prefix,JSON.stringify(b),1,1);await store.put(ctx.prefix+'images/view-1234',new Uint8Array([137,80,78,71]));
  return{server:mod.namespace,ctx,b,sql,store,objects,calls,setFetcher:fn=>fetcher=fn,close:()=>sql.close()}
 }
 test('story ownership, revision conflicts and operation leases reject concurrent work',async()=>{const h=await harness();try{await assert.rejects(()=>h.server.boardRow({...h.ctx,prefix:'users/other/'},h.b.id),/not found/);await h.server.withBoard(h.ctx,h.b.id,1,async(b,save)=>{await assert.rejects(()=>h.server.withBoard(h.ctx,b.id,1,async()=>{}),/still working/);b.title='Saved';await save(b)});assert.equal((await h.server.boardRow(h.ctx,h.b.id)).revision,2);await assert.rejects(()=>h.server.withBoard(h.ctx,h.b.id,1,async()=>{}),/changed/);assert.equal(h.calls.length,0)}finally{h.close()}});
