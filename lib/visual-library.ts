@@ -4,10 +4,11 @@ import {publicImage,type ImageRow} from './image-server';
 import {imageDimensions} from './image-dimensions';
 import type {Visual} from './studio';
 import {orgOf} from './portable/tenancy';
+import type {StudioBucket,StoredObject} from './portable/storage';
 import {stalledGeneration,interruptedGenerationMessage} from './generation-status';
 type Context=FilmContext;
-export async function allVisualObjects(store:R2Bucket,prefix:string){
-  const objects:R2Object[]=[];let cursor:string|undefined;
+export async function allVisualObjects(store:StudioBucket,prefix:string){
+  const objects:StoredObject[]=[];let cursor:string|undefined;
   do{const page=await store.list({prefix:prefix+'visuals/',limit:1000,...cursor?{cursor}:{}});objects.push(...page.objects);cursor=page.truncated?page.cursor:undefined}while(cursor);
   return objects;
 }

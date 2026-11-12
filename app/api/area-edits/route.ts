@@ -15,7 +15,8 @@ import {encode} from 'fast-png';
 import {textureFill} from '@/lib/texture-fill';
 import {placementBounds,objectLayerPrompt,compositeObjectLayer} from '@/lib/object-layer';
 import type {Visual} from '@/lib/studio';
-export async function POST(request:Request){let record:Visual|undefined,store:R2Bucket|undefined,recordKey='',reserved=false;
+import type {StudioBucket} from '@/lib/portable/storage';
+export async function POST(request:Request){let record:Visual|undefined,store:StudioBucket|undefined,recordKey='',reserved=false;
  try{
   const ctx=await context(request,true);store=bucket(ctx.BUCKET);
   if(request.headers.get('origin')!==new URL(request.url).origin)throw new StudioError('Start the edit from your studio.',403);

@@ -1,9 +1,9 @@
-import {getDatabase} from '@/lib/portable/database';
-import {getStorage} from '@/lib/portable/storage';
+import {getDatabase,type StudioDatabase} from '@/lib/portable/database';
+import {getStorage,type StudioBucket} from '@/lib/portable/storage';
 import {getChatGPTUser} from '@/app/chatgpt-auth';
 import {currentOrg,userPrefix} from '@/lib/portable/tenancy';
-export type StudioEnv={DB?:D1Database;BUCKET?:R2Bucket;OPENAI_API_KEY?:string;OPENAI_IMAGE_MODEL?:string;OPENAI_TEXT_MODEL?:string;KEY_ENCRYPTION_SECRET?:string;SHARED_OPENAI_OWNER_EMAIL?:string;SHARED_OPENAI_GUEST_EMAILS?:string};
-export const bindings=():StudioEnv=>({DB:getDatabase(),BUCKET:getStorage() as unknown as R2Bucket|undefined,OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_IMAGE_MODEL:process.env.OPENAI_IMAGE_MODEL,OPENAI_TEXT_MODEL:process.env.OPENAI_TEXT_MODEL,KEY_ENCRYPTION_SECRET:process.env.KEY_ENCRYPTION_SECRET,SHARED_OPENAI_OWNER_EMAIL:process.env.SHARED_OPENAI_OWNER_EMAIL,SHARED_OPENAI_GUEST_EMAILS:process.env.SHARED_OPENAI_GUEST_EMAILS});
+export type StudioEnv={DB?:StudioDatabase;BUCKET?:StudioBucket;OPENAI_API_KEY?:string;OPENAI_IMAGE_MODEL?:string;OPENAI_TEXT_MODEL?:string;KEY_ENCRYPTION_SECRET?:string;SHARED_OPENAI_OWNER_EMAIL?:string;SHARED_OPENAI_GUEST_EMAILS?:string};
+export const bindings=():StudioEnv=>({DB:getDatabase(),BUCKET:getStorage(),OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_IMAGE_MODEL:process.env.OPENAI_IMAGE_MODEL,OPENAI_TEXT_MODEL:process.env.OPENAI_TEXT_MODEL,KEY_ENCRYPTION_SECRET:process.env.KEY_ENCRYPTION_SECRET,SHARED_OPENAI_OWNER_EMAIL:process.env.SHARED_OPENAI_OWNER_EMAIL,SHARED_OPENAI_GUEST_EMAILS:process.env.SHARED_OPENAI_GUEST_EMAILS});
 export class StudioError extends Error{constructor(message:string,public status=400){super(message)}}
 export async function context(request:Request,write=false){
  const user=await getChatGPTUser();if(!user)throw new StudioError('Please sign in to use your studio.',401);
@@ -12,7 +12,7 @@ export async function context(request:Request,write=false){
  const prefix=userPrefix(currentOrg(),Array.from(new Uint8Array(hash)).map(x=>x.toString(16).padStart(2,'0')).join(''));
  return {prefix,email:user.email,...bindings()};
 }
-export function bucket(value:R2Bucket|undefined){if(!value)throw new StudioError('Image storage is not connected yet. Your draft is still here.',503);return value}
+export function bucket(value:StudioBucket|undefined){if(!value)throw new StudioError('Image storage is not connected yet. Your draft is still here.',503);return value}
 export const validId=(id:unknown):id is string=>typeof id==='string'&&/^[a-z0-9-]{8,80}$/.test(id);
 export const imageKey=(prefix:string,id:string)=>prefix+'images/'+id;
 export function str(v:unknown,max=2000){return typeof v==='string'?v.trim().slice(0,max):''}
