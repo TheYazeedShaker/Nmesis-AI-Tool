@@ -6,17 +6,16 @@ import {S3Client,PutObjectCommand,GetObjectCommand,DeleteObjectCommand,HeadObjec
 import {readFile,readdir} from 'node:fs/promises';
 import {createHash,randomUUID} from 'node:crypto';
 const env=process.env,offline=process.argv.includes('--offline');
-const required=['NEXTAUTH_URL','NEXTAUTH_SECRET','GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','STUDIO_ALLOWED_EMAILS','DATABASE_URL','DATABASE_URL_DIRECT','S3_REGION','S3_BUCKET','S3_ACCESS_KEY_ID','S3_SECRET_ACCESS_KEY','KEY_ENCRYPTION_SECRET'];
+const required=['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','SUPABASE_SECRET_KEY','CONFIGURATOR_ORIGIN','DATABASE_URL','DATABASE_URL_DIRECT','S3_REGION','S3_BUCKET','S3_ACCESS_KEY_ID','S3_SECRET_ACCESS_KEY','KEY_ENCRYPTION_SECRET'];
 const missing=required.filter(k=>!env[k]?.trim());
 for(const key of required)console.log(key+': '+(missing.includes(key)?'MISSING':'set'));
 const issues=[],notes=[];
-for(const key of ['NEXTAUTH_SECRET','KEY_ENCRYPTION_SECRET'])if(env[key]&&env[key].length<32)issues.push(key+' must be at least 32 characters.');
-if(env.NEXTAUTH_SECRET&&env.NEXTAUTH_SECRET===env.KEY_ENCRYPTION_SECRET)issues.push('Use different values for the two secrets.');
-if(env.NEXTAUTH_URL){try{const u=new URL(env.NEXTAUTH_URL);if(u.protocol!=='https:'&&u.hostname!=='localhost')issues.push('Use HTTPS for the hosted studio.')}catch{issues.push('NEXTAUTH_URL must be a valid URL.')}}
+if(env.KEY_ENCRYPTION_SECRET&&env.KEY_ENCRYPTION_SECRET.length<32)issues.push('KEY_ENCRYPTION_SECRET must be at least 32 characters.');
+for(const key of ['SUPABASE_URL','CONFIGURATOR_ORIGIN'])if(env[key]){try{const u=new URL(env[key]);if(u.protocol!=='https:'&&u.hostname!=='localhost'&&u.hostname!=='127.0.0.1')issues.push(key+' must use HTTPS.');if(key==='CONFIGURATOR_ORIGIN'&&u.pathname!=='/')issues.push('CONFIGURATOR_ORIGIN is an origin only (no path).')}catch{issues.push(key+' must be a valid URL.')}}
+if(env.SUPABASE_SECRET_KEY&&env.SUPABASE_SECRET_KEY===env.SUPABASE_PUBLISHABLE_KEY)issues.push('SUPABASE_SECRET_KEY and SUPABASE_PUBLISHABLE_KEY must be different keys.');
+for(const old of ['NEXTAUTH_URL','NEXTAUTH_SECRET','GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','STUDIO_ALLOWED_EMAILS','SHARED_OPENAI_OWNER_EMAIL','SHARED_OPENAI_GUEST_EMAILS','CONFIGURATOR_PRESETS','NEXT_PUBLIC_CONFIGURATOR_PRESETS'])if(env[old])notes.push(old+' is no longer used (Supabase sign-in, company accounts and configurators replace it); remove it.');
 const dbUrl=(key,port)=>{if(!env[key])return;try{const u=new URL(env[key]);if(!/^postgres(ql)?:$/.test(u.protocol))issues.push(key+' must be a postgres:// connection string.');else if(u.port&&u.port!==port)notes.push(key+' normally uses port '+port+' (found '+u.port+').')}catch{issues.push(key+' must be a valid connection string.')}};
 dbUrl('DATABASE_URL','6543');dbUrl('DATABASE_URL_DIRECT','5432');
-if(env.NEXT_PUBLIC_CONFIGURATOR_PRESETS)issues.push('Rename NEXT_PUBLIC_CONFIGURATOR_PRESETS to CONFIGURATOR_PRESETS (presets are now served only to signed-in users).');
-if(!env.CONFIGURATOR_PRESETS)notes.push('CONFIGURATOR_PRESETS is not set: pages show the demo configurator.');
 const ssl=url=>/[?&]sslmode=disable\b/.test(url)?false:'require';
 
 async function checkDatabase(){
@@ -41,6 +40,12 @@ async function checkDatabase(){
   }
   if(pending.length)issues.push('Database: migrations not applied: '+pending.join(', ')+'. Run npm run db:migrate.');
   else console.log('Database: migrations current ('+applied.size+')');
+  // The read-only accounts grants (docs/supabase-setup.sql, section 5).
+  const [acc]=await sql`select to_regclass('accounts.studio_memberships') is not null as views,
+   coalesce(has_function_privilege(current_user,to_regprocedure('accounts.entitlements(uuid)'),'execute'),false) as ent,
+   coalesce(has_function_privilege(current_user,to_regprocedure('accounts.studio_accept_membership(uuid)'),'execute'),false) as accept`;
+  if(!acc.views||!acc.ent||!acc.accept)issues.push('Database: the accounts views and grants are missing. Run section 5 of docs/supabase-setup.sql.');
+  else console.log('Database: accounts views and grants present');
  }catch(e){issues.push('Database: '+(e instanceof Error?e.message:'connection failed'))}
  finally{await sql.end({timeout:5})}
 }

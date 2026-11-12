@@ -6,7 +6,7 @@ Operating manual. Permanent standards only; session state lives in `PROGRESS.md`
 
 **Nmesis Studio**: an automotive creative studio (key visuals, lineups, films, storyboards, car swap, upscaling) built on Next.js 16 (App Router) and deployed on Vercel. It is being grown into a full platform.
 
-- Auth: NextAuth (Google) with an email allow-list (`STUDIO_ALLOWED_EMAILS`).
+- Auth: Supabase Auth (email + password, email links) in the company's Supabase project; companies, roles, cars and plans are read from its `accounts` schema (read-only). One server-side context per request (`getStudioContext`).
 - Data: Supabase Postgres, schema `studio`, own role `studio_app` (`lib/portable/database.ts`, `supabase/migrations/`, `scripts/migrate.mjs`).
 - Media: private AWS S3, signed direct uploads/downloads; keys under `orgs/<org>/users/<user>/` (`lib/portable/tenancy.ts`).
 - Providers: OpenAI, Google AI Studio, Higgsfield, Topaz; per-user keys encrypted server-side (`lib/secret-crypto.ts`).
@@ -38,7 +38,7 @@ Preview deployments must use separate database, storage, secrets and provider bu
 
 ## Non-negotiable engineering rules
 
-- **The repository is public.** No secrets, no infrastructure identifiers, no real third-party brand names, no customer data in source, tests, commits or PR text. Sample data is synthetic ("Demo SUV"). Real configurator presets live in the server-only `CONFIGURATOR_PRESETS`.
+- **The repository is public.** No secrets, no infrastructure identifiers, no real third-party brand names, no customer data in source, tests, commits or PR text. Sample data is synthetic ("Demo SUV"). Real configurators come from the master list (`accounts.cars`) at run time.
 - Every API route authenticates first and scopes every read/write to the signed-in owner. Never trust an owner id from the request body.
 - Provider credentials stay server-side and encrypted; never logged, never sent to the browser.
 - Inputs are validated at every boundary (zod or explicit checks).

@@ -10,10 +10,10 @@ The automotive creative studio, exported as a standard Next.js codebase for GitH
 - Multiple-car lineup visuals, image comparison, reference reuse, refinements of the selected version, and area editing.
 - Object selection, content-aware editing, extra refinement references, Topaz upscaling and external upscale imports.
 - Film Studio, car replacement, storyboard creation, shot generation and browser-based film assembly.
-- Private media library, soft delete/restore, per-user encrypted provider connections and shared-account budget logic.
+- Private media library, soft delete/restore, per-company encrypted provider connections and company budget logic.
 - Tests, database migrations, Vercel settings, and GitHub checks.
 
-The existing design and generation logic are retained. Hosting-specific connections have changed: Google sign-in replaces Sites sign-in; Supabase Postgres replaces the managed D1 database; a private AWS S3 bucket replaces managed media storage. The library starts empty instead of displaying the old campaign examples. Existing configurator URLs remain as selectable presets; they are external sites, not car image files included in this project.
+The existing design and generation logic are retained. Hosting-specific connections have changed: Supabase Auth with company accounts replaces Sites sign-in; Supabase Postgres replaces the managed D1 database; a private AWS S3 bucket replaces managed media storage. The library starts empty instead of displaying the old campaign examples. Each company's configurators come from the master list; they are external sites, not car image files included in this project.
 
 **Uploading this source alone is not enough to generate images.** The services below must be configured. No deployment or new service account has been created for you. Provider model access, billing and availability depend on your accounts. The original hosted studio is unchanged.
 
@@ -37,16 +37,17 @@ Future development belongs on **`development`** (and the `moaz-playground` sandb
 
 ## 2. Set up the three hosting connections
 
-### Sign-in: Google OAuth
+### Sign-in and company accounts: Supabase Auth
 
-Create a Google OAuth web application in [Google Cloud Console](https://console.cloud.google.com/apis/credentials). Configure its consent screen and permitted test users if it is in testing mode. Add these authorized redirect URIs, replacing the example with your real domain:
+The Studio is sold to client companies and used by Nmesis staff. Who belongs to which company, their role (owner, creator, viewer), which cars each company may use and what its plan includes all live in the company's Supabase project, schema `accounts`, which the Nmesis admin writes and the Studio only reads. People are invited from the admin; the invitation lands on the Studio's address.
 
-- `http://localhost:3000/api/auth/callback/google`
-- `https://YOUR-STUDIO.vercel.app/api/auth/callback/google`
+- Sign-in is Supabase Auth: email and password, or a link by email. The session lives in httpOnly cookies and every API route verifies it with Supabase. Google sign-in is built but off (`STUDIO_GOOGLE_SIGNIN`).
+- Invitation and recovery links always stop at **Choose your password** (at least 10 characters, not the email address, the same twice), with "Skip, I'll use email links".
+- Set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` (all server-only), and `CONFIGURATOR_ORIGIN` (the origin the catalogue's configurator paths are joined to).
+- In Supabase Auth's URL configuration, add each Studio address followed by `/**` to the redirect URLs (local: `http://localhost:3000/**`).
+- Run section 5 of `docs/supabase-setup.sql` (read-only views and grants for `studio_app`) after the admin's accounts migrations, then `npm run db:migrate`.
 
-Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `NEXTAUTH_URL`. Add your email to `STUDIO_ALLOWED_EMAILS`; use commas for multiple users. Only verified Google accounts on the allowlist can access data or generate. Requests cannot authenticate by supplying the old Sites headers. For a non-Google user, add another Auth.js provider before granting access; this export defaults to Google.
-
-Generate two different secrets using `openssl rand -base64 32` twice. Use one as `NEXTAUTH_SECRET` and the other as `KEY_ENCRYPTION_SECRET`. Keep both private. Do not change the encryption secret once you have stored provider keys unless you intend to reconnect those providers.
+Generate a random secret with `openssl rand -base64 32` and use it as `KEY_ENCRYPTION_SECRET`. Keep it private. Do not change it once you have stored provider keys unless you intend to reconnect those providers.
 
 ### Database: Supabase Postgres
 
@@ -94,7 +95,7 @@ In Vercel, choose **Add New → Project → your GitHub repository**:
 - Build: `npm run build`.
 - Production branch: **main**.
 
-Use Vercel Pro for this commercial studio and the longer image-generation requests. This code sets 300-second generation route limits. Enable Fluid compute if required by your project settings; availability and platform limits depend on your plan. Add all values from `.env.local` to Vercel's **Production environment variables**, not to GitHub. Set `NEXTAUTH_URL` to your final HTTPS domain and register that same domain's OAuth callback and S3 CORS origin. Set `CONFIGURATOR_PRESETS` (server-only, see `.env.example`) for the configurator presets. If you configure variables after the first deployment, redeploy.
+Use Vercel Pro for this commercial studio and the longer image-generation requests. This code sets 300-second generation route limits. Enable Fluid compute if required by your project settings; availability and platform limits depend on your plan. Add all values from `.env.local` to Vercel's **Production environment variables**, not to GitHub. Add your final HTTPS domain to Supabase Auth's redirect URLs and to the S3 CORS origins, and set `CONFIGURATOR_ORIGIN` (server-only, see `.env.example`). If you configure variables after the first deployment, redeploy.
 
 For Preview/testing, use the staging Supabase project and a separate S3 bucket and IAM user, separate secrets and a stable preview domain with matching OAuth/CORS configuration. Do not reuse production keys merely to make previews run.
 
@@ -102,9 +103,9 @@ For Preview/testing, use the staging Supabase project and a separate S3 bucket a
 
 Open the deployed studio, sign in, and connect OpenAI, Google AI Studio, Higgsfield and/or Topaz through the existing connection controls. These provider keys are not included in the archive. Stored keys are encrypted server-side. At least one usable image generator is needed; OpenAI is also used by smart prompt planning.
 
-To share your OpenAI/Higgsfield account, set `SHARED_OPENAI_OWNER_EMAIL` and `SHARED_OPENAI_GUEST_EMAILS`, allow those emails to sign in, then have the owner connect the provider and open the studio. The studio's existing sharing rules apply; Google and Topaz connection handling is unchanged. The new database starts with the code's default budget, not your previous account's saved budget. Set your desired shared daily budget in Film Studio before inviting guests.
+Provider keys belong to the company: an owner of a company whose plan includes its own keys (`studio.own_keys`) connects them, and everyone in that company uses them. The new database starts with the code's default daily budget; a company owner sets it in Film Studio.
 
-Select a configurator or add its URL, capture a car view, paste a Pinterest link or upload an inspiration, and generate. Screen sharing still requires the browser's permission. An iframe may be blocked by the configurator owner's embedding policy. Managed configurators can use `public/integration/nmesis-capture.js` for direct capture (install it from your new studio domain and set `data-studio-origin` to that domain); otherwise use tab capture or an uploaded screenshot. Pinterest must expose a publicly retrievable image; a local inspiration upload remains available if it does not.
+Select one of your company's configurators, capture a car view, paste a Pinterest link or upload an inspiration, and generate. Screen sharing still requires the browser's permission. An iframe may be blocked by the configurator owner's embedding policy. Managed configurators can use `public/integration/nmesis-capture.js` for direct capture (install it from your new studio domain and set `data-studio-origin` to that domain); otherwise use tab capture or an uploaded screenshot. Pinterest must expose a publicly retrievable image; a local inspiration upload remains available if it does not.
 
 ## Develop and verify
 
@@ -124,7 +125,8 @@ The repository includes provider-request, refinement, selection, budget, storage
 - `app/`: pages and authenticated API routes.
 - `components/`: studio controls, frame viewer, selection and reference UI.
 - `lib/`: generation prompts, providers, media processing and workflow logic.
-- `lib/portable/`: Vercel database, storage, upload and sign-in connections.
+- `lib/portable/`: Vercel database, storage and upload connections.
+- `lib/auth/`, `lib/accounts/`, `lib/studio-context.ts`: sign-in, company accounts, plans and the per-request context.
 - `drizzle/`: database schema migrations.
 - `scripts/`: setup validation and schema migration.
 - `tests/`: automated regression coverage.

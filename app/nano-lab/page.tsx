@@ -1,4 +1,5 @@
 'use client';
+import {AccountBar,AccountNotices,PlanGate} from '@/components/studio-account';
 import {useEffect,useRef,useState} from 'react';
 import {GEMINI_IMAGE_MODELS} from '@/lib/image-models';
 import {NANO_STRATEGIES,nanoReferencePrompt,type NanoAnalysis,type NanoStrategy} from '@/lib/nano-reference';
@@ -6,7 +7,8 @@ import type {Visual} from '@/lib/studio';
 import {SmartReferenceLab} from '@/components/smart-reference-lab';
 import {ImageDownload} from '@/components/image-download';
 async function json(r:Response){const d:any=await r.json();if(!r.ok)throw new Error(d.error||'The request failed.');return d}
-export default function NanoLab(){
+export default function Page(){return <PlanGate feature="studio.smart_reference"><NanoLab/></PlanGate>}
+function NanoLab(){
  const [visuals,setVisuals]=useState<Visual[]>([]),[selected,setSelected]=useState(''),[analysis,setAnalysis]=useState<NanoAnalysis|null>(null),[busy,setBusy]=useState(''),[error,setError]=useState(''),[size,setSize]=useState('2048x1152'),[model,setModel]=useState<string>(GEMINI_IMAGE_MODELS[0].id),[strategy,setStrategy]=useState<NanoStrategy>('detail'),[results,setResults]=useState<Visual[]>([]);const running=useRef(false);const [smartBusy,setSmartBusy]=useState(false);
  useEffect(()=>{let active=true;fetch('/api/visuals').then(json).then(d=>{if(!active)return;const all=d.visuals as Visual[];setVisuals(all);const eligible=all.filter(v=>v.status==='ready'&&v.sourceId&&v.moodId&&!v.lineup&&!v.nanoStrategy&&!v.smartTest);const wanted=new URLSearchParams(location.search).get('visual'),target=all.find(v=>v.id===wanted);setSelected(eligible.find(v=>v.id===wanted)?.id||eligible.find(v=>target&&v.sourceId===target.sourceId&&v.moodId===target.moodId)?.id||eligible[0]?.id||'');setResults(all.filter(v=>!!v.nanoStrategy))}).catch(e=>{if(active)setError(e.message)});return()=>{active=false}},[]);
  const pair=visuals.find(v=>v.id===selected),eligible=visuals.filter(v=>v.status==='ready'&&v.sourceId&&v.moodId&&!v.lineup&&!v.nanoStrategy&&!v.smartTest),matches=results.filter(v=>v.sourceId===pair?.sourceId&&v.moodId===pair?.moodId);
@@ -21,7 +23,7 @@ export default function NanoLab(){
   }
   running.current=false;setBusy('');
  }
- return <div className="studio"><header className="topbar"><a href="/" className="brand">NMESIS STUDIO</a><a href="/" className="secondary">Back to key visuals</a></header><main><p className="eyebrow">OPENAI + NANO BANANA / REFERENCE LAB</p><h1>Keep the car. Match the shot.</h1><p>Try an image-specific smart prompt, or open your original Nano Banana approaches below. Your existing prompts are unchanged.</p>
+ return <div className="studio"><header className="topbar"><a href="/" className="brand">NMESIS STUDIO</a><a href="/" className="secondary">Back to key visuals</a><AccountBar/></header><AccountNotices/><main><p className="eyebrow">OPENAI + NANO BANANA / REFERENCE LAB</p><h1>Keep the car. Match the shot.</h1><p>Try an image-specific smart prompt, or open your original Nano Banana approaches below. Your existing prompts are unchanged.</p>
  <label className="field-label">Reference pair<select aria-label="Reference pair" value={selected} disabled={!!busy||smartBusy} onChange={e=>{setSelected(e.target.value);setAnalysis(null);setError('')}} className="text-input">{eligible.map(v=><option key={v.id} value={v.id}>{v.title} · {v.id.slice(0,8)}</option>)}</select></label>
  {pair&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:20,margin:'22px 0'}}><figure><figcaption>1 · Configurator car — identity source</figcaption><img crossOrigin="anonymous" src={'/api/assets/'+pair.sourceId} alt="Lab configurator reference" style={{width:'100%',height:320,objectFit:'contain',background:'#182226'}}/></figure><figure><figcaption>2 · Inspiration — scene and camera</figcaption><img crossOrigin="anonymous" src={'/api/assets/'+pair.moodId} alt="Lab inspiration reference" style={{width:'100%',height:320,objectFit:'contain',background:'#182226'}}/></figure></div>}
  <SmartReferenceLab pair={pair} initialResults={visuals} onBusy={setSmartBusy} disabled={!!busy}/><details style={{margin:"32px 0"}}><summary>Original Nano Banana approaches · unchanged</summary><button className="generate" disabled={!pair||!!busy||smartBusy} onClick={()=>void inspect()}>Inspect references & build prompts</button><p className="helper">Uses your saved Google key for a paid image analysis. An existing inspection of the same pair is reused. This button does not generate images.</p>

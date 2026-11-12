@@ -1,4 +1,5 @@
 import {parseLineup,lineupImageIds,lineupPrompt,lineupCapacity} from './lineup';
+import {requireEdge,requireFeature,longEdgeOf} from './accounts/plan';
 import {bucket,imageKey,validId,str,StudioError,imageType} from './studio-server';
 import {database,provider,quotePrice,videoCredential,budget,ProviderFailure,type FilmContext} from './film-server';
 import {budgetDay,keyFingerprint,publicMediaUrl,providerUrl,requestUrls,LOCK_IMAGE_BUDGET_SQL,RESERVE_IMAGE_SQL} from './film-policy';
@@ -12,7 +13,9 @@ export function publicImage(row:ImageRow):Visual{const d=JSON.parse(row.data) as
 export async function createImage(ctx:FilmContext,d:Record<string,any>){
  if(!validId(d.id)||!validId(d.sourceId)||!validId(d.moodId)||d.parentId&&!validId(d.parentId))throw new StudioError('Choose a saved car image and inspiration first.');
  let size:string,model:string;try{const settings=imageSettings('higgsfield',d.size,d.model);size=settings.size;model=settings.model!}catch(e){throw new StudioError((e as Error).message)}
+ requireEdge(ctx,longEdgeOf(size));
  let lineup;try{lineup=parseLineup(d.lineup);if(lineup){lineupCapacity(lineup,higgsImageModel(model).maxImages,!!d.parentId);if(d.sourceId!==lineup.cars[0].views[0].id)throw new Error('The primary lineup reference changed.');if(d.refinementReferenceIds?.length)throw new Error('Use the references attached to each lineup car.');if(lineup.targetCarId&&!d.parentId)throw new Error('Open a saved lineup before refining a car.')}}catch(e){throw new StudioError((e as Error).message)}
+ if(lineup)requireFeature(ctx,'studio.lineups');if(d.smartPlanId!==undefined)requireFeature(ctx,'studio.smart_reference');
  let refinementReferenceIds:string[];try{refinementReferenceIds=refinementReferences(d.refinementReferenceIds,!!d.parentId,'higgsfield',model)}catch(e){throw new StudioError((e as Error).message)}
  const store=bucket(ctx.BUCKET);for(const id of (lineup?lineupImageIds(lineup,d.moodId,d.parentId):[d.sourceId,d.moodId,...(d.parentId?[d.parentId]:[]),...refinementReferenceIds]))if(!await store.head(imageKey(ctx.prefix,id)))throw new StudioError('A reference image is no longer available.',404);
  const brief=str(d.brief);if(brief.length<8)throw new StudioError('Describe your visual in a little more detail.');const cred=await videoCredential(ctx);

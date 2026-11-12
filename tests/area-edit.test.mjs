@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import * as plan from '../lib/accounts/plan.ts';
 import jpeg from 'jpeg-js';
 import {geminiImageModel,openaiImageModel,supportsDrawnRegion} from '../lib/image-models.ts';
 import {encode,decode} from 'fast-png';
@@ -34,7 +35,7 @@ async function harness({googleFailure=false,googleConnected=true}={}){
  const ctx=vm.createContext({Uint8Array,Buffer,Blob,File,FormData,Request,Response,URL,Date,crypto,AbortSignal,fetch:async(u,o)=>{calls.push([u,o]);const [width,height]=o.body.get('size').split('x').map(Number);assert.ok(width*height>=655360,'provider minimum pixel budget');const data=new Uint8Array(width*height*4);for(let y=0;y<height;y++)for(let x=0;x<width;x++)if(o.body.get('background')!=='transparent'||(x>width*.45&&x<width*.55&&y>height*.45&&y<height*.55))data.set([220,80,40,255],(y*width+x)*4);const render=encode({width,height,data,channels:4});return Response.json({data:[{b64_json:Buffer.from(render).toString('base64')}]})}});
  const stubs={
  '@/lib/portable/uploads':{readStudioForm:r=>r.formData()},
- '@/lib/studio-server':{context:async()=>({prefix:'owner/',BUCKET:store}),bucket:x=>x,fail:e=>Response.json({error:e.message},{status:e.status||500}),imageKey:(p,id)=>p+'images/'+id,StudioError,validId:x=>typeof x==='string'&&/^[a-z0-9-]{8,80}$/.test(x),str:(x,max)=>typeof x==='string'?x.trim().slice(0,max):'',providerError:()=>new StudioError('Provider rejected',502)},
+ '@/lib/accounts/plan':plan,'@/lib/studio-server':{context:async()=>({prefix:'owner/',BUCKET:store,org:'nmesis',role:'owner',entitlements:{legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}}}),bucket:x=>x,fail:e=>Response.json({error:e.message},{status:e.status||500}),imageKey:(p,id)=>p+'images/'+id,StudioError,validId:x=>typeof x==='string'&&/^[a-z0-9-]{8,80}$/.test(x),str:(x,max)=>typeof x==='string'?x.trim().slice(0,max):'',providerError:()=>new StudioError('Provider rejected',502)},
  '@/lib/gemini-server':{googleKey:async()=>{if(!googleConnected)throw new StudioError('Connect Google',503);return 'synthetic-google'},renderGoogleImage:async(key,model,size,prompt,images,aspectRatio)=>{calls.push(['google',{key,model,size,prompt,images,aspectRatio}]);if(googleFailure)throw new StudioError('Google timed out; check saved edits',504);const d=decode(images[0].bytes),data=new Uint8Array(d.width*d.height*4);for(let i=0;i<data.length;i+=4)data.set([220,80,40,255],i);return {bytes:jpeg.encode({width:d.width,height:d.height,data},95).data}}},'@/lib/image-models':{geminiImageModel,openaiImageModel,supportsDrawnRegion},'@/lib/google-area-edit':Object.fromEntries(Object.entries(googleArea)),
  '@/lib/credentials':{apiKey:async()=> 'synthetic-test-key'},'@/lib/film-server':{database:()=>({prepare:()=>({bind:()=>({first:async()=>null})})})},'@/lib/image-server':{publicImage:x=>x},'@/lib/image-dimensions':{imageDimensions},'@/lib/area-edit':Object.fromEntries(Object.entries(area)),'@/lib/object-layer':Object.fromEntries(Object.entries(layers)),'@/lib/texture-fill':Object.fromEntries(Object.entries(textureModule.namespace)),'fast-png':{encode}
  };

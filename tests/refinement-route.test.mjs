@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import * as plan from '../lib/accounts/plan.ts';
 import * as models from '../lib/image-models.ts';
 import * as studio from '../lib/studio.ts';
 import * as lineup from '../lib/lineup.ts';
@@ -15,7 +16,7 @@ async function harness(){
  const ctx=vm.createContext({Buffer,Blob,FormData,Request,Response,Date,AbortSignal,fetch:async(u,o)=>{calls.push([u,o]);return Response.json({data:[{b64_json:png.toString('base64')}]})}});
  const stub=v=>new vm.SyntheticModule(Object.keys(v),function(){for(const [k,x]of Object.entries(v))this.setExport(k,x)},{context:ctx});
  const stubs={
- '@/lib/studio-server':{context:async()=>({prefix:'owner/',BUCKET:store}),bucket:x=>x,imageKey:(p,id)=>p+'images/'+id,readJson:r=>r.json(),str:(s,n=2000)=>typeof s==='string'?s.trim().slice(0,n):'',validId:s=>typeof s==='string'&&/^[a-z0-9-]{8,80}$/.test(s),StudioError,fail:e=>Response.json({error:e.message},{status:e.status||500}),providerError:()=>new StudioError('Provider error',502)},
+ '@/lib/accounts/plan':plan,'@/lib/studio-server':{context:async()=>({prefix:'owner/',BUCKET:store,org:'nmesis',role:'owner',entitlements:{legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}}}),bucket:x=>x,imageKey:(p,id)=>p+'images/'+id,readJson:r=>r.json(),str:(s,n=2000)=>typeof s==='string'?s.trim().slice(0,n):'',validId:s=>typeof s==='string'&&/^[a-z0-9-]{8,80}$/.test(s),StudioError,fail:e=>Response.json({error:e.message},{status:e.status||500}),providerError:()=>new StudioError('Provider error',502)},
  '@/lib/credentials':{apiKey:async()=> 'synthetic-test-key'},'@/lib/lineup':lineup,'@/lib/image-models':models,'@/lib/studio':studio};
  const code=ts.transpileModule(readFileSync(new URL('../app/api/generate/route.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
  const m=new vm.SourceTextModule(code,{context:ctx});await m.link(s=>stub(stubs[s]));await m.evaluate();

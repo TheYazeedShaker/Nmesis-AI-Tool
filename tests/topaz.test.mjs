@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
-import {studioSchemaSql,userPrefix} from './sqlite-schema.mjs';
+import {studioSchemaSql,userPrefix,MEMBER} from './sqlite-schema.mjs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {imageDimensions} from '../lib/image-dimensions.ts';
@@ -13,7 +13,7 @@ async function harness(){
  const sql=new DatabaseSync(':memory:');sql.exec(studioSchemaSql());
  const db={prepare(query){return{bind(...args){const st=sql.prepare(query);return {first:async()=>st.get(...args)||null,all:async()=>({results:st.all(...args)}),run:async()=>({meta:{changes:st.run(...args).changes}})}}}}};
  const objects=new Map();const store={get:async k=>{const v=objects.get(k);return v===undefined?null:{json:async()=>JSON.parse(v),size:typeof v==='string'?v.length:v.byteLength,arrayBuffer:async()=>v}},head:async k=>objects.has(k)?{}:null,put:async(k,v)=>objects.set(k,v),delete:async k=>objects.delete(k)};
- const ctx={prefix:userPrefix('c'),BUCKET:store,DB:db,KEY_ENCRYPTION_SECRET:'a'.repeat(64)};
+ const ctx={prefix:userPrefix('c'),BUCKET:store,DB:db,KEY_ENCRYPTION_SECRET:'a'.repeat(64),...MEMBER};
  const parent={id:'parent-1234',title:'Car',src:'/api/assets/parent-1234',status:'ready',...imageDimensions(png),sourceId:'car-1234',provider:'openai'};
  objects.set(ctx.prefix+'visuals/'+parent.id+'.json',JSON.stringify(parent));objects.set(ctx.prefix+'images/'+parent.id,png);
  let submits=0,mode='ok',status='Completed',downloadFails=false,output,leaked=false;
@@ -31,7 +31,7 @@ async function harness(){
  return{api,ctx,objects,parent,calls,sql,get submits(){return submits},get leaked(){return leaked},set mode(v){mode=v},set downloadFails(v){downloadFails=v},set status(v){status=v}};
 }
 test('HF3 uses encrypted credentials, submits once, saves an owner-scoped separate visual and downloads without key',async()=>{
- const h=await harness();assert.doesNotMatch(h.objects.get(h.ctx.prefix+'credentials/topaz.json'),/test-key-for-topaz-only/);
+ const h=await harness();assert.doesNotMatch(h.objects.get('orgs/nmesis/keys/credentials/topaz.json'),/test-key-for-topaz-only/);
  let job=await h.api.startTopaz(h.ctx,'upscale-1234',h.parent.id,3840);assert.equal(job.status,'queued');
  await h.api.startTopaz(h.ctx,'upscale-1234',h.parent.id,3840);await h.api.startTopaz(h.ctx,'upscale-5678',h.parent.id,3840);assert.equal(h.submits,1);
  job=await h.api.refreshTopaz(h.ctx,job.id);assert.equal(job.status,'ready');assert.equal(job.visual.width,3840);assert.equal(job.visual.upscale.method,'topaz-api');assert.equal(job.visual.upscale.credits,1);assert.equal(job.visual.sourceId,'car-1234');assert.equal(h.leaked,false);assert.equal(h.objects.get(h.ctx.prefix+'images/'+h.parent.id),png);
@@ -53,15 +53,16 @@ test('failed saving can recover the completed output without generating again',a
 test('a provider receipt recovers an interrupted acceptance without resubmitting',async()=>{
  const h=await harness();const job=await h.api.startTopaz(h.ctx,'upscale-1234',h.parent.id,3840);h.sql.prepare("UPDATE topaz_jobs SET provider_id=NULL,status='unknown' WHERE id=?").run(job.id);const recovered=await h.api.refreshTopaz(h.ctx,job.id);assert.equal(recovered.status,'ready');assert.equal(h.submits,1);
 });
-test('named sponsored guests use Topaz owner credentials and cannot change the shared connection',async()=>{
- const h=await harness(),owner={...h.ctx,prefix:userPrefix('a'),email:'owner@example.com',SHARED_OPENAI_OWNER_EMAIL:'owner@example.com',SHARED_OPENAI_GUEST_EMAILS:'guest-one@example.com,guest-two@example.com'};
+test('company keys: creators use the company Topaz key and cannot change it; other companies cannot reach it',async()=>{
+ const h=await harness(),owner={...h.ctx,prefix:userPrefix('a')};
  await h.api.saveTopazKey(owner,'test-key-for-topaz-only');await h.api.topazStatus(owner);
- for(const email of owner.SHARED_OPENAI_GUEST_EMAILS.split(',')){
-  const guest={...owner,email,prefix:'orgs/nmesis/users/'+'b'.repeat(64)+'/'};const status=await h.api.topazStatus(guest);
-  assert.equal(status.connected,true);assert.equal(status.sponsored,true);assert.equal(status.keySetup,false);assert(!JSON.stringify(status).includes('test-key-for-topaz-only'));assert.equal(await h.api.topazKey(guest),'test-key-for-topaz-only');
-  const calls=h.calls.length;await assert.rejects(()=>h.api.saveTopazKey(guest,'replacement-key'),e=>e.status===403);await assert.rejects(()=>h.api.removeTopazKey(guest),e=>e.status===403);assert.equal(h.calls.length,calls);
-  assert.equal((await h.api.topazStatus({...guest,SHARED_OPENAI_GUEST_EMAILS:''})).connected,false);
+ for(const c of ['b','d']){
+  const creator={...owner,role:'creator',prefix:userPrefix(c)};const status=await h.api.topazStatus(creator);
+  assert.equal(status.connected,true);assert.equal(status.sponsored,true);assert.equal(status.keySetup,false);assert(!JSON.stringify(status).includes('test-key-for-topaz-only'));assert.equal(await h.api.topazKey(creator),'test-key-for-topaz-only');
+  const calls=h.calls.length;await assert.rejects(()=>h.api.saveTopazKey(creator,'replacement-key'),e=>e.status===403);await assert.rejects(()=>h.api.removeTopazKey(creator),e=>e.status===403);assert.equal(h.calls.length,calls);
  }
- assert.equal((await h.api.topazStatus({...owner,email:'stranger@example.com',prefix:'users/stranger/'})).connected,false);
+ assert.equal((await h.api.topazStatus({...owner,org:'other-co',prefix:'orgs/other-co/users/'+userPrefix('e').split('/')[3]+'/'})).connected,false);
+ assert.equal((await h.api.topazStatus({...owner,entitlements:{legacy:false,status:'active',planId:'growth',planName:'Growth',endsOn:null,features:{'studio.enabled':true,'studio.own_keys':false}}})).connected,false);
+ await assert.rejects(()=>h.api.saveTopazKey({...owner,entitlements:{legacy:false,status:'active',planId:'growth',planName:'Growth',endsOn:null,features:{'studio.enabled':true,'studio.own_keys':false}}},'another-key-entirely'),e=>e.status===403);
  assert.equal(await h.api.topazKey(owner),'test-key-for-topaz-only');h.sql.close();
 });

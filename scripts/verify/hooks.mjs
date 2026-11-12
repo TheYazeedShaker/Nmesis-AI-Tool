@@ -2,14 +2,16 @@
 // TypeScript sources, with three additions registered by studio-flow.mjs:
 //  - '@/…' resolves to the repository root (the tsconfig "@/*" path);
 //  - extensionless relative imports from the studio's sources try .ts, .tsx, /index.ts;
-//  - '@/app/chatgpt-auth' resolves to ./auth-stub.mjs (sign-in is stubbed here only).
+//  - stand-ins: '@/lib/studio-context' resolves to ./auth-stub.mjs (sign-in is stubbed
+//    here only); a caller may pass other stand-ins with register(…, {data:{stubs}}).
 // .ts/.tsx files outside node_modules are transpiled with the repository's TypeScript.
 import {readFile,stat} from 'node:fs/promises';
 import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 
 const ROOT=new URL('../../',import.meta.url);
-const AUTH_STUB=new URL('./auth-stub.mjs',import.meta.url).href;
+let STUBS={'@/lib/studio-context':new URL('./auth-stub.mjs',import.meta.url).href};
+export function initialize(data){if(data?.stubs)STUBS={...STUBS,...data.stubs}}
 const ts=createRequire(new URL('package.json',ROOT))('typescript');
 const isSource=url=>url.startsWith(ROOT.href)&&!url.includes('/node_modules/');
 
@@ -20,7 +22,7 @@ async function existing(base){
 }
 
 export async function resolve(specifier,context,next){
- if(specifier==='@/app/chatgpt-auth')return {url:AUTH_STUB,shortCircuit:true};
+ if(STUBS[specifier])return {url:STUBS[specifier],shortCircuit:true};
  const parent=context.parentURL;
  const base=specifier.startsWith('@/')?new URL(specifier.slice(2),ROOT).href
   :(specifier.startsWith('./')||specifier.startsWith('../'))&&parent&&isSource(parent)?new URL(specifier,parent).href:undefined;

@@ -11,5 +11,10 @@ export function studioSchemaSql(){
   .map(s=>s.replace(/\bstudio\./g,'')+';').join('\n');
 }
 export const ORG='nmesis';
-// A server-built storage prefix (also the row owner/payer) for a synthetic user.
-export const userPrefix=(c='a')=>`orgs/${ORG}/users/${c.repeat(64)}/`;
+// A synthetic Supabase user id (uuid) made of one hex character.
+export const userId=(c='a')=>`${c.repeat(8)}-${c.repeat(4)}-4${c.repeat(3)}-8${c.repeat(3)}-${c.repeat(12)}`;
+// A server-built storage prefix (also the row owner) for a synthetic user.
+export const userPrefix=(c='a')=>`orgs/${ORG}/users/${userId(c)}/`;
+// The company, role and plan every request context carries (lib/studio-server.ts):
+// an owner of a company with no plan yet (everything allowed).
+export const MEMBER={org:'nmesis',role:'owner',entitlements:{legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}}};
