@@ -65,5 +65,5 @@ export function connect(url:string){
 let database:StudioDatabase|undefined;
 export function getDatabase(){
  if(!process.env.DATABASE_URL)return undefined;
- return (database??=new StudioDatabase(connect(process.env.DATABASE_URL))) as unknown as D1Database;
+ return database??=new StudioDatabase(connect(process.env.DATABASE_URL));
 }

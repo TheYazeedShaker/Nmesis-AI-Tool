@@ -28,6 +28,9 @@ export class StudioBucket {
  async downloadUrl(key:string,filename?:string){return getSignedUrl(this.client,new GetObjectCommand({Bucket:this.name,Key:key,...filename?{ResponseContentDisposition:`attachment; filename="${filename.replace(/[^a-z0-9._-]/gi,'-')}"`}:{}}),{expiresIn:900});}
  async uploadUrl(key:string,type:string,size:number){return getSignedUrl(this.client,new PutObjectCommand({Bucket:this.name,Key:key,ContentType:type,ContentLength:size}),{expiresIn:900});}
 }
+// The studio's own storage types, derived from the adapter itself.
+export type StoredObjectBody=NonNullable<Awaited<ReturnType<StudioBucket['get']>>>;
+export type StoredObject=Awaited<ReturnType<StudioBucket['list']>>['objects'][number];
 let storage:StudioBucket|undefined;
 // AWS S3 by default: S3_REGION is required and S3_ENDPOINT stays unset. A custom
 // endpoint (a local S3-compatible stand-in) may opt into path-style addressing.

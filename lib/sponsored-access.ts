@@ -1,6 +1,7 @@
 // Uses only server-verified identity. The browser never supplies a payer or prefix.
 import {isUserPrefix,orgKey,orgOf} from './portable/tenancy';
-export type SponsorContext={email?:string;prefix:string;SHARED_OPENAI_OWNER_EMAIL?:string;SHARED_OPENAI_GUEST_EMAILS?:string;BUCKET?:Pick<R2Bucket,'get'|'head'|'put'>};
+import type {StudioBucket} from './portable/storage';
+export type SponsorContext={email?:string;prefix:string;SHARED_OPENAI_OWNER_EMAIL?:string;SHARED_OPENAI_GUEST_EMAILS?:string;BUCKET?:Pick<StudioBucket,'get'|'head'|'put'>};
 const email=(value:string|undefined)=>(value||'').trim().toLowerCase();
 export function sponsorship(ctx:SponsorContext){
  const owner=email(ctx.SHARED_OPENAI_OWNER_EMAIL);
