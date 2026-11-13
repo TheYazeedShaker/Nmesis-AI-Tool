@@ -1,4 +1,5 @@
 'use client';
+import {AccountBar,AccountNotices,FeatureLink,PlanGate} from '@/components/studio-account';
 import {studioFetch} from '@/lib/studio-fetch';
 import {importPinterestReference} from '@/lib/pinterest-client';
 import {readReference,uploadReference} from '@/lib/reference-upload';
@@ -23,7 +24,8 @@ import './lineup.css';
 const DEFAULT_BRIEF='A premium automotive lineup. Follow the inspiration lighting and environment, with natural shared reflections, believable relative vehicle sizes and grounded contact shadows.';
 async function api(url:string,body?:unknown){const r=await studioFetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:undefined);const d:any=await r.json().catch(()=>({error:'The connection was interrupted. Refresh saved lineups before trying again.'}));if(!r.ok)throw new Error(d.error||'Request failed.');return d}
 function newCar(config=CONFIGURATORS[0]):LineupCar{return{id:crypto.randomUUID(),name:config.name,configurator:config.url,finish:'',views:[],x:50,y:72,scale:35}}
-export default function LineupStudio(){
+export default function Page(){return <PlanGate feature="studio.lineups"><LineupStudio/></PlanGate>}
+function LineupStudio(){
  const [cars,setCars]=useState<LineupCar[]>([]),[layout,setLayout]=useState<Lineup['layout']>('inspiration'),[heroId,setHeroId]=useState(''),[strictReference,setStrictReference]=useState(false),[refineStrict,setRefineStrict]=useState(false),[compareReference,setCompareReference]=useState(false),[expert,setExpert]=useState(false),[captureId,setCaptureId]=useState(''),[libraryId,setLibraryId]=useState(''),[librarySearch,setLibrarySearch]=useState('');
  // Cars still on the placeholder (no views yet) move to the deployment's presets once they load.
  const presets=useConfiguratorPresets(list=>{if(!isDemoConfigurator(list[0]))setCars(p=>p.map((c,i)=>!c.views.length&&isDemoConfigurator({url:c.configurator})?{...c,name:(list[i<2?i:0]||list[0]).name,configurator:(list[i<2?i:0]||list[0]).url}:c))});
@@ -57,7 +59,7 @@ export default function LineupStudio(){
  for(const v of visuals){if(v.status!=='ready'||!v.sourceId)continue;const refs:LineupCar[]=v.lineup?.cars||[{id:v.id,name:v.vehicle||v.title,configurator:v.configurator||presets[0].url,finish:v.finish||'',views:[{id:v.sourceId,label:v.angle||'Saved captured view'}],x:50,y:72,scale:35}];for(const c of refs)if(!savedMap.has(c.views[0].id))savedMap.set(c.views[0].id,c)}
  const savedCars=Array.from(savedMap.values());
  const lineups=visuals.filter(v=>v.lineup),filled=cars.filter(c=>c.views.length).length;
- return <div className="studio film-studio lineup-studio"><header className="topbar"><a href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></a><nav className="film-nav"><a href="/">Single car</a><a href="/lineup" aria-current="page">Car lineup</a><a href="/storyboard">Story studio</a><a href="/films">Film studio</a></nav></header><main>
+ return <div className="studio film-studio lineup-studio"><header className="topbar"><a href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></a><nav className="film-nav"><a href="/">Single car</a><a href="/lineup" aria-current="page">Car lineup</a><FeatureLink feature="studio.storyboards" href="/storyboard">Story studio</FeatureLink><FeatureLink feature="studio.film" href="/films">Film studio</FeatureLink></nav><AccountBar/></header><AccountNotices/><main>
  <div className="lineup-heading"><div><p className="eyebrow">KEY VISUALS / CAR LINEUP</p><h1>Different cars. One scene<span>.</span></h1><p>Choose your cars, set the scene and create a campaign together.</p></div><label className="lineup-expert"><input type="checkbox" checked={expert} onChange={e=>setExpert(e.target.checked)}/>Expert placement</label></div>
  <div className="workflow"><span className="current"><b>01</b> Pick 2–6 cars</span><i/><span className={filled===cars.length?'current':''}><b>02</b> Set the scene</span><i/><span className={lineups.length?'current':''}><b>03</b> Generate lineup</span></div>
  {error&&<div className="film-alert" role="alert">{error}<button onClick={()=>setError('')} aria-label="Dismiss error"><X size={16}/></button></div>}{notice&&<p className="film-notice" role="status">{notice}</p>}{busy&&<p className="lineup-progress" role="status"><RefreshCw size={18} className="spin"/>{busy} Keep this tab open; saved results appear below.</p>}

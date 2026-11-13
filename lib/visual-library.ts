@@ -3,7 +3,8 @@ import {database,type FilmContext} from './film-server';
 import {publicImage,type ImageRow} from './image-server';
 import {imageDimensions} from './image-dimensions';
 import type {Visual} from './studio';
-import {orgOf} from './portable/tenancy';
+import {isUserPrefix,orgOf} from './portable/tenancy';
+import {locate,memberPrefixes,requireDeleteRight} from './org-library';
 import type {StudioBucket,StoredObject} from './portable/storage';
 import {stalledGeneration,interruptedGenerationMessage} from './generation-status';
 type Context=FilmContext;
@@ -13,24 +14,35 @@ export async function allVisualObjects(store:StudioBucket,prefix:string){
   return objects;
 }
 async function eachBatch<T,R>(items:T[],fn:(item:T)=>Promise<R>){const results:R[]=[];for(let i=0;i<items.length;i+=12)results.push(...await Promise.all(items.slice(i,i+12).map(fn)));return results}
-export async function deletedVisualIds(ctx:Context){
- const ids=new Set<string>();let cursor:string|undefined;const prefix=ctx.prefix+'deleted-visuals/';
- do{const page=await bucket(ctx.BUCKET).list({prefix,limit:1000,...cursor?{cursor}:{}});for(const item of page.objects)ids.add(item.key.slice(prefix.length).replace(/\.json$/,''));cursor=page.truncated?page.cursor:undefined}while(cursor);return ids;
+async function deletedIn(store:StudioBucket,owner:string,into=new Set<string>()){
+ let cursor:string|undefined;const prefix=owner+'deleted-visuals/';
+ do{const page=await store.list({prefix,limit:1000,...cursor?{cursor}:{}});for(const item of page.objects)into.add(item.key.slice(prefix.length).replace(/.json$/,''));cursor=page.truncated?page.cursor:undefined}while(cursor);return into;
 }
+export async function deletedVisualIds(ctx:Context){return deletedIn(bucket(ctx.BUCKET),ctx.prefix)}
+// The member prefix a visual of this company belongs to, from its job row or its record.
+async function visualOwner(ctx:Context,id:string){
+ const row=await database(ctx).prepare('SELECT owner FROM image_jobs WHERE id=? AND org_id=?').bind(id,ctx.org).first<{owner:string}>();
+ if(row&&isUserPrefix(row.owner)&&orgOf(row.owner)===ctx.org)return row.owner;
+ return locate(ctx,'visuals/'+id+'.json');
+}
+// Anyone in the company may see a visual; only its creator or a company owner may delete it.
 export async function deleteVisual(ctx:Context,id:string){
  if(!validId(id))throw new StudioError('Image not found.',404);
- const store=bucket(ctx.BUCKET),record=await store.get(ctx.prefix+'visuals/'+id+'.json');
- const row=await database(ctx).prepare('SELECT * FROM image_jobs WHERE id=? AND owner=?').bind(id,ctx.prefix).first<ImageRow>();
+ const owner=await visualOwner(ctx,id);if(!owner)throw new StudioError('Image not found.',404);
+ requireDeleteRight(ctx,owner);
+ const store=bucket(ctx.BUCKET),record=await store.get(owner+'visuals/'+id+'.json');
+ const row=await database(ctx).prepare('SELECT * FROM image_jobs WHERE id=? AND owner=?').bind(id,owner).first<ImageRow>();
  if(!record&&!row)throw new StudioError('Image not found.',404);
  if(row&&(['queued','in_progress','archiving','unknown','submitting'].includes(row.status)||row.lock_until>Date.now()))throw new StudioError('Wait for this generation to finish before deleting it.',409);
  if(record){const visual=await record.json<Visual>();if(visual.status==='pending'&&!stalledGeneration(visual))throw new StudioError('Wait for this generation to finish before deleting it.',409)}
  // A library tombstone preserves source assets, dependent edits and billing rows.
- await store.put(ctx.prefix+'deleted-visuals/'+id+'.json',JSON.stringify({id,deletedAt:new Date().toISOString()}),{httpMetadata:{contentType:'application/json'}});
+ await store.put(owner+'deleted-visuals/'+id+'.json',JSON.stringify({id,deletedAt:new Date().toISOString()}),{httpMetadata:{contentType:'application/json'}});
  return {deleted:true,id};
 }
 export async function restoreVisual(ctx:Context,id:string){
- if(!validId(id))throw new StudioError('Image not found.',404);const store=bucket(ctx.BUCKET),key=ctx.prefix+'deleted-visuals/'+id+'.json';
- if(!await store.head(key))throw new StudioError('Deleted image not found.',404);await store.delete(key);return {restored:true,id};
+ if(!validId(id))throw new StudioError('Image not found.',404);
+ const owner=await locate(ctx,'deleted-visuals/'+id+'.json');if(!owner)throw new StudioError('Deleted image not found.',404);
+ requireDeleteRight(ctx,owner);await bucket(ctx.BUCKET).delete(owner+'deleted-visuals/'+id+'.json');return {restored:true,id};
 }
 export async function resolveVisual(ctx:Context,visual:Visual):Promise<Visual>{
  const store=bucket(ctx.BUCKET);
@@ -41,12 +53,17 @@ export async function resolveVisual(ctx:Context,visual:Visual):Promise<Visual>{
  if(stalledGeneration(visual))return{...visual,status:'failed',jobStatus:'interrupted',error:interruptedGenerationMessage};
  return visual;
 }
+// The whole company's library: every member's saved visuals and image jobs.
 export async function visualLibrary(ctx:Context,deleted=false){
-  const store=bucket(ctx.BUCKET);const objects=await allVisualObjects(store,ctx.prefix);const warnings:string[]=[];
-  const deletedIds=await deletedVisualIds(ctx);
-  const saved=await eachBatch(objects,async item=>{try{const record=await store.get(item.key);return record?await record.json<Visual>():null}catch{warnings.push('A saved record could not be read.');return null}});
-  const jobs=await database(ctx).prepare("SELECT * FROM image_jobs WHERE org_id=? AND owner=? AND status<>'archived' ORDER BY created_at DESC").bind(orgOf(ctx.prefix),ctx.prefix).all<ImageRow>();
-  const visuals=await eachBatch([...saved.filter((v):v is Visual=>!!v),...jobs.results.map(publicImage)].filter(v=>deletedIds.has(v.id)===deleted),visual=>resolveVisual(ctx,visual));
+  const store=bucket(ctx.BUCKET),warnings:string[]=[],deletedIds=new Set<string>(),items:{owner:string;visual:Visual}[]=[];
+  for(const owner of await memberPrefixes(ctx)){
+   await deletedIn(store,owner,deletedIds);
+   const saved=await eachBatch(await allVisualObjects(store,owner),async item=>{try{const record=await store.get(item.key);return record?await record.json<Visual>():null}catch{warnings.push('A saved record could not be read.');return null}});
+   for(const visual of saved)if(visual)items.push({owner,visual});
+  }
+  const jobs=await database(ctx).prepare("SELECT * FROM image_jobs WHERE org_id=? AND status<>'archived' ORDER BY created_at DESC").bind(ctx.org).all<ImageRow>();
+  for(const row of jobs.results)if(isUserPrefix(row.owner)&&orgOf(row.owner)===ctx.org)items.push({owner:row.owner,visual:publicImage(row)});
+  const visuals=await eachBatch(items.filter(x=>deletedIds.has(x.visual.id)===deleted),x=>resolveVisual({...ctx,prefix:x.owner},x.visual));
   return {visuals:visuals.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),warning:warnings.length?'Some image records could not be read. Refresh to try again.':undefined};
 }
 export async function cleanEmptyVisuals(ctx:Context){

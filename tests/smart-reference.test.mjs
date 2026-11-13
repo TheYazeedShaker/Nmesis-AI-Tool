@@ -11,7 +11,7 @@ const analysis={carDetails:['Dark gray body','Five double-spoke wheels'],sceneDe
 async function harness(){
  const objects=new Map(),calls=[];let handler=async()=>Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(analysis)}]}]});let etag=0;
  const store={async get(k){const o=objects.get(k);return o?{etag:o.etag,size:o.bytes.length,httpMetadata:o.metadata,arrayBuffer:async()=>o.bytes,json:async()=>JSON.parse(Buffer.from(o.bytes).toString())}:null},async put(k,v,opts={}){const old=objects.get(k);if(opts.onlyIf?.etagDoesNotMatch==='*'&&old||opts.onlyIf?.etagMatches&&old?.etag!==opts.onlyIf.etagMatches)return null;objects.set(k,{bytes:typeof v==='string'?Buffer.from(v):v,metadata:opts.httpMetadata,etag:String(++etag)});return{etag:String(etag)}},async delete(k){objects.delete(k)}};
- const ctx={prefix:'owner/',BUCKET:store};class StudioError extends Error{constructor(m,status=400){super(m);this.status=status}}
+ const ctx={prefix:'owner/',BUCKET:store,org:'nmesis',role:'owner',entitlements:{legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}}};class StudioError extends Error{constructor(m,status=400){super(m);this.status=status}}
  const scope=vm.createContext({Buffer,crypto,TextEncoder,TextDecoder,Uint8Array,DataView,Date,AbortSignal,Response,Request,URL,Blob,FormData,console,fetch:async(...args)=>{calls.push(args);return handler(...args)}});
  const stub=v=>new vm.SyntheticModule(Object.keys(v),function(){for(const[k,x]of Object.entries(v))this.setExport(k,x)},{context:scope});
  const stubs={

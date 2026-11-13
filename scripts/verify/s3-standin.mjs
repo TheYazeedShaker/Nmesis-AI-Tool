@@ -12,7 +12,9 @@ export function startS3({port=0}={}){
   const xml=(code,s)=>{res.writeHead(code,{'content-type':'application/xml'});res.end(s)};
   if(req.method==='GET'&&!key&&url.searchParams.get('list-type')==='2'){
    const prefix=url.searchParams.get('prefix')||'';const items=[...objects].filter(([k])=>k.startsWith(prefix)).sort(([a],[b])=>a<b?-1:1);
-   return xml(200,`<?xml version="1.0"?><ListBucketResult><Name>${bucket}</Name><Prefix>${prefix}</Prefix><KeyCount>${items.length}</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>${items.map(([k,o])=>`<Contents><Key>${k}</Key><Size>${o.body.length}</Size><ETag>"${o.etag}"</ETag><LastModified>${o.at.toISOString()}</LastModified></Contents>`).join('')}</ListBucketResult>`);
+   // Delimiter: keys below the next delimiter roll up into CommonPrefixes (S3 semantics).
+   const delimiter=url.searchParams.get('delimiter')||'';const common=new Set();const direct=delimiter?items.filter(([k])=>{const i=k.indexOf(delimiter,prefix.length);if(i<0)return true;common.add(k.slice(0,i+delimiter.length));return false}):items;
+   return xml(200,`<?xml version="1.0"?><ListBucketResult><Name>${bucket}</Name><Prefix>${prefix}</Prefix><KeyCount>${direct.length+common.size}</KeyCount><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated>${direct.map(([k,o])=>`<Contents><Key>${k}</Key><Size>${o.body.length}</Size><ETag>"${o.etag}"</ETag><LastModified>${o.at.toISOString()}</LastModified></Contents>`).join('')}${[...common].map(c=>`<CommonPrefixes><Prefix>${c}</Prefix></CommonPrefixes>`).join('')}</ListBucketResult>`);
   }
   const current=objects.get(key);
   if(req.method==='PUT'){

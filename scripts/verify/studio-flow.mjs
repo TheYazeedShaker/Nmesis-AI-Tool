@@ -1,6 +1,6 @@
 // End-to-end check of the studio's real route handlers against a Postgres database
 // (connected as studio_app, migrations applied) and a local in-memory S3 stand-in.
-// Sign-in is replaced ONLY inside this harness: hooks.mjs resolves '@/app/chatgpt-auth'
+// Sign-in is replaced ONLY inside this harness: hooks.mjs resolves '@/lib/studio-context'
 // to auth-stub.mjs; no application code is changed. It uploads a reference through a signed URL,
 // creates and lists a storyboard, sets and reserves a budget (two concurrent
 // reservations against one limit), lists the library and archives an empty draft.
@@ -16,7 +16,7 @@ import {startS3} from './s3-standin.mjs';
 if(!process.env.STUDIO_DB){console.error('Set STUDIO_DB to a studio_app connection string for a disposable database.');process.exit(1)}
 register('./hooks.mjs',import.meta.url);
 const s3=await startS3();
-Object.assign(process.env,{DATABASE_URL:process.env.STUDIO_DB,S3_REGION:'eu-central-1',S3_BUCKET:'studio-local',S3_ENDPOINT:s3.url,S3_FORCE_PATH_STYLE:'true',S3_ACCESS_KEY_ID:'local',S3_SECRET_ACCESS_KEY:'local-secret',KEY_ENCRYPTION_SECRET:'k'.repeat(48),NEXTAUTH_SECRET:'n'.repeat(48)});
+Object.assign(process.env,{DATABASE_URL:process.env.STUDIO_DB,S3_REGION:'eu-central-1',S3_BUCKET:'studio-local',S3_ENDPOINT:s3.url,S3_FORCE_PATH_STYLE:'true',S3_ACCESS_KEY_ID:'local',S3_SECRET_ACCESS_KEY:'local-secret',KEY_ENCRYPTION_SECRET:'k'.repeat(48)});
 const route=path=>import('@/'+path);
 const ORIGIN='http://studio.local';
 const call=async(mod,method,path,body,params)=>{const r=await mod[method](new Request(ORIGIN+path,{method,headers:{origin:ORIGIN,'content-type':'application/json'},...body!==undefined?{body:JSON.stringify(body)}:{}}),params?{params:Promise.resolve(params)}:undefined);const data=await r.json().catch(()=>null);console.log(`${method} ${path} -> ${r.status}`);if(!r.ok)throw new Error(JSON.stringify(data));return data};

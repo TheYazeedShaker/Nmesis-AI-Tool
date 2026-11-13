@@ -17,10 +17,11 @@ test('completed edits return the saved visual; recovery is a bounded read-only r
 test('status lookup isolates owners and recovers an image saved before metadata completion',async()=>{
  const objects=new Map(),ctx=vm.createContext({Response,URL});class StudioError extends Error{constructor(m,status=400){super(m);this.status=status}}
  const store={get:async k=>objects.has(k)?{json:async()=>objects.get(k)}:null,head:async k=>objects.has(k)?{}:null};
- const values={context:async()=>({prefix:'owner/',BUCKET:store}),bucket:x=>x,validId:x=>/^[a-z0-9-]{8,80}$/.test(x),imageKey:(p,id)=>p+'images/'+id,StudioError,fail:e=>Response.json({error:e.message},{status:e.status||500})};
+ const values={context:async()=>({prefix:'owner/',BUCKET:store,org:'nmesis',role:'owner',entitlements:{legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}}}),bucket:x=>x,validId:x=>/^[a-z0-9-]{8,80}$/.test(x),imageKey:(p,id)=>p+'images/'+id,StudioError,fail:e=>Response.json({error:e.message},{status:e.status||500})};
  const stub=new vm.SyntheticModule(Object.keys(values),function(){for(const[k,v]of Object.entries(values))this.setExport(k,v)},{context:ctx});
  const code=ts.transpileModule(readFileSync(new URL('../app/api/area-edits/[id]/route.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
- const route=new vm.SourceTextModule(code,{context:ctx});await route.link(()=>stub);await route.evaluate();const get=async()=>{const r=await route.namespace.GET(new Request('https://studio.test/api/area-edits/edit-1234'),{params:Promise.resolve({id:'edit-1234'})});return r.json()};
+ const library=new vm.SyntheticModule(['locate'],function(){this.setExport('locate',async(c,suffix)=>await store.head(c.prefix+suffix)?c.prefix:null)},{context:ctx});
+ const route=new vm.SourceTextModule(code,{context:ctx});await route.link(s=>s==='@/lib/org-library'?library:stub);await route.evaluate();const get=async()=>{const r=await route.namespace.GET(new Request('https://studio.test/api/area-edits/edit-1234'),{params:Promise.resolve({id:'edit-1234'})});return r.json()};
  objects.set('other/visuals/edit-1234.json',{status:'ready',areaEdit:{}});assert.equal((await get()).status,'not-found');
  objects.set('owner/visuals/edit-1234.json',{id:'edit-1234',src:'/api/assets/edit-1234',status:'pending',areaEdit:{}});assert.equal((await get()).status,'pending');
  objects.set('owner/images/edit-1234','saved-png');assert.equal((await get()).status,'ready');assert.equal((await get()).visual.status,'ready');

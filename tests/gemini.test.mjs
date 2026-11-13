@@ -9,7 +9,7 @@ const png=encode({width:2,height:2,data:new Uint8Array(16).fill(255),channels:4}
 async function harness(){
   const objects=new Map(),calls=[];let handler=async()=>{throw new Error('Unexpected request')};
   const store={async get(key){const item=objects.get(key);if(!item)return null;return {size:item.bytes.length,httpMetadata:item.metadata,arrayBuffer:async()=>item.bytes,json:async()=>JSON.parse(Buffer.from(item.bytes).toString())}},async head(key){return objects.has(key)?{}:null},async put(key,value,options={}){if(options.onlyIf&&objects.has(key))return null;objects.set(key,{bytes:typeof value==='string'?Buffer.from(value):value,metadata:options.httpMetadata});return {etag:'saved'}},async delete(key){objects.delete(key)}};
-  const ctx={prefix:'users/owner/',BUCKET:store,KEY_ENCRYPTION_SECRET:'a'.repeat(64)};
+  const ctx={prefix:'users/owner/',BUCKET:store,KEY_ENCRYPTION_SECRET:'a'.repeat(64),org:'nmesis',role:'owner',entitlements:{legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}}};
   class StudioError extends Error{constructor(message,status=400){super(message);this.status=status}}
   const scope=vm.createContext({Buffer,crypto,TextEncoder,TextDecoder,Uint8Array,DataView,AbortSignal,Response,Request,URL,console,fetch:async(...args)=>{assert.equal(args[1]?.redirect,'manual','Cloudflare requests must disable redirects with manual mode');calls.push(args);return handler(...args)}});
   const stub=new vm.SyntheticModule(['StudioError','bucket','context','fail','readJson','imageKey','validId','str'],function(){this.setExport('StudioError',StudioError);this.setExport('bucket',v=>v);this.setExport('context',async()=>ctx);this.setExport('fail',e=>Response.json({error:e.message},{status:e.status||500}));this.setExport('readJson',r=>r.json());this.setExport('imageKey',(p,id)=>p+'images/'+id);this.setExport('validId',v=>typeof v==='string'&&/^[a-z0-9-]{8,80}$/.test(v));this.setExport('str',(v,max=2000)=>typeof v==='string'?v.trim().slice(0,max):'')},{context:scope});
@@ -33,7 +33,7 @@ test('connection accepts Google auth key punctuation, verifies it and never retu
   const status=await r.json();assert.equal(status.connected,true);assert(!JSON.stringify(status).includes(key));
   assert.equal(h.calls.length,2);assert(h.calls.every(([,options])=>options.headers['x-goog-api-key']===key));
   assert.equal(await h.server.googleKey(h.ctx),key);
-  assert(!Buffer.from(h.objects.get(h.ctx.prefix+'credentials/google.json').bytes).toString().includes(key));
+  assert(!Buffer.from(h.objects.get('orgs/nmesis/keys/credentials/google.json').bytes).toString().includes(key));
 });
 test('malformed keys and cross-origin saves are rejected before Google is contacted',async()=>{
   const h=await harness();
@@ -42,11 +42,12 @@ test('malformed keys and cross-origin saves are rejected before Google is contac
   assert.equal(h.calls.length,0);assert.equal(await h.server.googleKey(h.ctx),h.key);
 });
 test('Google key is encrypted, account-bound and never exposed by status',async()=>{
-  const h=await harness(),raw=Buffer.from(h.objects.get(h.ctx.prefix+'credentials/google.json').bytes).toString();assert(!raw.includes(h.key));assert.equal(await h.server.googleKey(h.ctx),h.key);
+  const h=await harness(),raw=Buffer.from(h.objects.get('orgs/nmesis/keys/credentials/google.json').bytes).toString();assert(!raw.includes(h.key));assert.equal(await h.server.googleKey(h.ctx),h.key);
   const status=await h.server.googleStatus(h.ctx);assert.equal(status.connected,true);assert.equal(status.models.length,2);assert(!JSON.stringify(status).includes(h.key));
-  await assert.rejects(()=>h.server.googleKey({...h.ctx,prefix:'users/other/'}),/Connect Google/);
-  h.objects.set('users/other/credentials/google.json',h.objects.get(h.ctx.prefix+'credentials/google.json'));
-  await assert.rejects(()=>h.server.googleKey({...h.ctx,prefix:'users/other/'}),/Reconnect/);
+  // Company-bound: another company has no key, and a copied sealed key does not open there.
+  await assert.rejects(()=>h.server.googleKey({...h.ctx,org:'other-co'}),/Connect Google/);
+  h.objects.set('orgs/other-co/keys/credentials/google.json',h.objects.get('orgs/nmesis/keys/credentials/google.json'));
+  await assert.rejects(()=>h.server.googleKey({...h.ctx,org:'other-co'}),/Reconnect/);
   h.setHandler(()=>new Response(null,{status:403}));await assert.rejects(()=>h.server.saveGoogleKey(h.ctx,'invalid-new-key'),/did not accept/);assert.equal(await h.server.googleKey(h.ctx),h.key);
 });
 test('both Nano Banana models receive ordered image references and requested resolution',async()=>{
@@ -143,16 +144,17 @@ test('successive Nano Banana refinements keep the immediate parent bytes and lin
   const r=await h.post(h.input({model,referenceMode,parentId:first.id,refinement:'Change the cone to blue'}));assert.equal(r.status,200);assert.equal((await r.json()).visual.parentId,first.id);
  }
 });
-test('named sponsored guests use Google owner credentials without exposing or changing them',async()=>{
- const h=await harness(),owner={...h.ctx,prefix:'orgs/nmesis/users/'+'a'.repeat(64)+'/',email:'owner@example.com',SHARED_OPENAI_OWNER_EMAIL:'owner@example.com',SHARED_OPENAI_GUEST_EMAILS:'guest-one@example.com,guest-two@example.com'};
+test('company keys: creators use the company Google key without exposing or changing it',async()=>{
+ const user=c=>`orgs/nmesis/users/${c.repeat(8)}-${c.repeat(4)}-4${c.repeat(3)}-8${c.repeat(3)}-${c.repeat(12)}/`;
+ const h=await harness(),owner={...h.ctx,prefix:user('a')};
  await h.server.saveGoogleKey(owner,h.key);await h.server.googleStatus(owner);
- for(const email of owner.SHARED_OPENAI_GUEST_EMAILS.split(',')){
-  const guest={...owner,email,prefix:'orgs/nmesis/users/'+'b'.repeat(64)+'/'};const status=await h.server.googleStatus(guest);
-  assert.equal(status.connected,true);assert.equal(status.sponsored,true);assert.equal(status.keySetup,false);assert(!JSON.stringify(status).includes(h.key));assert.equal(await h.server.googleKey(guest),h.key);
-  const calls=h.calls.length;await assert.rejects(()=>h.server.saveGoogleKey(guest,'replacement-key'),e=>e.status===403);await assert.rejects(()=>h.server.removeGoogleKey(guest),e=>e.status===403);assert.equal(h.calls.length,calls);
-  assert.equal((await h.server.googleStatus({...guest,SHARED_OPENAI_GUEST_EMAILS:''})).connected,false);
+ for(const c of ['b','d']){
+  const creator={...owner,role:'creator',prefix:user(c)};const status=await h.server.googleStatus(creator);
+  assert.equal(status.connected,true);assert.equal(status.sponsored,true);assert.equal(status.keySetup,false);assert(!JSON.stringify(status).includes(h.key));assert.equal(await h.server.googleKey(creator),h.key);
+  const calls=h.calls.length;await assert.rejects(()=>h.server.saveGoogleKey(creator,'replacement-key'),e=>e.status===403);await assert.rejects(()=>h.server.removeGoogleKey(creator),e=>e.status===403);assert.equal(h.calls.length,calls);
  }
- assert.equal((await h.server.googleStatus({...owner,email:'stranger@example.com',prefix:'users/stranger/'})).connected,false);
+ assert.equal((await h.server.googleStatus({...owner,org:'other-co',prefix:'orgs/other-co/users/'+user('e').split('/')[3]+'/'})).connected,false);
+ assert.equal((await h.server.googleStatus({...owner,entitlements:{legacy:false,status:'active',planId:'growth',planName:'Growth',endsOn:null,features:{'studio.enabled':true,'studio.own_keys':false}}})).connected,false);
  assert.equal(await h.server.googleKey(owner),h.key);
 });
 

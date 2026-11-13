@@ -71,13 +71,18 @@ for(const target of ['/api/assets','/api/assets/reference-123/original'])test('b
  const {studioFetch}=await moduleAt('lib/studio-fetch.ts',{}, {fetch:mock,window:{location:{origin:'https://studio.test'}}});const form=new FormData();form.set('image',new Blob([new Uint8Array(5_000_000)]),'frame.png');
  await studioFetch(target,{method:target.endsWith('/original')?'PUT':'POST',body:form});assert.equal(calls.length,3);assert.equal(calls[1].url,'https://bucket.test/upload');assert.equal(calls[1].init.credentials,'omit');assert.equal(calls[1].init.body.size>5_000_000,true);assert.equal(calls[2].url,target);assert.equal(calls[2].init.method,target.endsWith('/original')?'PUT':'POST');assert.equal(calls[2].init.body,JSON.stringify({uploadToken:'signed-ticket'}));
 });
-test('portable identity uses a verified session and denies removed users; no provider credentials means signed out',async()=>{
- const imports={'next-auth':{getServerSession:async()=>({user:{email:'Owner@Example.test',name:'Owner'}})},'next/navigation':{redirect:()=>{throw new Error('redirect')}},'@/lib/portable/auth-options':{authOptions:{},allowedEmail:email=>email==='owner@example.test'}};
- let auth=await moduleAt('app/chatgpt-auth.ts',imports);assert.equal(await auth.getChatGPTUser(),null);
- auth=await moduleAt('app/chatgpt-auth.ts',imports,{process:{env:{NEXTAUTH_SECRET:'test',GOOGLE_CLIENT_ID:'test',GOOGLE_CLIENT_SECRET:'test'}}});const user=await auth.getChatGPTUser();assert.equal(user.email,'owner@example.test');assert.equal(user.userId,'google-email:owner@example.test');
- imports['@/lib/portable/auth-options'].allowedEmail=()=>false;
- auth=await moduleAt('app/chatgpt-auth.ts',imports,{process:{env:{NEXTAUTH_SECRET:'test',GOOGLE_CLIENT_ID:'test',GOOGLE_CLIENT_SECRET:'test'}}});assert.equal(await auth.getChatGPTUser(),null);
- assert.equal(auth.chatGPTSignInPath('//evil.test'),'/api/auth/signin?callbackUrl=%2F');
+test('identity comes only from a Supabase session verified on the server; no session or no company means no access',async()=>{
+ const user={id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',email:'Person@Example.test',app_metadata:{}};let answer={data:{user},error:null},configured=true;const seen=[];
+ const imports={'next/headers':{cookies:async()=>({get:n=>n==='studio_org'?{value:'chosen-org'}:undefined})},
+  '@/lib/auth/supabase':{authConfigured:()=>configured,serverAuth:async()=>({auth:{getUser:async()=>answer}}),toSessionUser:u=>u?{id:u.id,email:u.email.toLowerCase(),appMetadata:u.app_metadata}:null},
+  '@/lib/accounts/directory':{getDirectory:()=>({})},
+  '@/lib/accounts/context':{resolveContext:async a=>{seen.push(a);return a.user.id===user.id?{ok:true,ctx:{user:a.user}}:{ok:false,reason:'no_company'}}}};
+ const m=await moduleAt('lib/studio-context.ts',imports),plain=v=>JSON.parse(JSON.stringify(v));// objects from the module's own context
+ assert.equal((await m.getStudioContext()).ok,true);assert.deepEqual(plain(seen[0]),{user:{id:user.id,email:'person@example.test'},chosenOrg:'chosen-org',directory:{}});
+ // A revoked session still carries a well-formed token; Supabase says so and access ends.
+ answer={data:{user:null},error:{code:'session_not_found',message:'Session from session_id claim in JWT does not exist'}};assert.deepEqual(plain(await m.getStudioContext()),{ok:false,problem:'signed_out'});
+ answer={data:{user:{...user,id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'}},error:null};assert.deepEqual(plain(await m.getStudioContext()),{ok:false,problem:'no_company'});
+ configured=false;assert.deepEqual(plain(await m.getStudioContext()),{ok:false,problem:'not_configured'});
 });
 test('S3 conditional writes: If-Match carries the ETag, If-None-Match only "*", and 412/409 mean "not written"',async()=>{
  const calls=[];let fail=0;const client={send:async cmd=>{calls.push(cmd);if(fail){const e=new Error('Precondition');e.$metadata={httpStatusCode:fail};throw e}return {ETag:'"new"'}}};
@@ -99,9 +104,10 @@ test('storage defaults to AWS S3: region required, no custom endpoint, virtual-h
  const local=storageClient({...env,S3_ENDPOINT:'http://127.0.0.1:9000'});assert.equal(local.config.isCustomEndpoint,true);assert.equal(local.config.forcePathStyle,true);
 });
 test('one helper builds every org-scoped storage prefix and rejects anything else',async()=>{
- const t=await moduleAt('lib/portable/tenancy.ts');const hash='a'.repeat(64);
- assert.equal(t.userPrefix(t.currentOrg(),hash),'orgs/nmesis/users/'+hash+'/');assert.equal(t.orgOf(t.userPrefix('client-2',hash)),'client-2');
+ const t=await moduleAt('lib/portable/tenancy.ts');const hash='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',org='0000000a-0000-4000-8000-00000000000a';
+ assert.equal(t.userPrefix(org,hash),'orgs/'+org+'/users/'+hash+'/');assert.equal(t.userOf(t.userPrefix(org,hash)),hash);assert.throws(()=>t.userPrefix(org,'a'.repeat(64)),/Invalid/);
+ assert.equal(t.orgKeysPrefix(org),'orgs/'+org+'/keys/');assert.equal(t.orgOf(t.orgKeysPrefix(org)),org);assert.equal(t.isUserPrefix(t.orgKeysPrefix(org)),false);assert.equal(t.orgOf(t.userPrefix('client-2',hash)),'client-2');
  assert.equal(t.isUserPrefix('orgs/nmesis/users/'+hash+'/'),true);assert.equal(t.isUserPrefix('users/'+hash+'/'),false);assert.equal(t.isUserPrefix('orgs/../users/'+hash+'/'),false);
  assert.throws(()=>t.userPrefix('Bad Org',hash));assert.throws(()=>t.userPrefix('nmesis','../x'));assert.throws(()=>t.orgOf('users/'+hash+'/'));assert.throws(()=>t.orgKey('../x','y'));
- assert.equal(t.orgKey('nmesis','sponsorship/x.json'),'orgs/nmesis/sponsorship/x.json');
+ assert.equal(t.orgKey('nmesis','keys/x.json'),'orgs/nmesis/keys/x.json');
 });

@@ -2,9 +2,11 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-11
+**Last updated:** 2026-11-13
 
-**Latest (2026-11-11, data layer S1):** Moved the studio from Turso + R2 to Supabase Postgres (own schema and role) + AWS S3, ready for multiple client organizations. Branch `feat/postgres-s3` → PR into `development`. No hosted system was touched; the owner steps are in the PR body, `docs/supabase-setup.sql` and `docs/s3-setup.md`.
+**Latest (2026-11-12, accounts S2):** Client accounts: Supabase Auth sign-in (password, email links, invitation and recovery → "Choose your password"), one server-side context per request (user, company, role, plan, staff), company-scoped library and storage, configurators from the master list, plan features enforced on every route with upsell chips in the workspace, forced row level security. Branch `feat/accounts-access` → PR into `development`. No hosted system was touched; owner steps are in the PR body and `docs/supabase-setup.sql` section 5.
+
+**Earlier (2026-11-11, data layer S1):** Moved the studio from Turso + R2 to Supabase Postgres (own schema and role) + AWS S3, ready for multiple client organizations. Branch `feat/postgres-s3` → PR into `development`. No hosted system was touched; the owner steps are in the PR body, `docs/supabase-setup.sql` and `docs/s3-setup.md`.
 
 **Earlier (2026-11-10, studio sync):** Synced the current studio feature updates into a feature branch from `development`, retaining the repository’s authentication, database and private-media adapters. The owner authorized feature PR → `development` → promotion PR → `main`. No hosted settings, production data, generated media or archives are included.
 
@@ -27,47 +29,45 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Branch rulesets on `main`     | ✅     | Active; PRs, required `verify` / `secrets`, squash only, no bypass (verified 2026-11-10). |
 | Lint debt                     | 🟡     | Enforced; legacy rules downgraded to warnings (BACKLOG #4)            |
 | Data layer (Postgres + S3)    | 🟡     | PR S1 into `development`; hosted Supabase/S3 setup is an owner step   |
-| Accounts, client configurators, plans | ⏳ | PR S2 (owner's platform plan)                                |
+| Accounts, client configurators, plans | 🟡 | PR S2 into `development`; hosted Supabase Auth settings, grants SQL and Vercel variables are owner steps |
 
 ## What was built last session
 
-- **Database adapter** (`lib/portable/database.ts`): the same D1-style `prepare().bind().first/all/run` surface (plus D1 `batch` as one transaction) over the `postgres` client through the Supabase transaction pooler: small per-instance pool, no prepared statements, TLS, `search_path` = `studio`. `?` placeholders become `$1…$n` once per statement, skipping string literals, quoted identifiers and comments. Bigint values return as numbers.
-- **Schema and migrations**: `supabase/migrations/0001_studio.sql` (idempotent) creates the six job tables with `org_id`, bigint time and money columns, RLS on with no policies, and revoked privileges for every other role; `scripts/migrate.mjs` applies it through `DATABASE_URL_DIRECT` with the same checksum guard and an advisory lock. `docs/supabase-setup.sql` is the owner's one-time role and schema setup. Drizzle, `db/`, `drizzle/` and `@libsql/client` were removed.
-- **SQLite→Postgres fixes**: budget reservations now lock the payer's budget row first (Postgres runs writers concurrently); one active upscale per image is a partial unique index; bigint sums are cast back to numbers; untyped `SELECT ?` values are cast; the SQLite-only `json_set` became a compare-and-swap; a non-integer storyboard revision no longer reaches a numeric comparison.
-- **Organizations**: one helper builds every storage prefix (`orgs/<org>/users/<user>/`); inserts carry `org_id`; list queries filter by it; shared-account pointers stay inside the organization.
-- **Storage**: AWS S3 by default (`S3_REGION` required, no endpoint, virtual-hosted addresses), timeouts, conditional writes verified by tests; `docs/s3-setup.md` and `docs/s3-cors.example.json`.
-- **Configurator presets** moved out of the browser bundle to `/api/configurators` (server-only `CONFIGURATOR_PRESETS`; the `s08` first-preset rule still works).
-- `npm run check:setup` now checks the live database (schema, search path, migrations, no access to `public`) and bucket (probe put/conditional put/get/delete under `staging/`).
-- Local verification: lint (0 errors; warnings identical to `development`), typecheck, 235/235 tests (7 Postgres tests skipped without `TEST_DATABASE_URL`), production build. **Not run locally:** the Postgres checks (V1: `tests/postgres.test.mjs`, migrations twice, privileges) and the end-to-end flow (V2: `scripts/verify/studio-flow.mjs` with a local S3 stand-in), because no Postgres was available on the development machine. The reviewer's Postgres 16 run passed V1 (242/242) only with transform-types; the strip-only load failure in `lib/portable/database.ts` and the harness's module loader were then fixed, and neither has been re-run against Postgres yet.
+- **Sign-in** (`lib/auth/`, `app/signin`, `app/auth`, `proxy.ts`): Supabase Auth through `@supabase/ssr`, server-side only (httpOnly cookies; no Supabase client or key in the browser). Password, email link, "Forgot your password?" (one sentence for every address), invitation links from the admin (tokens after the #, handed to `/api/auth/session` once), PKCE callback, sign-out. Invitation and recovery links always stop at "Choose your password" (10+ characters, not the email address, the same twice, Show/Hide eye, "Skip, I'll use email links"); the decision is the server's (a recovery mark in our own cookie when the email is sent, then `app_metadata.nmesis_password_set`, written only with the secret key). After an admin-API password change a fresh password session is started and swapped in. Errors are mapped to plain sentences. Google is built behind `STUDIO_GOOGLE_SIGNIN` (off). NextAuth and the email allow-list are gone.
+- **Context** (`lib/studio-context.ts`, `lib/accounts/`): `getStudioContext()` → user, company, role, entitlements (cached 60 s per company), staff, "viewing as". The company cookie is re-checked against active memberships on every request; first arrival marks an invited membership active. Staff open any company: Nmesis's own as owner, a client's read-only with a "Viewing as" banner, logged in `studio.staff_access_log`.
+- **Plans** (`lib/accounts/plan.ts`): one route → feature table checked in `context()` for every API route (a test fails if a route is missing), plus line-ups, smart references and adding an object by request body; `studio.max_output` caps sizes and upscales; viewers are read-only; a switched-off or ended Studio pauses new work and keeps the library viewable for 30 days after the end date.
+- **Company scoping**: rows keep `org_id` + owner (`orgs/<org>/users/<user>/`, Supabase ids); the library, films, swaps and stories are visible to the whole company, changes to their creator, deletes to the creator or a company owner. Provider keys and the video budget belong to the company (`orgs/<org>/keys/`), managed by owners when the plan has `studio.own_keys`; the `SHARED_OPENAI_*` sponsorship is gone.
+- **Configurators**: `/api/configurators` serves the company's live cars (`configurator_access` or, with none, its brands' cars; staff see all), cached 10 minutes, joined to `CONFIGURATOR_ORIGIN`; no add/edit UI; the `s08` rule became an explicit per-car capture template (`studio.car_settings`). `CONFIGURATOR_PRESETS` is gone.
+- **Database**: migration `0002_accounts_access.sql` forces row level security on every studio table with membership policies (security-definer helpers reading the accounts views); the adapter sets `studio.user_id` per statement for the signed-in user. `docs/supabase-setup.sql` section 5 adds the read-only views, the accept function and the grants for `studio_app`.
+- **Verification**: lint 0 errors (warnings 169 → 162, none new), typecheck, 257/257 tests including the Postgres tests (local Postgres 17; CI now runs them against a Postgres 17 service container), production build; route-level cross-company, plan, viewer, staff and configurator tests (`tests/accounts-access.test.mjs`); sign-in flows end to end against a mocked Supabase Auth (`scripts/verify/signin-flow.mjs`, 33/33). Review fix (2026-11-13): the 0002 policies compared `org_id` to a subquery of arrays (`text = text[]` on Postgres 16/17); now `any (coalesce((select studio.request_orgs()), '{}'::text[]))`. `tests/postgres.test.mjs` loads a synthetic accounts schema (`tests/fixtures/accounts-schema.sql`), runs the setup SQL and both migrations twice, and checks forced RLS: a member sees and changes only their company, invited-only and no user see nothing, staff see all. **Not run:** a hosted Supabase project; the workspace's account bar and upsell chips in a browser.
 
 ## Decisions made (must be remembered)
 
 - **Repository visibility:** stays public; scrub third-party names and infrastructure identifiers before pushing (owner, 2026-10-14). ADR 0001.
 - **Data layer (owner, 2026-11-11):** Supabase Postgres in schema `studio` with its own login role `studio_app`; Preview uses a separate staging Supabase project. Media in a private AWS S3 bucket in `eu-central-1` with an IAM user scoped to that bucket; one bucket and IAM user per environment.
 - **Multi-client (owner, 2026-11-11):** every row carries `org_id`; every object lives under `orgs/<org>/users/<user>/`. Until S2 all users belong to the studio's own organization (`lib/portable/tenancy.ts`).
-- **Configurator presets:** server-only `CONFIGURATOR_PRESETS`, served to signed-in users by `/api/configurators`, no longer in the browser bundle.
+- **Configurators (S2):** from the master list per company (staff: all live cars); no client add/edit; `CONFIGURATOR_ORIGIN` joins catalogue paths; capture template per car in `studio.car_settings`.
+- **Accounts (S2, owner's task brief, 2026-11-12):** Supabase Auth in the company project, `accounts` read-only for the Studio; Google parked; staff open a client's workspace read-only ("Viewing as", logged) and Nmesis's own as owner; provider keys belong to the company (`studio.own_keys`, owners manage); upsell chips name the smallest plan with the feature (Growth, or Enterprise for film, swap, storyboards and own keys).
 - **Branch model:** `main` = Production, `development` = staging, `moaz-playground` = sandbox; feature PRs into `development` (owner, 2026-10-14). ADR 0001.
 
 ## Known issues / TODOs
 
 _Waiting on owner_
 
-- Supabase setup in the main and staging projects, S3 buckets and IAM users, then Vercel variables for Production and Preview: `DATABASE_URL`, `DATABASE_URL_DIRECT`, `S3_*`, `CONFIGURATOR_PRESETS` (exact steps in the S1 PR). Remove the old `TURSO_*`, `S3_ENDPOINT` and `NEXT_PUBLIC_CONFIGURATOR_PRESETS` values.
-- Confirm hosted Preview and Production service configuration before running paid end-to-end generation tests.
-- Google OAuth redirect URIs and S3 CORS for the Vercel domains.
+- S1 and S2 owner steps (exact list in the S2 PR body): Supabase Auth URL configuration and redirect URLs for each Studio address, section 5 of `docs/supabase-setup.sql` in the main and staging projects, `npm run db:migrate`, Vercel variables (`SUPABASE_*`, `CONFIGURATOR_ORIGIN`) and removal of the NextAuth, allow-list, `SHARED_OPENAI_*` and `CONFIGURATOR_PRESETS` values, `STUDIO_URL` on the admin.
+- S3 buckets, IAM users and CORS (unchanged from S1).
 
 _Carried_
 
-- The deployment connection can now read deployment status and build logs (verified during the feature sync). The feature Preview built successfully and the signed-out workspace renders; authenticated provider flows remain unverified.
-
-- Lint debt (BACKLOG #4).
-- Dependency audit still reports the existing Zod 3 constrained-collection advisory (GHSA-mrhx-c7xc-m3w5). The available fix requires a major-version upgrade, which is outside this feature sync. Next.js critical advisories were resolved.
-- `docs/VERIFICATION.md` describes the original export; it predates this repository.
+- `scripts/verify/studio-flow.mjs` against Postgres needs its stand-in user to be an active member in that database's `accounts` (the Postgres test's fixture makes the same synthetic user and company members, so run it after `tests/postgres.test.mjs`).
+- The accounts views depend on admin tables: re-run section 5 after an admin migration that changes them.
+- A teammate's visual can be viewed and downloaded, but not yet used as a reference for new work (references are read from the person's own prefix).
+- Companies without `studio.own_keys` have no provider keys until S3 (Nmesis-held keys).
+- Lint debt (BACKLOG #4). Zod 3 advisory (GHSA-mrhx-c7xc-m3w5). `docs/VERIFICATION.md` describes the original export.
 
 ## Next session — start here
 
-1. Reviewer: re-run `TEST_DATABASE_URL=… npm test` (superuser URL of a disposable Postgres database; expect 242/242) and then `node scripts/verify/studio-flow.mjs` against it, after the strip-only and loader fixes. Fix anything they find before merging.
-2. Owner: review the S1 PR into `development`; follow its owner steps (Supabase SQL in the main and staging projects, S3 buckets, IAM users, CORS, lifecycle, Vercel variables), then run `npm run db:migrate` and `npm run check:setup` against each environment.
-3. Smoke-test sign-in, an upload and the library on the Preview deployment once its variables are set.
-4. PR S2 (accounts, sign-in, configurator assignment, plan features): replace `currentOrg()` in `lib/portable/tenancy.ts` with the signed-in member's organization, add membership-based RLS policies, and narrow `/api/configurators` to the client's presets.
-5. Continue the lint-debt queue (BACKLOG #4).
+1. Reviewer: re-review PR S2 after the 0002 policy fix; CI's `verify` now includes the Postgres tests.
+2. Owner: review the S2 PR; follow its owner steps in the staging project first, then sign in on the Preview as an invited test person (invitation → choose password → workspace).
+3. S3 (owner's plan): Nmesis-held provider keys for companies without `studio.own_keys`, credits against `studio.credits_monthly`.
+4. Continue the lint-debt queue (BACKLOG #4).

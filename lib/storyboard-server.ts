@@ -3,7 +3,7 @@ import {database} from './film-server';
 import {apiKey} from './credentials';
 import {framePrompt,type Storyboard,type BoardShot} from './storyboards';
 type Ctx=Awaited<ReturnType<typeof context>>;
-export async function boardRow(ctx:Ctx,id:string){if(!validId(id))throw new StudioError('Story not found.',404);const row=await database(ctx).prepare('SELECT data,revision,updated_at FROM storyboards WHERE id=? AND owner=?').bind(id,ctx.prefix).first<{data:string;revision:number;updated_at:number}>();if(!row)throw new StudioError('Story not found.',404);return {...JSON.parse(row.data),id,revision:row.revision,updatedAt:row.updated_at} as Storyboard;}
+export async function boardRow(ctx:Ctx,id:string,read=false){if(!validId(id))throw new StudioError('Story not found.',404);const row=await database(ctx).prepare(read?'SELECT data,revision,updated_at FROM storyboards WHERE id=? AND org_id=?':'SELECT data,revision,updated_at FROM storyboards WHERE id=? AND owner=?').bind(id,read?ctx.org:ctx.prefix).first<{data:string;revision:number;updated_at:number}>();if(!row)throw new StudioError('Story not found.',404);return {...JSON.parse(row.data),id,revision:row.revision,updatedAt:row.updated_at} as Storyboard;}
 export async function withBoard(ctx:Ctx,id:string,revision:unknown,fn:(board:Storyboard,save:(board:Storyboard)=>Promise<void>)=>Promise<void>){
  const db=database(ctx),token=crypto.randomUUID(),now=Date.now();await boardRow(ctx,id);
  const locked=await db.prepare('UPDATE storyboards SET lock_until=?,lock_token=? WHERE id=? AND owner=? AND revision=? AND lock_until<?').bind(now+300000,token,id,ctx.prefix,Number.isInteger(revision)?revision:-1,now).run();

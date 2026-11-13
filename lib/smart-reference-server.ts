@@ -3,7 +3,7 @@ import {bucket,imageKey,StudioError,validId,str,type StudioEnv} from './studio-s
 import {geminiImageModel,imageSettings,openaiImageModel} from './image-models';
 import {SMART_VERSION,smartPriority,parseSmartAnalysis,smartPrompt,type SmartInput,type SmartPlan} from './smart-reference';
 import {nanoDetailInputs} from './nano-detail-inputs';
-type Context=StudioEnv&{prefix:string;email?:string};
+type Context=StudioEnv&import("./org-keys").KeyContext;
 const textField={type:'string',maxLength:1500},listField={type:'array',items:{type:'string',maxLength:700},maxItems:10};
 const ANALYSIS_SCHEMA={type:'object',additionalProperties:false,required:['carDetails','sceneDetails','conflicts','captureAdvice','viewCompatibility','detailRegions','renderInstructions'],properties:{carDetails:listField,sceneDetails:listField,conflicts:listField,captureAdvice:textField,viewCompatibility:{type:'string',enum:['similar','different','uncertain']},detailRegions:{type:'array',maxItems:3,items:{type:'object',additionalProperties:false,required:['label','x','y','width','height'],properties:{label:{type:'string',maxLength:100},x:{type:'number',minimum:0,maximum:.98},y:{type:'number',minimum:0,maximum:.98},width:{type:'number',minimum:.02,maximum:1},height:{type:'number',minimum:.02,maximum:1}}}},renderInstructions:{type:'string',minLength:40,maxLength:5000}}};
 const REVIEW_SCHEMA={type:'object',additionalProperties:false,required:['verdict','carFindings','sceneFindings','suggestedFix'],properties:{verdict:{type:'string',enum:['no-obvious-mismatch','needs-review','uncertain']},carFindings:listField,sceneFindings:listField,suggestedFix:textField}};

@@ -3,6 +3,7 @@ export const maxDuration=300;
 import {parseLineup,lineupImageIds,lineupPrompt,lineupCapacity} from '@/lib/lineup';
 import {imageSettings,refinementReferences,openaiImageModel,supportsDrawnRegion} from '@/lib/image-models';
 import {apiKey} from '@/lib/credentials';
+import {requireEdge,requireFeature,longEdgeOf} from '@/lib/accounts/plan';
 import {bucket,context,fail,imageKey,readJson,str,validId,StudioError,providerError} from '@/lib/studio-server';
 import {generationPrompt,safePinterest,referenceMode} from '@/lib/studio';
 import type {StudioBucket,StoredObjectBody} from '@/lib/portable/storage';
@@ -12,8 +13,10 @@ export async function POST(request:Request){let record:any;let store:StudioBucke
  store=bucket(ctx.BUCKET);const d=await readJson(request,32768);
  if(!validId(d.id)||!validId(d.sourceId)||!validId(d.moodId))throw new StudioError('Choose a car view and upload an inspiration image first.');
  let lineup;try{lineup=parseLineup(d.lineup);if(lineup){lineupCapacity(lineup,16,!!d.parentId);if(d.sourceId!==lineup.cars[0].views[0].id)throw new Error('The primary lineup reference changed.');if(d.refinementReferenceIds?.length)throw new Error('Use the references attached to each lineup car.');if(lineup.targetCarId&&!d.parentId)throw new Error('Open a saved lineup before refining a car.')}}catch(e){throw new StudioError((e as Error).message)}
+ if(lineup)requireFeature(ctx,'studio.lineups');if(d.smartPlanId!==undefined)requireFeature(ctx,'studio.smart_reference');
  const brief=str(d.brief);if(brief.length<8)throw new StudioError('Describe the campaign in a little more detail.');
  let size:string,model:string;try{const settings=imageSettings(d.provider,d.size||'1536x864',d.model??ctx.OPENAI_IMAGE_MODEL);if(settings.provider!=='openai')throw new Error('Use the Higgsfield estimate flow for this generator.');size=settings.size;model=openaiImageModel(settings.model).id}catch(e){throw new StudioError((e as Error).message)}
+ requireEdge(ctx,longEdgeOf(size));
  let refinementReferenceIds:string[];try{refinementReferenceIds=refinementReferences(d.refinementReferenceIds,!!d.parentId,'openai')}catch(e){throw new StudioError((e as Error).message)}
  const extraImages:[string,StoredObjectBody][]=[];for(const [index,id] of refinementReferenceIds.entries()){const item=await store.get(imageKey(ctx.prefix,id));if(!item)throw new StudioError(`Reference ${index+1} is no longer available. Upload it again.`,404);extraImages.push(['reference-'+(index+1),item])}
  const source=await store.get(imageKey(ctx.prefix,d.sourceId));const mood=await store.get(imageKey(ctx.prefix,d.moodId));if(!source||!mood)throw new StudioError('A reference is no longer available. Please upload it again.');

@@ -69,3 +69,23 @@
 #smart-lab-brief{display:block;width:100%;min-height:110px;margin:0 0 18px;padding:14px;color:#edf2f4;background:#10191e;border:1px solid #52626b;border-radius:6px;resize:vertical}#smart-lab-brief:focus-visible{outline:2px solid #ff713b;outline-offset:2px}
 
 .clipboard-image-input{margin:14px 0;padding:14px;border:1px dashed #56616a;border-radius:8px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:#151e23}.clipboard-image-input:focus-within,.clipboard-image-input:focus-visible{outline:2px solid #ff7038;outline-offset:2px}.clipboard-image-input>span{font-size:12px;color:#b4bfc7;line-height:1.5}.clipboard-image-input>p{flex-basis:100%;margin:0;font-size:13px;color:#ffd0b5}.vehicle-panel>.clipboard-image-input,.swap-card>.clipboard-image-input{margin:14px 20px}.clipboard-image-input[aria-disabled=true]{opacity:.65}
+/* Accounts and plans (S2): company switcher, staff banner, plan chips. */
+.account-bar{display:flex;align-items:center;gap:10px;margin-left:auto;padding-left:16px;font-size:13px;color:var(--muted-foreground)}
+.account-bar form{display:flex}
+.account-bar .secondary{padding:7px 10px;font-size:12px}
+.account-org{display:inline-flex;align-items:center;gap:6px;color:var(--foreground);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-switch{min-width:170px;max-width:240px;height:34px;font-size:13px}
+.account-role{border:1px solid var(--border);border-radius:999px;padding:2px 9px;font-size:11px;letter-spacing:.6px;text-transform:uppercase}
+.account-problem{color:var(--destructive)}
+.viewing-as,.workspace-closed{display:flex;align-items:center;gap:10px;padding:10px 4%;font-size:14px;border-bottom:1px solid var(--border);background:var(--secondary);color:var(--secondary-foreground)}
+.viewing-as svg{color:var(--primary);flex-shrink:0}
+.workspace-closed{background:#30251f;color:#ffd4b9;border-bottom-color:#7b583c}
+.workspace-closed svg{flex-shrink:0}
+.plan-chip{display:inline-flex;align-items:center;border:1px solid color-mix(in srgb,var(--primary) 55%,transparent);color:var(--primary);background:color-mix(in srgb,var(--primary) 10%,transparent);border-radius:999px;padding:1px 8px;font-size:11px;letter-spacing:.4px;white-space:nowrap}
+.upsell{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap}
+.feature-off{display:inline-flex;align-items:center;gap:7px;color:var(--muted-foreground);cursor:default}
+.ask-nmesis-popover{max-width:280px;font-size:13px;line-height:1.55}
+.plan-gate{display:grid;place-items:start center;padding:72px 16px}
+.plan-gate section{max-width:520px;display:grid;gap:14px;justify-items:start;border:1px solid var(--border);background:var(--card);border-radius:8px;padding:30px 28px}
+.plan-gate h1{font-size:clamp(22px,2.4vw,30px)}
+@media(max-width:800px){.account-bar{gap:6px;padding-left:8px}.account-role,.account-org{display:none}.account-switch{min-width:0;max-width:150px}.viewing-as,.workspace-closed{padding:10px 5%;font-size:13px}}

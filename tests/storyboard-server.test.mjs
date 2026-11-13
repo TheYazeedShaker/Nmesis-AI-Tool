@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
-import {studioSchemaSql,userPrefix} from './sqlite-schema.mjs';
+import {studioSchemaSql,userPrefix,MEMBER} from './sqlite-schema.mjs';
 import vm from 'node:vm';
 import ts from 'typescript';
 async function harness(){
@@ -14,7 +14,7 @@ async function harness(){
  const sandbox=vm.createContext({crypto,Buffer,TextEncoder,TextDecoder,URL,Response,Blob,FormData,AbortSignal,Date,console,fetch:async(...args)=>{calls.push(args);return fetcher(...args)}});
  const stubs={'./studio-server':{bucket:x=>x,context:()=>{},imageKey:(p,id)=>p+'images/'+id,StudioError,validId:x=>typeof x==='string'&&/^[a-z0-9-]{8,80}$/.test(x),providerError:async()=>new StudioError('Provider rejected',502)},'./film-server':{database:c=>c.DB},'./credentials':{apiKey:async()=> 'synthetic-test-key'}};
  const cache=new Map();async function module(name){if(cache.has(name))return cache.get(name);let m;if(stubs[name]){const stub=stubs[name];m=new vm.SyntheticModule(Object.keys(stub),function(){for(const [k,v]of Object.entries(stub))this.setExport(k,v)},{context:sandbox})}else{const code=ts.transpileModule(readFileSync(new URL('../lib/'+name.replace('./','')+'.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;m=new vm.SourceTextModule(code,{context:sandbox})}cache.set(name,m);await m.link(module);return m}
- const mod=await module('./storyboard-server');await mod.evaluate();const ctx={DB:db,BUCKET:store,prefix:userPrefix('a')};
+ const mod=await module('./storyboard-server');await mod.evaluate();const ctx={DB:db,BUCKET:store,prefix:userPrefix('a'),...MEMBER};
  const shot={id:'shot-1234',title:'Hero',visual:'Sunset dunes.',motion:'Push in.',viewId:'view-1234',selected:true,versions:[],oldFilmIds:[],status:'draft'};const b={id:'board-1234',revision:1,title:'Test',vehicle:'SUV',configurator:'https://example.com',views:[{id:'view-1234',label:'front'}],idea:'Desert sunset',direction:'Warm',moodId:'',pin:'',shots:[shot],model:'test',brand:'',tagline:'',updatedAt:1};sql.prepare('INSERT INTO storyboards(id,org_id,owner,data,created_at,updated_at) VALUES(?,?,?,?,?,?)').run(b.id,'nmesis',ctx.prefix,JSON.stringify(b),1,1);await store.put(ctx.prefix+'images/view-1234',new Uint8Array([137,80,78,71]));
  return{server:mod.namespace,ctx,b,sql,store,objects,calls,setFetcher:fn=>fetcher=fn,close:()=>sql.close()}
 }

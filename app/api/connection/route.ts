@@ -1,14 +1,12 @@
 export const runtime='nodejs';
 export const maxDuration=300;
 import {context,fail,StudioError,providerError} from '@/lib/studio-server';
-import {sponsorship} from '@/lib/sponsored-access';
 import {apiKey,saveKey,removeKey} from '@/lib/credentials';
 function sameOrigin(request:Request){
  if(request.headers.get('origin')!==new URL(request.url).origin)throw new StudioError('Open connection settings in your studio to continue.',403);
 }
 export async function POST(request:Request){try{
  const ctx=await context(request,true);sameOrigin(request);
- if(sponsorship(ctx).isGuest)throw new StudioError("Your connection is managed by the studio owner.",403);
  if(!request.headers.get('content-type')?.startsWith('application/json'))throw new StudioError('Invalid connection request.',415);
  const body=await request.text();if(body.length>2048)throw new StudioError('The connection request is too large.',413);
  let data;try{data=JSON.parse(body)}catch{throw new StudioError('The connection request could not be read.')}
