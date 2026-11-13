@@ -98,6 +98,9 @@ revoke all on function studio.request_is_staff() from public;
 -- tables and would otherwise skip it): a row is visible and writable only where
 -- its org_id is one of the asking user's active memberships, or the user is staff.
 -- The server checks the same thing first; this is the second lock.
+-- `any (coalesce((select …), '{}'))`: the scalar subquery is evaluated once and
+-- compared as an array. Written as `any ((select …))`, Postgres reads the
+-- subquery form of ANY (a set of text[] rows) and the policy does not compile.
 do $$
 declare t text;
 begin
@@ -106,7 +109,7 @@ begin
     execute format('alter table studio.%I force row level security', t);
     execute format('drop policy if exists member_orgs on studio.%I', t);
     execute format(
-      'create policy member_orgs on studio.%I for all using ((select studio.request_is_staff()) or org_id = any ((select studio.request_orgs()))) with check ((select studio.request_is_staff()) or org_id = any ((select studio.request_orgs())))',
+      'create policy member_orgs on studio.%I for all using ((select studio.request_is_staff()) or org_id = any (coalesce((select studio.request_orgs()), ''{}''::text[]))) with check ((select studio.request_is_staff()) or org_id = any (coalesce((select studio.request_orgs()), ''{}''::text[])))',
       t);
   end loop;
 end

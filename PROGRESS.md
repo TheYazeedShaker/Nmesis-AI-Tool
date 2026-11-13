@@ -2,7 +2,7 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-12
+**Last updated:** 2026-11-13
 
 **Latest (2026-11-12, accounts S2):** Client accounts: Supabase Auth sign-in (password, email links, invitation and recovery → "Choose your password"), one server-side context per request (user, company, role, plan, staff), company-scoped library and storage, configurators from the master list, plan features enforced on every route with upsell chips in the workspace, forced row level security. Branch `feat/accounts-access` → PR into `development`. No hosted system was touched; owner steps are in the PR body and `docs/supabase-setup.sql` section 5.
 
@@ -39,7 +39,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 - **Company scoping**: rows keep `org_id` + owner (`orgs/<org>/users/<user>/`, Supabase ids); the library, films, swaps and stories are visible to the whole company, changes to their creator, deletes to the creator or a company owner. Provider keys and the video budget belong to the company (`orgs/<org>/keys/`), managed by owners when the plan has `studio.own_keys`; the `SHARED_OPENAI_*` sponsorship is gone.
 - **Configurators**: `/api/configurators` serves the company's live cars (`configurator_access` or, with none, its brands' cars; staff see all), cached 10 minutes, joined to `CONFIGURATOR_ORIGIN`; no add/edit UI; the `s08` rule became an explicit per-car capture template (`studio.car_settings`). `CONFIGURATOR_PRESETS` is gone.
 - **Database**: migration `0002_accounts_access.sql` forces row level security on every studio table with membership policies (security-definer helpers reading the accounts views); the adapter sets `studio.user_id` per statement for the signed-in user. `docs/supabase-setup.sql` section 5 adds the read-only views, the accept function and the grants for `studio_app`.
-- **Verification**: lint 0 errors (warnings 169 → 162, none new), typecheck, 248/255 tests (7 Postgres tests skipped), production build; route-level cross-company, plan, viewer, staff and configurator tests (`tests/accounts-access.test.mjs`); sign-in flows end to end against a mocked Supabase Auth (`scripts/verify/signin-flow.mjs`, 33/33). **Not run:** anything against Postgres (the new migration, the forced row level security and the accounts views) or a hosted Supabase project; the workspace's account bar and upsell chips were not seen in a browser (they need the database).
+- **Verification**: lint 0 errors (warnings 169 → 162, none new), typecheck, 257/257 tests including the Postgres tests (local Postgres 17; CI now runs them against a Postgres 17 service container), production build; route-level cross-company, plan, viewer, staff and configurator tests (`tests/accounts-access.test.mjs`); sign-in flows end to end against a mocked Supabase Auth (`scripts/verify/signin-flow.mjs`, 33/33). Review fix (2026-11-13): the 0002 policies compared `org_id` to a subquery of arrays (`text = text[]` on Postgres 16/17); now `any (coalesce((select studio.request_orgs()), '{}'::text[]))`. `tests/postgres.test.mjs` loads a synthetic accounts schema (`tests/fixtures/accounts-schema.sql`), runs the setup SQL and both migrations twice, and checks forced RLS: a member sees and changes only their company, invited-only and no user see nothing, staff see all. **Not run:** a hosted Supabase project; the workspace's account bar and upsell chips in a browser.
 
 ## Decisions made (must be remembered)
 
@@ -59,7 +59,7 @@ _Waiting on owner_
 
 _Carried_
 
-- Not yet run against Postgres: migration 0002, forced row level security with the per-statement user setting, the accounts views, and `tests/postgres.test.mjs` / `scripts/verify/studio-flow.mjs` after S2 (the flow's stand-in user needs an accounts membership or staff row in that database).
+- `scripts/verify/studio-flow.mjs` against Postgres needs its stand-in user to be an active member in that database's `accounts` (the Postgres test's fixture makes the same synthetic user and company members, so run it after `tests/postgres.test.mjs`).
 - The accounts views depend on admin tables: re-run section 5 after an admin migration that changes them.
 - A teammate's visual can be viewed and downloaded, but not yet used as a reference for new work (references are read from the person's own prefix).
 - Companies without `studio.own_keys` have no provider keys until S3 (Nmesis-held keys).
@@ -67,7 +67,7 @@ _Carried_
 
 ## Next session — start here
 
-1. Reviewer: run `TEST_DATABASE_URL=… npm test` and migrations 0001–0002 on a disposable Postgres with a stand-in `accounts` schema (section 5 views), and check that `studio_app` sees only member companies' rows.
+1. Reviewer: re-review PR S2 after the 0002 policy fix; CI's `verify` now includes the Postgres tests.
 2. Owner: review the S2 PR; follow its owner steps in the staging project first, then sign in on the Preview as an invited test person (invitation → choose password → workspace).
 3. S3 (owner's plan): Nmesis-held provider keys for companies without `studio.own_keys`, credits against `studio.credits_monthly`.
 4. Continue the lint-debt queue (BACKLOG #4).
