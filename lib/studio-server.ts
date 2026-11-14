@@ -7,8 +7,10 @@ import {NO_COMPANY} from '@/lib/auth/words';
 import {MFA_REQUIRED,type StudioContext} from '@/lib/accounts/context';
 import {keySecretState,KeyStorageMisconfigured} from '@/lib/secret-crypto';
 import {noCreditMessage,NO_CREDIT_STATUS,outOfCredit} from '@/lib/provider-credit';
-export type StudioEnv={DB?:StudioDatabase;BUCKET?:StudioBucket;OPENAI_API_KEY?:string;OPENAI_IMAGE_MODEL?:string;OPENAI_TEXT_MODEL?:string;KEY_ENCRYPTION_SECRET?:string};
-export const bindings=():StudioEnv=>({DB:getDatabase(),BUCKET:getStorage(),OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_IMAGE_MODEL:process.env.OPENAI_IMAGE_MODEL,OPENAI_TEXT_MODEL:process.env.OPENAI_TEXT_MODEL,KEY_ENCRYPTION_SECRET:keySecretState().value});
+// Nmesis's own provider keys (server variables, never sent to a browser): the
+// calls of every company without its own key (lib/org-keys.ts) use them.
+export type StudioEnv={DB?:StudioDatabase;BUCKET?:StudioBucket;OPENAI_API_KEY?:string;OPENAI_IMAGE_MODEL?:string;OPENAI_TEXT_MODEL?:string;GOOGLE_AI_API_KEY?:string;HIGGSFIELD_API_KEY?:string;TOPAZ_API_KEY?:string;KEY_ENCRYPTION_SECRET?:string};
+export const bindings=():StudioEnv=>({DB:getDatabase(),BUCKET:getStorage(),OPENAI_API_KEY:process.env.OPENAI_API_KEY,OPENAI_IMAGE_MODEL:process.env.OPENAI_IMAGE_MODEL,OPENAI_TEXT_MODEL:process.env.OPENAI_TEXT_MODEL,GOOGLE_AI_API_KEY:process.env.GOOGLE_AI_API_KEY,HIGGSFIELD_API_KEY:process.env.HIGGSFIELD_API_KEY,TOPAZ_API_KEY:process.env.TOPAZ_API_KEY,KEY_ENCRYPTION_SECRET:keySecretState().value});
 // A malformed KEY_ENCRYPTION_SECRET is dropped here (and logged once, by name and
 // rule only); saving or opening a key then answers 503 "Secure key storage is
 // misconfigured." (lib/secret-crypto.ts requireKeySecret).

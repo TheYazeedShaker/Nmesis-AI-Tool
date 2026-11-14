@@ -1,4 +1,4 @@
-import {readEntitlements,type Entitlements,type Role} from './plan';
+import {readEntitlements,studioEntitlements,type Entitlements,type Role} from './plan';
 import {UUID,type Directory,type Membership} from './directory';
 // Who is asking and for which company, decided from a verified Supabase user and
 // the master list. No I/O of its own beyond the directory, so tests drive it.
@@ -9,11 +9,14 @@ export type StudioContext={
  role:Role;
  entitlements:Entitlements;
  staff:{role:string}|null;
- // A member of Nmesis staff looking at a client they do not belong to.
+ // A member of Nmesis staff looking at a client they do not belong to, which
+ // is possible only while that client grants support access (until supportUntil).
  viewingAs:boolean;
+ supportUntil:number|null;
  orgs:OrgChoice[];
 };
 export type Resolved={ok:true;ctx:StudioContext}|{ok:false;reason:'no_company'|'mfa_required'};
+export const SUPPORT_NOT_GRANTED='Support access not granted. The company’s owner can allow Nmesis support access in Company settings.';
 // Nmesis staff sign in with their admin account and must have passed its
 // six-digit code in this session (AAL2) for every request; client people
 // stay password-only.
@@ -30,17 +33,20 @@ export async function resolveContext({user,chosenOrg,directory}:{user:{id:string
  const active=memberships.filter(m=>m.status==='active');
  const wish=typeof chosenOrg==='string'&&UUID.test(chosenOrg)?chosenOrg:null;
  let member=active.find(m=>m.orgId===wish)||null,org:{id:string;name:string;kind:string}|null=member?{id:member.orgId,name:member.orgName,kind:member.orgKind}:null;
- if(!org&&wish&&staff)org=await directory.organisation(wish);
+ // Staff open Nmesis's own workspace, and a client's only while it grants support access.
+ const grants=staff?await directory.supportGrants(user.id):new Map<string,number>();
+ const mayOpen=(o:{id:string;kind:string})=>o.kind==='internal'||grants.has(o.id);
+ if(!org&&wish&&staff){const o=await directory.organisation(wish);if(o&&mayOpen(o))org=o}
  if(!org&&active[0]){member=active[0];org={id:member.orgId,name:member.orgName,kind:member.orgKind}}
  if(!org&&staff)org=(await directory.organisations()).find(o=>o.kind==='internal')||null;
  if(!org)return {ok:false,reason:'no_company'};
  // Staff in a company they do not belong to: Nmesis's own workspace as an owner,
- // a client's workspace read-only ("Viewing as").
+ // a client's workspace read-only ("Viewing as"), while its grant lasts.
  const viewingAs=!member&&!!staff&&org.kind!=='internal';
  const role:Role=member?member.role:viewingAs?'viewer':'owner';
- const entitlements=(await directory.entitlements(org.id))??readEntitlements(null);
- const orgs=staff?(await directory.organisations()).map(o=>({id:o.id,name:o.name,kind:o.kind})):active.map(m=>({id:m.orgId,name:m.orgName,kind:m.orgKind}));
- return {ok:true,ctx:{user:{id:user.id,email:user.email},org,role,entitlements,staff,viewingAs,orgs}};
+ const entitlements=studioEntitlements((await directory.entitlements(org.id))??readEntitlements(null),org.kind);
+ const orgs=staff?(await directory.organisations()).filter(o=>mayOpen(o)||active.some(m=>m.orgId===o.id)).map(o=>({id:o.id,name:o.name,kind:o.kind})):active.map(m=>({id:m.orgId,name:m.orgName,kind:m.orgKind}));
+ return {ok:true,ctx:{user:{id:user.id,email:user.email},org,role,entitlements,staff,viewingAs,supportUntil:viewingAs?grants.get(org.id)??null:null,orgs}};
 }
 // The company switcher's sections: staff see Nmesis (their own workspace) and
 // Clients; everyone else sees only their own companies, with no sections.
@@ -51,10 +57,14 @@ export function switcherSections(ctx:Pick<StudioContext,'staff'|'orgs'>){
 }
 // A link straight to a company's workspace (/?org=<id>, from the admin): honoured
 // only when the server agrees this user may open exactly that company.
-export async function openCompany({user,orgId,directory}:{user:{id:string;email:string;aal?:'aal1'|'aal2'};orgId:unknown;directory:Directory}):Promise<{ok:true;ctx:StudioContext}|{ok:false;reason:'no_company'|'mfa_required'|'not_yours'}>{
+export async function openCompany({user,orgId,directory}:{user:{id:string;email:string;aal?:'aal1'|'aal2'};orgId:unknown;directory:Directory}):Promise<{ok:true;ctx:StudioContext}|{ok:false;reason:'no_company'|'mfa_required'|'not_yours'|'no_support'}>{
  const wish=typeof orgId==='string'&&UUID.test(orgId)?orgId:null;
  const resolved=await resolveContext({user,chosenOrg:wish,directory});
  if(!resolved.ok)return resolved;
- if(!wish||resolved.ctx.org.id!==wish)return {ok:false,reason:'not_yours'};
+ if(!wish||resolved.ctx.org.id!==wish){
+  // Staff asking for a client that has not granted support access (or whose grant ended).
+  if(wish&&resolved.ctx.staff){const o=await directory.organisation(wish);if(o&&o.kind!=='internal')return {ok:false,reason:'no_support'}}
+  return {ok:false,reason:'not_yours'};
+ }
  return resolved;
 }

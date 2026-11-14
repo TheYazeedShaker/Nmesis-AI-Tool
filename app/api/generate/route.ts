@@ -2,14 +2,16 @@ export const runtime='nodejs';
 export const maxDuration=300;
 import {parseLineup,lineupImageIds,lineupPrompt,lineupCapacity} from '@/lib/lineup';
 import {imageSettings,refinementReferences,openaiImageModel,supportsDrawnRegion} from '@/lib/image-models';
-import {apiKey} from '@/lib/credentials';
+import {openaiKey} from '@/lib/credentials';
+import {releaseCredits,reserveCredits,settleCredits} from '@/lib/credits/charge';
+import {openaiImageCost} from '@/lib/credits/words';
 import {requireEdge,requireFeature,longEdgeOf} from '@/lib/accounts/plan';
 import {bucket,context,fail,imageKey,readJson,str,validId,StudioError,providerError} from '@/lib/studio-server';
 import {generationPrompt,safePinterest,referenceMode} from '@/lib/studio';
 import type {StudioBucket,StoredObjectBody} from '@/lib/portable/storage';
 export async function POST(request:Request){let record:any;let store:StudioBucket|undefined;let recordKey='';
  try{
- const ctx=await context(request,true);const key=await apiKey(ctx);if(!key)throw new StudioError('Live generation is not connected yet. Your selected view, brief and inspiration are ready.',503);
+ const ctx=await context(request,true);const cred=await openaiKey(ctx),key=cred.key;if(!key)throw new StudioError('Live generation is not connected yet. Your selected view, brief and inspiration are ready.',503);
  store=bucket(ctx.BUCKET);const d=await readJson(request,32768);
  if(!validId(d.id)||!validId(d.sourceId)||!validId(d.moodId))throw new StudioError('Choose a car view and upload an inspiration image first.');
  let lineup;try{lineup=parseLineup(d.lineup);if(lineup){lineupCapacity(lineup,16,!!d.parentId);if(d.sourceId!==lineup.cars[0].views[0].id)throw new Error('The primary lineup reference changed.');if(d.refinementReferenceIds?.length)throw new Error('Use the references attached to each lineup car.');if(lineup.targetCarId&&!d.parentId)throw new Error('Open a saved lineup before refining a car.')}}catch(e){throw new StudioError((e as Error).message)}
@@ -26,7 +28,10 @@ export async function POST(request:Request){let record:any;let store:StudioBucke
  let smart:Awaited<ReturnType<typeof import('@/lib/smart-reference-server').loadSmartPlan>>|undefined;if(d.smartPlanId!==undefined)smart=await (await import('@/lib/smart-reference-server')).loadSmartPlan(ctx,{...d,provider:'openai',size});
  const prompt=smart?smart.plan.prompt:lineup?lineupPrompt(lineup,brief,!!d.parentId,refinement):generationPrompt({referenceMode:selectedReferenceMode,brief,vehicle:str(d.vehicle,100),finish:str(d.finish,120),angle:str(d.angle,120),scene:str(d.scene,1500),variant:Number.isInteger(d.variant)?Math.max(0,d.variant):0,hasMood:true,refinement,refinementReferenceCount:refinementReferenceIds.length});
  const id=d.id;recordKey=ctx.prefix+'visuals/'+id+'.json';record={smartPlanId:smart?.plan.id,smartPriority:smart?.plan.priority,smartTest:d.smartTest===true,id,lineup,title:str(d.title,100)||'Campaign visual',src:'/api/assets/'+id,status:'pending',createdAt:new Date().toISOString(),prompt,brief,vehicle:str(d.vehicle,100),configurator:str(d.configurator,2000),finish:str(d.finish,120),angle:str(d.angle,120),sourceId:d.sourceId,moodId:d.moodId,refinementReferenceIds,pin:safePinterest(str(d.pin,600))||'',size,provider:'openai',model,parentId:d.parentId||null,referenceMode:selectedReferenceMode};
- const reserved=await store.put(recordKey,JSON.stringify(record),{onlyIf:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'application/json'}});if(!reserved)throw new StudioError('This generation has already been submitted. Check your saved visuals.',409);
+ // Credits first: a refusal leaves no pending visual behind.
+ const hold=await reserveCredits(ctx,{tool:lineup?'studio.lineups':'studio.key_visuals',action:lineup?'Line-up':'Key visual',provider:'openai',own:cred.own,cost:openaiImageCost(size)});
+ const reserved=await store.put(recordKey,JSON.stringify(record),{onlyIf:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'application/json'}}).catch(e=>{void releaseCredits(ctx,hold);throw e});if(!reserved){await releaseCredits(ctx,hold);throw new StudioError('This generation has already been submitted. Check your saved visuals.',409)}
+ let image:Buffer;try{
  const form=new FormData();form.set('model',model);if(supportsDrawnRegion(model))form.set('complexity','high');form.set('prompt',prompt);form.set('size',size);form.set('quality','high');form.set('n','1');form.set('output_format','png');
  const inputs:[string,StoredObjectBody][]=[];if(lineup){for(const [i,assetId] of lineupImageIds(lineup,d.moodId,d.parentId).entries()){const item=await store.get(imageKey(ctx.prefix,assetId));if(!item)throw new StudioError('A lineup reference is missing. Add it again.',404);inputs.push(['lineup-'+(i+1),item])}}else inputs.push(['product',source],['mood',mood],...(parent?[['previous',parent] as [string,StoredObjectBody]]:[]),...extraImages);
  for(const [label,item]of inputs){form.append('image[]',new Blob([await item.arrayBuffer()],{type:item.httpMetadata?.contentType||'image/png'}),label+'.'+(item.httpMetadata?.contentType==='image/jpeg'?'jpg':item.httpMetadata?.contentType==='image/webp'?'webp':'png'))}
@@ -34,10 +39,12 @@ export async function POST(request:Request){let record:any;let store:StudioBucke
  const response=await fetch('https://api.openai.com/v1/images/edits',{method:'POST',headers:{Authorization:'Bearer '+key},body:form,signal:AbortSignal.timeout(240000)});
  if(!response.ok)throw await providerError(response);
  const data:any=await response.json();const encoded=data.data?.[0]?.b64_json;if(!encoded)throw new StudioError('The service returned no image. Your references are preserved.',502);
- const image=Buffer.from(encoded,'base64');if(image.length<24||image[0]!==137)throw new StudioError('The service returned an unreadable image.',502);
+ image=Buffer.from(encoded,'base64');if(image.length<24||image[0]!==137)throw new StudioError('The service returned an unreadable image.',502);
+ }catch(e){throw await releaseCredits(ctx,hold,e)}
+ const credits=await settleCredits(ctx,hold);
  const width=image.readUInt32BE(16),height=image.readUInt32BE(20);
  await store.put(imageKey(ctx.prefix,id),image,{httpMetadata:{contentType:'image/png'}});
- record={...record,status:'ready',width,height};await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});
+ record={...record,status:'ready',width,height,credits};await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});
  return Response.json({visual:record});
  }catch(e){if(record&&store&&recordKey&&!(e instanceof StudioError&&e.status===409)){record.status='failed';record.error=e instanceof StudioError?e.message:'Generation was interrupted. Check saved visuals before submitting again.';try{await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}})}catch{}}
  return fail(e);}

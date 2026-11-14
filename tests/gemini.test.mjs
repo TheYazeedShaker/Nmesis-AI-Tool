@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {encode,decode} from 'fast-png';
+import {freeCredits,CHARGE_EXPORTS} from './support/free-credits.mjs';
 import jpeg from 'jpeg-js';
 const png=encode({width:2,height:2,data:new Uint8Array(16).fill(255),channels:4});
 async function harness(){
@@ -13,7 +14,8 @@ async function harness(){
   class StudioError extends Error{constructor(message,status=400){super(message);this.status=status}}
   const scope=vm.createContext({Buffer,crypto,TextEncoder,TextDecoder,Uint8Array,DataView,AbortSignal,Response,Request,URL,console,fetch:async(...args)=>{assert.equal(args[1]?.redirect,'manual','Cloudflare requests must disable redirects with manual mode');calls.push(args);return handler(...args)}});
   const stub=new vm.SyntheticModule(['StudioError','bucket','context','fail','readJson','imageKey','validId','str'],function(){this.setExport('StudioError',StudioError);this.setExport('bucket',v=>v);this.setExport('context',async()=>ctx);this.setExport('fail',e=>Response.json({error:e.message},{status:e.status||500}));this.setExport('readJson',r=>r.json());this.setExport('imageKey',(p,id)=>p+'images/'+id);this.setExport('validId',v=>typeof v==='string'&&/^[a-z0-9-]{8,80}$/.test(v));this.setExport('str',(v,max=2000)=>typeof v==='string'?v.trim().slice(0,max):'')},{context:scope});
-  const modules=new Map();async function load(path){if(path==='lib/fast-png')return new vm.SyntheticModule(['decode','encode'],function(){this.setExport('decode',decode);this.setExport('encode',encode)},{context:scope});if(path==='lib/jpeg-js')return new vm.SyntheticModule(['default'],function(){this.setExport('default',jpeg)},{context:scope});if(path==='lib/studio-server')return stub;if(modules.has(path))return modules.get(path);const source=readFileSync(new URL('../'+path+'.ts',import.meta.url),'utf8');const m=new vm.SourceTextModule(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText,{context:scope});modules.set(path,m);await m.link(spec=>load(spec.startsWith('@/')?spec.slice(2):'lib/'+spec.replace('./','')));return m}
+  const charge=freeCredits(),chargeStub=new vm.SyntheticModule(CHARGE_EXPORTS,function(){for(const k of CHARGE_EXPORTS)this.setExport(k,charge.api[k])},{context:scope});
+  const modules=new Map();async function load(path){if(path==='lib/fast-png')return new vm.SyntheticModule(['decode','encode'],function(){this.setExport('decode',decode);this.setExport('encode',encode)},{context:scope});if(path==='lib/jpeg-js')return new vm.SyntheticModule(['default'],function(){this.setExport('default',jpeg)},{context:scope});if(path==='lib/studio-server')return stub;if(path==='lib/credits/charge')return chargeStub;if(modules.has(path))return modules.get(path);const source=readFileSync(new URL('../'+path+'.ts',import.meta.url),'utf8');const m=new vm.SourceTextModule(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText,{context:scope});modules.set(path,m);await m.link(spec=>load(spec.startsWith('@/')?spec.slice(2):'lib/'+spec.replace('./','')));return m}
   const server=await load('lib/gemini-server');await server.evaluate();const route=await load('app/api/google/generate/route');await route.evaluate();
   const connection=await load('app/api/google/connection/route');await connection.evaluate();
   const analysisRoute=await load('app/api/google/analyze/route');await analysisRoute.evaluate();
@@ -45,7 +47,12 @@ test('Google key is encrypted, account-bound and never exposed by status',async(
   const h=await harness(),raw=Buffer.from(h.objects.get('orgs/nmesis/keys/credentials/google.json').bytes).toString();assert(!raw.includes(h.key));assert.equal(await h.server.googleKey(h.ctx),h.key);
   const status=await h.server.googleStatus(h.ctx);assert.equal(status.connected,true);assert.equal(status.models.length,2);assert(!JSON.stringify(status).includes(h.key));
   // Company-bound: another company has no key, and a copied sealed key does not open there.
-  await assert.rejects(()=>h.server.googleKey({...h.ctx,org:'other-co'}),/Connect Google/);
+  await assert.rejects(()=>h.server.googleKey({...h.ctx,org:'other-co'}),/not connected on this Studio/);
+  // S3: without a key of its own, a company's calls use Nmesis's key (and spend credits).
+  assert.deepEqual({...await h.server.googleCredential({...h.ctx,org:'third-co',GOOGLE_AI_API_KEY:'nmesis-provided-key'})},{key:'nmesis-provided-key',own:false});
+  assert.deepEqual({...await h.server.googleCredential({...h.ctx,GOOGLE_AI_API_KEY:'nmesis-provided-key'})},{key:h.key,own:true},'a saved company key wins while the plan has own keys');
+  assert.deepEqual({...await h.server.googleCredential({...h.ctx,GOOGLE_AI_API_KEY:'nmesis-provided-key',entitlements:{legacy:false,status:'active',planId:'growth',planName:'Growth',endsOn:null,features:{'studio.enabled':true}}})},{key:'nmesis-provided-key',own:false},'a stored key is ignored once the plan drops own keys');
+  assert.ok(h.objects.has('orgs/nmesis/keys/credentials/google.json'),'and it is not deleted');
   h.objects.set('orgs/other-co/keys/credentials/google.json',h.objects.get('orgs/nmesis/keys/credentials/google.json'));
   await assert.rejects(()=>h.server.googleKey({...h.ctx,org:'other-co'}),/Reconnect/);
   h.setHandler(()=>new Response(null,{status:403}));await assert.rejects(()=>h.server.saveGoogleKey(h.ctx,'invalid-new-key'),/did not accept/);assert.equal(await h.server.googleKey(h.ctx),h.key);

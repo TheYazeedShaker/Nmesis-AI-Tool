@@ -1,5 +1,5 @@
 // The studio tables in an in-memory SQLite database, built from the Postgres
-// migrations themselves (create table / create index statements, `studio.` prefix
+// migrations themselves (create table / create index / add column statements, `studio.` prefix
 // dropped). The studio's SQL stays within what both engines accept, so these fast
 // tests keep exercising it; tests/postgres.test.mjs runs it on Postgres itself.
 import {readFileSync,readdirSync} from 'node:fs';
@@ -7,8 +7,9 @@ const folder=new URL('../supabase/migrations/',import.meta.url);
 export function studioSchemaSql(){
  return readdirSync(folder).filter(n=>/^\d{4}_[a-z0-9_]+\.sql$/.test(n)).sort().map(n=>readFileSync(new URL(n,folder),'utf8')).join('\n')
   .replace(/--[^\n]*/g,'').split(';').map(s=>s.trim())
-  .filter(s=>/^create (unique )?(table|index)/i.test(s)&&!s.includes('__studio_migrations'))
-  .map(s=>s.replace(/\bstudio\./g,'')+';').join('\n');
+  .filter(s=>(/^create (unique )?(table|index)/i.test(s)||/^alter table \S+ add column/i.test(s))&&!s.includes('__studio_migrations'))
+  // SQLite has no "add column if not exists"; each migration adds a column once.
+  .map(s=>s.replace(/\bstudio\./g,'').replace(/add column if not exists/i,'add column')+';').join('\n');
 }
 export const ORG='nmesis';
 // A synthetic Supabase user id (uuid) made of one hex character.

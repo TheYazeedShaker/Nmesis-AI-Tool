@@ -98,3 +98,40 @@
 .plan-gate section{max-width:520px;display:grid;gap:14px;justify-items:start;border:1px solid var(--border);background:var(--card);border-radius:8px;padding:30px 28px}
 .plan-gate h1{font-size:clamp(22px,2.4vw,30px)}
 @media(max-width:800px){.account-bar{gap:6px;padding-left:8px}.account-role,.account-org{display:none}.account-switch{min-width:0;max-width:150px}.viewing-as,.workspace-closed{padding:10px 5%;font-size:13px}}
+/* Credits (S3): top-bar meter, banner, cost and result labels, Usage and Company pages. */
+.credit-meter{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border:1px solid var(--border);border-radius:999px;color:var(--foreground);text-decoration:none;font-size:12px;white-space:nowrap}
+.credit-meter:hover,.credit-meter:focus-visible{border-color:var(--primary)}
+.credit-meter svg{color:var(--muted-foreground)}
+.credit-meter .credit-bar{width:46px;height:4px;border-radius:2px;background:var(--secondary);overflow:hidden}
+.credit-meter .credit-bar span{display:block;height:100%;background:#7fb38a}
+.credit-meter.credit-low{border-color:#a9823f}.credit-meter.credit-low .credit-bar span{background:#e0aa48}.credit-meter.credit-low svg{color:#e0aa48}
+.credit-meter.credit-out{border-color:#9b4a4a}.credit-meter.credit-out .credit-bar span{background:var(--destructive)}.credit-meter.credit-out svg{color:var(--destructive)}
+.credit-banner{display:flex;align-items:center;gap:10px;padding:10px 4%;font-size:14px;border-bottom:1px solid #7b6a3c;background:#2e2a1d;color:#f3e2b5}
+.credit-banner.credit-out{background:#331f1f;color:#ffd0d0;border-bottom-color:#7b3c3c}
+.credit-banner svg{flex-shrink:0}.credit-banner a{color:inherit;text-decoration:underline}
+.credit-cost,.credit-used{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted-foreground);white-space:nowrap}
+.credit-cost{padding:2px 8px;border:1px solid var(--border);border-radius:999px}
+.account-company{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:1px solid var(--border);border-radius:999px;color:var(--muted-foreground)}
+.account-company:hover,.account-company:focus-visible{color:var(--foreground);border-color:var(--primary)}
+.nmesis-provides{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--border);border-radius:8px;background:var(--secondary)}
+.nmesis-provides svg{color:var(--primary);flex-shrink:0;margin-top:2px}
+.nmesis-provides span{display:grid;gap:4px}.nmesis-provides small{color:var(--muted-foreground);font-size:13px}.nmesis-provides a{color:inherit}
+.nmesis-provides .keys-ignored{color:#f3e2b5}
+.account-page{max-width:1040px;margin:0 auto;padding:40px 4% 80px;display:grid;gap:22px}
+.account-page h1{font-size:clamp(24px,2.6vw,34px)}
+.account-page section{border:1px solid var(--border);background:var(--card);border-radius:8px;padding:22px 24px;display:grid;gap:14px}
+.account-page h2{font-size:17px}
+.account-page .helper{color:var(--muted-foreground);font-size:14px}
+.usage-totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.usage-totals div{border:1px solid var(--border);border-radius:8px;padding:14px;display:grid;gap:4px}
+.usage-totals b{font-size:26px;font-variant-numeric:tabular-nums}.usage-totals span{color:var(--muted-foreground);font-size:13px}
+.usage-split{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px}
+.usage-table{width:100%;border-collapse:collapse;font-size:14px}
+.usage-table th{text-align:left;font-weight:500;color:var(--muted-foreground);padding:8px 10px;border-bottom:1px solid var(--border)}
+.usage-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.usage-table td.num,.usage-table th.num{text-align:right;font-variant-numeric:tabular-nums}
+.usage-table tr:last-child td{border-bottom:0}
+.support-toggle{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.support-state{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);font-size:13px}
+.support-state.on{border-color:#4f8a5c;color:#b9e6c3}
+@media(max-width:800px){.credit-meter .credit-bar{display:none}.credit-meter .credit-numbers{font-size:11px}.account-page{padding:24px 5% 60px}.account-page section{padding:16px}}

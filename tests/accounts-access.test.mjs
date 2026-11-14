@@ -28,6 +28,8 @@ const prefix=(org,user)=>`orgs/${org}/users/${user.id}/`;
 const legacy={legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}};
 const starterFeatures={'studio.enabled':true,'studio.max_output':'2k','studio.key_visuals':true,'studio.lineups':false,'studio.area_edit':false,'studio.object_select':false,'studio.pinterest':false,'studio.smart_reference':false,'studio.upscale':false,'studio.film':false,'studio.swap':false,'studio.storyboards':false,'studio.own_keys':false};
 const starter={legacy:false,status:'active',planId:'starter',planName:'Starter',endsOn:null,features:starterFeatures};
+// S3: a client with no plan has no Studio, so the companies these checks use are on a full plan.
+const full={legacy:false,status:'active',planId:'enterprise',planName:'Enterprise',endsOn:null,features:Object.fromEntries(Object.keys(starterFeatures).map(k=>[k,k==='studio.max_output'?'8k':true]))};
 const recentEnd=new Date(Date.now()-5*86_400_000).toISOString().slice(0,10);
 const ended={legacy:false,status:'ended',planId:'growth',planName:'Growth',endsOn:recentEnd,features:Object.fromEntries(Object.keys(starterFeatures).map(k=>[k,k==='studio.max_output'?null:false]))};
 const car=(brand,model)=>({brandId:brand,modelId:model,brandName:'Demo '+brand,modelName:'Model '+model,path:`/${brand}/${model}/`,template:'capture'});
@@ -37,12 +39,12 @@ before(async()=>{
  s3=await startS3();
  Object.assign(process.env,{S3_REGION:'eu-central-1',S3_BUCKET:'studio-test',S3_ENDPOINT:s3.url,S3_FORCE_PATH_STYLE:'true',S3_ACCESS_KEY_ID:'local',S3_SECRET_ACCESS_KEY:'local-secret',KEY_ENCRYPTION_SECRET:'5e'.repeat(32),OPENAI_API_KEY:'not-a-real-key',CONFIGURATOR_ORIGIN:'https://configurator.example.com'});
  globalThis.fetch=async(url,init)=>{const u=String(url instanceof Request?url.url:url);if(u.startsWith(s3.url))return realFetch(url,init);providerCalls.push(u);if(providerAnswer)return providerAnswer(u,init);throw new Error('Provider calls are not allowed in this test.')};
- state.db=sqliteDatabase();
+ state.db=sqliteDatabase();for(const org of [ORG_A,ORG_B,ORG_S])state.db.ledger.allowance(org,1000,new Date().toISOString().slice(0,10));
  state.directory=memoryDirectory({
   orgs:[{id:ORG_A,name:'Company A',kind:'client'},{id:ORG_B,name:'Company B',kind:'client'},{id:ORG_S,name:'Starter Co',kind:'client'},{id:ORG_E,name:'Ended Co',kind:'client'},{id:ORG_N,name:'Nmesis',kind:'internal'}],
   members:[{userId:A1.id,orgId:ORG_A,role:'owner',status:'active'},{userId:A2.id,orgId:ORG_A,role:'creator',status:'invited'},{userId:A3.id,orgId:ORG_A,role:'viewer',status:'active'},{userId:B1.id,orgId:ORG_B,role:'owner',status:'active'},{userId:S1.id,orgId:ORG_S,role:'creator',status:'active'},{userId:E1.id,orgId:ORG_E,role:'owner',status:'active'}],
   staff:{[T.id]:'ops'},
-  entitlements:{[ORG_A]:legacy,[ORG_B]:legacy,[ORG_S]:starter,[ORG_E]:ended,[ORG_N]:legacy},
+  entitlements:{[ORG_A]:full,[ORG_B]:full,[ORG_S]:starter,[ORG_E]:ended,[ORG_N]:legacy},
   cars:{[ORG_A]:[car('alpha','one'),car('alpha','two')],[ORG_B]:[car('beta','one')]},
   allCars:[car('alpha','one'),car('alpha','two'),car('beta','one'),car('gamma','one')],
  });
@@ -176,10 +178,13 @@ test('V3: a viewer can look but not generate, upload or change anything',async()
  await expect('GET','/api/visuals','app/api/visuals/route.ts',{},r=>{assert.equal(r.status,200);assert.ok(r.text.includes('avisual-001'))},'200 (can look)');
  assert.deepEqual(providerCalls,[]);
 });
-test('V4: staff can open any company, read-only with "Viewing as", and it is logged',async()=>{
+test('V4: staff open a client only while it grants support access, read-only with "Viewing as", and it is logged',async()=>{
+ // S3: no grant, no client: the cookie's wish falls back to Nmesis's own workspace.
  as(T,ORG_B);
- const me=await expect('GET','/api/me?page=/','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.viewingAs,true);assert.equal(r.body.org.id,ORG_B);assert.equal(r.body.org.name,'Company B');assert.equal(r.body.role,'viewer');assert.equal(r.body.staff,true)},'200 viewingAs Company B');
- assert.ok(me.body.orgs.length>=5,'staff can switch to any company');
+ await expect('GET','/api/me?page=/','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.org.id,ORG_N);assert.equal(r.body.viewingAs,false);assert.ok(r.body.orgs.every(o=>o.id!==ORG_B),'not listed')},'200 Nmesis (no grant)');
+ state.directory.grants[ORG_B]=Date.now()+7*86_400_000;
+ const me=await expect('GET','/api/me?page=/','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.viewingAs,true);assert.equal(r.body.org.id,ORG_B);assert.equal(r.body.org.name,'Company B');assert.equal(r.body.role,'viewer');assert.equal(r.body.staff,true);assert.ok(r.body.supportUntil)},'200 viewingAs Company B');
+ assert.deepEqual(me.body.orgs.map(o=>o.id).sort(),[ORG_B,ORG_N].sort(),'staff switch to Nmesis and to clients that grant access, nothing else');
  const log=state.db.raw.prepare('SELECT org_id,staff_user,path FROM staff_access_log').all().map(r=>({...r}));
  assert.deepEqual(log,[{org_id:ORG_B,staff_user:T.id,path:'/'}]);
  await expect('GET','/api/visuals','app/api/visuals/route.ts',{},r=>{assert.equal(r.status,200);assert.ok(r.text.includes('bvisual-001'))},'200 (sees B)');
@@ -241,7 +246,7 @@ test('S2.1: staff with the code cannot write in a client workspace, and can in N
 });
 test('S2.1: the switcher has Nmesis and Clients sections for staff only',async()=>{
  as(T,ORG_N);
- await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,true);assert.deepEqual(r.body.switcher.nmesis,[{id:ORG_N,name:'Nmesis'}]);assert.deepEqual(r.body.switcher.clients.map(o=>o.name).sort(),['Company A','Company B','Ended Co','Starter Co'])},'200, two sections');
+ await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,true);assert.deepEqual(r.body.switcher.nmesis,[{id:ORG_N,name:'Nmesis'}]);assert.deepEqual(r.body.switcher.clients.map(o=>o.name),['Company B'],'only clients that grant support access')},'200, two sections');
  for(const member of [A1,B1,S1]){
   as(member);
   await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,false);assert.equal(r.body.switcher,null);assert.ok(r.body.orgs.every(o=>o.id!==ORG_N),'no Nmesis workspace');assert.ok(!r.text.includes('Nmesis'),'no staff section');assert.equal(r.body.orgs.length,1)},'200, own company only');
@@ -259,6 +264,9 @@ test('S2.1: the company deep link is checked on the server',async()=>{
  assert.equal(r.location,ORIGIN+'/');assert.equal(r.cookie,ORG_A);
  as(T);r=await open(ORG_B);table.push({who:who(),method:'GET',path:'/?org=<B>',expected:'viewing as',got:r.location});
  assert.equal(r.location,ORIGIN+'/');assert.equal(r.cookie,ORG_B);
+ // S3: a client that has not granted support access answers "Support access not granted".
+ r=await open(ORG_S);table.push({who:who(),method:'GET',path:'/?org=<S>',expected:'support access not granted',got:r.location});
+ assert.equal(r.location,ORIGIN+'/?opened=support');assert.equal(r.cookie,undefined);
  as(T0);r=await open(ORG_B);table.push({who:who(),method:'GET',path:'/?org=<B>',expected:'code first',got:r.location});
  assert.equal(r.location,ORIGIN+'/auth/code?next='+encodeURIComponent('/?org='+ORG_B));assert.equal(r.cookie,undefined);
  as(null);r=await open(ORG_B);assert.equal(r.location,ORIGIN+'/signin?next='+encodeURIComponent('/?org='+ORG_B));
@@ -268,18 +276,20 @@ test('S2.1: the company deep link is checked on the server',async()=>{
  await expect('POST','/api/auth/org','app/api/auth/org/route.ts',{body:{orgId:ORG_B}},r=>{assert.equal(r.status,403);assert.equal(state.cookies.get('studio_org'),undefined)},'403');
 });
 // ── S2.1: hosted-run fixes at the route level ────────────────────────────────
-test('S2.1: OpenAI with no credit: the generation fails at once with a plain sentence and reserves nothing',async()=>{
+test('S2.1/S3: Nmesis’s OpenAI account with no credit: the generation fails at once, Nmesis is told, and nothing is charged or held',async()=>{
  as(A1);providerCalls.length=0;
  providerAnswer=async u=>{assert.match(u,/^https:\/\/api\.openai\.com\/v1\/images\/edits$/);return Response.json({error:{message:'You exceeded your current quota, please check your plan and billing details.',type:'insufficient_quota',code:'insufficient_quota'}},{status:429})};
- const budgets=()=>state.db.raw.prepare("SELECT (SELECT count(*) FROM film_budgets) + (SELECT count(*) FROM image_jobs WHERE reserved_day IS NOT NULL) + (SELECT count(*) FROM films WHERE reserved_day IS NOT NULL) + (SELECT count(*) FROM swap_jobs WHERE reserved_day IS NOT NULL) AS n").get().n;
+ const budgets=()=>state.db.raw.prepare("SELECT (SELECT count(*) FROM credit_holds WHERE status<>'released') + (SELECT count(*) FROM accounts.usage_ledger) AS n").get().n;
  const before=budgets();
  try{
-  const said='Your OpenAI account has no credit left. Add credit at OpenAI, then try again. Nothing was charged here.';
-  await expect('POST','/api/generate','app/api/generate/route.ts',{body:{id:'nocredit-0001',sourceId:'avisual-001',moodId:'avisual-001',brief:'A premium key visual of the car'}},r=>{assert.equal(r.status,402);assert.equal(r.body.error,said)},'402 no credit');
+  // Company A has no key of its own, so Nmesis's key made the call: the client hears
+  // that the provider is unavailable (not "your account"), and Nmesis is alerted.
+  const said='OpenAI is unavailable for the Studio right now. Nmesis has been told and is on it. Nothing was charged.';
+  await expect('POST','/api/generate','app/api/generate/route.ts',{body:{id:'nocredit-0001',sourceId:'avisual-001',moodId:'avisual-001',brief:'A premium key visual of the car'}},r=>{assert.equal(r.status,503);assert.equal(r.body.error,said)},'503 provider unavailable');
   const record=await (await store.get(prefix(ORG_A,A1)+'visuals/nocredit-0001.json')).json();
   assert.equal(record.status,'failed','nothing stays running');assert.equal(record.error,said);
   await expect('GET','/api/visuals/nocredit-0001','app/api/visuals/[id]/route.ts',{params:{id:'nocredit-0001'}},r=>{assert.equal(r.status,200);assert.equal(r.body.visual.status,'failed')},'200 failed');
-  assert.equal(providerCalls.length,1,'one request, no retry');assert.equal(budgets(),before,'no budget row or reservation');
+  assert.equal(providerCalls.length,1,'one request, no retry');assert.equal(budgets(),before,'the hold was released and nothing reached the ledger');
  }finally{providerAnswer=null;providerCalls.length=0}
 });
 test('S2.1: a malformed KEY_ENCRYPTION_SECRET answers 503 "Secure key storage is misconfigured." and logs the rule once, never the value',async()=>{
