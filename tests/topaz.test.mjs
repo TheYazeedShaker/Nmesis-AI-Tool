@@ -41,7 +41,7 @@ test('uncertain submission is never retried or replaced by another paid call',as
  const h=await harness();h.mode='unknown';let job=await h.api.startTopaz(h.ctx,'upscale-1234',h.parent.id,3840);assert.equal(job.status,'unknown');job=await h.api.refreshTopaz(h.ctx,job.id);assert.equal(job.status,'unknown');await h.api.startTopaz(h.ctx,'upscale-5678',h.parent.id,3840);assert.equal(h.submits,1);
 });
 test('known billing rejection is actionable; cross-owner reads and invalid/downscale requests are blocked',async()=>{
- const h=await harness();h.mode='reject';const job=await h.api.startTopaz(h.ctx,'upscale-1234',h.parent.id,3840);assert.equal(job.status,'failed');assert.match(job.error,/credits/);
+ const h=await harness();h.mode='reject';const job=await h.api.startTopaz(h.ctx,'upscale-1234',h.parent.id,3840);assert.equal(job.status,'failed');assert.equal(job.error,'Your Topaz account has no credit left. Add credit in your Topaz account, then try again. Nothing was charged here.');
  await assert.rejects(h.api.topazRow({...h.ctx,prefix:'someone-else/'},job.id),/not found/);
  await assert.rejects(h.api.startTopaz(h.ctx,'upscale-5678',h.parent.id,42),/Choose/);
  await assert.rejects(h.api.startTopaz(h.ctx,'upscale-1234','another-1234',3840),/another/);

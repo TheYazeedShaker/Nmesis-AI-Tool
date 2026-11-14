@@ -1,5 +1,7 @@
 // Runs the studio's database layer against a real Postgres (17) when
 // TEST_DATABASE_URL points at a disposable database as a superuser, e.g.
+// (the owner's setup SQL itself runs as a non-superuser CREATEROLE role, as on
+// hosted Supabase)
 //   TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/studio_test?sslmode=disable
 // It recreates the `studio` schema and the `studio_app` role there, and loads a
 // synthetic stand-in for the admin's `accounts` schema (tests/fixtures/accounts-schema.sql).
@@ -16,6 +18,8 @@ const ADMIN=process.env.TEST_DATABASE_URL;
 const skip=ADMIN?false:'TEST_DATABASE_URL is not set: Postgres adapter, migration and privilege tests skipped';
 if(skip)console.log('# '+skip);
 const PASSWORD='local-test-password-0123456789';
+// Stands in for hosted Supabase's SQL-editor user (not a superuser; CREATEROLE).
+const SETUP_ROLE='studio_setup_test';
 const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log'];
 const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql'];
 // Synthetic companies and people in the accounts fixture.
@@ -25,10 +29,10 @@ const ownerOf=(org,user)=>`orgs/${org}/users/${user}/`;
 const asRole=(url,user,password)=>{const u=new URL(url);u.username=user;u.password=password;return u.href};
 const ssl=url=>/[?&]sslmode=disable\b/.test(url)?false:'require';
 
-let admin,appUrl,migrate,connect,StudioDatabase,toPositional,policy;
+let admin,setupUser,appUrl,migrate,connect,StudioDatabase,toPositional,policy;
 const setupSql=()=>readFileSync(new URL('../docs/supabase-setup.sql',import.meta.url),'utf8').replaceAll('REPLACE_WITH_A_LONG_RANDOM_PASSWORD',PASSWORD);
 const migrationSql=name=>readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8');
-after(()=>admin?.end({timeout:5}));
+after(async()=>{await setupUser?.end({timeout:5});await admin?.end({timeout:5})});
 const q=(text,args)=>[toPositional(text),args];
 async function until(check){for(let i=0;i<500&&!check();i++)await new Promise(r=>setTimeout(r,10));assert.ok(check(),'timed out')}
 async function setup(){
@@ -40,14 +44,35 @@ async function setup(){
    if not exists (select 1 from pg_roles where rolname='anon') then create role anon nologin; end if;
    if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated nologin; end if;
   end $$;`);
+ // No studio role yet, as in a new project: the setup SQL creates it.
+ await admin.unsafe(`do $$ begin
+   if exists (select 1 from pg_roles where rolname='${SETUP_ROLE}') then
+    execute 'reassign owned by ${SETUP_ROLE} to current_user'; execute 'drop owned by ${SETUP_ROLE}'; execute 'drop role ${SETUP_ROLE}';
+   end if;
+   if exists (select 1 from pg_roles where rolname='studio_app') then execute 'drop owned by studio_app'; execute 'drop role studio_app'; end if;
+  end $$;`);
  // The admin's accounts schema (synthetic), then the owner's one-time setup.
  await admin.unsafe(readFileSync(new URL('./fixtures/accounts-schema.sql',import.meta.url),'utf8'));
+ // The setup runs as hosted Supabase's SQL-editor user is: not a superuser, with
+ // CREATEROLE, owning the admin's accounts objects (its migrations ran as that
+ // user) and allowed to read auth.users and create schemas.
+ await admin.unsafe(`create role ${SETUP_ROLE} login createrole nosuperuser password '${PASSWORD}';
+  grant create on database "${new URL(ADMIN).pathname.slice(1)}" to ${SETUP_ROLE};
+  alter schema accounts owner to ${SETUP_ROLE};
+  do $$ declare t text; begin
+   for t in select tablename from pg_tables where schemaname='accounts' loop execute format('alter table accounts.%I owner to ${SETUP_ROLE}',t); end loop;
+  end $$;
+  alter function accounts.entitlements(uuid) owner to ${SETUP_ROLE};
+  grant usage on schema auth to ${SETUP_ROLE}; grant select on auth.users to ${SETUP_ROLE};`);
+ setupUser=postgres(asRole(ADMIN,SETUP_ROLE,PASSWORD),{max:1,prepare:false,ssl:ssl(ADMIN),onnotice:()=>{}});
+ const [who]=await setupUser`select rolsuper,rolcreaterole from pg_roles where rolname=current_user`;
+ assert.deepEqual({...who},{rolsuper:false,rolcreaterole:true},'the setup SQL runs as a non-superuser with CREATEROLE');
  await admin.unsafe(`insert into auth.users(id,email) values ('${USER_A}','a@example.test'),('${USER_B}','b@example.test'),('${INVITED}','invited@example.test'),('${STAFF}','staff@example.test') on conflict (id) do nothing;
   insert into accounts.organisations(id,name,kind) values ('${ORG_A}','Company A','client'),('${ORG_B}','Company B','client'),('${ORG_N}','Nmesis','internal') on conflict (id) do nothing;
   insert into accounts.members(org_id,user_id,role,status) values ('${ORG_A}','${USER_A}','owner','active'),('${ORG_B}','${USER_B}','owner','active'),('${ORG_A}','${INVITED}','creator','invited')
    on conflict (org_id,user_id) do update set status=excluded.status, role=excluded.role;
   insert into accounts.staff(user_id,name,role,active) values ('${STAFF}','Staff','ops',true) on conflict (user_id) do nothing;`);
- await admin.unsafe(setupSql());
+ await setupUser.unsafe(setupSql());
  // Data the studio role must never reach.
  await admin.unsafe(`create table public.secret_probe(id int); insert into public.secret_probe values(1);
   create schema other_app; create table other_app.secret_probe(id int); insert into other_app.secret_probe values(1);`);
@@ -67,9 +92,10 @@ test('migrations apply once, are idempotent, and refuse a changed file',{skip},a
   const original=readFileSync(new URL('../supabase/migrations/0001_studio.sql',import.meta.url),'utf8');
   writeFileSync(join(folder,'0001_studio.sql'),original+'\n-- edited after it was applied\n');
   await assert.rejects(()=>migrate(appUrl,{folder:pathToFileURL(folder+'/'),log:()=>{}}),/Previously applied migration changed: 0001_studio.sql/);
-  // A second run of everything: the owner's setup (all five sections) and both
+  // A second run of everything: the owner's setup (all five sections, again as the
+  // non-superuser setup role) and both
   // migrations, outside the ledger. Each is idempotent.
-  await admin.unsafe(setupSql());
+  await setupUser.unsafe(setupSql());
   const app=postgres(appUrl,{max:1,prepare:false,ssl:ssl(appUrl),onnotice:()=>{}});try{for(const m of MIGRATIONS)await app.unsafe(migrationSql(m))}finally{await app.end({timeout:5})}
   assert.deepEqual(await migrate(appUrl,{log:()=>{}}),[]);
  }finally{rmSync(folder,{recursive:true,force:true})}

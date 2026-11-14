@@ -21,6 +21,7 @@ export const PROBLEMS={
  weak:'That password was not accepted. Choose a longer one.',
  same_password:'That is your current password. Choose a new one.',
  google_off:'Google sign-in is not available. Use your email address.',
+ bad_code:'That code did not work. Enter the newest six-digit code from your authenticator app.',
  unknown:'Something went wrong while signing you in. Start again.',
 } as const;
 export type Problem=keyof typeof PROBLEMS;
@@ -36,6 +37,7 @@ export function problemFor(error:unknown):Problem{
  if(/email[_ ]not[_ ]confirmed/i.test(both))return 'unconfirmed';
  if(/same[_ ]password|should be different/i.test(both))return 'same_password';
  if(/weak[_ ]password|password.*(short|weak|characters)/i.test(both))return 'weak';
+ if(/mfa_verification_failed|mfa_challenge_expired|invalid totp|totp code/i.test(both))return 'bad_code';
  if(/code verifier|code_verifier|flow_state|pkce/i.test(both))return 'other_browser';
  if(/otp[_ ]expired|expired|invalid.*(token|code|link)|bad_code_verifier|token.*(not found|invalid)/i.test(both))return 'link_invalid';
  return 'unknown';

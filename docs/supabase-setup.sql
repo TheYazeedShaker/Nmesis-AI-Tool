@@ -1,24 +1,38 @@
 -- Nmesis Studio: one-time database setup, run by the owner in each Supabase
 -- project that hosts the studio (the main project and the staging project).
--- Run it in the project's SQL editor as the default `postgres` user.
+-- Run it in the project's SQL editor as the default `postgres` user. On hosted
+-- Supabase that user is not a superuser (it has CREATEROLE), so this file uses
+-- only statements such a user may run. CI runs it twice as a role like that.
 --
--- Before running, replace REPLACE_WITH_A_LONG_RANDOM_PASSWORD with a new random
--- password (40+ characters, letters and digits only so it needs no URL escaping).
--- Use a different password in each project. Never commit it; it goes only into
--- the Vercel variables DATABASE_URL and DATABASE_URL_DIRECT.
--- Re-running is safe; to rotate the password later, run only the ALTER ROLE ... PASSWORD line.
+-- Before running, replace the placeholder REPLACE_WITH_A_LONG_RANDOM_PASSWORD
+-- in section 1 with a new random password (40+ characters, letters and digits
+-- only so it needs no URL escaping). Use a different password in each project.
+-- Never commit it; it goes only into the Vercel variables DATABASE_URL and
+-- DATABASE_URL_DIRECT.
+-- Re-running is safe. To rotate the password later, run only the one
+-- `alter role studio_app with login password '...';` line.
+--
+-- Sign-in addresses are set in the dashboard, not here: Authentication → URL
+-- Configuration → Redirect URLs. Every Studio address needs two entries,
+--   https://<studio address>        the bare address (the admin invites with it)
+--   https://<studio address>/**     every sign-in, invitation and recovery link
+-- and Preview deployments need one wildcard that covers all of them:
+--   https://<project>-*-<team>.vercel.app/**
+-- Each Vercel environment also sets STUDIO_PUBLIC_ORIGIN to its own Studio
+-- address (README, "Sign-in and company accounts").
 
--- 1. The studio's own login role. It inherits nothing, cannot bypass row level
---    security, cannot create roles or databases.
+-- 1. The studio's own login role. It inherits nothing. A new role is already
+--    no superuser, no createdb, no createrole, no replication and no bypassrls
+--    (the Postgres defaults); only a superuser may name those attributes, so
+--    they are left out. The check after section 4 confirms them.
 do $$
 begin
   if not exists (select 1 from pg_roles where rolname = 'studio_app') then
-    create role studio_app login noinherit nosuperuser nocreatedb nocreaterole noreplication nobypassrls;
+    create role studio_app login noinherit;
   end if;
 end
 $$;
-alter role studio_app with login noinherit nosuperuser nocreatedb nocreaterole noreplication nobypassrls
-  password 'REPLACE_WITH_A_LONG_RANDOM_PASSWORD';
+alter role studio_app with login password 'REPLACE_WITH_A_LONG_RANDOM_PASSWORD';
 
 -- Defaults for every session of the role. The search path is also requested by the
 -- studio's connection settings; the role default covers connection poolers that do
@@ -43,12 +57,30 @@ alter schema studio owner to studio_app;
 revoke all on schema studio from public;
 revoke all on schema studio from anon, authenticated;
 revoke create on schema public from studio_app;
-revoke all on all tables in schema public from studio_app;
+-- One relation at a time: "revoke ... on all tables in schema public" fails as a
+-- whole for a role that is not a superuser when public holds a table it doesn't
+-- own. A relation this role cannot touch is skipped with a notice (studio_app
+-- holds nothing there unless that relation's owner granted it; check:setup reports it).
+do $$
+declare r record;
+begin
+  for r in select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'public' and c.relkind in ('r', 'v', 'm', 'p', 'f')
+  loop
+    begin
+      execute format('revoke all on table public.%I from studio_app', r.relname);
+    exception when insufficient_privilege then
+      raise notice 'Skipped public.%: this role cannot change its privileges.', r.relname;
+    end;
+  end loop;
+end
+$$;
 
 -- 4. Keep the schema out of the project's HTTP API: in the dashboard, under the
 --    Data API settings, `studio` must NOT be listed among the exposed schemas.
 
--- Check (expect: studio_app | f | f | f, and studio's owner is studio_app):
+-- Check (expect: studio_app | f | f | f, that is rolsuper=f, rolbypassrls=f and
+-- rolinherit=f; and studio's owner is studio_app):
 select rolname, rolsuper, rolbypassrls, rolinherit from pg_roles where rolname = 'studio_app';
 select nspname, pg_get_userbyid(nspowner) as owner from pg_namespace where nspname = 'studio';
 

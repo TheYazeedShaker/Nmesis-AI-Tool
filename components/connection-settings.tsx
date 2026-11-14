@@ -25,6 +25,7 @@ export function ConnectionSettings({open,onOpenChange,status,onUpdate}:{open:boo
  </form>}
  <button className="secondary" disabled={busy||!status?.generation} onClick={()=>void check()}>{busy?'Checking connection…':'Check image access (no charge)'}</button>
  {error&&<p className="field-error" role="alert">{error}</p>}{notice&&<p className="key-notice" role="status">{notice}</p>}
+ {!status?.sponsored&&(notice||status?.personalKey)&&<p className="helper credit-note">Verifying a key can’t see your OpenAI credit balance. If the account has no credit left, a generation stops at once with that message and nothing is charged here.</p>}
  {status?.sponsored?(status.sponsorPending&&<p className="helper">Ask your company’s owner to connect OpenAI here. If your plan does not include your own keys, ask Nmesis.</p>):status?.signedOut?<p className="helper">Sign in to the studio before adding your key.</p>:!status?.keySetup&&<p className="helper">Secure key storage is not ready. Please check again after the studio is published.</p>}
  {!status?.sponsored&&<div className="connection-links"><a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">Get an OpenAI API key ↗</a>{status?.personalKey&&<button className="remove-key" onClick={()=>void submit(true)} disabled={busy}><Trash2 size={14}/>Remove saved key</button>}</div>}
  </DialogContent></Dialog>

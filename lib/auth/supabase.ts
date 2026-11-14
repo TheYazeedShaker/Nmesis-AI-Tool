@@ -28,5 +28,22 @@ export async function serverAuth(store?:CookieStore){
 let admin:SupabaseClient|undefined;
 // The secret key: user lookups and password changes only. Never leaves the server.
 export function adminAuth(){const e=env();return admin??=createClient(e.url,e.secret,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},global:{fetch:timedFetch}})}
-export type SessionUser={id:string;email:string;appMetadata:Record<string,unknown>};
-export const toSessionUser=(u:User|null|undefined):SessionUser|null=>u&&typeof u.id==='string'?{id:u.id,email:(u.email||'').toLowerCase(),appMetadata:(u.app_metadata||{}) as Record<string,unknown>}:null;
+// `aal` is the session's assurance level: 'aal2' only after the six-digit code
+// (TOTP) in this session. `totp` says whether the account has a verified factor.
+export type SessionUser={id:string;email:string;appMetadata:Record<string,unknown>;aal:'aal1'|'aal2';totp:boolean};
+// The `aal` claim of an access token. Only read from a token Supabase has just
+// verified (verifiedUser below); anything unexpected reads as 'aal1'.
+export function aalOf(token:string|undefined):'aal1'|'aal2'{
+ const part=typeof token==='string'?token.split('.')[1]:undefined;if(!part)return 'aal1';
+ try{const claims=JSON.parse(Buffer.from(part,'base64url').toString('utf8')) as {aal?:unknown};return claims?.aal==='aal2'?'aal2':'aal1'}catch{return 'aal1'}
+}
+export const toSessionUser=(u:User|null|undefined,token?:string):SessionUser|null=>u&&typeof u.id==='string'?{id:u.id,email:(u.email||'').toLowerCase(),appMetadata:(u.app_metadata||{}) as Record<string,unknown>,aal:aalOf(token),totp:!!u.factors?.some(f=>f.factor_type==='totp'&&f.status==='verified')}:null;
+// The signed-in user from the session cookie: the access token is sent to
+// Supabase (getUser) and only that verified token's assurance level is used.
+export async function verifiedUser(client?:Awaited<ReturnType<typeof serverAuth>>):Promise<SessionUser|null>{
+ const auth=(client??await serverAuth()).auth;
+ const {data:current}=await auth.getSession();const token=current.session?.access_token;
+ if(!token)return null;
+ const {data,error}=await auth.getUser(token);
+ return error?null:toSessionUser(data.user,token);
+}
