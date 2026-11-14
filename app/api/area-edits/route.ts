@@ -2,6 +2,7 @@ import {readStudioForm} from '@/lib/portable/uploads';
 export const runtime='nodejs';
 export const maxDuration=300;
 import {validId as referenceIdValid} from '@/lib/studio-server';
+import {requireFeature} from '@/lib/accounts/plan';
 import {bucket,context,fail,imageKey,StudioError,validId,str,providerError} from '@/lib/studio-server';
 import {googleKey,renderGoogleImage} from '@/lib/gemini-server';
 import {geminiImageModel,openaiImageModel,supportsDrawnRegion} from '@/lib/image-models';
@@ -15,7 +16,8 @@ import {encode} from 'fast-png';
 import {textureFill} from '@/lib/texture-fill';
 import {placementBounds,objectLayerPrompt,compositeObjectLayer} from '@/lib/object-layer';
 import type {Visual} from '@/lib/studio';
-export async function POST(request:Request){let record:Visual|undefined,store:R2Bucket|undefined,recordKey='',reserved=false;
+import type {StudioBucket} from '@/lib/portable/storage';
+export async function POST(request:Request){let record:Visual|undefined,store:StudioBucket|undefined,recordKey='',reserved=false;
  try{
   const ctx=await context(request,true);store=bucket(ctx.BUCKET);
   if(request.headers.get('origin')!==new URL(request.url).origin)throw new StudioError('Start the edit from your studio.',403);
@@ -37,6 +39,7 @@ export async function POST(request:Request){let record:Visual|undefined,store:R2
   let blending:number;try{blending=edgeBlend(form.get('edgeBlending'))}catch(e){throw new StudioError((e as Error).message)}
   const awareValue=form.get('contentAware');if(awareValue!==null&&awareValue!=='true'&&awareValue!=='false')throw new StudioError('Choose a supported repair setting.');
   let contentAware=awareValue==='true';let intent;try{intent=resolveAreaIntent(areaIntent(form.get('intent')),instruction)}catch(e){throw new StudioError((e as Error).message)}
+  if(intent==='add')requireFeature(ctx,'studio.object_select');
   const addObject=intent==='add'&&provider==='openai';if(intent==='add')contentAware=true;
   const matte=contentAware?contentAwareMatte(mask,dimensions.width,dimensions.height,blending):featherSelection(mask,dimensions.width,dimensions.height,blending);
   const generationMatte=contentAware?contentAwareMatte(matte,dimensions.width,dimensions.height,32):mask;

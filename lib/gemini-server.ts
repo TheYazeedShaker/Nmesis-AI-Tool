@@ -1,28 +1,30 @@
 import {bucket,StudioError,type StudioEnv} from './studio-server';
-import {credentialContext,sponsorship} from './sponsored-access';
-import {sealKey,unsealKey,type SealedKey} from './secret-crypto';
+import {credentialContext,keyAccess,keysManagedBy,KEYS_NOT_ON_PLAN,type KeyContext} from './org-keys';
+import {sealKey,unsealKey,type SealedKey,requireKeySecret} from './secret-crypto';
+import {noCreditMessage,NO_CREDIT_STATUS,outOfCredit,readProviderError} from './provider-credit';
 import {GEMINI_IMAGE_MODELS,geminiImageModel,geminiSize} from './image-models';
 import {imageDimensions} from './image-dimensions';
-type Context=StudioEnv&{prefix:string;email?:string};
+type Context=StudioEnv&KeyContext;
 type GoogleSecret=SealedKey&{models:string[]};
 const credentialPath=(ctx:Context)=>ctx.prefix+'credentials/google.json';
 export async function googleStatus(ctx:Context){
-  const owner=await credentialContext(ctx),sponsored=sponsorship(ctx).isGuest;
+  const owner=await credentialContext(ctx),sponsored=!keyAccess(ctx).manage;
   const record=owner?await owner.BUCKET?.get(credentialPath(owner)):null;
   const saved=record?await record.json<GoogleSecret>():null;
   return {connected:!!saved,keySetup:!sponsored&&!!ctx.BUCKET&&!!ctx.KEY_ENCRYPTION_SECRET,sponsored,models:saved?.models||[],checkedAt:saved?.verifiedAt};
 }
 export async function googleKey(ctx:Context){
-  const owner=await credentialContext(ctx);if(!owner)throw new StudioError('Ask your studio owner to open the studio and connect Google.',503);ctx=owner;
+  const owner=await credentialContext(ctx);if(!owner)throw new StudioError('Google generation needs your company’s own Google key, which is not on your plan yet. Ask Nmesis.',503);ctx=owner;
   const record=await bucket(ctx.BUCKET).get(credentialPath(ctx));
   if(!record)throw new StudioError('Connect Google AI Studio before generating with Nano Banana.',503);
-  if(!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Secure Google key storage is unavailable.',503);
+  requireKeySecret(ctx.KEY_ENCRYPTION_SECRET);if(!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Secure Google key storage is unavailable.',503);
   try{return await unsealKey(await record.json<GoogleSecret>(),ctx.KEY_ENCRYPTION_SECRET,ctx.prefix+'google')}
   catch{throw new StudioError('Reconnect your Google AI Studio key.',503)}
 }
+async function managedKeys(ctx:Context){const access=keyAccess(ctx);if(!access.own)throw new StudioError(KEYS_NOT_ON_PLAN,403);if(!access.manage)throw new StudioError(keysManagedBy('Google'),403);return (await credentialContext(ctx))!}
 export async function saveGoogleKey(ctx:Context,key:string){
-  if(sponsorship(ctx).isGuest)throw new StudioError('Your studio owner manages the Google connection.',403);
-  if(!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Secure key storage is not ready.',503);
+  ctx=await managedKeys(ctx);
+  requireKeySecret(ctx.KEY_ENCRYPTION_SECRET);if(!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Secure key storage is not ready.',503);
   // Read-only model checks never start a paid image request.
   const checks=await Promise.all(GEMINI_IMAGE_MODELS.map(async model=>{
     let response:Response;
@@ -39,7 +41,7 @@ export async function saveGoogleKey(ctx:Context,key:string){
   await bucket(ctx.BUCKET).put(credentialPath(ctx),JSON.stringify({...sealed,models}),{httpMetadata:{contentType:'application/json'}});
   return models;
 }
-export async function removeGoogleKey(ctx:Context){if(sponsorship(ctx).isGuest)throw new StudioError('Your studio owner manages the Google connection.',403);await bucket(ctx.BUCKET).delete(credentialPath(ctx))}
+export async function removeGoogleKey(ctx:Context){ctx=await managedKeys(ctx);await bucket(ctx.BUCKET).delete(credentialPath(ctx))}
 export function googleFailure(status:number){
   if(status===401||status===403)return new StudioError('Google access was denied. Check the connected key and Gemini API permissions.',503);
   if(status===429)return new StudioError('Google quota is exhausted or billing is not enabled. Check billing and limits in Google AI Studio.',429);
@@ -51,6 +53,7 @@ export async function googleResponseFailure(response:Response,key:string){
   const body:any=await response.json().catch(()=>null);
   const status=typeof body?.error?.status==='string'&&/^[A-Z_]{1,60}$/.test(body.error.status)?body.error.status:undefined;
   console.error('Google image request rejected',JSON.stringify({httpStatus:response.status,status}));
+  if(outOfCredit('google',{status:response.status,...readProviderError(body)}))return new StudioError(noCreditMessage('google'),NO_CREDIT_STATUS);
   if(response.status===400&&typeof body?.error?.message==='string'){
     const detail=body.error.message.split(key).join('[redacted]').replace(/https?:\/\/\S+/g,'[link]').replace(/[A-Za-z0-9_+\/.=-]{60,}/g,'[redacted]').replace(/[\r\n]+/g,' ').slice(0,500);
     return new StudioError('Google rejected the image request: '+detail,400);

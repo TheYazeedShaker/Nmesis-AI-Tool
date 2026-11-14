@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
+import {studioSchemaSql,userPrefix,MEMBER} from './sqlite-schema.mjs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {randomBytes} from 'node:crypto';
@@ -9,16 +10,16 @@ import {draftFor} from '../lib/films.ts';
 // Run the real server functions with an in-memory D1-compatible SQLite binding,
 // private object storage and a provider boundary. No paid API request is made.
 async function harness(){
- const sqlite=new DatabaseSync(':memory:');for(const migration of ['0000_nebulous_adam_warlock.sql','0001_groovy_jigsaw.sql','0002_oval_shiva.sql','0003_vengeful_havok.sql'])sqlite.exec(readFileSync(new URL('../drizzle/'+migration,import.meta.url),'utf8'));
- const db={prepare(sql){let values=[];return{bind(...v){values=v;return this},async first(){return sqlite.prepare(sql).get(...values)||null},async all(){return{results:sqlite.prepare(sql).all(...values)}},async run(){return{meta:{changes:sqlite.prepare(sql).run(...values).changes}}}}}};
+ const sqlite=new DatabaseSync(':memory:');sqlite.exec(studioSchemaSql());
+ const db={prepare(sql){let values=[];return{bind(...v){values=v;return this},async first(){return sqlite.prepare(sql).get(...values)||null},async all(){return{results:sqlite.prepare(sql).all(...values)}},async run(){return{meta:{changes:sqlite.prepare(sql).run(...values).changes}}}}},async batch(list){const out=[];for(const s of list)out.push(await s.run());return out}};
  const objects=new Map();const store={async list({prefix,cursor}){const keys=[...objects.keys()].filter(k=>k.startsWith(prefix)).sort();const start=Number(cursor||0),page=keys.slice(start,start+30);return{objects:page.map(key=>({key})),truncated:start+30<keys.length,cursor:String(start+30)}},async get(k){const item=objects.get(k);if(!item)return null;return{body:new Blob([item.bytes]).stream(),size:item.bytes.length,httpMetadata:item.metadata,arrayBuffer:async()=>item.bytes.buffer,json:async()=>JSON.parse(new TextDecoder().decode(item.bytes))}},async head(k){return objects.has(k)?{size:objects.get(k).bytes.length}:null},async put(k,v,o={}){const bytes=new Uint8Array(await new Response(v).arrayBuffer());objects.set(k,{bytes,metadata:o.httpMetadata})},async delete(k){objects.delete(k)}};
  const calls=[];let handler=async()=>{throw new Error('Unexpected provider call')};
  const sandbox=vm.createContext({crypto,Buffer,TextEncoder,TextDecoder,URL,Headers,Response,Request,Blob,AbortSignal,TransformStream,Uint8Array,Date,console,fetch:async(...args)=>{calls.push(args);return handler(...args)}});
  class StudioError extends Error{constructor(message,status=400){super(message);this.status=status}}
  const stub=new vm.SyntheticModule(['bucket','context','StudioError','validId','imageKey','str','imageType'],function(){this.setExport('str',(v,max=2000)=>typeof v==='string'?v.trim().slice(0,max):'');this.setExport('imageType',bytes=>bytes[0]===137?'image/png':null);this.setExport('bucket',x=>x);this.setExport('context',()=>{});this.setExport('StudioError',StudioError);this.setExport('validId',x=>typeof x==='string'&&/^[a-z0-9-]{8,80}$/.test(x));this.setExport('imageKey',(p,id)=>p+'images/'+id)},{context:sandbox});
  const modules=new Map();async function module(name){if(name==='studio-server')return stub;if(modules.has(name))return modules.get(name);const code=ts.transpileModule(readFileSync(new URL('../lib/'+name+'.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;const m=new vm.SourceTextModule(code,{context:sandbox});modules.set(name,m);await m.link(spec=>module(spec.replace('./','')));return m}
- const main=await module('film-server');await main.evaluate();const server=main.namespace;const imagesModule=await module('image-server');await imagesModule.evaluate();const images=imagesModule.namespace;const libraryModule=await module('visual-library');await libraryModule.evaluate();const library=libraryModule.namespace;const ctx={DB:db,BUCKET:store,prefix:'users/'+'a'.repeat(64)+'/',email:'owner@example.com',KEY_ENCRYPTION_SECRET:randomBytes(32).toString('hex')};const key='synthetic-key-for-tests-only';await server.saveVideoCredential(ctx,key);for(const id of ['source-1234','mood-1234','parent-1234'])await store.put(ctx.prefix+'images/'+id,'image',{httpMetadata:{contentType:'image/png'}});
- async function draft(){const id=crypto.randomUUID();await db.prepare('INSERT INTO films(id,owner,payer,status,data,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind(id,ctx.prefix,ctx.prefix,'draft',JSON.stringify(draftFor('source-1234','KV','Car')),1,1).run();return await server.filmRow(ctx,id)}
+ const main=await module('film-server');await main.evaluate();const server=main.namespace;const imagesModule=await module('image-server');await imagesModule.evaluate();const images=imagesModule.namespace;const libraryModule=await module('visual-library');await libraryModule.evaluate();const library=libraryModule.namespace;const ctx={DB:db,BUCKET:store,prefix:userPrefix('a'),...MEMBER,KEY_ENCRYPTION_SECRET:randomBytes(32).toString('hex')};const key='synthetic-key-for-tests-only';await server.saveVideoCredential(ctx,key);for(const id of ['source-1234','mood-1234','parent-1234'])await store.put(ctx.prefix+'images/'+id,'image',{httpMetadata:{contentType:'image/png'}});
+ async function draft(){const id=crypto.randomUUID();await db.prepare('INSERT INTO films(id,org_id,owner,payer,status,data,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').bind(id,'nmesis',ctx.prefix,'orgs/nmesis/keys/','draft',JSON.stringify(draftFor('source-1234','KV','Car')),1,1).run();return await server.filmRow(ctx,id)}
  const json=value=>Response.json(value);const normal=async(url,options)=>{if(url.includes('generate-upload-url'))return json({public_url:'https://cdn.example.com/source.png',upload_url:'https://storage.example.com/upload',upload_headers:{'Content-Type':'image/png','x-amz-tagging':'retention=temporary'}});if(url.includes('storage.example.com')){assert.equal(options.headers.get('x-amz-tagging'),'retention=temporary');assert.equal(options.headers.has('authorization'),false);return new Response(null,{status:200})}if(url.includes('/estimate/'))return json({usd:'0.50'});throw new Error('Unexpected call '+url)};
  return {images,library,store,server,ctx,key,db,objects,calls,draft,json,normal,setHandler:h=>handler=h,close:()=>sqlite.close()};
 }
@@ -54,7 +55,7 @@ test('one-click generation submits once and reserves spending without a UI appro
  let row=await h.images.createImage(h.ctx,input());await h.images.withImageLock(h.ctx,row.id,r=>h.images.generateImage(h.ctx,r));row=await h.images.imageRow(h.ctx,row.id);assert.equal(row.status,'queued');assert.ok(row.reserved_day);assert.equal(row.estimate,500000);await assert.rejects(()=>h.images.withImageLock(h.ctx,row.id,r=>h.images.generateImage(h.ctx,r)),/already been submitted/);assert.equal(submissions,1);
 }finally{h.close()}});
 test('direct generation keeps budget limits and does not leave an estimate draft after rejection',async()=>{const h=await harness();try{
- h.setHandler(h.normal);let row=await h.images.createImage(h.ctx,input());await h.server.budget(h.ctx,h.ctx.prefix);await h.db.prepare('UPDATE film_budgets SET daily_limit=0 WHERE payer=?').bind(h.ctx.prefix).run();await assert.rejects(()=>h.images.withImageLock(h.ctx,row.id,r=>h.images.generateImage(h.ctx,r)),/budget|Spending|spending/);row=await h.images.imageRow(h.ctx,row.id);assert.equal(row.status,'failed');assert.equal(row.reserved_day,null);assert.equal(h.calls.filter(([u])=>u.endsWith('/xai/grok-imagine-image-2.0')&&!u.includes('/estimate/')).length,0);
+ h.setHandler(h.normal);let row=await h.images.createImage(h.ctx,input());await h.server.budget(h.ctx,'orgs/nmesis/keys/');await h.db.prepare('UPDATE film_budgets SET daily_limit=0 WHERE payer=?').bind('orgs/nmesis/keys/').run();await assert.rejects(()=>h.images.withImageLock(h.ctx,row.id,r=>h.images.generateImage(h.ctx,r)),/budget|Spending|spending/);row=await h.images.imageRow(h.ctx,row.id);assert.equal(row.status,'failed');assert.equal(row.reserved_day,null);assert.equal(h.calls.filter(([u])=>u.endsWith('/xai/grok-imagine-image-2.0')&&!u.includes('/estimate/')).length,0);
 }finally{h.close()}});
 test('library paginates all saved visuals, recovers existing files and flags missing completed images',async()=>{const h=await harness();try{
  for(let i=0;i<75;i++){const id='saved-'+String(i).padStart(4,'0');await h.store.put(h.ctx.prefix+'visuals/'+id+'.json',JSON.stringify({id,src:'/api/assets/'+id,title:id,status:i===1?'failed':'ready',createdAt:new Date(1000+i).toISOString()}));if(i!==2)await h.store.put(h.ctx.prefix+'images/'+id,'image')}
@@ -109,7 +110,7 @@ test('delete and restore hide both provider libraries while preserving files, re
  assert.ok(await h.store.head(h.ctx.prefix+'images/source-1234'));assert.equal((await h.library.visualLibrary(h.ctx,true)).visuals.length,0);
 }finally{h.close()}});
 test('deleting another owner or an active or uncertain generation is rejected',async()=>{const h=await harness();try{
- const job=await h.images.createImage(h.ctx,input());await assert.rejects(()=>h.library.deleteVisual({...h.ctx,prefix:'other/'},job.id),/not found/);
+ const job=await h.images.createImage(h.ctx,input());await assert.rejects(()=>h.library.deleteVisual({...h.ctx,org:'other-co',prefix:'orgs/other-co/users/'+userPrefix('b').split('/')[3]+'/'},job.id),/not found/);await assert.rejects(()=>h.library.deleteVisual({...h.ctx,role:'creator',prefix:userPrefix('b')},job.id),/Only the person who made this/);
  for(const status of ['queued','in_progress','archiving','unknown','submitting']){await h.db.prepare('UPDATE image_jobs SET status=? WHERE id=?').bind(status,job.id).run();await assert.rejects(()=>h.library.deleteVisual(h.ctx,job.id),/finish/)}
  await h.store.put(h.ctx.prefix+'visuals/pending-1234.json',JSON.stringify({id:'pending-1234',status:'pending'}));await assert.rejects(()=>h.library.deleteVisual(h.ctx,'pending-1234'),/finish/);
  await assert.rejects(()=>h.library.deleteVisual(h.ctx,'../image'),/not found/);assert.equal((await h.library.deletedVisualIds(h.ctx)).size,0);
@@ -140,3 +141,21 @@ test('six-car Higgsfield submissions preserve twelve views, inspiration and curr
 test('six-car requests reject smaller Higgsfield models before any uploads or billing',async()=>{
  const h=await harness();try{const cars=Array.from({length:6},(_,i)=>({id:'lineup-car-'+i,name:'Model '+i,configurator:'',finish:'',x:10+i*15,y:70,scale:14,views:[{id:'capture-'+i,label:'Primary'}]}));await assert.rejects(()=>h.images.createImage(h.ctx,{...input(),sourceId:cars[0].views[0].id,lineup:{cars,layout:'inspiration',heroId:cars[0].id}}),/cannot fit/);assert.equal(h.calls.length,0)}finally{h.close()}
 });
+// S2.1: a provider account with no credit fails the job at once and keeps no
+// Studio budget reserved for it; a request that never answers is still failed
+// by the stall check within its ten-minute window.
+for(const [status,body] of [[402,{detail:'Payment required'}],[429,{code:'insufficient_credits',message:'Not enough credits'}]])test(`no Higgsfield credit (${status}): the image fails at once and the day's budget is released`,async()=>{const h=await harness();try{
+ h.setHandler(h.normal);let row=await h.images.createImage(h.ctx,input());await h.images.quoteImage(h.ctx,row);row=await h.images.imageRow(h.ctx,row.id);
+ let submits=0;h.setHandler(async(u,o)=>{if(u.includes('/estimate/'))return h.normal(u,o);submits++;return Response.json(body,{status})});
+ await assert.rejects(()=>h.images.renderImage(h.ctx,row,row.estimate,row.updated_at),e=>e.message==='Your Higgsfield account has no credit left. Add credit in your Higgsfield developer account, then try again. Nothing was charged here.'&&e.status===402);
+ const after=await h.images.imageRow(h.ctx,row.id);
+ assert.equal(after.status,'failed');assert.equal(after.error,'Your Higgsfield account has no credit left. Add credit in your Higgsfield developer account, then try again. Nothing was charged here.');
+ assert.equal(after.reserved_day,null,'no reservation is kept');assert.equal((await h.server.budget(h.ctx,after.payer)).used,0,'nothing counts against the daily budget');
+ assert.equal(submits,1,'submitted once, never retried');
+}finally{h.close()}});
+test('a generation that never answers is failed by the stall check within its timeout',async()=>{const h=await harness();try{
+ const at=ms=>new Date(Date.now()-ms).toISOString(),base={id:'no-answer-1234',title:'Demo · 01',status:'pending',provider:'openai',sourceId:'source-1234',src:'/api/assets/no-answer-1234'};
+ assert.equal((await h.library.resolveVisual(h.ctx,{...base,createdAt:at(9*60_000)})).status,'pending','still inside the provider\'s own timeout');
+ const stalled=await h.library.resolveVisual(h.ctx,{...base,createdAt:at(10*60_000+1000)});
+ assert.equal(stalled.status,'failed');assert.equal(stalled.jobStatus,'interrupted');assert.equal(h.calls.length,0,'no retry');
+}finally{h.close()}});

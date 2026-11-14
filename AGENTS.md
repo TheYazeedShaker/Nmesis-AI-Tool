@@ -9,4 +9,4 @@ Agents read `CLAUDE.md` (permanent standards), then `PROGRESS.md` (state), then 
 - Use independent preview/test storage, database, encryption secret, and provider budgets. Preview jobs must not use production data by default.
 - Run `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` before every push (CI runs the same gate).
 - `archive/` (historical pre-Vercel source) is git-ignored and lives only on the owner's machine. Never commit it or overwrite the current app with it.
-- The repository is public: no credentials, infrastructure identifiers, real third-party brand names or customer data in source, tests, commits or PR text. Real configurator presets live in the `NEXT_PUBLIC_CONFIGURATOR_PRESETS` Vercel variable.
+- The repository is public: no credentials, infrastructure identifiers, real third-party brand names or customer data in source, tests, commits or PR text. Real configurators come from the master list (`accounts.cars`) at run time, never from source.

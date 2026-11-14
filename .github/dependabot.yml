@@ -6,6 +6,52 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      # React and its type packages must stay on matching versions.
+      react:
+        applies-to: version-updates
+        patterns:
+          - react
+          - react-dom
+          - "@types/react"
+          - "@types/react-dom"
+      react-security:
+        applies-to: security-updates
+        patterns:
+          - react
+          - react-dom
+          - "@types/react"
+          - "@types/react-dom"
+      # The S3 client and presigner share one release train.
+      aws-sdk:
+        applies-to: version-updates
+        patterns:
+          - "@aws-sdk/*"
+      aws-sdk-security:
+        applies-to: security-updates
+        patterns:
+          - "@aws-sdk/*"
+      # Tailwind and its PostCSS plugin are released together.
+      tailwind:
+        applies-to: version-updates
+        patterns:
+          - tailwindcss
+          - "@tailwindcss/*"
+      tailwind-security:
+        applies-to: security-updates
+        patterns:
+          - tailwindcss
+          - "@tailwindcss/*"
+    ignore:
+      # Major upgrades of these are done deliberately, not by Dependabot.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      - dependency-name: next
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint-config-next
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     target-branch: development

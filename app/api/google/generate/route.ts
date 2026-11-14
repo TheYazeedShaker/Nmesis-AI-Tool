@@ -1,20 +1,23 @@
 export const runtime='nodejs';
 export const maxDuration=300;
 import {context,bucket,fail,imageKey,readJson,str,validId,StudioError} from '@/lib/studio-server';
+import {requireEdge,requireFeature,longEdgeOf} from '@/lib/accounts/plan';
 import {googleKey,renderGoogleImage,type GoogleImageInput} from '@/lib/gemini-server';
 import {geminiImageModel,geminiSize} from '@/lib/image-models';
 import {refinementReferences} from '@/lib/image-models';
 import {generationPrompt,referenceMode,safePinterest,type Visual} from '@/lib/studio';
+import type {StudioBucket} from '@/lib/portable/storage';
 import {nanoDetailInputs} from '@/lib/nano-detail-inputs';
 import {nanoStrategy,nanoReferencePrompt,type NanoAnalysis} from '@/lib/nano-reference';
 export async function POST(request:Request){
-  let record:Visual|undefined,store:R2Bucket|undefined,recordKey='',reserved=false;
+  let record:Visual|undefined,store:StudioBucket|undefined,recordKey='',reserved=false;
   try{
     const ctx=await context(request,true),d=await readJson(request);store=bucket(ctx.BUCKET);
     if(d.provider!=='google'||!validId(d.id)||!validId(d.sourceId)||!validId(d.moodId)||d.parentId&&!validId(d.parentId))throw new StudioError('Choose a saved car view and inspiration first.');
     if(d.lineup)throw new StudioError('Nano Banana is currently connected to Single car key visuals.');
     let model:string,size:string,mode,extraIds:string[];
     try{model=geminiImageModel(d.model).id;geminiSize(d.size);size=d.size;mode=referenceMode(d.referenceMode);extraIds=refinementReferences(d.refinementReferenceIds,!!d.parentId,'google',model)}catch(e){throw new StudioError((e as Error).message)}
+    requireEdge(ctx,longEdgeOf(size));if(d.smartPlanId!==undefined)requireFeature(ctx,'studio.smart_reference');
     const brief=str(d.brief);if(brief.length<8)throw new StudioError('Describe the campaign in a little more detail.');
     const key=await googleKey(ctx),inputs:GoogleImageInput[]=[];let totalBytes=0;
     for(const id of [d.sourceId,d.moodId,...d.parentId?[d.parentId]:[],...extraIds]){

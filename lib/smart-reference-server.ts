@@ -3,7 +3,8 @@ import {bucket,imageKey,StudioError,validId,str,type StudioEnv} from './studio-s
 import {geminiImageModel,imageSettings,openaiImageModel} from './image-models';
 import {SMART_VERSION,smartPriority,parseSmartAnalysis,smartPrompt,type SmartInput,type SmartPlan} from './smart-reference';
 import {nanoDetailInputs} from './nano-detail-inputs';
-type Context=StudioEnv&{prefix:string;email?:string};
+import {noCreditMessage,NO_CREDIT_STATUS,outOfCredit} from './provider-credit';
+type Context=StudioEnv&import("./org-keys").KeyContext;
 const textField={type:'string',maxLength:1500},listField={type:'array',items:{type:'string',maxLength:700},maxItems:10};
 const ANALYSIS_SCHEMA={type:'object',additionalProperties:false,required:['carDetails','sceneDetails','conflicts','captureAdvice','viewCompatibility','detailRegions','renderInstructions'],properties:{carDetails:listField,sceneDetails:listField,conflicts:listField,captureAdvice:textField,viewCompatibility:{type:'string',enum:['similar','different','uncertain']},detailRegions:{type:'array',maxItems:3,items:{type:'object',additionalProperties:false,required:['label','x','y','width','height'],properties:{label:{type:'string',maxLength:100},x:{type:'number',minimum:0,maximum:.98},y:{type:'number',minimum:0,maximum:.98},width:{type:'number',minimum:.02,maximum:1},height:{type:'number',minimum:.02,maximum:1}}}},renderInstructions:{type:'string',minLength:40,maxLength:5000}}};
 const REVIEW_SCHEMA={type:'object',additionalProperties:false,required:['verdict','carFindings','sceneFindings','suggestedFix'],properties:{verdict:{type:'string',enum:['no-obvious-mismatch','needs-review','uncertain']},carFindings:listField,sceneFindings:listField,suggestedFix:textField}};
@@ -25,7 +26,8 @@ export async function visionJson(ctx:Context,instructions:string,text:string,ima
   const failure:any=await r.json().catch(()=>({})),code=String(failure.error?.code||'');
   console.error('smart-reference-openai',{status:r.status,code,param:failure.error?.param,requestId:r.headers.get('x-request-id')});
   const detail=String(failure.error?.message||'').replace(/(?:sk-|Bearer\s+)[\w.-]+/gi,'[redacted]').replace(/https?:\/\/\S+|data:[^\s]+/g,'[redacted]').slice(0,500);
-  const message=r.status===429?(code==='insufficient_quota'?'OpenAI reference analysis needs available API credit. Check the connected account billing.':'OpenAI reference analysis reached a rate limit. Try again later.'):r.status===401||r.status===403?'OpenAI denied access to reference analysis. Check the connected key’s Responses API permissions.':`OpenAI reference analysis failed (${r.status})${detail?': '+detail:'.'}`;
+  if(outOfCredit('openai',{status:r.status,code,type:failure.error?.type,message:failure.error?.message}))throw new StudioError(noCreditMessage('openai'),NO_CREDIT_STATUS);
+  const message=r.status===429?'OpenAI reference analysis reached a rate limit. Try again later.':r.status===401||r.status===403?'OpenAI denied access to reference analysis. Check the connected key’s Responses API permissions.':`OpenAI reference analysis failed (${r.status})${detail?': '+detail:'.'}`;
   throw new StudioError(message,r.status===429?429:502);
  }
  const data:any=await r.json();if(data.status==='incomplete')throw new StudioError('Reference analysis was incomplete. No automatic retry was made.',502);

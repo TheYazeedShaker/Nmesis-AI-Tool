@@ -7,7 +7,7 @@ import {providerFailureMessage} from '@/lib/provider-failure';
 import {swapRow} from '@/lib/swap-server';
 
 export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){try{
- const ctx=await context(request),row=await swapRow(ctx,(await params).id);
+ const ctx=await context(request),row=await swapRow(ctx,(await params).id,true);
  if(!row.provider_id||!row.status_url)throw new StudioError('Higgsfield has not returned a request ID for this swap.',409);
  const credential=await videoCredential(ctx);if(credential.prefix!==row.payer)throw new StudioError('The video connection owner changed.',409);
  const result=await provider(credential.key,providerUrl(row.status_url,'status',row.provider_id));

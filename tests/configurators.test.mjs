@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeConfiguratorUrl,generationCount,CONFIGURATORS,parseConfiguratorPresets} from '../lib/configurators.ts';
+import {normalizeConfiguratorUrl,generationCount,CONFIGURATORS,carConfigurators} from '../lib/configurators.ts';
 import {generationPrompt,localDirections} from '../lib/studio.ts';
 import {captureResponse,requestFrameCapture} from '../lib/capture.ts';
 test('one visual makes one job; three makes three; refinements always make one',()=>{
@@ -68,18 +68,13 @@ test('Nano Banana lock replaces the generic preset only when enabled and keeps v
  assert.match(generationPrompt({...input,provider:undefined}),/STRICT INSPIRATION MATCH/);
  assert.throws(()=>generationPrompt({...input,hasMood:false}),/inspiration image/);
 });
-test('configurator presets come from deployment config, never source, and invalid entries are dropped',()=>{
+test('configurators come from the company’s cars (paths joined to the deployment origin) with an explicit capture template',()=>{
  assert.ok(CONFIGURATORS.length>=1);
- assert.deepEqual(parseConfiguratorPresets(undefined),[]);
- assert.deepEqual(parseConfiguratorPresets('not json'),[]);
- assert.deepEqual(parseConfiguratorPresets('{"id":"x"}'),[]);
- const parsed=parseConfiguratorPresets(JSON.stringify([
-  {id:'s08',name:' Demo SUV ',url:'https://configurator.example.com/suv/'},
-  {id:'bad id',name:'Spaces in id',url:'https://configurator.example.com/a/'},
-  {id:'insecure',name:'HTTP',url:'http://configurator.example.com/b/'},
-  {id:'script',name:'Script',url:'javascript:alert(1)'},
-  {id:'noname',name:'',url:'https://configurator.example.com/c/'},
-  null,'text'
- ]));
- assert.deepEqual(parsed,[{id:'s08',name:'Demo SUV',url:'https://configurator.example.com/suv/'}]);
+ const car=(path,template='capture',extra={})=>({brandId:'demo',modelId:'suv',brandName:'Demo',modelName:'SUV',path,template,...extra});
+ assert.deepEqual(carConfigurators([car('/demo/suv/','choose-view')],'https://configurator.example.com'),[{id:'demo.suv',name:'Demo SUV',url:'https://configurator.example.com/demo/suv/',template:'choose-view'}]);
+ assert.deepEqual(carConfigurators([car('https://configurator.example.com/x/','anything')],undefined),[{id:'demo.suv',name:'Demo SUV',url:'https://configurator.example.com/x/',template:'capture'}]);
+ // Unusable addresses are left out rather than shown.
+ for(const path of ['','javascript:alert(1)','http://configurator.example.com/b/','/demo/suv/settings.json'])assert.deepEqual(carConfigurators([car(path)],'https://configurator.example.com'),[],path);
+ assert.deepEqual(carConfigurators([car('/demo/suv/')],undefined),[],'a path with no origin is left out');
+ assert.deepEqual(carConfigurators([car('/demo/suv/')],'http://configurator.example.com'),[],'never plain http');
 });

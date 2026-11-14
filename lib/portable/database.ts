@@ -1,20 +1,81 @@
-import {createClient, type Client, type InValue, type ResultSet} from '@libsql/client';
-// Match the small D1 surface used by the studio; preserve atomic conditional SQL.
+import postgres from 'postgres';
+// Match the small D1 surface used by the studio (prepare/bind/first/all/run)
+// over Postgres. Statements keep `?` placeholders; they are translated to
+// $1…$n once per statement text. Conditional UPDATEs stay single statements,
+// so reservations and leases remain atomic.
+type Sql=ReturnType<typeof postgres>;
+type Param=postgres.ParameterOrJSON<never>;
+const translated=new Map<string,string>();
+// `?` inside a quoted string literal, quoted identifier or comment is not a placeholder.
+export function toPositional(sql:string){
+ const cached=translated.get(sql);if(cached!==undefined)return cached;
+ let out='',n=0;
+ for(let i=0;i<sql.length;i++){
+  const c=sql[i];
+  if(c==="'"||c==='"'){const end=closing(sql,i,c);out+=sql.slice(i,end+1);i=end;continue}
+  if(c==='-'&&sql[i+1]==='-'){const end=sql.indexOf('\n',i);const stop=end<0?sql.length-1:end;out+=sql.slice(i,stop+1);i=stop;continue}
+  if(c==='/'&&sql[i+1]==='*'){const end=sql.indexOf('*/',i+2);const stop=end<0?sql.length-1:end+1;out+=sql.slice(i,stop+1);i=stop;continue}
+  out+=c==='?'?'$'+(++n):c;
+ }
+ if(translated.size>500)translated.clear();
+ translated.set(sql,out);return out;
+}
+// A doubled quote inside a literal is an escaped quote, not the end.
+function closing(sql:string,start:number,quote:string){
+ for(let i=start+1;i<sql.length;i++){if(sql[i]===quote){if(sql[i+1]===quote){i++;continue}return i}}
+ return sql.length-1;
+}
+// Plain fields, not constructor parameter properties: tests import this file
+// under Node's strip-only TypeScript mode, which rejects parameter properties.
+// A database bound to a signed-in user (forUser) runs every statement in a short
+// transaction that first sets `studio.user_id`, which the row level security
+// policies read (supabase/migrations/0002_accounts_access.sql). Unbound, the
+// policies see nobody and every studio table reads as empty.
 export class StudioDatabase {
- constructor(private client: Client) {}
- prepare(sql: string) { return new Statement(this.client, sql); }
+ private sql:Sql;
+ private user:string|null;
+ constructor(sql:Sql, user:string|null=null) { this.sql=sql; this.user=user; }
+ forUser(userId:string) { return new StudioDatabase(this.sql, userId); }
+ prepare(text:string) { return new Statement(this.sql, text, [], this.user); }
+ // D1 batch: every statement in one transaction, in order; any error rolls back all.
+ async batch(statements:Statement[]) { return this.sql.begin(async tx=>{if(this.user)await tx`select set_config('studio.user_id', ${this.user}, true)`;const out=[];for(const s of statements)out.push(await s.runIn(tx as unknown as Sql));return out}); }
 }
 class Statement {
- constructor(private client: Client, private sql: string, private args: InValue[] = []) {}
- bind(...values: unknown[]) { return new Statement(this.client,this.sql,values.map(v=>v===undefined?null:v) as InValue[]); }
- private execute() { return this.client.execute({sql:this.sql,args:this.args}); }
- async first<T=Record<string,unknown>>(column?:string):Promise<T|null> { const r=await this.execute();const row=r.rows[0];return row?(column?row[column]:{...row}) as T:null; }
+ private sql:Sql;
+ private text:string;
+ private args:Param[];
+ private user:string|null;
+ constructor(sql:Sql, text:string, args:Param[] = [], user:string|null=null) { this.sql=sql; this.text=text; this.args=args; this.user=user; }
+ bind(...values: unknown[]) { return new Statement(this.sql,this.text,values.map(v=>v===undefined?null:v) as Param[],this.user); }
+ private execute(sql:Sql=this.sql):Promise<postgres.RowList<postgres.Row[]>> {
+  if(sql!==this.sql||!this.user)return sql.unsafe(toPositional(this.text),this.args);
+  // Pipelined: the setting and the statement travel together inside one transaction.
+  const user=this.user,text=toPositional(this.text),args=this.args;
+  return this.sql.begin(tx=>[tx`select set_config('studio.user_id', ${user}, true)`,tx.unsafe(text,args)]).then(r=>(r as unknown as postgres.RowList<postgres.Row[]>[])[1]);
+ }
+ async runIn(sql:Sql) {return this.result(await this.execute(sql));}
+ async first<T=Record<string,unknown>>(column?:string):Promise<T|null> { const r=await this.execute();const row=r[0];return row?(column?row[column]:{...row}) as T:null; }
  async all<T=Record<string,unknown>>() {return this.result<T>(await this.execute());}
  async run() {return this.result(await this.execute());}
- private result<T>(r:ResultSet){return {success:true,results:r.rows.map(row=>({...row})) as T[],meta:{changes:r.rowsAffected,last_row_id:Number(r.lastInsertRowid||0)}};}
+ // No caller reads last_row_id (every key is an application UUID); it stays 0 for D1 shape compatibility.
+ private result<T>(r:postgres.RowList<postgres.Row[]>){return {success:true,results:r.map(row=>({...row})) as T[],meta:{changes:r.count??0,last_row_id:0}};}
+}
+// Epoch-millisecond and money columns are bigint; their values stay below 2^53,
+// so they are returned as numbers, matching the previous driver.
+const int8={to:20,from:[20],serialize:(x:number|bigint)=>String(x),parse:(x:string)=>Number(x)};
+export function connect(url:string){
+ return postgres(url,{
+  max:Number(process.env.DATABASE_POOL_MAX)||2, // per serverless instance
+  idle_timeout:20,connect_timeout:10,max_lifetime:60*30,
+  prepare:false, // required by the transaction pooler
+  ssl:/[?&]sslmode=disable\b/.test(url)?false:'require',
+  connection:{application_name:'nmesis-studio',search_path:'studio'},
+  types:{int8},
+  onnotice:()=>{},
+ });
 }
 let database:StudioDatabase|undefined;
 export function getDatabase(){
- if(!process.env.TURSO_DATABASE_URL)return undefined;
- return (database??=new StudioDatabase(createClient({url:process.env.TURSO_DATABASE_URL,authToken:process.env.TURSO_AUTH_TOKEN}))) as unknown as D1Database;
+ if(!process.env.DATABASE_URL)return undefined;
+ return database??=new StudioDatabase(connect(process.env.DATABASE_URL));
 }
