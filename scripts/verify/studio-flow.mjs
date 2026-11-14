@@ -2,8 +2,8 @@
 // (connected as studio_app, migrations applied) and a local in-memory S3 stand-in.
 // Sign-in is replaced ONLY inside this harness: hooks.mjs resolves '@/lib/studio-context'
 // to auth-stub.mjs; no application code is changed. It uploads a reference through a signed URL,
-// creates and lists a storyboard, sets and reserves a budget (two concurrent
-// reservations against one limit), lists the library and archives an empty draft.
+// creates and lists a storyboard, reserves credits (two concurrent reservations
+// against one balance), lists the library and archives an empty draft.
 // Use a disposable local database only; it writes rows and never cleans them up.
 // The studio's TypeScript runs on Node's own module loader through hooks.mjs (alias,
 // extensionless imports, transpiling with the repository's TypeScript); Node 20.6+.
@@ -23,9 +23,9 @@ const call=async(mod,method,path,body,params)=>{const r=await mod[method](new Re
 
 try{
  const uploads=await route('app/api/uploads/route.ts'),assets=await route('app/api/assets/route.ts'),visuals=await route('app/api/visuals/route.ts');
- const storyboards=await route('app/api/storyboards/route.ts'),films=await route('app/api/films/route.ts'),video=await route('app/api/video-connection/route.ts');
+ const storyboards=await route('app/api/storyboards/route.ts'),films=await route('app/api/films/route.ts');
  const cleanup=await route('app/api/visuals/cleanup/route.ts');
- const {getDatabase}=await route('lib/portable/database.ts');const policy=await route('lib/film-policy.ts');const db=getDatabase();
+ const {getDatabase}=await route('lib/portable/database.ts');const credits=await route('lib/credits/store.ts');const db=getDatabase();
 
  console.log('\n# 1. Upload a reference through a signed URL');
  const png=encode({width:64,height:36,data:new Uint8Array(64*36*4).fill(180),channels:4});
@@ -40,16 +40,14 @@ try{
  const board=await call(storyboards,'POST','/api/storyboards',{title:'Demo story',vehicle:'Demo SUV',configurator:'https://configurator.example.com/demo/',views:[],idea:'',direction:'',moodId:'',pin:'',shots:[],brand:'',tagline:''});
  const boards=await call(storyboards,'GET','/api/storyboards');console.log('boards listed:',boards.boards.length,'first id matches:',boards.boards[0]?.id===board.board?.id);
 
- console.log('\n# 3. Budget and reservation');
- const state=await call(video,'GET','/api/video-connection');console.log('budget:',JSON.stringify({dailyLimit:state.dailyLimit,used:state.used,paused:state.paused}));
- const patched=await call(video,'PATCH','/api/video-connection',{dailyLimit:1_000_000,paused:false});console.log('budget after PATCH:',patched.dailyLimit);
+ console.log('\n# 3. Credits: two concurrent reservations against one balance');
  const f1=await call(films,'POST','/api/films',{sourceId:asset.id,title:'Clip A',vehicle:'Demo SUV'}),f2=await call(films,'POST','/api/films',{sourceId:asset.id,title:'Clip B',vehicle:'Demo SUV'});
- const owner=(await db.prepare('SELECT owner FROM films WHERE id=?').bind(f1.film.id).first('owner'));
- for(const id of [f1.film.id,f2.film.id])await db.prepare("UPDATE films SET status='quoted',estimate=600000 WHERE id=? AND owner=?").bind(id,owner).run();
- const day=policy.budgetDay(),reserve=id=>db.batch([db.prepare(policy.LOCK_FILM_BUDGET_SQL).bind(id,owner),db.prepare(policy.RESERVE_FILM_SQL).bind(day,Date.now(),Date.now()+150000,id,owner,day,day,day)]);
+ const row=await db.prepare('SELECT owner,org_id FROM films WHERE id=?').bind(f1.film.id).first(),owner=row.owner;
+ for(const id of [f1.film.id,f2.film.id])await db.prepare("UPDATE films SET status='quoted',estimate=600000,credits=15 WHERE id=? AND owner=?").bind(id,owner).run();
+ const store=credits.creditStore(db),balance=await store.balance(row.org_id);console.log('balance:',JSON.stringify(balance));
+ const reserve=id=>store.reserve({id:'hold-'+id,org:row.org_id,actor:owner.split('/')[3],tool:'studio.film',action:'Film',provider:'higgsfield',billing:'credits',credits:15,costMicros:600000,expiresAt:Date.now()+60_000,job:{table:'films',id,owner,lockUntil:Date.now()+150000}});
  const [r1,r2]=await Promise.all([reserve(f1.film.id),reserve(f2.film.id)]);
- console.log('concurrent reservations of 0.60 + 0.60 against a 1.00 daily limit -> changes:',r1[1].meta.changes,r2[1].meta.changes);
- const after=await call(video,'GET','/api/video-connection');console.log('used after reservation (USD millionths):',after.used);
+ console.log('two 15-credit reservations against',balance.total,'credits ->',r1,r2);
  const listed=await call(films,'GET','/api/films');console.log('films listed:',listed.films.map(f=>f.status).sort().join(','));
 
  console.log('\n# 4. List the library and clean empty drafts (compare-and-swap archive)');

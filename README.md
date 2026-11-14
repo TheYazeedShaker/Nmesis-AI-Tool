@@ -118,11 +118,13 @@ Use Vercel Pro for this commercial studio and the longer image-generation reques
 
 For Preview/testing, use the staging Supabase project and a separate S3 bucket and IAM user, separate secrets and a stable preview domain with matching OAuth/CORS configuration. Do not reuse production keys merely to make previews run.
 
-## 4. Connect generators and start fresh
+## 4. Provider accounts and credits
 
-Open the deployed studio, sign in, and connect OpenAI, Google AI Studio, Higgsfield and/or Topaz through the existing connection controls. These provider keys are not included in the archive. Stored keys are encrypted server-side. At least one usable image generator is needed; OpenAI is also used by smart prompt planning.
+Nmesis pays the AI providers with its own accounts: set `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `HIGGSFIELD_API_KEY` and `TOPAZ_API_KEY` as server-only Vercel variables (Production and Preview separately, each with its own billing limit at the provider). Companies spend credits: their plan's monthly allowance (`studio.credits_monthly`, reset on the subscription's billing day) and then packs, which expire on their own date. An action costs `ceil(provider cost ÷ credit_basis)` credits; `credit_basis` and per-action costs (`studio_cost.<action>`) come from the admin's price book, with the Studio's own table as the default. Every paid action shows its cost before it starts, reserves its credits atomically, and settles into the admin's usage ledger (`accounts.record_usage`, setup SQL section 6) or releases them if the provider fails. Company owners see their Usage page; at 80% and 100% they get one email each per period (`EMAIL_API_URL`, `EMAIL_API_KEY`, `EMAIL_FROM`).
 
-Provider keys belong to the company: an owner of a company whose plan includes its own keys (`studio.own_keys`) connects them, and everyone in that company uses them. The new database starts with the code's default daily budget; a company owner sets it in Film Studio.
+A company whose plan includes its own keys (`studio.own_keys`, Enterprise) may connect its own OpenAI, Google, Higgsfield or Topaz key; actions on it are recorded with 0 credits. Without the feature, the Connections panels show "Nmesis provides the AI for your plan" and no key fields; a key saved earlier is kept but not used. A client with no active subscription has no Studio ("Your Studio isn't part of your plan yet. Ask Nmesis."); Nmesis's own workspace is exempt.
+
+Nmesis staff open a client's workspace only while that client's owner allows support access (Company settings, 7 days, renewable); it is read-only and every opening is listed for the owner.
 
 Select one of your company's configurators, capture a car view, paste a Pinterest link or upload an inspiration, and generate. Screen sharing still requires the browser's permission. An iframe may be blocked by the configurator owner's embedding policy. Managed configurators can use `public/integration/nmesis-capture.js` for direct capture (install it from your new studio domain and set `data-studio-origin` to that domain); otherwise use tab capture or an uploaded screenshot. Pinterest must expose a publicly retrievable image; a local inspiration upload remains available if it does not.
 

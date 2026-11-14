@@ -11,8 +11,12 @@ import {TOPAZ_MODEL,TOPAZ_MODEL_ID,topazForm,topazProcessId,type TopazJob} from 
 import type {Visual} from './studio';
 import {orgOf} from './portable/tenancy';
 import {requireEdge} from './accounts/plan';
+import {JOB_TTL,jobHold,releaseCredits,reserveCredits,settleCredits} from './credits/charge';
+import {topazCost} from './credits/words';
 type Ctx=FilmContext;
-type Row={id:string;owner:string;parent_id:string;status:string;data:string;provider_id:string|null;created_at:number;updated_at:number;lock_until:number;error:string|null};
+type Row={id:string;owner:string;parent_id:string;status:string;data:string;provider_id:string|null;hold_id:string|null;credits:number;created_at:number;updated_at:number;lock_until:number;error:string|null};
+const edgeLabel=(edge:number)=>edge>=7680?'8K':edge>=3840?'4K':'2K';
+const topazSpend=(own:boolean,edge:number)=>({own,provider:'topaz' as const,tool:'studio.upscale' as const,action:'Upscale '+edgeLabel(edge)});
 type Data={parent:Visual;width:number;height:number;fingerprint:string;progress?:number;credits?:number};
 const secretPath=(ctx:Ctx)=>ctx.prefix+'credentials/topaz.json';
 export class TopazFailure extends StudioError{constructor(public httpStatus:number,public noCredit=httpStatus===402){super(noCredit?noCreditMessage('topaz'):httpStatus===401||httpStatus===403?'Topaz did not accept this key. Check your Topaz API connection.':httpStatus===402?'Add API credits to your Topaz account before upscaling.':httpStatus===429?'Topaz is busy or your request limit has been reached. Wait a moment and refresh.':httpStatus===404?'This Topaz request is unavailable. Results are held by Topaz for seven days.':`Topaz could not complete this request (HTTP ${httpStatus}).`,noCredit?NO_CREDIT_STATUS:httpStatus===429?429:502)}}
@@ -20,8 +24,11 @@ export async function topazRequest(key:string,path:string,form?:FormData){
   let r:Response;try{r=await fetch('https://api.topazlabs.com/'+path,{method:form?'POST':'GET',headers:{'X-API-Key':key},...(form?{body:form}:{}),signal:AbortSignal.timeout(45000),redirect:'manual'})}catch{throw new StudioError('The Topaz connection was interrupted. Refresh the saved request before starting another upscale.',504)}
   if(!r.ok){const said=readProviderError(await r.json().catch(()=>null));throw new TopazFailure(r.status,outOfCredit('topaz',{status:r.status,...said}))}return await r.json() as Record<string,any>;
 }
-export async function topazStatus(ctx:Ctx){const owner=await credentialContext(ctx),sponsored=!keyAccess(ctx).manage;const saved=owner?await bucket(owner.BUCKET).get(secretPath(owner)):null;const data=saved?await saved.json<SealedKey&{credits?:number}>():null;return {connected:!!data,keySetup:!sponsored&&!!ctx.KEY_ENCRYPTION_SECRET,sponsored,checkedAt:data?.verifiedAt,credits:data?.credits}}
-export async function topazKey(ctx:Ctx){const owner=await credentialContext(ctx);if(!owner)throw new StudioError('Upscaling with Topaz needs your company’s own Topaz key, which is not on your plan yet. Ask Nmesis.',503);ctx=owner;const saved=await bucket(ctx.BUCKET).get(secretPath(ctx));requireKeySecret(ctx.KEY_ENCRYPTION_SECRET);if(!saved||!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Connect your Topaz API key before upscaling.',503);try{return await unsealKey(await saved.json<SealedKey>(),ctx.KEY_ENCRYPTION_SECRET,ctx.prefix+'topaz')}catch{throw new StudioError('Reconnect your Topaz API key.',503)}}
+export async function topazStatus(ctx:Ctx){const owner=await credentialContext(ctx),sponsored=!keyAccess(ctx).manage;const saved=owner?await bucket(owner.BUCKET).get(secretPath(owner)):null;const data=saved?await saved.json<SealedKey&{credits?:number}>():null;return {connected:!!data,keySetup:!sponsored&&!!ctx.KEY_ENCRYPTION_SECRET,sponsored,checkedAt:data?.verifiedAt,credits:data?.credits,nmesis:!data,ownKeys:keyAccess(ctx).own,available:!!data||!!ctx.TOPAZ_API_KEY}}
+// The company's own Topaz key (studio.own_keys, saved), or Nmesis's (TOPAZ_API_KEY),
+// in which case the company spends credits.
+export async function topazCredential(ctx:Ctx):Promise<{key:string;own:boolean}>{const owner=await credentialContext(ctx);const saved=owner?await bucket(owner.BUCKET).get(secretPath(owner)):null;if(!saved){if(!ctx.TOPAZ_API_KEY)throw new StudioError('Topaz upscaling is not connected on this Studio yet. Nothing was charged.',503);return {key:ctx.TOPAZ_API_KEY,own:false}}requireKeySecret(owner!.KEY_ENCRYPTION_SECRET);if(!owner!.KEY_ENCRYPTION_SECRET)throw new StudioError('The saved Topaz connection needs attention. Ask your company’s owner.',503);try{return {key:await unsealKey(await saved.json<SealedKey>(),owner!.KEY_ENCRYPTION_SECRET,owner!.prefix+'topaz'),own:true}}catch{throw new StudioError('Reconnect your Topaz API key.',503)}}
+export async function topazKey(ctx:Ctx){return (await topazCredential(ctx)).key}
 async function managedKeys(ctx:Ctx){const access=keyAccess(ctx);if(!access.own)throw new StudioError(KEYS_NOT_ON_PLAN,403);if(!access.manage)throw new StudioError(keysManagedBy('Topaz'),403);return (await credentialContext(ctx))!}
 export async function saveTopazKey(ctx:Ctx,key:string){
   ctx=await managedKeys(ctx);
@@ -32,7 +39,7 @@ export async function saveTopazKey(ctx:Ctx,key:string){
 }
 export async function removeTopazKey(ctx:Ctx){ctx=await managedKeys(ctx);await bucket(ctx.BUCKET).delete(secretPath(ctx))}
 export async function topazRow(ctx:Ctx,id:string){if(!validId(id))throw new StudioError('Upscale request not found.',404);const row=await database(ctx).prepare('SELECT * FROM topaz_jobs WHERE id=? AND owner=?').bind(id,ctx.prefix).first<Row>();if(!row)throw new StudioError('Upscale request not found.',404);return row}
-export async function publicTopaz(ctx:Ctx,row:Row):Promise<TopazJob>{const d=JSON.parse(row.data) as Data;const saved=row.status==='ready'?await bucket(ctx.BUCKET).get(ctx.prefix+'visuals/'+row.id+'.json'):null;return{id:row.id,parentId:row.parent_id,status:row.status,progress:d.progress||0,createdAt:row.created_at,error:row.error||undefined,width:d.width,height:d.height,credits:d.credits,visual:saved?await saved.json<Visual>():undefined}}
+export async function publicTopaz(ctx:Ctx,row:Row):Promise<TopazJob>{const d=JSON.parse(row.data) as Data;const saved=row.status==='ready'?await bucket(ctx.BUCKET).get(ctx.prefix+'visuals/'+row.id+'.json'):null;return{id:row.id,parentId:row.parent_id,status:row.status,progress:d.progress||0,createdAt:row.created_at,error:row.error||undefined,width:d.width,height:d.height,credits:Number(row.credits)||0,visual:saved?await saved.json<Visual>():undefined}}
 export async function listTopaz(ctx:Ctx,parentId:string){if(!validId(parentId))throw new StudioError('Choose a saved visual.');const rows=await database(ctx).prepare('SELECT * FROM topaz_jobs WHERE org_id=? AND owner=? AND parent_id=? ORDER BY created_at DESC LIMIT 10').bind(orgOf(ctx.prefix),ctx.prefix,parentId).all<Row>();return await Promise.all(rows.results.map(row=>publicTopaz(ctx,row)))}
 export async function startTopaz(ctx:Ctx,id:string,parentId:string,edge:number){
   if(!validId(id)||!validId(parentId))throw new StudioError('Choose a saved visual.');
@@ -41,7 +48,7 @@ export async function startTopaz(ctx:Ctx,id:string,parentId:string,edge:number){
   if(existing){const d=JSON.parse(existing.data) as Data;if(existing.parent_id!==parentId||Math.max(d.width,d.height)!==edge)throw new StudioError('This request ID belongs to another upscale.',409);return publicTopaz(ctx,existing)}
   if(![2048,3840,7680].includes(edge))throw new StudioError('Choose 2K, 4K or 8K.');
   requireEdge(ctx,edge);
-  const key=await topazKey(ctx),saved=await store.get(ctx.prefix+'visuals/'+parentId+'.json');
+  const cred=await topazCredential(ctx),key=cred.key,saved=await store.get(ctx.prefix+'visuals/'+parentId+'.json');
   let parent=saved?await saved.json<Visual>():null;
   if(!parent){const row=await db.prepare('SELECT * FROM image_jobs WHERE id=? AND owner=?').bind(parentId,ctx.prefix).first<ImageRow>();if(row)parent=publicImage(row)}
   if(!parent||parent.status!=='ready'||await store.head(ctx.prefix+'deleted-visuals/'+parentId+'.json'))throw new StudioError('The original visual is unavailable.',404);
@@ -55,6 +62,9 @@ export async function startTopaz(ctx:Ctx,id:string,parentId:string,edge:number){
   // A single atomic insert prevents duplicate clicks and concurrent tabs for this source.
   const inserted=await db.prepare("INSERT INTO topaz_jobs(id,org_id,owner,parent_id,status,data,created_at,updated_at,lock_until) SELECT ?,?,?,?,'submitting',?,CAST(? AS BIGINT),CAST(? AS BIGINT),CAST(? AS BIGINT) WHERE NOT EXISTS (SELECT 1 FROM topaz_jobs WHERE owner=? AND parent_id=? AND status IN ('submitting','unknown','queued','processing','archiving')) ON CONFLICT DO NOTHING").bind(id,orgOf(ctx.prefix),ctx.prefix,parentId,JSON.stringify(data),now,now,now+90000,ctx.prefix,parentId).run();
   if(!inserted.meta.changes){const row=await db.prepare("SELECT * FROM topaz_jobs WHERE owner=? AND (id=? OR (parent_id=? AND status IN ('submitting','unknown','queued','processing','archiving'))) ORDER BY created_at DESC LIMIT 1").bind(ctx.prefix,id,parentId).first<Row>();if(row)return publicTopaz(ctx,row);throw new StudioError('This request is already being handled.',409)}
+  // Credits reserved for this upscale; settled when it is saved, released if Topaz refuses or fails it.
+  let hold;try{hold=await reserveCredits(ctx,{...topazSpend(cred.own,edge),cost:topazCost(edge),ttlMs:JOB_TTL})}catch(e){await db.prepare("UPDATE topaz_jobs SET status='failed',error=?,updated_at=?,lock_until=0 WHERE id=? AND owner=?").bind((e as Error).message,Date.now(),id,ctx.prefix).run();throw e}
+  await db.prepare('UPDATE topaz_jobs SET hold_id=?,credits=? WHERE id=? AND owner=?').bind(hold.id,hold.credits,id,ctx.prefix).run();
   let acceptedId:string|undefined;
   try{
     const r=await topazRequest(key,'image/v1/enhance/async',topazForm(new Blob([bytes],{type:dims.type}),target.width,target.height));acceptedId=topazProcessId(r.process_id);
@@ -63,7 +73,8 @@ export async function startTopaz(ctx:Ctx,id:string,parentId:string,edge:number){
     await db.prepare("UPDATE topaz_jobs SET status='queued',provider_id=?,updated_at=?,lock_until=0 WHERE id=? AND owner=?").bind(acceptedId,Date.now(),id,ctx.prefix).run();
   }catch(e){
     const rejected=!acceptedId&&e instanceof TopazFailure&&(e.noCredit||[400,401,402,403,404,412,413,415,422,429].includes(e.httpStatus));
-    await db.prepare('UPDATE topaz_jobs SET status=?,provider_id=?,error=?,updated_at=?,lock_until=0 WHERE id=? AND owner=?').bind(acceptedId?'queued':rejected?'failed':'unknown',acceptedId||null,rejected?(e as Error).message:'Submission needs checking. No automatic second request will be sent. Use Refresh status; if no receipt is available, check your Topaz account before trying again.',Date.now(),id,ctx.prefix).run();
+    const failure=rejected?await releaseCredits(ctx,hold,e):e;
+    await db.prepare('UPDATE topaz_jobs SET status=?,provider_id=?,error=?,updated_at=?,lock_until=0 WHERE id=? AND owner=?').bind(acceptedId?'queued':rejected?'failed':'unknown',acceptedId||null,rejected?(failure as Error).message:'Submission needs checking. No automatic second request will be sent. Use Refresh status; if no receipt is available, check your Topaz account before trying again.',Date.now(),id,ctx.prefix).run();
   }
   return publicTopaz(ctx,await topazRow(ctx,id));
 }
@@ -79,7 +90,7 @@ export async function refreshTopaz(ctx:Ctx,id:string){
   const lock=await db.prepare('UPDATE topaz_jobs SET lock_until=? WHERE id=? AND owner=? AND lock_until<?').bind(now+120000,id,ctx.prefix,now).run();
   if(!lock.meta.changes)return publicTopaz(ctx,row);
   try{
-    row=await topazRow(ctx,id);const data=JSON.parse(row.data) as Data;const key=await topazKey(ctx);
+    row=await topazRow(ctx,id);const data=JSON.parse(row.data) as Data;const cred=await topazCredential(ctx),key=cred.key;const hold=jobHold(ctx,row,topazSpend(cred.own,Math.max(data.width,data.height)));
     if(data.fingerprint!==await keyFingerprint(key))throw new StudioError('Reconnect the original Topaz key to check this request.',409);
     if(!row.provider_id){const receipt=await store.get(ctx.prefix+'topaz-receipts/'+id+'.json');if(receipt)row.provider_id=topazProcessId((await receipt.json<{id:string}>()).id);else{await db.prepare("UPDATE topaz_jobs SET status='unknown',error=? WHERE id=? AND owner=?").bind('Topaz submission could not be confirmed. No second request was sent. Check your Topaz account before starting another upscale.',id,ctx.prefix).run();return publicTopaz(ctx,await topazRow(ctx,id))}}
     const result=await topazRequest(key,'image/v1/status/'+topazProcessId(row.provider_id));
@@ -89,7 +100,8 @@ export async function refreshTopaz(ctx:Ctx,id:string){
     if(typeof result.credits==='number'&&Number.isFinite(result.credits))data.credits=result.credits;
     const status=({Pending:'queued',Processing:'processing',Completed:'archiving',Failed:'failed',Cancelled:'cancelled'} as Record<string,string>)[result.status];
     if(!status)throw new StudioError('Topaz returned an unrecognized status. Refresh to check again.',502);
-    await db.prepare('UPDATE topaz_jobs SET status=?,provider_id=?,data=?,error=?,updated_at=? WHERE id=? AND owner=?').bind(status,row.provider_id,JSON.stringify(data),status==='failed'?'Topaz could not complete this image. Check the request in your Topaz account.':null,Date.now(),id,ctx.prefix).run();
+    await db.prepare('UPDATE topaz_jobs SET status=?,provider_id=?,data=?,error=?,updated_at=? WHERE id=? AND owner=?').bind(status,row.provider_id,JSON.stringify(data),status==='failed'?'Topaz could not complete this image. Nothing was charged.':null,Date.now(),id,ctx.prefix).run();
+    if((status==='failed'||status==='cancelled')&&hold)await releaseCredits(ctx,hold);
     if(status==='archiving'){
       const download=await topazRequest(key,'image/v1/download/'+row.provider_id);
       const url=publicMediaUrl(download.download_url||download.url);
@@ -97,10 +109,10 @@ export async function refreshTopaz(ctx:Ctx,id:string){
       const bytes=await limitedBytes(media),dims=imageDimensions(bytes);
       if(Math.abs(dims.width-data.width)>2||Math.abs(dims.height-data.height)>2)throw new StudioError('Topaz returned an unexpected image size. The result was not saved as the requested upscale.',502);
       const parent=data.parent;
-      const visual:Visual={...parent,id,src:'/api/assets/'+id,title:parent.title+' · HF3 upscale',status:'ready',createdAt:new Date(row.created_at).toISOString(),width:dims.width,height:dims.height,size:dims.width+'x'+dims.height,error:undefined,example:undefined,upscale:{modelId:TOPAZ_MODEL_ID,parentId:parent.id,parentSrc:parent.src,method:'topaz-api',credits:data.credits,processId:row.provider_id}};
+      const visual:Visual={...parent,id,src:'/api/assets/'+id,title:parent.title+' · HF3 upscale',status:'ready',createdAt:new Date(row.created_at).toISOString(),width:dims.width,height:dims.height,size:dims.width+'x'+dims.height,error:undefined,example:undefined,upscale:{modelId:TOPAZ_MODEL_ID,parentId:parent.id,parentSrc:parent.src,method:'topaz-api',processId:row.provider_id},credits:hold?await settleCredits(ctx,hold):0};
       await store.put(imageKey(ctx.prefix,id),bytes,{httpMetadata:{contentType:dims.type}});
       await store.put(ctx.prefix+'visuals/'+id+'.json',JSON.stringify(visual),{httpMetadata:{contentType:'application/json'}});
-      await db.prepare("UPDATE topaz_jobs SET status='ready',error=NULL,updated_at=? WHERE id=? AND owner=?").bind(Date.now(),id,ctx.prefix).run();
+      await db.prepare("UPDATE topaz_jobs SET status='ready',credits=?,error=NULL,updated_at=? WHERE id=? AND owner=?").bind(visual.credits??0,Date.now(),id,ctx.prefix).run();
     }
     return publicTopaz(ctx,await topazRow(ctx,id));
   }finally{await db.prepare('UPDATE topaz_jobs SET lock_until=0 WHERE id=? AND owner=?').bind(id,ctx.prefix).run()}

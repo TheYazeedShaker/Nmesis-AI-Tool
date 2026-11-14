@@ -7,6 +7,9 @@ import ts from 'typescript';
 import {DatabaseSync} from 'node:sqlite';
 import * as s3 from '@aws-sdk/client-s3';
 import * as signing from '@aws-sdk/s3-request-presigner';
+import {register} from 'node:module';
+// The credit statements are read from lib/credits/store.ts, whose own imports are extensionless.
+register('../scripts/verify/hooks.mjs',import.meta.url);
 async function moduleAt(path,imports={},extra={}){
  const scope=vm.createContext({Buffer,Response,Request,Headers,Blob,File,FormData,ReadableStream,TextEncoder,TextDecoder,Uint8Array,ArrayBuffer,URL,Date,Math,Number,Error,JSON,console,crypto,process:{env:{KEY_ENCRYPTION_SECRET:'ab'.repeat(32)}},...extra});
  const code=ts.transpileModule(readFileSync(new URL('../'+path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
@@ -21,8 +24,8 @@ test('placeholders become $1…$n once per statement, never inside literals, ide
  assert.equal(toPositional("SELECT * FROM t WHERE a=? AND b='?' AND c=\"?x\" AND d=?"),"SELECT * FROM t WHERE a=$1 AND b='?' AND c=\"?x\" AND d=$2");
  assert.equal(toPositional("SELECT 'it''s ?' AS x, ? -- why?\n, ? /* ? */ , ?"),"SELECT 'it''s ?' AS x, $1 -- why?\n, $2 /* ? */ , $3");
  assert.equal(toPositional('SELECT 1'),'SELECT 1');
- const {RESERVE_FILM_SQL,RESERVE_SWAP_SQL,RESERVE_IMAGE_SQL}=await import('../lib/film-policy.ts');
- for(const [sql,n] of [[RESERVE_FILM_SQL,8],[RESERVE_SWAP_SQL,8],[RESERVE_IMAGE_SQL,7]]){const out=toPositional(sql);assert.equal(out.includes('?'),false);assert.ok(out.includes('$'+n)&&!out.includes('$'+(n+1)))}
+ const credits=await import('../lib/credits/store.ts');
+ for(const [sql,n] of [[credits.LOCK_CREDITS_SQL,2],[credits.RESERVE_CREDITS_SQL,17],[credits.RECORD_ONLY_SQL,13],[credits.SETTLE_SQL,8],[credits.SETTLED_SQL,4],[credits.RELEASE_SQL,3]]){const out=toPositional(sql);assert.equal(out.includes('?'),false);assert.ok(out.includes('$'+n)&&!out.includes('$'+(n+1)))}
 });
 test('portable SQL adapter preserves rows, bind isolation, changes and transactional batches',async()=>{
  const sql=sqliteSql();try{

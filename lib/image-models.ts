@@ -26,7 +26,7 @@ export function geminiSize(value:unknown){
   if(value==='3840x2160')return '4K';
   throw new Error('Choose 1K, 2K or 4K for Nano Banana.');
 }
-export type GoogleConnectionStatus={connected:boolean;keySetup:boolean;sponsored?:boolean;models:string[];checkedAt?:string};
+export type GoogleConnectionStatus={connected:boolean;keySetup:boolean;sponsored?:boolean;models:string[];checkedAt?:string;nmesis?:boolean;ownKeys?:boolean;available?:boolean};
 
 export const HIGGSFIELD_IMAGE_MODEL='xai/grok-imagine-image-2.0';
 export const HIGGSFIELD_IMAGE_MODELS=[
@@ -61,16 +61,11 @@ export function higgsImageBody(prompt:string,size:string,imageUrls:string[],mode
  return{prompt,image_urls:imageUrls,resolution:size==='3840x2160'?'4k':size==='2048x1152'?'2k':'1k',aspect_ratio:'16:9',quality:info.max4k?'high':'medium',...(info.max4k?{enhance_prompt:false,moderation:'auto'}:{})};
 }
 
-export type HiggsBudget={connected:boolean;sponsored:boolean;dailyLimit:number;used:number;paused:boolean};
-export const imageMoney=(micros:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:3}).format(micros/1e6);
-export function imageBudgetIssue(b:Pick<HiggsBudget,'dailyLimit'|'used'|'paused'>,estimate:number){
- if(b.paused)return 'Higgsfield spending is paused in this studio. Resume spending in Higgsfield budget settings.';
- const remaining=Math.max(0,b.dailyLimit-b.used);
- if(estimate>remaining)return `This image needs ${imageMoney(estimate)}, but only ${imageMoney(remaining)} remains of your ${imageMoney(b.dailyLimit)} daily Higgsfield budget. Images and videos share this limit. Increase it in budget settings or wait until midnight UTC.`;
- return '';
-}
+// The video connection as the pages see it (lib/film-server.ts connectionState).
+export type HiggsBudget={connected:boolean;sponsored:boolean;ownKeys?:boolean;nmesis?:boolean;available?:boolean};
 
-// This is a studio reservation, never a provider quote or a billing ceiling.
+// What a token-priced Higgsfield image records as its provider estimate (USD micros).
+// Its credits come from the cost table instead (lib/credits/pricing.ts).
 export const TOKEN_IMAGE_RESERVATION=2_000_000;
 export function tokenImagePricing(result:unknown){
  const d=result as {type?:unknown;pricing_description?:unknown};

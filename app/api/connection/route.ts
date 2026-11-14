@@ -2,7 +2,8 @@ export const runtime='nodejs';
 export const maxDuration=300;
 import {context,fail,StudioError,providerError} from '@/lib/studio-server';
 import {requireKeySecret} from '@/lib/secret-crypto';
-import {apiKey,saveKey,removeKey} from '@/lib/credentials';
+import {openaiKey,saveKey,removeKey} from '@/lib/credentials';
+import {NMESIS_PROVIDES} from '@/lib/org-keys';
 function sameOrigin(request:Request){
  if(request.headers.get('origin')!==new URL(request.url).origin)throw new StudioError('Open connection settings in your studio to continue.',403);
 }
@@ -29,7 +30,9 @@ export async function DELETE(request:Request){try{
 
 // A read-only check distinguishes a saved credential from actual model access.
 export async function GET(request:Request){try{
- const ctx=await context(request),key=await apiKey(ctx),model=ctx.OPENAI_IMAGE_MODEL||'gpt-image-2.5-sunburst';
+ const ctx=await context(request),cred=await openaiKey(ctx),key=cred.key,model=ctx.OPENAI_IMAGE_MODEL||'gpt-image-2.5-sunburst';
+ // Without the company's own key there is nothing of theirs to check.
+ if(!cred.own)return Response.json({model,nmesis:true,notice:NMESIS_PROVIDES},{headers:{'Cache-Control':'no-store'}});
  if(!key)throw new StudioError('Connect OpenAI before checking access.',503);
  const r=await fetch('https://api.openai.com/v1/models/'+encodeURIComponent(model),{headers:{Authorization:'Bearer '+key},signal:AbortSignal.timeout(20000),redirect:'manual'});
  if(!r.ok)throw await providerError(r);

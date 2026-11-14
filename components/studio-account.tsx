@@ -1,7 +1,8 @@
 'use client';
 import {useEffect,useState} from 'react';
 import Link from 'next/link';
-import {Aperture,Building2,Check,ChevronsUpDown,Eye,LogOut,Lock,Info} from 'lucide-react';
+import {Aperture,Building2,Check,ChevronsUpDown,Eye,LogOut,Lock,Info,Settings} from 'lucide-react';
+import {CreditBanner,CreditMeter} from '@/components/credits';
 import {Command,CommandEmpty,CommandGroup,CommandInput,CommandItem,CommandList} from '@/components/ui/command';
 import {Popover,PopoverTrigger,PopoverContent} from '@/components/ui/popover';
 import {FEATURE_LABELS,type FeatureKey} from '@/lib/accounts/plan';
@@ -33,7 +34,9 @@ export function AccountBar(){
  return <div className="account-bar">
   {account.orgs.length>1?<CompanySwitcher account={account} busy={busy} onChoose={id=>void choose(id)}/>
    :<span className="account-org"><Building2 size={14}/>{account.org.name}</span>}
+  {account.workspace.open&&<CreditMeter/>}
   <span className="account-role">{account.viewingAs?'Staff':ROLE_LABEL[account.role]}</span>
+  {(account.role==='owner'&&!account.internal||account.viewingAs)&&<Link href="/company" className="account-company" aria-label="Company settings" title="Company settings"><Settings size={14}/></Link>}
   {problem&&<span className="account-problem" role="alert">{problem}</span>}
   <form method="post" action="/auth/signout"><button className="secondary" type="submit" title={'Signed in as '+account.user.email}><LogOut size={14}/>Sign out</button></form>
  </div>;
@@ -56,7 +59,8 @@ function CompanySwitcher({account,busy,onChoose}:{account:AccountSummary;busy:bo
    </CommandList>
   </Command></PopoverContent></Popover>;
 }
-// Under the top bar: staff "Viewing as", a refused company link, and a paused subscription.
+// Under the top bar: staff "Viewing as" (with support access), a refused company
+// link, no plan or a paused subscription, and the 80% / 100% credit banner.
 export function AccountNotices(){
  const account=useAccount();
  // A deep link (/?org=…) the server refused, or could not open, lands here once.
@@ -65,9 +69,12 @@ export function AccountNotices(){
  const w=account.workspace;
  return <>
   {opened==='refused'&&<div className="viewing-as" role="status"><Info size={16}/><span>That company link isn’t open to you, so you are in <b>{account.org.name}</b>.</span></div>}
+  {opened==='support'&&<div className="viewing-as" role="status"><Info size={16}/><span>Support access not granted for that company, so you are in <b>{account.org.name}</b>. Its owner can allow it in Company settings.</span></div>}
   {opened==='failed'&&<div className="viewing-as" role="status"><Info size={16}/><span>That company link could not be opened. Try it again, or choose the company here.</span></div>}
-  {account.viewingAs&&<div className="viewing-as" role="status"><Eye size={16}/><span>Viewing as <b>{account.org.name}</b>. Read-only; this visit is logged.</span></div>}
-  {!w.open&&<div className="workspace-closed" role="status"><Lock size={16}/><span>{w.libraryOpen?'Your company’s Studio subscription is not active, so new work is paused.'+(w.libraryUntil?` Your library stays viewable until ${w.libraryUntil}.`:' Your library stays viewable.'):'Your company’s Studio subscription has ended and its library is no longer available here.'} Ask Nmesis to reopen it.</span></div>}
+  {account.viewingAs&&<div className="viewing-as" role="status"><Eye size={16}/><span>Viewing as <b>{account.org.name}</b> with support access{account.supportUntil?` until ${new Date(account.supportUntil).toLocaleString()}`:''}. Read-only; every opening is logged and the company’s owner can see it.</span></div>}
+  {!w.open&&w.noPlan&&<div className="workspace-closed" role="status"><Lock size={16}/><span>Your Studio isn’t part of your plan yet. Ask Nmesis.</span></div>}
+  {w.open&&<CreditBanner/>}
+  {!w.open&&!w.noPlan&&<div className="workspace-closed" role="status"><Lock size={16}/><span>{w.libraryOpen?'Your company’s Studio subscription is not active, so new work is paused.'+(w.libraryUntil?` Your library stays viewable until ${w.libraryUntil}.`:' Your library stays viewable.'):'Your company’s Studio subscription has ended and its library is no longer available here.'} Ask Nmesis to reopen it.</span></div>}
   {w.open&&account.role==='viewer'&&!account.viewingAs&&<div className="viewing-as" role="status"><Info size={16}/><span>You can look at your company’s work. Ask your company’s owner for creator access to make new work.</span></div>}
  </>;
 }

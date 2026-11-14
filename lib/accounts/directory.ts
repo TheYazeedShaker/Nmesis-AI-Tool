@@ -14,6 +14,9 @@ export type Directory={
  entitlements(orgId:string):Promise<Entitlements|null>;
  cars(orgId:string|null):Promise<Car[]>;
  acceptInvitations(userId:string):Promise<number>;
+ // The clients that grant Nmesis support access now: org id → until (epoch ms),
+ // as the given member of staff may read them (studio.support_grants, RLS).
+ supportGrants(userId:string):Promise<Map<string,number>>;
 };
 export const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 import {ttlCache} from './cache';
@@ -37,6 +40,11 @@ export function postgresDirectory(db:StudioDatabase):Directory{
     :await db.prepare('SELECT c.brand_id,c.model_id,c.brand_name,c.model_name,c.configurator_url,s.capture_template FROM accounts.studio_live_cars c LEFT JOIN studio.car_settings s ON s.brand_id=c.brand_id AND s.model_id=c.model_id ORDER BY c.brand_name,c.model_name').all<Record<string,unknown>>();
    return rows.results.map(r=>({brandId:String(r.brand_id),modelId:String(r.model_id),brandName:String(r.brand_name||r.brand_id),modelName:String(r.model_name||r.model_id),path:String(r.configurator_url||''),template:String(r.capture_template||'capture')}));
   }),
+  async supportGrants(userId){
+   if(!UUID.test(userId))return new Map();
+   try{const rows=await db.forUser(userId).prepare('SELECT org_id,until FROM studio.support_grants WHERE until>CAST(? AS BIGINT)').bind(Date.now()).all<{org_id:string;until:number}>();return new Map(rows.results.map(r=>[String(r.org_id),Number(r.until)]))}
+   catch(e){console.error('Support grants could not be read; no client is open to staff',e instanceof Error?e.name:'UnknownError');return new Map()}
+  },
   async acceptInvitations(userId){if(!UUID.test(userId))return 0;const r=await db.prepare('SELECT accounts.studio_accept_membership(?::uuid) AS n').bind(userId).first<{n:number}>();return Number(r?.n)||0},
  };
 }

@@ -1,10 +1,11 @@
-import {apiKey} from './credentials';
+import {openaiKey} from './credentials';
+import {releaseCredits,reserveCredits,settleCredits} from './credits/charge';
 import {bucket,imageKey,StudioError,validId,str,type StudioEnv} from './studio-server';
 import {geminiImageModel,imageSettings,openaiImageModel} from './image-models';
 import {SMART_VERSION,smartPriority,parseSmartAnalysis,smartPrompt,type SmartInput,type SmartPlan} from './smart-reference';
 import {nanoDetailInputs} from './nano-detail-inputs';
 import {noCreditMessage,NO_CREDIT_STATUS,outOfCredit} from './provider-credit';
-type Context=StudioEnv&import("./org-keys").KeyContext;
+type Context=StudioEnv&import("./org-keys").KeyContext&Pick<import("./studio-server").RequestContext,'org'|'userId'|'account'>;
 const textField={type:'string',maxLength:1500},listField={type:'array',items:{type:'string',maxLength:700},maxItems:10};
 const ANALYSIS_SCHEMA={type:'object',additionalProperties:false,required:['carDetails','sceneDetails','conflicts','captureAdvice','viewCompatibility','detailRegions','renderInstructions'],properties:{carDetails:listField,sceneDetails:listField,conflicts:listField,captureAdvice:textField,viewCompatibility:{type:'string',enum:['similar','different','uncertain']},detailRegions:{type:'array',maxItems:3,items:{type:'object',additionalProperties:false,required:['label','x','y','width','height'],properties:{label:{type:'string',maxLength:100},x:{type:'number',minimum:0,maximum:.98},y:{type:'number',minimum:0,maximum:.98},width:{type:'number',minimum:.02,maximum:1},height:{type:'number',minimum:.02,maximum:1}}}},renderInstructions:{type:'string',minLength:40,maxLength:5000}}};
 const REVIEW_SCHEMA={type:'object',additionalProperties:false,required:['verdict','carFindings','sceneFindings','suggestedFix'],properties:{verdict:{type:'string',enum:['no-obvious-mismatch','needs-review','uncertain']},carFindings:listField,sceneFindings:listField,suggestedFix:textField}};
@@ -19,8 +20,14 @@ export async function referenceImages(ctx:Context,ids:string[]){
  const store=bucket(ctx.BUCKET),images:{bytes:Uint8Array;type:string;etag?:string}[]=[];let total=0;
  for(const id of ids){if(!validId(id))throw new StudioError('Invalid reference.');const a=await store.get(imageKey(ctx.prefix,id));if(!a)throw new StudioError('A reference is missing. Select it again.',404);total+=a.size;if(total>20_000_000)throw new StudioError('Use reference images under 20 MB total.');images.push({bytes:new Uint8Array(await a.arrayBuffer()),type:a.httpMetadata?.contentType||'image/png',etag:a.etag})}return images;
 }
-export async function visionJson(ctx:Context,instructions:string,text:string,images:{bytes:Uint8Array;type:string}[],kind:'plan'|'review'='plan'){
- const key=await apiKey(ctx);if(!key)throw new StudioError('Connect OpenAI to use Smart reference prompts.',503);
+// One paid OpenAI analysis, charged in credits; `used.credits` receives what it cost.
+export async function visionJson(ctx:Context,instructions:string,text:string,images:{bytes:Uint8Array;type:string}[],kind:'plan'|'review'='plan',used?:{credits:number}){
+ const cred=await openaiKey(ctx),key=cred.key;if(!key)throw new StudioError('Smart reference prompts are not connected on this Studio yet.',503);
+ const hold=await reserveCredits(ctx,{tool:'studio.smart_reference',action:kind==='plan'?'Smart prompt':'Image check',provider:'openai',own:cred.own,cost:'openai.text'});
+ let value:Awaited<ReturnType<typeof visionCall>>;try{value=await visionCall(ctx,key,instructions,text,images,kind)}catch(e){throw await releaseCredits(ctx,hold,e)}
+ const credits=await settleCredits(ctx,hold);if(used)used.credits=credits;return value;
+}
+async function visionCall(ctx:Context,key:string,instructions:string,text:string,images:{bytes:Uint8Array;type:string}[],kind:'plan'|'review'){
  let r:Response;try{r=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},redirect:'manual',signal:AbortSignal.timeout(120000),body:JSON.stringify({model:ctx.OPENAI_TEXT_MODEL||'gpt-5-mini',store:false,max_output_tokens:10000,instructions,input:[{role:'user',content:[{type:'input_text',text:'Analyze these references and return the requested JSON object. Input settings:\n'+text},...images.map(i=>({type:'input_image',image_url:'data:'+i.type+';base64,'+Buffer.from(i.bytes).toString('base64'),detail:'high'}))]}],text:{format:{type:'json_schema',name:kind==='plan'?'reference_plan':'reference_review',strict:true,schema:kind==='plan'?ANALYSIS_SCHEMA:REVIEW_SCHEMA}}})})}catch{throw new StudioError('OpenAI reference analysis was interrupted. No automatic retry was made.',504)}
  if(!r.ok){
   const failure:any=await r.json().catch(()=>({})),code=String(failure.error?.code||'');
@@ -44,11 +51,12 @@ export async function buildSmartPlan(ctx:Context,input:SmartInput){
  const existingLock=await store.get(cache+'.lock');let lockCondition:{etagMatches:string}|{etagDoesNotMatch:string}={etagDoesNotMatch:'*'};
  if(existingLock){const state=await existingLock.json<{createdAt:number}>();if(Date.now()-state.createdAt<300000)throw new StudioError('This reference plan is already being prepared. Wait for it to finish before trying again.',409);lockCondition={etagMatches:existingLock.etag}}
  const lock=await store.put(cache+'.lock',JSON.stringify({createdAt:Date.now()}),{onlyIf:lockCondition});if(!lock)throw new StudioError('This reference plan is already being prepared. Wait for it to finish before trying again.',409);
- try{const output=await visionJson(ctx,INSTRUCTIONS,JSON.stringify(input),images);let parsed;try{parsed=parseSmartAnalysis(output)}catch(e){throw new StudioError('OpenAI returned an invalid plan: '+(e as Error).message+' No image generation was started.',502)}
+ const used={credits:0};
+ try{const output=await visionJson(ctx,INSTRUCTIONS,JSON.stringify(input),images,'plan',used);let parsed;try{parsed=parseSmartAnalysis(output)}catch(e){throw new StudioError('OpenAI returned an invalid plan: '+(e as Error).message+' No image generation was started.',502)}
  // Use only crops that this source format can supply; never claim missing anchors were attached.
  if(parsed.detailRegions.length){try{nanoDetailInputs(images[0],parsed.detailRegions)}catch{parsed.detailRegions=[];parsed.conflicts.push('Detail crops could not be prepared from this source; the full car image will still be supplied.')}}
  const plan:SmartPlan={...input,...parsed,id,version:SMART_VERSION,createdAt:new Date().toISOString(),analysisModel:ctx.OPENAI_TEXT_MODEL||'gpt-5-mini',sourceEtag:images[0].etag,moodEtag:images[1].etag,prompt:''};plan.prompt=smartPrompt(plan);
- await store.put(cache,JSON.stringify(plan),{httpMetadata:{contentType:'application/json'}});return{plan,cached:false};
+ await store.put(cache,JSON.stringify(plan),{httpMetadata:{contentType:'application/json'}});return{plan,cached:false,credits:used.credits};
  }finally{await store.delete(cache+'.lock')}
 }
 export async function loadSmartPlan(ctx:Context,d:any){

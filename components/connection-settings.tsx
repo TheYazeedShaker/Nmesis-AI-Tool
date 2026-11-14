@@ -2,7 +2,8 @@
 import {useState} from 'react';
 import {KeyRound,LoaderCircle,ShieldCheck,Trash2} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
-export type ConnectionStatus={generation:boolean;storage:boolean;personalKey?:boolean;keySetup?:boolean;signedOut?:boolean;sponsored?:boolean;sponsorPending?:boolean;ownKeys?:boolean};
+import {NmesisProvides} from '@/components/credits';
+export type ConnectionStatus={generation:boolean;storage:boolean;personalKey?:boolean;keySetup?:boolean;signedOut?:boolean;sponsored?:boolean;sponsorPending?:boolean;ownKeys?:boolean;nmesis?:boolean};
 export function ConnectionSettings({open,onOpenChange,status,onUpdate}:{open:boolean;onOpenChange:(value:boolean)=>void;status:ConnectionStatus|null;onUpdate:()=>Promise<void>}){
  const [key,setKey]=useState('');const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');
  async function check(){setBusy(true);setError('');setNotice('');try{const r=await fetch('/api/connection',{cache:'no-store',signal:AbortSignal.timeout(30000)});const d=await r.json() as {error?:string;notice:string};if(!r.ok)throw new Error(d.error||'Access check failed.');setNotice(d.notice)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
@@ -15,7 +16,9 @@ export function ConnectionSettings({open,onOpenChange,status,onUpdate}:{open:boo
    setNotice(remove?'Your saved key has been removed.':data.notice);await onUpdate();
   }catch(e){setError(e instanceof Error?e.message:'Connection failed. Please try again.')}finally{setKey('');setBusy(false)}
  }
- return <Dialog open={open} onOpenChange={changeOpen}><DialogContent className="connection-dialog"><DialogTitle><span className="connection-title"><KeyRound size={21}/>OpenAI connection</span></DialogTitle><DialogDescription>{status?.sponsored?"Your company’s owner manages the OpenAI connection. Image generation is billed to your company.":"Connect your OpenAI account to create key visuals. Generation is billed to that account."}</DialogDescription>
+ // Without studio.own_keys there are no key fields: Nmesis provides the AI.
+ if(status&&!status.ownKeys)return <Dialog open={open} onOpenChange={changeOpen}><DialogContent className="connection-dialog"><DialogTitle><span className="connection-title"><KeyRound size={21}/>AI connection</span></DialogTitle><DialogDescription>Key visuals, area edits and smart references use the AI Nmesis provides. Each action shows its cost in credits before it starts.</DialogDescription><NmesisProvides provider="openai"/></DialogContent></Dialog>;
+ return <Dialog open={open} onOpenChange={changeOpen}><DialogContent className="connection-dialog"><DialogTitle><span className="connection-title"><KeyRound size={21}/>OpenAI connection</span></DialogTitle><DialogDescription>{status?.sponsored?"Your company’s owner manages the company’s own OpenAI key. Without it, Nmesis provides the AI and your company spends credits.":"Your plan includes your own provider keys. With your OpenAI key connected, generation is billed to that account and costs 0 credits; without it, Nmesis provides the AI and your company spends credits."}</DialogDescription>
  <div className="key-status"><ShieldCheck size={19}/><span>{status?.sponsored?(status.generation?'Connected through your company':'Waiting for your company’s owner'):status?.personalKey?'Your key is connected':status?.generation?'Studio connection is active':'Add your API key'}<small>{status?.sponsored?'You do not need to enter an API key.':status?.personalKey?'The saved key is never displayed again.':'Your key stays private to your signed-in account.'}</small></span></div>
  {!status?.sponsored&&<form onSubmit={e=>{e.preventDefault();void submit()}}>
  <label className="field-label" htmlFor="openai-key">{status?.personalKey?'Replace your API key':'OpenAI API key'}</label>

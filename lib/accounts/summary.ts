@@ -14,7 +14,10 @@ export function accountSummary(ctx:StudioContext,now=Date.now()){
   switcher:switcherSections(ctx),
   staff:!!ctx.staff,
   viewingAs:ctx.viewingAs,
-  plan:{name:ctx.entitlements.planName,legacy:ctx.entitlements.legacy},
+  // Staff with support access: when the client's grant ends.
+  supportUntil:ctx.supportUntil?new Date(ctx.supportUntil).toISOString():null,
+  internal:ctx.org.kind==='internal',
+  plan:{name:ctx.entitlements.planName,legacy:ctx.entitlements.legacy,none:!!ctx.entitlements.noPlan},
   features:Object.fromEntries(FEATURES.map(k=>[k,featureOn(ctx.entitlements,k)])),
   upsell:UPSELL_PLAN,
   maxEdge:maxEdge(ctx.entitlements),
@@ -22,7 +25,8 @@ export function accountSummary(ctx:StudioContext,now=Date.now()){
  };
 }
 export type AccountSummary=ReturnType<typeof accountSummary>;
-// A member of staff opening a client's workspace, recorded in the studio's own log.
+// A member of staff opening a client's workspace (with its support grant), recorded
+// in the studio's own log, which the client's owners can read in Company settings.
 export async function logStaffView(db:StudioDatabase|undefined,ctx:StudioContext,path:string){
  if(!ctx.viewingAs||!ctx.staff)return;
  console.info('Staff viewing as',JSON.stringify({staff:ctx.user.id,org:ctx.org.id,path}));

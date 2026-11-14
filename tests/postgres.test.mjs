@@ -13,6 +13,9 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import postgres from 'postgres';
+import {register} from 'node:module';
+// lib/credits/store.ts uses extensionless imports, like the rest of lib/.
+register('../scripts/verify/hooks.mjs',import.meta.url);
 
 const ADMIN=process.env.TEST_DATABASE_URL;
 const skip=ADMIN?false:'TEST_DATABASE_URL is not set: Postgres adapter, migration and privilege tests skipped';
@@ -21,15 +24,19 @@ const PASSWORD='local-test-password-0123456789';
 // Stands in for hosted Supabase's SQL-editor user (not a superuser; CREATEROLE).
 const SETUP_ROLE='studio_setup_test';
 const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log'];
-const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql'];
+const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql'];
+// S3: the credits and support-access tables (their own tests below).
+const CREDIT_TABLES=['credit_accounts','credit_holds','support_grants'];
 // Synthetic companies and people in the accounts fixture.
 const ORG_A='0000000a-0000-4000-8000-00000000000a',ORG_B='0000000b-0000-4000-8000-00000000000b',ORG_N='00000001-0000-4000-8000-000000000001';
+// Company C and its owner and creator: the credits and support-access tests.
+const ORG_C='0000000c-0000-4000-8000-00000000000c',USER_C='00000000-0000-4000-8000-0000000000e1',USER_D='00000000-0000-4000-8000-0000000000e2';
 const USER_A='00000000-0000-4000-8000-0000000000a1',USER_B='00000000-0000-4000-8000-0000000000b1',INVITED='00000000-0000-4000-8000-0000000000c1',STAFF='00000000-0000-4000-8000-0000000000d1';
 const ownerOf=(org,user)=>`orgs/${org}/users/${user}/`;
 const asRole=(url,user,password)=>{const u=new URL(url);u.username=user;u.password=password;return u.href};
 const ssl=url=>/[?&]sslmode=disable\b/.test(url)?false:'require';
 
-let admin,setupUser,appUrl,migrate,connect,StudioDatabase,toPositional,policy;
+let admin,setupUser,appUrl,migrate,connect,StudioDatabase,toPositional,CreditStore,LOCK_CREDITS_SQL,RESERVE_CREDITS_SQL;
 const setupSql=()=>readFileSync(new URL('../docs/supabase-setup.sql',import.meta.url),'utf8').replaceAll('REPLACE_WITH_A_LONG_RANDOM_PASSWORD',PASSWORD);
 const migrationSql=name=>readFileSync(new URL('../supabase/migrations/'+name,import.meta.url),'utf8');
 after(async()=>{await setupUser?.end({timeout:5});await admin?.end({timeout:5})});
@@ -63,13 +70,15 @@ async function setup(){
    for t in select tablename from pg_tables where schemaname='accounts' loop execute format('alter table accounts.%I owner to ${SETUP_ROLE}',t); end loop;
   end $$;
   alter function accounts.entitlements(uuid) owner to ${SETUP_ROLE};
+  alter function accounts.credits_balance(uuid) owner to ${SETUP_ROLE};
+  alter function accounts.refuse_change() owner to ${SETUP_ROLE};
   grant usage on schema auth to ${SETUP_ROLE}; grant select on auth.users to ${SETUP_ROLE};`);
  setupUser=postgres(asRole(ADMIN,SETUP_ROLE,PASSWORD),{max:1,prepare:false,ssl:ssl(ADMIN),onnotice:()=>{}});
  const [who]=await setupUser`select rolsuper,rolcreaterole from pg_roles where rolname=current_user`;
  assert.deepEqual({...who},{rolsuper:false,rolcreaterole:true},'the setup SQL runs as a non-superuser with CREATEROLE');
- await admin.unsafe(`insert into auth.users(id,email) values ('${USER_A}','a@example.test'),('${USER_B}','b@example.test'),('${INVITED}','invited@example.test'),('${STAFF}','staff@example.test') on conflict (id) do nothing;
-  insert into accounts.organisations(id,name,kind) values ('${ORG_A}','Company A','client'),('${ORG_B}','Company B','client'),('${ORG_N}','Nmesis','internal') on conflict (id) do nothing;
-  insert into accounts.members(org_id,user_id,role,status) values ('${ORG_A}','${USER_A}','owner','active'),('${ORG_B}','${USER_B}','owner','active'),('${ORG_A}','${INVITED}','creator','invited')
+ await admin.unsafe(`insert into auth.users(id,email) values ('${USER_C}','c@example.test'),('${USER_D}','d@example.test'),('${USER_A}','a@example.test'),('${USER_B}','b@example.test'),('${INVITED}','invited@example.test'),('${STAFF}','staff@example.test') on conflict (id) do nothing;
+  insert into accounts.organisations(id,name,kind) values ('${ORG_C}','Company C','client'),('${ORG_A}','Company A','client'),('${ORG_B}','Company B','client'),('${ORG_N}','Nmesis','internal') on conflict (id) do nothing;
+  insert into accounts.members(org_id,user_id,role,status) values ('${ORG_C}','${USER_C}','owner','active'),('${ORG_C}','${USER_D}','creator','active'),('${ORG_A}','${USER_A}','owner','active'),('${ORG_B}','${USER_B}','owner','active'),('${ORG_A}','${INVITED}','creator','invited')
    on conflict (org_id,user_id) do update set status=excluded.status, role=excluded.role;
   insert into accounts.staff(user_id,name,role,active) values ('${STAFF}','Staff','ops',true) on conflict (user_id) do nothing;`);
  await setupUser.unsafe(setupSql());
@@ -79,7 +88,7 @@ async function setup(){
  appUrl=asRole(ADMIN,'studio_app',PASSWORD);
  ({migrate}=await import('../scripts/migrate.mjs'));
  ({connect,StudioDatabase,toPositional}=await import('../lib/portable/database.ts'));
- policy=await import('../lib/film-policy.ts');
+ ({CreditStore,LOCK_CREDITS_SQL,RESERVE_CREDITS_SQL}=await import('../lib/credits/store.ts'));
 }
 
 test('migrations apply once, are idempotent, and refuse a changed file',{skip},async()=>{
@@ -106,14 +115,14 @@ test('every table has org_id and RLS; anon/authenticated are refused; studio_app
  const tables=await admin`select c.relname, c.relrowsecurity, pg_get_userbyid(c.relowner) as owner,
    exists(select 1 from information_schema.columns k where k.table_schema='studio' and k.table_name=c.relname and k.column_name='org_id' and k.is_nullable='NO') as org_id
    from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relkind='r' order by 1`;
- assert.deepEqual(tables.map(t=>t.relname).sort(),['__studio_migrations','car_settings',...TABLES].sort());
+ assert.deepEqual(tables.map(t=>t.relname).sort(),['__studio_migrations','car_settings',...TABLES,...CREDIT_TABLES].sort());
  for(const t of tables){assert.equal(t.relrowsecurity,true,t.relname+' RLS');assert.equal(t.owner,'studio_app');if(!['__studio_migrations','car_settings'].includes(t.relname))assert.equal(t.org_id,true,t.relname+' org_id')}
  const forced=await admin`select c.relname, c.relforcerowsecurity as forced, (select count(*)::int from pg_policy p where p.polrelid=c.oid) as policies
    from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relkind='r' and c.relname<>'__studio_migrations'`;
- for(const t of forced){assert.equal(t.forced,true,t.relname+' forced RLS');assert.equal(t.policies,1,t.relname+' one policy')}
+ for(const t of forced){assert.equal(t.forced,true,t.relname+' forced RLS');assert.equal(t.policies,t.relname==='support_grants'?4:1,t.relname+' policies')}
  const [role]=await admin`select rolsuper,rolbypassrls,rolinherit,rolcanlogin from pg_roles where rolname='studio_app'`;
  assert.deepEqual({...role},{rolsuper:false,rolbypassrls:false,rolinherit:false,rolcanlogin:true});
- for(const api of ['anon','authenticated'])for(const table of TABLES)
+ for(const api of ['anon','authenticated'])for(const table of [...TABLES,...CREDIT_TABLES])
   await assert.rejects(()=>admin.begin(async tx=>{await tx.unsafe('set local role '+api);await tx.unsafe('select * from studio.'+table)}),/permission denied/);
  const app=postgres(appUrl,{max:1,prepare:false,ssl:ssl(appUrl),onnotice:()=>{}});
  try{
@@ -141,36 +150,6 @@ test('the adapter translates placeholders and returns rows, columns, changes and
   const none=await db.prepare('UPDATE storyboards SET lock_until=0 WHERE id=?').bind('missing').run();assert.equal(none.meta.changes,0);
   // SUM over bigint is numeric in Postgres; the studio casts it back to a number.
   const budget=await db.prepare('SELECT CAST(COALESCE((SELECT SUM(estimate) FROM films WHERE payer=?),0) AS BIGINT) AS amount').bind(owner).first('amount');assert.equal(budget,0);
- }finally{await sql.end({timeout:5})}
-});
-
-for(const kind of ['film','swap','image'])test(`${kind} reservations: of two overlapping reservations within one budget only one wins`,{skip},async()=>{
- await setup();const sql=connect(appUrl);const db=new StudioDatabase(sql).forUser(USER_A);
- const table={film:'films',swap:'swap_jobs',image:'image_jobs'}[kind],K=kind.toUpperCase();
- // A raw transaction says who is asking, as the adapter does for every statement.
- const asUser=tx=>tx`select set_config('studio.user_id', ${USER_A}, true)`;
- const LOCK=policy[`LOCK_${K}_BUDGET_SQL`],RESERVE=policy[`RESERVE_${K}_SQL`];
- const owner=ownerOf(ORG_A,USER_A),payer='orgs/'+ORG_A+'/keys/'+kind+'/',day='2026-11-11',now=Date.now();
- const args=id=>kind==='image'?[day,now,id,owner,day,day,day]:[day,now,now+150000,id,owner,day,day,day];
- try{
-  await db.prepare('INSERT INTO film_budgets(payer,org_id,daily_limit) VALUES(?,?,?)').bind(payer,ORG_A,100).run();
-  for(const id of [kind+'-job-a',kind+'-job-b',kind+'-job-c',kind+'-job-d'])
-   await db.prepare(`INSERT INTO ${table}(id,org_id,owner,payer,status,data,estimate,created_at,updated_at) VALUES(?,?,?,?,'quoted','{}',60,?,?)`).bind(id,ORG_A,owner,payer,now,now).run();
-  // A holds the budget lock and has reserved but not committed; B starts meanwhile.
-  let release;const gate=new Promise(r=>{release=r});let reservedA;
-  const a=sql.begin(async tx=>{await asUser(tx);await tx.unsafe(...q(LOCK,[kind+'-job-a',owner]));reservedA=(await tx.unsafe(...q(RESERVE,args(kind+'-job-a')))).count;await gate});
-  await until(()=>reservedA!==undefined);
-  const b=db.batch([db.prepare(LOCK).bind(kind+'-job-b',owner),db.prepare(RESERVE).bind(...args(kind+'-job-b'))]);
-  await new Promise(r=>setTimeout(r,200));release();await a;
-  const [,resultB]=await b;
-  assert.equal(reservedA,1);assert.equal(resultB.meta.changes,0);
-  // Control: without the lock, the same overlap lets both through (why the lock exists).
-  await db.prepare('UPDATE film_budgets SET daily_limit=150 WHERE payer=?').bind(payer).run();
-  let releaseC;const gateC=new Promise(r=>{releaseC=r});let reservedC;
-  const c=sql.begin(async tx=>{await asUser(tx);reservedC=(await tx.unsafe(...q(RESERVE,args(kind+'-job-c')))).count;await gateC});
-  await until(()=>reservedC!==undefined);
-  const d=await db.prepare(RESERVE).bind(...args(kind+'-job-d')).run();releaseC();await c;
-  assert.equal(reservedC,1);assert.equal(d.meta.changes,1,'unlocked reservations overlap: 180 reserved against a 150 limit');
  }finally{await sql.end({timeout:5})}
 });
 
@@ -243,4 +222,143 @@ test('the accounts views give the studio role what it needs and nothing else',{s
   await assert.rejects(()=>app`select * from auth.users`,/permission denied/);
   await assert.rejects(()=>app`update accounts.studio_memberships set role='owner'`,/permission denied|cannot update/);
  }finally{await app.end({timeout:5})}
+});
+
+// ── S3: credits on Postgres (V1, V2, record_usage, the views) ────────────────
+// The ledger is append-only, so every test spends in a company of its own: USER_C
+// is its owner and USER_D a creator. Its plan grants `monthly` credits a month
+// from a subscription that started today.
+let orgCount=0;
+async function companyWith(monthly){
+ const org=`0000c${String(++orgCount).padStart(3,'0')}-0000-4000-8000-${String(Date.now()).slice(-12).padStart(12,'0')}`;
+ await admin.unsafe(`insert into accounts.organisations(id,name,kind) values ('${org}','Credits ${orgCount}','client');
+  insert into accounts.members(org_id,user_id,role,status) values ('${org}','${USER_C}','owner','active'),('${org}','${USER_D}','creator','active');
+  insert into accounts.plan_features(plan_id,feature_key,value) values ('credits-${monthly}','studio.credits_monthly','${monthly}'::jsonb) on conflict (plan_id,feature_key) do nothing;
+  insert into accounts.subscriptions(org_id,plan_id,status,starts_on) values ('${org}','credits-${monthly}','active',(now() at time zone 'utc')::date);`);
+ return org;
+}
+const holdFor=(org,i,credits=10)=>({id:`hold-${org.slice(0,8)}-${String(i).padStart(3,'0')}`,org,actor:USER_C,tool:'studio.key_visuals',action:'Key visual',provider:'openai',billing:'credits',credits,costMicros:credits*40000,expiresAt:Date.now()+600_000});
+const settleOf=(h,credits=h.credits)=>({holdId:h.id,org:h.org,actor:h.actor,tool:h.tool,credits,provider:h.provider,costUsd:h.costMicros/1e6,action:h.action});
+const balanceOf=async org=>(await admin`select accounts.credits_balance(${org}::uuid) as b`)[0].b;
+
+test('V1 credits: 20 concurrent actions against a balance that fits 10: exactly 10 hold, and the ledger and holds add up',{skip},async()=>{
+ await setup();const org=await companyWith(100);
+ process.env.DATABASE_POOL_MAX='24';const sql=connect(appUrl);delete process.env.DATABASE_POOL_MAX;
+ try{
+  const store=new CreditStore(new StudioDatabase(sql).forUser(USER_C));
+  const holds=Array.from({length:20},(_,i)=>holdFor(org,i));
+  const won=await Promise.all(holds.map(h=>store.reserve(h)));
+  console.log('# V1 reservations (20 concurrent, 10 credits each, 100 available):',won.map(Number).join(''));
+  assert.equal(won.filter(Boolean).length,10,'exactly 10 succeed');
+  const [held]=await admin`select count(*)::int as n, coalesce(sum(credits),0)::int as credits from studio.credit_holds where org_id=${org} and status='held'`;
+  assert.deepEqual({...held},{n:10,credits:100},'ten holds of 10 credits');
+  // The ten winners settle concurrently (twice each: a retried settlement is recorded once).
+  const winners=holds.filter((_,i)=>won[i]);
+  await Promise.all([...winners,...winners].map(h=>store.settle(settleOf(h))));
+  const [ledger]=await admin`select count(*)::int as rows, count(distinct ref)::int as refs, coalesce(-sum(credits),0)::int as spent, coalesce(sum(provider_cost_usd),0)::float as cost from accounts.usage_ledger where org_id=${org}`;
+  assert.deepEqual({...ledger},{rows:10,refs:10,spent:100,cost:4},'ten ledger rows, 100 credits, the provider cost kept for Nmesis');
+  const [settled]=await admin`select count(*)::int as n, coalesce(sum(charged),0)::int as charged from studio.credit_holds where org_id=${org} and status='settled'`;
+  assert.deepEqual({...settled},{n:10,charged:100},'every winner settled, none left held');
+  assert.equal(Number((await balanceOf(org)).total),0,'the balance is spent');
+  assert.equal(await store.reserve(holdFor(org,99)),false,'and the next action is refused');
+  console.log('# V1 ledger:',JSON.stringify(ledger),'holds settled:',JSON.stringify(settled),'balance after:',JSON.stringify(await balanceOf(org)));
+ }finally{await sql.end({timeout:5})}
+});
+
+test('V1 credits: the company lock is what serialises two overlapping reservations',{skip},async()=>{
+ await setup();const org=await companyWith(15);const sql=connect(appUrl);
+ const asUser=tx=>tx`select set_config('studio.user_id', ${USER_C}, true)`;
+ const args=h=>[h.id,h.org,h.actor,h.tool,h.action,h.provider,h.billing,h.credits,h.costMicros,null,Date.now(),Date.now(),h.expiresAt,h.org,h.org,Date.now(),h.credits];
+ try{
+  // A holds the lock and has reserved 10 of 15 but not committed; B (10) starts meanwhile and waits.
+  let release;const gate=new Promise(r=>{release=r});let reservedA;
+  const a=sql.begin(async tx=>{await asUser(tx);await tx.unsafe(...q(LOCK_CREDITS_SQL,[org,Date.now()]));reservedA=(await tx.unsafe(...q(RESERVE_CREDITS_SQL,args(holdFor(org,1))))).count;await gate});
+  await until(()=>reservedA!==undefined);
+  const store=new CreditStore(new StudioDatabase(sql).forUser(USER_C));
+  const b=store.reserve(holdFor(org,2));
+  await new Promise(r=>setTimeout(r,200));release();await a;
+  assert.equal(reservedA,1);assert.equal(await b,false,'B saw A\'s hold once A committed');
+  // Control: without the lock, the same overlap lets both through (why the lock exists).
+  const org2=await companyWith(15);let releaseC;const gateC=new Promise(r=>{releaseC=r});let reservedC;
+  const c=sql.begin(async tx=>{await asUser(tx);reservedC=(await tx.unsafe(...q(RESERVE_CREDITS_SQL,args(holdFor(org2,1))))).count;await gateC});
+  await until(()=>reservedC!==undefined);
+  const d=await sql.begin(async tx=>{await asUser(tx);return (await tx.unsafe(...q(RESERVE_CREDITS_SQL,args(holdFor(org2,2))))).count});releaseC();await c;
+  assert.equal(reservedC,1);assert.equal(d,1,'unlocked reservations overlap: 20 held against 15');
+ }finally{await sql.end({timeout:5})}
+});
+
+test('V2 credits: a released hold charges nothing and frees its credits',{skip},async()=>{
+ await setup();const org=await companyWith(10);const sql=connect(appUrl);
+ try{
+  const store=new CreditStore(new StudioDatabase(sql).forUser(USER_C)),h=holdFor(org,1);
+  assert.equal(await store.reserve(h),true);assert.equal(await store.reserve(holdFor(org,2)),false,'the hold covers the balance');
+  await store.release(h.id,org);
+  const [row]=await admin`select status from studio.credit_holds where id=${h.id}`;assert.equal(row.status,'released');
+  const [{n}]=await admin`select count(*)::int as n from accounts.usage_ledger where org_id=${org}`;assert.equal(n,0,'nothing in the ledger');
+  assert.equal(await store.reserve(holdFor(org,3)),true,'the credits are free again');
+ }finally{await sql.end({timeout:5})}
+});
+
+test('record_usage: allowance first, then packs soonest-expiring first, expired packs never; once per reference; validated',{skip},async()=>{
+ await setup();const org=await companyWith(10);
+ await admin.unsafe(`insert into accounts.credit_packs(org_id,credits,expires_on) values
+  ('${org}',20,(now() at time zone 'utc')::date + 30),('${org}',20,(now() at time zone 'utc')::date + 1),('${org}',50,(now() at time zone 'utc')::date - 1)`);
+ const app=postgres(appUrl,{max:1,prepare:false,ssl:ssl(appUrl),onnotice:()=>{}});
+ const record=(credits,ref,provider='openai',actor=USER_C,feature='studio.key_visuals')=>app`select accounts.record_usage(${org}::uuid,${actor},${feature},${credits}::numeric,${provider},${0.04*credits}::numeric,${ref},'{"action":"Key visual"}'::jsonb) as charged`;
+ try{
+  assert.equal(Number((await balanceOf(org)).total),50,'10 allowance + 40 in unexpired packs (the expired 50 do not count)');
+  assert.equal(Number((await record(25,'hold-record-0001'))[0].charged),25);
+  const rows=await admin`select -l.credits::int as credits, p.expires_on is not null as pack, (p.expires_on - (now() at time zone 'utc')::date) as days from accounts.usage_ledger l left join accounts.credit_packs p on p.id=l.pack_id where l.org_id=${org} order by l.id`;
+  assert.deepEqual(rows.map(r=>({...r})),[{credits:10,pack:false,days:null},{credits:15,pack:true,days:1}],'the allowance, then the pack that expires first');
+  assert.equal(Number((await record(25,'hold-record-0001'))[0].charged),25,'the same reference answers what it charged');
+  assert.equal((await admin`select count(*)::int as n from accounts.usage_ledger where org_id=${org}`)[0].n,2,'and records nothing again');
+  assert.equal(Number((await balanceOf(org)).total),25);
+  // The company's own key: 0 credits, provider "own key".
+  assert.equal(Number((await record(0,'hold-record-0002','own key'))[0].charged),0);
+  for(const [why,run] of [['own key with credits',()=>record(5,'hold-record-0003','own key')],['fractional credits',()=>record(1.5,'hold-record-0004')],['negative credits',()=>record(-1,'hold-record-0005')],['unknown provider',()=>record(1,'hold-record-0006','somewhere')],['actor not a user id',()=>record(1,'hold-record-0007','openai','someone')],['feature outside the Studio',()=>record(1,'hold-record-0008','openai',USER_C,'configurator.cars_max')],['bad reference',()=>record(1,'x')]])
+   await assert.rejects(run,/record_usage:/,why);
+  // The Studio role reaches the ledger only through the function and the views.
+  await assert.rejects(()=>app`insert into accounts.usage_ledger(org_id,credits) values (${org}::uuid,100)`,/permission denied/);
+  await assert.rejects(()=>app`select provider_cost_usd from accounts.usage_ledger`,/permission denied/);
+  await assert.rejects(()=>admin`update accounts.usage_ledger set credits=0 where org_id=${org}`,/append-only/);
+  const cols=async v=>(await admin`select column_name from information_schema.columns where table_schema='accounts' and table_name=${v}`).map(r=>r.column_name);
+  for(const v of ['studio_usage','studio_credit_packs','studio_price_book','studio_people'])for(const secret of ['provider_cost_usd','provider','price'])assert.ok(!(await cols(v)).includes(secret),`${v} has no ${secret}`);
+  const [usage]=await app`select credits::int as credits, action, own_key from accounts.studio_usage where org_id=${org}::uuid and ref='hold-record-0002'`;
+  assert.deepEqual({...usage},{credits:0,action:'Key visual',own_key:true});
+ }finally{await app.end({timeout:5})}
+});
+
+test('the period the Studio meters: the allowance resets on the subscription\'s billing day',{skip},async()=>{
+ await setup();const org=await companyWith(30);
+ await admin.unsafe(`update accounts.subscriptions set starts_on='2026-01-09' where org_id='${org}'`);
+ const at=day=>admin.begin(async tx=>{await tx`select set_config('test.today', ${day}, true)`;return (await tx`select accounts.credits_balance(${org}::uuid) as b`)[0].b});
+ const periods=[];for(const day of ['2026-02-08','2026-02-09','2026-03-08','2026-03-09']){const b=await at(day);periods.push(b.period_from+'..'+b.period_to)}
+ assert.deepEqual(periods,['2026-01-09..2026-02-08','2026-02-09..2026-03-08','2026-02-09..2026-03-08','2026-03-09..2026-04-08']);
+ // The Studio's meter reads the same period (studio.credits_balance → the admin's function).
+ const app=postgres(appUrl,{max:1,prepare:false,ssl:ssl(appUrl),onnotice:()=>{}});
+ try{const [r]=await app`select credits_balance(${org}) as b`;assert.equal(JSON.parse(r.b).monthly,30)}finally{await app.end({timeout:5})}
+});
+
+test('support access (RLS): the owner grants, a creator cannot, staff may read but never write, other companies see nothing',{skip},async()=>{
+ await setup();const sql=connect(appUrl),base=new StudioDatabase(sql);
+ const owner=base.forUser(USER_C),creator=base.forUser(USER_D),staff=base.forUser(STAFF),other=base.forUser(USER_A);
+ const grant=(db,until)=>db.prepare('INSERT INTO support_grants(org_id,granted_by,granted_at,until,note) VALUES(?,?,CAST(? AS BIGINT),CAST(? AS BIGINT),?) ON CONFLICT(org_id) DO UPDATE SET until=excluded.until').bind(ORG_C,USER_C,Date.now(),until,'Please look at the line-up').run();
+ try{
+  await assert.rejects(()=>grant(creator,Date.now()+86_400_000),/row-level security/,'a creator cannot grant');
+  await assert.rejects(()=>grant(staff,Date.now()+86_400_000),/row-level security/,'staff cannot grant themselves access');
+  assert.equal((await grant(owner,Date.now()+7*86_400_000)).meta.changes,1,'the owner grants for 7 days');
+  assert.equal((await staff.prepare('SELECT org_id FROM support_grants WHERE org_id=?').bind(ORG_C).all()).results.length,1,'staff read it');
+  assert.equal((await creator.prepare('SELECT org_id FROM support_grants').all()).results.length,1,'the company\'s members read it');
+  assert.equal((await other.prepare('SELECT org_id FROM support_grants').all()).results.length,0,'another company sees nothing');
+  assert.equal((await staff.prepare('UPDATE support_grants SET until=until+1 WHERE org_id=?').bind(ORG_C).run()).meta.changes,0,'staff cannot extend it');
+  assert.equal((await staff.prepare('DELETE FROM support_grants WHERE org_id=?').bind(ORG_C).run()).meta.changes,0,'or remove it');
+  // The admin's "Open in Studio" button asks as the member of staff who would open it.
+  const access=async(org,who)=>(await admin`select accounts.studio_support_access(${org}::uuid, ${who}::uuid) as a`)[0].a;
+  assert.equal((await access(ORG_C,STAFF)).granted,true);
+  assert.equal((await access(ORG_C,USER_A)).granted,false,'not staff: nothing');
+  assert.equal((await access(ORG_B,STAFF)).granted,false,'no grant: "Support access not granted"');
+  await assert.rejects(()=>owner.prepare('UPDATE support_grants SET until=CAST(? AS BIGINT) WHERE org_id=?').bind(Date.now()-86_400_000,ORG_C).run(),/support_grants_until_ck/,'until may not go before the grant itself');
+  assert.equal((await owner.prepare('UPDATE support_grants SET granted_at=CAST(? AS BIGINT),until=CAST(? AS BIGINT) WHERE org_id=?').bind(Date.now()-2000,Date.now()-1000,ORG_C).run()).meta.changes,1,'the owner ends it');
+  assert.equal((await access(ORG_C,STAFF)).granted,false,'an ended grant is refused');
+ }finally{await sql.end({timeout:5})}
 });

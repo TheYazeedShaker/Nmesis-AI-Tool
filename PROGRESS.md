@@ -2,9 +2,11 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-14
+**Last updated:** 2026-11-14 (S3)
 
-**Latest (2026-11-14, S2.1 hosted-run fixes and the staff portal):** Fixes from the owner's first hosted run on the Preview: sign-in links return to one stable Studio address (`STUDIO_PUBLIC_ORIGIN`, else Vercel's production or branch address); `KEY_ENCRYPTION_SECRET` is checked once per process (exactly 64 hex characters; a wrong value answers 503 "Secure key storage is misconfigured." and logs the rule, never the value; also in `check:setup`); `docs/supabase-setup.sql` runs as hosted Supabase's non-superuser `postgres` (CI runs it twice as a CREATEROLE non-superuser); a provider account with no credit fails the job at once with one sentence and keeps no budget reserved (OpenAI, Google, Higgsfield, Topaz). Staff portal: staff need the six-digit code (Supabase AAL2, the admin's own factor) on every request, the switcher has Nmesis and Clients sections with search over 8, the last company is remembered across sign-out, a "Nmesis staff?" note on the sign-in page, and a server-checked deep link `/?org=<id>`. Branch `fix/s2-hosted` → PR into `development`. No hosted system was touched.
+**Latest (2026-11-14, S3 credits and opt-in support access):** Nmesis pays the AI providers with its own server-side keys (`OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `HIGGSFIELD_API_KEY`, `TOPAZ_API_KEY`); companies spend credits. Every paid action quotes or looks up its cost, converts it (`ceil(cost ÷ credit_basis)`), reserves a hold atomically against `accounts.credits_balance` (`studio.credit_holds`, a company row lock plus one conditional insert), calls the provider, then settles into `accounts.usage_ledger` through `accounts.record_usage` (setup SQL section 6) or releases the hold. The per-payer daily budget is gone. 80% / 100% emails to the owners (once per period) and a banner; at 100% paid actions stop. A Usage page (owners, staff with access), a top-bar meter, costs in credits before actions and credits used on results; no provider cost reaches a page. Own keys only with `studio.own_keys` (0 credits, "own key"); a key saved earlier is ignored, not deleted. A client with no active subscription has no Studio. Staff open a client only while its owner grants support access (`studio.support_grants`, 7 days, read-only, every opening listed for the owner). Branch `feat/credits` → PR into `development`. No hosted system was touched.
+
+**Earlier (2026-11-14, S2.1 hosted-run fixes and the staff portal):** Fixes from the owner's first hosted run on the Preview: sign-in links return to one stable Studio address (`STUDIO_PUBLIC_ORIGIN`, else Vercel's production or branch address); `KEY_ENCRYPTION_SECRET` is checked once per process (exactly 64 hex characters; a wrong value answers 503 "Secure key storage is misconfigured." and logs the rule, never the value; also in `check:setup`); `docs/supabase-setup.sql` runs as hosted Supabase's non-superuser `postgres` (CI runs it twice as a CREATEROLE non-superuser); a provider account with no credit fails the job at once with one sentence and keeps no budget reserved (OpenAI, Google, Higgsfield, Topaz). Staff portal: staff need the six-digit code (Supabase AAL2, the admin's own factor) on every request, the switcher has Nmesis and Clients sections with search over 8, the last company is remembered across sign-out, a "Nmesis staff?" note on the sign-in page, and a server-checked deep link `/?org=<id>`. Branch `fix/s2-hosted` → PR into `development`. No hosted system was touched.
 
 **Earlier (2026-11-12, accounts S2):** Client accounts: Supabase Auth sign-in (password, email links, invitation and recovery → "Choose your password"), one server-side context per request (user, company, role, plan, staff), company-scoped library and storage, configurators from the master list, plan features enforced on every route with upsell chips in the workspace, forced row level security. Branch `feat/accounts-access` → PR into `development`. No hosted system was touched; owner steps are in the PR body and `docs/supabase-setup.sql` section 5.
 
@@ -31,10 +33,20 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Branch rulesets on `main`     | ✅     | Active; PRs, required `verify` / `secrets`, squash only, no bypass (verified 2026-11-10). |
 | Lint debt                     | 🟡     | Enforced; legacy rules downgraded to warnings (BACKLOG #4)            |
 | Data layer (Postgres + S3)    | 🟡     | PR S1 into `development`; hosted Supabase/S3 setup is an owner step   |
-| Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the staging Supabase project and S3 |
-| S2.1 hosted fixes, staff portal | 🟡 | PR `fix/s2-hosted` into `development`; owner steps (`STUDIO_PUBLIC_ORIGIN`, redirect URLs, re-run of the setup SQL's section 1) in the PR body |
+| Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the main Supabase project and S3 |
+| S2.1 hosted fixes, staff portal | ✅ | Merged into `development` and released to `main` (#22) |
+| S3 credits, own keys, support access | 🟡 | PR `feat/credits` into `development`; owner steps (setup SQL section 6, provider accounts and limits, Vercel variables, plans per client) in the PR body |
 
-## What was built last session (S2.1)
+## What was built last session (S3)
+
+- **Credits engine** (`lib/credits/`): `pricing.ts` (cost table in USD micros, price-book overrides `credit_basis` and `studio_cost.<key>`, `creditsFor`, the meter), `words.ts` (client-safe key names and sentences; no prices), `store.ts` (the SQL: company lock `LOCK_CREDITS_SQL`, `RESERVE_CREDITS_SQL` that inserts the hold only when `credits_total(org) − live holds ≥ credits`, settle = lock + `record_usage` + mark settled in one transaction, release; reads through the `accounts.studio_*` views), `charge.ts` (reserve → run → settle / release; billing `credits` | `own key` | `internal`; a provider's no-credit refusal on Nmesis's key becomes "<provider> is unavailable for the Studio right now. Nmesis has been told…" and alerts Nmesis), `alerts.ts` (one JSON HTTP email API; mockable), `usage.ts` (the credits overview and the Usage page).
+- **Database**: migration `0003_credits.sql` — `credit_accounts` (lock + last warning per period), `credit_holds`, `support_grants` (owner-write RLS via `studio.request_owner_orgs()`), `hold_id` and `credits` on the four job tables, wrappers `studio.credits_total`, `studio.credits_balance`, `studio.record_usage` (closed when section 6 is missing). Setup SQL section 6: `accounts.record_usage` (security definer, validated, idempotent per reference, allowance then packs soonest-expiring first), the views `studio_usage`, `studio_credit_packs`, `studio_people`, `studio_price_book` (no provider or cost columns), grants, and `accounts.studio_support_access(org, staff)` for the admin's button.
+- **Every paid route**: OpenAI key visuals, line-ups and area edits; Google Nano Banana generate, analyse and area edits; directions, smart prompts and checks, story plans and frames; Higgsfield films, swaps and images (credits at the estimate, reserved with the job's quoted → submitting change in one transaction, settled on acceptance, released on refusal, kept while uncertain); Topaz upscales (settled when saved, released if Topaz fails).
+- **Context**: `studioEntitlements` turns a client's "legacy" answer into "no plan" (Studio off, "Your Studio isn't part of your plan yet. Ask Nmesis."; Nmesis's own workspace exempt). Staff see and open a client only with a live grant (`directory.supportGrants`); `/?org=` answers `?opened=support` and the switcher "Support access not granted".
+- **Pages**: `/usage`, `/company` (support access and the openings log), the top-bar meter and 80% / 100% banner, cost labels before actions and "Used N credits" on results; Connections show "Nmesis provides the AI for your plan" and the balance without own keys; film, swap and storyboard approvals are in credits.
+- **Verification**: see the PR body (V0–V9). Lint 0 errors (163 warnings, none new in the files this branch touched), typecheck, tests (fast suites locally; the Postgres ones in CI), production build.
+
+## What was built in S2.1
 
 - **Sign-in link address** (`lib/auth/origin.ts`): `STUDIO_PUBLIC_ORIGIN` (validated: https, no path) → `VERCEL_PROJECT_PRODUCTION_URL` on Production → `VERCEL_BRANCH_URL` on a Preview → the request origin locally. README and the setup SQL header list the redirect URLs each Studio needs and the Preview Deployment Protection caveat.
 - **Key secret** (`lib/secret-crypto.ts`): `keySecretState()` checks `KEY_ENCRYPTION_SECRET` once per process; `requireKeySecret()` before every save/open answers 503 "Secure key storage is misconfigured."; upload tickets use the same check; `check:setup` checks the rule and `STUDIO_PUBLIC_ORIGIN`.
@@ -55,12 +67,17 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 
 ## Decisions made (must be remembered)
 
+- **Credits (owner's S3 brief, 2026-11-14):** Nmesis pays OpenAI, Google, Higgsfield and Topaz with its own accounts; companies spend credits (plan allowance, then packs). An action costs `ceil(provider cost USD ÷ credit_basis)`; fixed-cost actions use the Studio's cost table, overridable per action from the price book. The Studio writes the ledger only through `accounts.record_usage`. Own keys only with `studio.own_keys` (recorded with 0 credits as "own key").
+- **No plan, no Studio (owner, 14 Nov):** a client without an active subscription has `studio.enabled` off in the Studio; "legacy = allow everything" stays for configurators only; the internal organisation is exempt.
+- **Support access is opt-in (owner, 14 Nov):** replaces the always-on "Viewing as". A client owner allows it for 7 days (renewable) with an optional note; staff open it read-only; every opening is logged and shown to the owner.
+- **Credit warnings:** one email per level (80%, 100%) per company per billing period to its owners; a jump straight to 100% sends only the "used" email.
+
 - **Staff sign-in (owner's S2.1 brief, 2026-11-14):** staff use their admin account (same Supabase user, same TOTP factor) and need AAL2 on every request; client people stay password-only (MFA for clients may come later as a plan option). Staff land in Nmesis's own workspace as owner; clients open read-only. The company choice survives sign-out (it is re-checked for whoever signs in next).
 - **Sign-in link address (S2.1):** `STUDIO_PUBLIC_ORIGIN` → Vercel production / branch address → request origin; never the Host header.
 - **No provider credit (S2.1):** a billing refusal is final: the job fails at once, no retry, the day's budget reservation is released.
 
 - **Repository visibility:** stays public; scrub third-party names and infrastructure identifiers before pushing (owner, 2026-10-14). ADR 0001.
-- **Data layer (owner, 2026-11-11):** Supabase Postgres in schema `studio` with its own login role `studio_app`; Preview uses a separate staging Supabase project. Media in a private AWS S3 bucket in `eu-central-1` with an IAM user scoped to that bucket; one bucket and IAM user per environment.
+- **Data layer (owner, 2026-11-11):** Supabase Postgres in schema `studio` with its own login role `studio_app`; Preview uses a separate staging Supabase project. Correction (owner, 2026-11-15): there is no staging project; Preview and Production both use the main project, so setup SQL and migrations run once. Media in a private AWS S3 bucket in `eu-central-1` with an IAM user scoped to that bucket; one bucket and IAM user per environment.
 - **Multi-client (owner, 2026-11-11):** every row carries `org_id`; every object lives under `orgs/<org>/users/<user>/`. Until S2 all users belong to the studio's own organization (`lib/portable/tenancy.ts`).
 - **Configurators (S2):** from the master list per company (staff: all live cars); no client add/edit; `CONFIGURATOR_ORIGIN` joins catalogue paths; capture template per car in `studio.car_settings`.
 - **Accounts (S2, owner's task brief, 2026-11-12):** Supabase Auth in the company project, `accounts` read-only for the Studio; Google parked; staff open a client's workspace read-only ("Viewing as", logged) and Nmesis's own as owner; provider keys belong to the company (`studio.own_keys`, owners manage); upsell chips name the smallest plan with the feature (Growth, or Enterprise for film, swap, storyboards and own keys).
@@ -75,7 +92,15 @@ _Waiting on owner_
 - S1 and S2 owner steps (exact list in the S2 PR body): Supabase Auth URL configuration and redirect URLs for each Studio address, section 5 of `docs/supabase-setup.sql` in the main and staging projects, `npm run db:migrate`, Vercel variables (`SUPABASE_*`, `CONFIGURATOR_ORIGIN`) and removal of the NextAuth, allow-list, `SHARED_OPENAI_*` and `CONFIGURATOR_PRESETS` values, `STUDIO_URL` on the admin.
 - S3 buckets, IAM users and CORS (unchanged from S1).
 
+- S3 owner steps (exact list in the PR body): setup SQL section 6 once in the main project (Preview and Production share it), then `npm run db:migrate` once (0003); Nmesis's provider accounts with billing limits; Vercel variables `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `HIGGSFIELD_API_KEY`, `TOPAZ_API_KEY`, `EMAIL_API_URL`, `EMAIL_API_KEY`, `EMAIL_FROM`, `NMESIS_ALERT_EMAIL`; a plan (and allowance) for every client in the admin, since clients without one lose the Studio.
+
 _Carried_
+
+- The admin's "Open in Studio" button still links unconditionally; it should call `accounts.studio_support_access(org, staff)` and say "Support access not granted" (admin repository). The Studio itself refuses such links with that sentence.
+- Grok (Higgsfield's fixed-price image model) in key visuals is priced by Higgsfield as it starts (one click), so its credits show on the card, not before; films, swaps, Topaz, OpenAI and Google show them before.
+- A settlement that cannot be written (twice) is logged and its hold expires unsettled: the action is not charged. Watch the log line "Credit settlement failed".
+- `accounts.record_usage` takes a pack's last day in UTC; the admin's balance uses its business day, so a spend in the hours between may come out of the allowance instead.
+- To confirm with the admin: for a subscription that starts on the 29th–31st, `accounts.credits_balance`'s month arithmetic (`age()`) appears to leave the renewal day of a shorter month outside both periods (the Studio's SQLite stand-in, which follows the same arithmetic, shows it). The Studio simply follows the admin's balance.
 
 - The Postgres tests (including the setup SQL as a non-superuser) ran only in CI for S2.1; starting a local Postgres was not permitted on the dev machine.
 - Screenshots of S2.1 were taken from a local preview harness (the real components with fixture data, not committed); the hosted flow with a real authenticator app is still to be tried by the owner on the Preview.
@@ -83,12 +108,11 @@ _Carried_
 - `scripts/verify/studio-flow.mjs` against Postgres needs its stand-in user to be an active member in that database's `accounts` (the Postgres test's fixture makes the same synthetic user and company members, so run it after `tests/postgres.test.mjs`).
 - The accounts views depend on admin tables: re-run section 5 after an admin migration that changes them.
 - A teammate's visual can be viewed and downloaded, but not yet used as a reference for new work (references are read from the person's own prefix).
-- Companies without `studio.own_keys` have no provider keys until S3 (Nmesis-held keys).
 - Lint debt (BACKLOG #4). Zod 3 advisory (GHSA-mrhx-c7xc-m3w5). `docs/VERIFICATION.md` describes the original export.
 
 ## Next session — start here
 
-1. Reviewer: review PR `fix/s2-hosted` (S2.1) into `development`; CI's `verify` runs the Postgres tests, including the setup SQL as a non-superuser.
-2. Owner: follow the PR's owner steps on the Preview (`STUDIO_PUBLIC_ORIGIN`, redirect URLs, `KEY_ENCRYPTION_SECRET` format, setup SQL section 1), then: an invited client person signs in (password only); a staff member signs in with the admin account → six-digit code → Nmesis workspace → a client "Viewing as".
-3. S3 (owner's plan): Nmesis-held provider keys for companies without `studio.own_keys`, credits against `studio.credits_monthly` (refund on a provider's no-credit refusal).
+1. Reviewer: review PR `feat/credits` (S3) into `development`; CI's `verify` runs the Postgres credits tests (V1 concurrency, `record_usage`, support-access RLS).
+2. Owner: follow the PR's owner steps on the main project and the Preview (section 6, migrate, provider keys and limits, email variables, plans per client), then: a Growth creator generates (meter moves, Usage shows it); an owner turns on support access and a staff member opens the company read-only.
+3. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").
 4. Continue the lint-debt queue (BACKLOG #4).

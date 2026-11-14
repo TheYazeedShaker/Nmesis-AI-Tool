@@ -3,18 +3,23 @@ import {sealKey,unsealKey,type SealedKey,requireKeySecret} from '@/lib/secret-cr
 import {credentialContext,keyAccess,keysManagedBy,KEYS_NOT_ON_PLAN} from '@/lib/org-keys';
 type Context=Pick<RequestContext,'BUCKET'|'KEY_ENCRYPTION_SECRET'|'OPENAI_API_KEY'|'org'|'role'|'entitlements'|'prefix'>;
 const path=(keysPrefix:string)=>keysPrefix+'credentials/openai.json';
+// `nmesis`: Nmesis's own key (OPENAI_API_KEY) makes the calls and the company
+// spends credits. `personalKey`: the company's own saved key, used only while
+// its plan includes studio.own_keys.
 export async function credentialStatus(ctx:Context){
  const access=keyAccess(ctx),keys=await credentialContext(ctx);
  const saved=keys&&ctx.BUCKET?await ctx.BUCKET.head(path(keys.prefix)):null;
- return {personalKey:!!saved,generation:!!saved||!!ctx.OPENAI_API_KEY,keySetup:access.manage&&!!ctx.BUCKET&&!!ctx.KEY_ENCRYPTION_SECRET,sponsored:!access.manage,sponsorPending:!access.manage&&!saved&&!ctx.OPENAI_API_KEY,ownKeys:access.own};
+ return {personalKey:!!saved,generation:!!saved||!!ctx.OPENAI_API_KEY,keySetup:access.manage&&!!ctx.BUCKET&&!!ctx.KEY_ENCRYPTION_SECRET,sponsored:!access.manage,sponsorPending:!saved&&!ctx.OPENAI_API_KEY,ownKeys:access.own,nmesis:!saved};
 }
-export async function apiKey(ctx:Context){
+// The key for one OpenAI call, and whether it is the company's own.
+export async function openaiKey(ctx:Context):Promise<{key:string;own:boolean}>{
  const keys=await credentialContext(ctx);
  const saved=keys&&ctx.BUCKET?await ctx.BUCKET.get(path(keys.prefix)):null;
- if(!saved)return ctx.OPENAI_API_KEY||'';
+ if(!saved)return {key:ctx.OPENAI_API_KEY||'',own:false};
  requireKeySecret(ctx.KEY_ENCRYPTION_SECRET);if(!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('The saved connection needs attention. Please contact your company\'s owner.',503);
- try{return await unsealKey(await saved.json<SealedKey>(),ctx.KEY_ENCRYPTION_SECRET,keys!.prefix)}catch{throw new StudioError('The saved connection could not be opened. Please contact your company\'s owner.',503)}
+ try{return {key:await unsealKey(await saved.json<SealedKey>(),ctx.KEY_ENCRYPTION_SECRET,keys!.prefix),own:true}}catch{throw new StudioError('The saved connection could not be opened. Please contact your company\'s owner.',503)}
 }
+export async function apiKey(ctx:Context){return (await openaiKey(ctx)).key}
 async function managed(ctx:Context){
  const access=keyAccess(ctx);if(!access.own)throw new StudioError(KEYS_NOT_ON_PLAN,403);if(!access.manage)throw new StudioError(keysManagedBy('OpenAI'),403);
  return (await credentialContext(ctx))!;
