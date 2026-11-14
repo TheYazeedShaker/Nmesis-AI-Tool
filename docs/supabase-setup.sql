@@ -57,7 +57,24 @@ alter schema studio owner to studio_app;
 revoke all on schema studio from public;
 revoke all on schema studio from anon, authenticated;
 revoke create on schema public from studio_app;
-revoke all on all tables in schema public from studio_app;
+-- One relation at a time: "revoke ... on all tables in schema public" fails as a
+-- whole for a role that is not a superuser when public holds a table it doesn't
+-- own. A relation this role cannot touch is skipped with a notice (studio_app
+-- holds nothing there unless that relation's owner granted it; check:setup reports it).
+do $$
+declare r record;
+begin
+  for r in select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'public' and c.relkind in ('r', 'v', 'm', 'p', 'f')
+  loop
+    begin
+      execute format('revoke all on table public.%I from studio_app', r.relname);
+    exception when insufficient_privilege then
+      raise notice 'Skipped public.%: this role cannot change its privileges.', r.relname;
+    end;
+  end loop;
+end
+$$;
 
 -- 4. Keep the schema out of the project's HTTP API: in the dashboard, under the
 --    Data API settings, `studio` must NOT be listed among the exposed schemas.
