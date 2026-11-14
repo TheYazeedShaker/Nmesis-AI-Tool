@@ -1,6 +1,7 @@
 import {cookies} from 'next/headers';
 import {adminAuth,cookieOptions,serverAuth,toSessionUser,type SessionUser} from './supabase';
 import {hasPassword,PASSWORD_FLAG,problemFor,safeNext,type Problem} from './words';
+import {resolveLinkOrigin} from './origin';
 // The steps between "a link was opened" and "the workspace", decided on the server.
 // Our own short-lived cookies, all httpOnly:
 //  studio_link : which kind of email this browser last asked for ('recovery' or
@@ -49,6 +50,6 @@ export async function setPasswordAndResume(user:SessionUser,password:string):Pro
  }
  return {ok:true,resumed:!!toSessionUser(fresh.data.user)};
 }
-// Links in emails come back to the address the request was made on (each
-// deployment's address must be in Supabase's redirect URL list).
-export const linkOrigin=(request:Request)=>new URL(request.url).origin;
+// Links in emails come back to this Studio's stable public address
+// (lib/auth/origin.ts); it must be on Supabase's redirect URL allow list.
+export const linkOrigin=(request:Request)=>resolveLinkOrigin(request.url);

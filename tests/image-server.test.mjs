@@ -141,3 +141,21 @@ test('six-car Higgsfield submissions preserve twelve views, inspiration and curr
 test('six-car requests reject smaller Higgsfield models before any uploads or billing',async()=>{
  const h=await harness();try{const cars=Array.from({length:6},(_,i)=>({id:'lineup-car-'+i,name:'Model '+i,configurator:'',finish:'',x:10+i*15,y:70,scale:14,views:[{id:'capture-'+i,label:'Primary'}]}));await assert.rejects(()=>h.images.createImage(h.ctx,{...input(),sourceId:cars[0].views[0].id,lineup:{cars,layout:'inspiration',heroId:cars[0].id}}),/cannot fit/);assert.equal(h.calls.length,0)}finally{h.close()}
 });
+// S2.1: a provider account with no credit fails the job at once and keeps no
+// Studio budget reserved for it; a request that never answers is still failed
+// by the stall check within its ten-minute window.
+for(const [status,body] of [[402,{detail:'Payment required'}],[429,{code:'insufficient_credits',message:'Not enough credits'}]])test(`no Higgsfield credit (${status}): the image fails at once and the day's budget is released`,async()=>{const h=await harness();try{
+ h.setHandler(h.normal);let row=await h.images.createImage(h.ctx,input());await h.images.quoteImage(h.ctx,row);row=await h.images.imageRow(h.ctx,row.id);
+ let submits=0;h.setHandler(async(u,o)=>{if(u.includes('/estimate/'))return h.normal(u,o);submits++;return Response.json(body,{status})});
+ await assert.rejects(()=>h.images.renderImage(h.ctx,row,row.estimate,row.updated_at),e=>e.message==='Your Higgsfield account has no credit left. Add credit in your Higgsfield developer account, then try again. Nothing was charged here.'&&e.status===402);
+ const after=await h.images.imageRow(h.ctx,row.id);
+ assert.equal(after.status,'failed');assert.equal(after.error,'Your Higgsfield account has no credit left. Add credit in your Higgsfield developer account, then try again. Nothing was charged here.');
+ assert.equal(after.reserved_day,null,'no reservation is kept');assert.equal((await h.server.budget(h.ctx,after.payer)).used,0,'nothing counts against the daily budget');
+ assert.equal(submits,1,'submitted once, never retried');
+}finally{h.close()}});
+test('a generation that never answers is failed by the stall check within its timeout',async()=>{const h=await harness();try{
+ const at=ms=>new Date(Date.now()-ms).toISOString(),base={id:'no-answer-1234',title:'Demo · 01',status:'pending',provider:'openai',sourceId:'source-1234',src:'/api/assets/no-answer-1234'};
+ assert.equal((await h.library.resolveVisual(h.ctx,{...base,createdAt:at(9*60_000)})).status,'pending','still inside the provider\'s own timeout');
+ const stalled=await h.library.resolveVisual(h.ctx,{...base,createdAt:at(10*60_000+1000)});
+ assert.equal(stalled.status,'failed');assert.equal(stalled.jobStatus,'interrupted');assert.equal(h.calls.length,0,'no retry');
+}finally{h.close()}});

@@ -10,7 +10,13 @@ const required=['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','SUPABASE_SECRET_KEY',
 const missing=required.filter(k=>!env[k]?.trim());
 for(const key of required)console.log(key+': '+(missing.includes(key)?'MISSING':'set'));
 const issues=[],notes=[];
-if(env.KEY_ENCRYPTION_SECRET&&env.KEY_ENCRYPTION_SECRET.length<32)issues.push('KEY_ENCRYPTION_SECRET must be at least 32 characters.');
+// Same rule as lib/secret-crypto.ts (an AES-256 key written as hex). Never print the value.
+if(env.KEY_ENCRYPTION_SECRET?.trim()&&!/^[a-f0-9]{64}$/i.test(env.KEY_ENCRYPTION_SECRET.trim()))issues.push('KEY_ENCRYPTION_SECRET must be exactly 64 hex characters (32 bytes), e.g. the output of openssl rand -hex 32. Never change it once keys are saved.');
+// Optional: the address sign-in links return to (https, no path; lib/auth/origin.ts).
+if(env.STUDIO_PUBLIC_ORIGIN?.trim()){
+ let ok=false;try{const u=new URL(env.STUDIO_PUBLIC_ORIGIN.trim().replace(/\/+$/,''));ok=u.protocol==='https:'&&u.pathname==='/'&&!u.search&&!u.hash&&!u.username&&!u.password}catch{ok=false}
+ if(!ok)issues.push('STUDIO_PUBLIC_ORIGIN must be an https address with no path, e.g. https://studio.example.com.');
+}else notes.push('STUDIO_PUBLIC_ORIGIN is not set: sign-in links use the Vercel production or branch address (locally, the address of the request).');
 for(const key of ['SUPABASE_URL','CONFIGURATOR_ORIGIN'])if(env[key]){try{const u=new URL(env[key]);if(u.protocol!=='https:'&&u.hostname!=='localhost'&&u.hostname!=='127.0.0.1')issues.push(key+' must use HTTPS.');if(key==='CONFIGURATOR_ORIGIN'&&u.pathname!=='/')issues.push('CONFIGURATOR_ORIGIN is an origin only (no path).')}catch{issues.push(key+' must be a valid URL.')}}
 if(env.SUPABASE_SECRET_KEY&&env.SUPABASE_SECRET_KEY===env.SUPABASE_PUBLISHABLE_KEY)issues.push('SUPABASE_SECRET_KEY and SUPABASE_PUBLISHABLE_KEY must be different keys.');
 for(const old of ['NEXTAUTH_URL','NEXTAUTH_SECRET','GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','STUDIO_ALLOWED_EMAILS','SHARED_OPENAI_OWNER_EMAIL','SHARED_OPENAI_GUEST_EMAILS','CONFIGURATOR_PRESETS','NEXT_PUBLIC_CONFIGURATOR_PRESETS'])if(env[old])notes.push(old+' is no longer used (Supabase sign-in, company accounts and configurators replace it); remove it.');

@@ -8,7 +8,7 @@ import {DatabaseSync} from 'node:sqlite';
 import * as s3 from '@aws-sdk/client-s3';
 import * as signing from '@aws-sdk/s3-request-presigner';
 async function moduleAt(path,imports={},extra={}){
- const scope=vm.createContext({Buffer,Response,Request,Headers,Blob,File,FormData,ReadableStream,TextEncoder,TextDecoder,Uint8Array,ArrayBuffer,URL,Date,Math,Number,Error,JSON,console,crypto,process:{env:{KEY_ENCRYPTION_SECRET:'test-encryption-secret-32-characters-only'}},...extra});
+ const scope=vm.createContext({Buffer,Response,Request,Headers,Blob,File,FormData,ReadableStream,TextEncoder,TextDecoder,Uint8Array,ArrayBuffer,URL,Date,Math,Number,Error,JSON,console,crypto,process:{env:{KEY_ENCRYPTION_SECRET:'ab'.repeat(32)}},...extra});
  const code=ts.transpileModule(readFileSync(new URL('../'+path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
  const m=new vm.SourceTextModule(code,{context:scope});await m.link(s=>{assert.ok(imports[s],`Missing import ${s}`);return new vm.SyntheticModule(Object.keys(imports[s]),function(){for(const [k,v] of Object.entries(imports[s]))this.setExport(k,v)},{context:scope})});await m.evaluate();return m.namespace;
 }
@@ -53,7 +53,7 @@ test('storage adapter handles streamed bytes, conditional writes, listing and mi
 test('upload tickets are owner-bound, route-bound, expire, reject tampering, and reconstruct large multipart bodies',async()=>{
  const form=new FormData();form.set('instruction','Edit only this area');form.set('working',new Blob([new Uint8Array(5_000_000)],{type:'image/png'}),'frame.png');const multipart=new Response(form),bytes=await multipart.arrayBuffer();let deleted=false;
  const store={head:async()=>({size:bytes.byteLength}),get:async()=>({body:new Response(bytes).body}),delete:async()=>{deleted=true}};
- const api=await moduleAt('lib/portable/uploads.ts',{'node:crypto':crypto,'./storage':{getStorage:()=>store},'@/lib/studio-server':{StudioError}});
+ const api=await moduleAt('lib/portable/uploads.ts',{'node:crypto':crypto,'./storage':{getStorage:()=>store},'@/lib/studio-server':{StudioError},'@/lib/secret-crypto':{keySecretState:()=>({value:'ab'.repeat(32),misconfigured:false}),KEY_STORAGE_MISCONFIGURED:'Secure key storage is misconfigured.'}});
  const data={key:'staging/owner/uploads/example',prefix:'owner/',target:'/api/area-edits',size:bytes.byteLength,type:multipart.headers.get('content-type'),expires:Date.now()+60000};const ticket=api.signTicket(data);
  assert.equal(api.verifyTicket(ticket,'owner/','/api/area-edits').key,data.key);
  assert.throws(()=>api.verifyTicket(ticket,'other/','/api/area-edits'));
@@ -74,11 +74,11 @@ for(const target of ['/api/assets','/api/assets/reference-123/original'])test('b
 test('identity comes only from a Supabase session verified on the server; no session or no company means no access',async()=>{
  const user={id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',email:'Person@Example.test',app_metadata:{}};let answer={data:{user},error:null},configured=true;const seen=[];
  const imports={'next/headers':{cookies:async()=>({get:n=>n==='studio_org'?{value:'chosen-org'}:undefined})},
-  '@/lib/auth/supabase':{authConfigured:()=>configured,serverAuth:async()=>({auth:{getUser:async()=>answer}}),toSessionUser:u=>u?{id:u.id,email:u.email.toLowerCase(),appMetadata:u.app_metadata}:null},
+  '@/lib/auth/supabase':{authConfigured:()=>configured,verifiedUser:async()=>answer.error||!answer.data.user?null:{id:answer.data.user.id,email:answer.data.user.email.toLowerCase(),appMetadata:answer.data.user.app_metadata,aal:'aal1',totp:false}},
   '@/lib/accounts/directory':{getDirectory:()=>({})},
   '@/lib/accounts/context':{resolveContext:async a=>{seen.push(a);return a.user.id===user.id?{ok:true,ctx:{user:a.user}}:{ok:false,reason:'no_company'}}}};
  const m=await moduleAt('lib/studio-context.ts',imports),plain=v=>JSON.parse(JSON.stringify(v));// objects from the module's own context
- assert.equal((await m.getStudioContext()).ok,true);assert.deepEqual(plain(seen[0]),{user:{id:user.id,email:'person@example.test'},chosenOrg:'chosen-org',directory:{}});
+ assert.equal((await m.getStudioContext()).ok,true);assert.deepEqual(plain(seen[0]),{user:{id:user.id,email:'person@example.test',aal:'aal1'},chosenOrg:'chosen-org',directory:{}});
  // A revoked session still carries a well-formed token; Supabase says so and access ends.
  answer={data:{user:null},error:{code:'session_not_found',message:'Session from session_id claim in JWT does not exist'}};assert.deepEqual(plain(await m.getStudioContext()),{ok:false,problem:'signed_out'});
  answer={data:{user:{...user,id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'}},error:null};assert.deepEqual(plain(await m.getStudioContext()),{ok:false,problem:'no_company'});

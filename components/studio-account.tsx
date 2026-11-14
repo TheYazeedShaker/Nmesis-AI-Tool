@@ -1,8 +1,8 @@
 'use client';
 import {useEffect,useState} from 'react';
 import Link from 'next/link';
-import {Aperture,Building2,Eye,LogOut,Lock,Info} from 'lucide-react';
-import {Select,SelectTrigger,SelectValue,SelectContent,SelectItem} from '@/components/ui/select';
+import {Aperture,Building2,Check,ChevronsUpDown,Eye,LogOut,Lock,Info} from 'lucide-react';
+import {Command,CommandEmpty,CommandGroup,CommandInput,CommandItem,CommandList} from '@/components/ui/command';
 import {Popover,PopoverTrigger,PopoverContent} from '@/components/ui/popover';
 import {FEATURE_LABELS,type FeatureKey} from '@/lib/accounts/plan';
 import type {AccountSummary} from '@/lib/accounts/summary';
@@ -11,6 +11,7 @@ import type {AccountSummary} from '@/lib/accounts/summary';
 let pending:Promise<AccountSummary|null>|undefined;
 export function loadAccount(){
  return pending??=fetch('/api/me?page='+encodeURIComponent(location.pathname),{credentials:'same-origin',cache:'no-store'}).then(async r=>{
+  if(r.status===401&&(await r.clone().json().catch(()=>null))?.problem==='mfa_required'){location.assign(new URL('/auth/code?next='+encodeURIComponent(location.pathname+location.search),location.origin).href);return null}
   if(r.status===401){location.assign(new URL('/signin?next='+encodeURIComponent(location.pathname+location.search),location.origin).href);return null}
   const d=await r.json().catch(()=>null);
   if(r.status===403&&d?.problem==='no_company'){location.assign(new URL('/auth/no-company',location.origin).href);return null}
@@ -30,18 +31,41 @@ export function AccountBar(){
  async function choose(orgId:string){if(!account||orgId===account.org.id)return;setBusy(true);setProblem('');try{const r=await fetch('/api/auth/org',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({orgId})});if(r.ok){location.reload();return}const d=await r.json().catch(()=>({}));setProblem(d.error||'The company could not be changed.')}catch{setProblem('The connection was interrupted. Try again.')}setBusy(false)}
  if(!account)return null;
  return <div className="account-bar">
-  {account.orgs.length>1?<Select value={account.org.id} onValueChange={v=>void choose(v)} disabled={busy}><SelectTrigger className="account-switch" aria-label="Company"><Building2 size={14}/><SelectValue/></SelectTrigger><SelectContent>{account.orgs.map(o=><SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}</SelectContent></Select>
+  {account.orgs.length>1?<CompanySwitcher account={account} busy={busy} onChoose={id=>void choose(id)}/>
    :<span className="account-org"><Building2 size={14}/>{account.org.name}</span>}
   <span className="account-role">{account.viewingAs?'Staff':ROLE_LABEL[account.role]}</span>
   {problem&&<span className="account-problem" role="alert">{problem}</span>}
   <form method="post" action="/auth/signout"><button className="secondary" type="submit" title={'Signed in as '+account.user.email}><LogOut size={14}/>Sign out</button></form>
  </div>;
 }
-// Under the top bar: staff "Viewing as", and a paused subscription.
+// More companies than this and the switcher gets a search field.
+const SEARCH_FROM=9;
+// The company switcher. Staff see two sections: Nmesis (their own workspace,
+// where they work as an owner) and Clients (opened read-only, "Viewing as").
+// Everyone else sees only their own companies. The choice is kept by the server.
+function CompanySwitcher({account,busy,onChoose}:{account:AccountSummary;busy:boolean;onChoose:(id:string)=>void}){
+ const [open,setOpen]=useState(false);
+ const sections=account.switcher?[{label:'Nmesis',orgs:account.switcher.nmesis},{label:'Clients',orgs:account.switcher.clients}].filter(s=>s.orgs.length):[{label:'',orgs:account.orgs}];
+ const total=sections.reduce((n,s)=>n+s.orgs.length,0);
+ const pick=(id:string)=>{setOpen(false);onChoose(id)};
+ return <Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><button type="button" className="account-switch" aria-label={'Company: '+account.org.name} disabled={busy}><Building2 size={14}/><span>{account.org.name}</span><ChevronsUpDown size={14}/></button></PopoverTrigger>
+  <PopoverContent className="account-switcher" align="end"><Command loop>
+   {total>=SEARCH_FROM&&<CommandInput placeholder="Search companies" aria-label="Search companies"/>}
+   <CommandList><CommandEmpty>No company with that name.</CommandEmpty>
+    {sections.map(s=><CommandGroup key={s.label||'companies'} heading={s.label||undefined}>{s.orgs.map(o=><CommandItem key={o.id} value={o.name+' '+o.id} keywords={[o.name]} onSelect={()=>pick(o.id)} aria-current={o.id===account.org.id?'true':undefined}><span className="account-switch-name">{o.name}</span>{o.id===account.org.id?<Check size={14}/>:s.label==='Clients'?<Eye size={14} aria-label="Read-only"/>:null}</CommandItem>)}</CommandGroup>)}
+   </CommandList>
+  </Command></PopoverContent></Popover>;
+}
+// Under the top bar: staff "Viewing as", a refused company link, and a paused subscription.
 export function AccountNotices(){
- const account=useAccount();if(!account)return null;
+ const account=useAccount();
+ // A deep link (/?org=…) the server refused, or could not open, lands here once.
+ const [opened]=useState(()=>typeof window==='undefined'?null:new URLSearchParams(window.location.search).get('opened'));
+ if(!account)return null;
  const w=account.workspace;
  return <>
+  {opened==='refused'&&<div className="viewing-as" role="status"><Info size={16}/><span>That company link isn’t open to you, so you are in <b>{account.org.name}</b>.</span></div>}
+  {opened==='failed'&&<div className="viewing-as" role="status"><Info size={16}/><span>That company link could not be opened. Try it again, or choose the company here.</span></div>}
   {account.viewingAs&&<div className="viewing-as" role="status"><Eye size={16}/><span>Viewing as <b>{account.org.name}</b>. Read-only; this visit is logged.</span></div>}
   {!w.open&&<div className="workspace-closed" role="status"><Lock size={16}/><span>{w.libraryOpen?'Your company’s Studio subscription is not active, so new work is paused.'+(w.libraryUntil?` Your library stays viewable until ${w.libraryUntil}.`:' Your library stays viewable.'):'Your company’s Studio subscription has ended and its library is no longer available here.'} Ask Nmesis to reopen it.</span></div>}
   {w.open&&account.role==='viewer'&&!account.viewingAs&&<div className="viewing-as" role="status"><Info size={16}/><span>You can look at your company’s work. Ask your company’s owner for creator access to make new work.</span></div>}

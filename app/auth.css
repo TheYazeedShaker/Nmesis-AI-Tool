@@ -54,3 +54,11 @@
 .auth-overlay{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:#121416eb;color:#eef0f2;font-size:15px}
 .auth-overlay span{display:flex;gap:10px;align-items:center}
 @media (max-width:520px){.auth-card{padding:24px 18px 20px;border-radius:6px}.auth-links{flex-direction:column;align-items:flex-start}}
+/* Nmesis staff: the note under the sign-in form, and the six-digit code step. */
+.auth-staff-note{margin:18px 0 0;padding-top:14px;border-top:1px solid var(--auth-border);color:var(--auth-muted);font-size:13px;line-height:1.5}
+.auth-shell .auth-code{font-size:22px;letter-spacing:.35em;font-variant-numeric:tabular-nums;text-align:center;padding:12px 8px}
+.auth-qr{display:grid;gap:12px;justify-items:center;text-align:left}
+.auth-qr img{width:176px;height:176px;background:#ffffff;border-radius:6px;padding:8px;border:1px solid var(--auth-border)}
+.auth-qr details{justify-self:stretch;font-size:14px;color:var(--auth-muted)}
+.auth-qr summary{cursor:pointer;color:var(--auth-link);text-decoration:underline;text-underline-offset:3px}
+.auth-secret{display:block;margin:10px 0 6px;padding:10px 12px;border:1px solid var(--auth-input-border);border-radius:5px;background:var(--auth-input);color:var(--auth-text);font-size:14px;letter-spacing:.08em;word-break:break-all;user-select:all}

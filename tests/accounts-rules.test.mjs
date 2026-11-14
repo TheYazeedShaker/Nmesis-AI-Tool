@@ -73,6 +73,8 @@ test('checkRoute: viewer read-only, plan features, closed subscriptions, plain s
 });
 const ORG_A='0000000a-0000-4000-8000-00000000000a',ORG_B='0000000b-0000-4000-8000-00000000000b',ORG_N='00000001-0000-4000-8000-000000000001';
 const U=n=>({id:'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),email:n+'@example.test'});
+// Staff (U(9)) after the six-digit code in this session.
+const STAFF={...U(9),aal:'aal2'};
 const dir=()=>memoryDirectory({orgs:[{id:ORG_A,name:'A',kind:'client'},{id:ORG_B,name:'B',kind:'client'},{id:ORG_N,name:'Nmesis',kind:'internal'}],
  members:[{userId:U(1).id,orgId:ORG_A,role:'creator',status:'active'},{userId:U(1).id,orgId:ORG_B,role:'viewer',status:'active'},{userId:U(2).id,orgId:ORG_A,role:'owner',status:'invited'},{userId:U(5).id,orgId:ORG_A,role:'owner',status:'removed'}],
  staff:{[U(9).id]:'ops'},entitlements:{[ORG_A]:legacy,[ORG_B]:legacy,[ORG_N]:legacy}});
@@ -92,9 +94,10 @@ test('context: an invitation becomes an active membership on first arrival',asyn
 });
 test('context: staff open any company; a client read-only as "Viewing as", Nmesis\'s own as owner',async()=>{
  const d=dir();
- let r=await resolveContext({user:U(9),chosenOrg:ORG_B,directory:d});assert.equal(r.ctx.org.id,ORG_B);assert.equal(r.ctx.viewingAs,true);assert.equal(r.ctx.role,'viewer');assert.equal(r.ctx.orgs.length,3);
- r=await resolveContext({user:U(9),chosenOrg:null,directory:d});assert.equal(r.ctx.org.id,ORG_N);assert.equal(r.ctx.viewingAs,false);assert.equal(r.ctx.role,'owner');
- r=await resolveContext({user:U(9),chosenOrg:'00000000-0000-4000-8000-0000000000ff',directory:d});assert.equal(r.ctx.org.id,ORG_N,'an unknown company falls back');
+ for(const aal of [undefined,'aal1'])assert.deepEqual(await resolveContext({user:{...U(9),aal},chosenOrg:ORG_B,directory:d}),{ok:false,reason:'mfa_required'},'staff need the code first');
+ let r=await resolveContext({user:STAFF,chosenOrg:ORG_B,directory:d});assert.equal(r.ctx.org.id,ORG_B);assert.equal(r.ctx.viewingAs,true);assert.equal(r.ctx.role,'viewer');assert.equal(r.ctx.orgs.length,3);
+ r=await resolveContext({user:STAFF,chosenOrg:null,directory:d});assert.equal(r.ctx.org.id,ORG_N);assert.equal(r.ctx.viewingAs,false);assert.equal(r.ctx.role,'owner');
+ r=await resolveContext({user:STAFF,chosenOrg:'00000000-0000-4000-8000-0000000000ff',directory:d});assert.equal(r.ctx.org.id,ORG_N,'an unknown company falls back');
 });
 test('sign-in words: password rules, plain errors, safe destinations',()=>{
  assert.equal(words.passwordProblem('short','short','a@example.test'),'That is 5 characters. It needs at least 10.');

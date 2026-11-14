@@ -1,5 +1,5 @@
 import {FEATURES,UPSELL_PLAN,featureOn,maxEdge,workspaceState} from './plan';
-import type {StudioContext} from './context';
+import {switcherSections,type StudioContext} from './context';
 import type {StudioDatabase} from '@/lib/portable/database';
 // What the workspace may show the signed-in person, derived only from the
 // server's context. The browser uses it to hide tools and show upsells; every
@@ -9,7 +9,9 @@ export function accountSummary(ctx:StudioContext,now=Date.now()){
   user:{email:ctx.user.email},
   org:{id:ctx.org.id,name:ctx.org.name},
   role:ctx.role,
-  orgs:ctx.orgs,
+  orgs:ctx.orgs.map(o=>({id:o.id,name:o.name})),
+  // Staff only: the switcher's "Nmesis" and "Clients" sections.
+  switcher:switcherSections(ctx),
   staff:!!ctx.staff,
   viewingAs:ctx.viewingAs,
   plan:{name:ctx.entitlements.planName,legacy:ctx.entitlements.legacy},

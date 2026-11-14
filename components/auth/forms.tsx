@@ -1,11 +1,12 @@
 'use client';
 import {useState} from 'react';
-import {Eye,EyeOff,Mail,LoaderCircle,Check,Info,CircleCheck} from 'lucide-react';
+import Image from 'next/image';
+import {Eye,EyeOff,Mail,LoaderCircle,Check,Info,CircleCheck,ShieldCheck} from 'lucide-react';
 import {PASSWORD_MIN,passwordProblem} from '@/lib/auth/words';
 // The sign-in screens' forms. They post to the Studio's own /api/auth routes;
 // every decision (who you are, which step comes next) is made there.
 async function post(url:string,data:Record<string,unknown>){
- try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(data)});const d=await r.json().catch(()=>({}));return {ok:r.ok,...d} as {ok:boolean;error?:string;said?:string;next?:string;signInAgain?:boolean}}
+ try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(data)});const d=await r.json().catch(()=>({}));return {ok:r.ok,...d} as {ok:boolean;error?:string;problem?:string;said?:string;next?:string;signInAgain?:boolean;factorId?:string;qr?:string|null;secret?:string}}
  catch{return {ok:false,error:'The connection was interrupted. Try again.'}}
 }
 const Problem=({text}:{text:string})=>text?<p className="error-banner" role="alert"><Info size={18}/><span>{text}</span></p>:null;
@@ -32,6 +33,7 @@ export function SignInForm({next,email:initial='',google}:{next:string;email?:st
    {google&&<a className="secondary" href="/auth/google">Continue with Google</a>}
   </form>
   <div className="auth-links"><a className="text-button" href={'/signin/forgot'+(email?'?email='+encodeURIComponent(email):'')}>Forgot your password?</a></div>
+  <p className="auth-staff-note">Nmesis staff? Sign in with your admin account.</p>
  </>;
 }
 export function ForgotForm({email:initial=''}:{email?:string}){
@@ -61,5 +63,28 @@ export function ChoosePasswordForm({email,next}:{email:string;next:string}){
    <button className="generate" type="submit" disabled={!!busy}>{busy==='save'?<LoaderCircle className="spin" size={18}/>:null}Save and continue</button>
   </form>
   <div className="auth-links"><button type="button" className="text-button" onClick={()=>void skip()} disabled={!!busy}>Skip, I’ll use email links</button></div>
+ </>;
+}
+// Nmesis staff, after their password: the six-digit code from their authenticator
+// app (the same one as in the admin). With no app on the account yet, the QR code
+// to add one comes first, with the key to type in instead.
+export function CodeForm({next,email,enrol}:{next:string;email:string;enrol:boolean}){
+ const [code,setCode]=useState(''),[busy,setBusy]=useState(''),[problem,setProblem]=useState('');
+ const [setup,setSetup]=useState<{factorId:string;qr:string|null;secret:string}|null>(null);
+ async function start(){setBusy('enrol');setProblem('');const d=await post('/api/auth/mfa/enrol',{});if(d.ok&&d.factorId){setSetup({factorId:d.factorId,qr:d.qr||null,secret:d.secret||''})}else if(d.problem==='has_factor'){location.reload();return}else setProblem(d.error||'The authenticator app could not be added. Try again.');setBusy('')}
+ async function verify(e:React.FormEvent){e.preventDefault();const digits=code.replace(/\s+/g,'');if(!/^\d{6}$/.test(digits)){setProblem('Enter the six digits from your authenticator app.');return}setBusy('verify');setProblem('');const d=await post('/api/auth/mfa',{code:digits,next,factorId:setup?.factorId});if(d.ok&&d.next){location.assign(d.next);return}setProblem(d.error||'That code did not work. Try again.');setCode('');setBusy('')}
+ const needsSetup=enrol&&!setup;
+ return <>
+  <Problem text={problem}/>
+  {needsSetup?<div className="auth-form"><button className="generate" type="button" onClick={()=>void start()} disabled={!!busy}>{busy==='enrol'?<LoaderCircle className="spin" size={18}/>:<ShieldCheck size={18}/>}Add an authenticator app</button></div>
+  :<form className="auth-form" onSubmit={verify}>
+   {setup&&<div className="auth-qr">
+    {setup.qr?<Image src={setup.qr} alt="QR code to add Nmesis to your authenticator app" width={176} height={176} unoptimized/>:<p className="helper">The QR code could not be shown. Type the key below into your app instead.</p>}
+    {setup.secret&&<details open={!setup.qr}><summary>Can’t scan it? Type this key instead</summary><code className="auth-secret">{setup.secret}</code><p className="helper">Account: {email}. Choose a time-based code.</p></details>}
+   </div>}
+   <div className="auth-field"><label className="field-label" htmlFor="one-time-code">Six-digit code</label><input id="one-time-code" className="text-input auth-code" type="text" inputMode="numeric" pattern="[0-9 ]*" autoComplete="one-time-code" value={code} onChange={e=>setCode(e.target.value.replace(/[^\d ]/g,'').slice(0,7))} maxLength={7} required autoFocus/></div>
+   <button className="generate" type="submit" disabled={!!busy}>{busy==='verify'?<LoaderCircle className="spin" size={18}/>:null}{setup?'Turn on and continue':'Continue'}</button>
+  </form>}
+  <div className="auth-links"><form method="post" action="/auth/signout"><button className="text-button" type="submit">Use a different account</button></form></div>
  </>;
 }

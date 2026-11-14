@@ -44,10 +44,29 @@ The Studio is sold to client companies and used by Nmesis staff. Who belongs to 
 - Sign-in is Supabase Auth: email and password, or a link by email. The session lives in httpOnly cookies and every API route verifies it with Supabase. Google sign-in is built but off (`STUDIO_GOOGLE_SIGNIN`).
 - Invitation and recovery links always stop at **Choose your password** (at least 10 characters, not the email address, the same twice), with "Skip, I'll use email links".
 - Set `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` (all server-only), and `CONFIGURATOR_ORIGIN` (the origin the catalogue's configurator paths are joined to).
-- In Supabase Auth's URL configuration, add each Studio address followed by `/**` to the redirect URLs (local: `http://localhost:3000/**`).
 - Run section 5 of `docs/supabase-setup.sql` (read-only views and grants for `studio_app`) after the admin's accounts migrations, then `npm run db:migrate`.
+- **Nmesis staff** (members of `accounts.staff`) sign in to the Studio with the same email and password as the admin, with no invitation, and then enter the six-digit code from the authenticator app they use for the admin (Supabase MFA, AAL2; checked on the server for every request). They land in Nmesis's own workspace as owner; the company switcher lists **Nmesis** and **Clients**, and a client opens read-only with a "Viewing as" banner, logged. Client people sign in with a password only. The admin can link straight to a company's workspace with `https://<studio address>/?org=<company id>` (checked on the server: staff open it read-only, members only their own company).
 
-Generate a random secret with `openssl rand -base64 32` and use it as `KEY_ENCRYPTION_SECRET`. Keep it private. Do not change it once you have stored provider keys unless you intend to reconnect those providers.
+#### Where sign-in links return to: `STUDIO_PUBLIC_ORIGIN` and the redirect allow list
+
+Magic links, recovery links and Google come back to one stable Studio address, never to the per-deployment address a page was opened on (Supabase refuses any address that is not on its allow list and falls back to its Site URL, which is the admin). The address is, in order:
+
+1. `STUDIO_PUBLIC_ORIGIN`, when set (https, no path, e.g. `https://studio.example.com`). Set it in each Vercel environment to that environment's Studio address.
+2. On Vercel Production, `https://` + `VERCEL_PROJECT_PRODUCTION_URL`; on a Preview, `https://` + `VERCEL_BRANCH_URL` (the branch's stable address). Both are Vercel's own system variables.
+3. Locally, the address of the request (e.g. `http://localhost:3000`).
+
+In Supabase (Authentication → URL Configuration → Redirect URLs), each Studio needs:
+
+- the bare address, e.g. `https://studio.example.com` (the admin's invitations use it);
+- the address followed by `/**`, e.g. `https://studio.example.com/**`;
+- for Preview deployments, one wildcard for all of them: `https://<project>-*-<team>.vercel.app/**`;
+- locally, `http://localhost:3000/**`.
+
+Vercel Deployment Protection blocks invited people on Preview deployments unless they are members of the Vercel team (they see Vercel's sign-in instead of the Studio). Production is not protected. Test invitations on Preview with team members, or use a protection bypass for that deployment.
+
+#### `KEY_ENCRYPTION_SECRET`
+
+Exactly 64 hex characters (32 bytes): generate it with `openssl rand -hex 32`. Keep it private and never change it once provider keys are saved (they could no longer be opened). A wrong value turns secure key storage off: saving or using a key answers "Secure key storage is misconfigured.", and the server logs one line naming the variable and the rule (never the value). `npm run check:setup` checks it too.
 
 ### Database: Supabase Postgres
 

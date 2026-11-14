@@ -74,7 +74,16 @@
 .account-bar form{display:flex}
 .account-bar .secondary{padding:7px 10px;font-size:12px}
 .account-org{display:inline-flex;align-items:center;gap:6px;color:var(--foreground);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.account-switch{min-width:170px;max-width:240px;height:34px;font-size:13px}
+.account-switch{display:inline-flex;align-items:center;gap:7px;min-width:170px;max-width:240px;height:34px;padding:0 10px;font-size:13px;color:var(--foreground);background:transparent;border:1px solid var(--border);border-radius:6px;cursor:pointer}
+.account-switch>span{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-switch:hover{background:var(--secondary)}
+.account-switch:focus-visible{outline:2px solid var(--ring,var(--primary));outline-offset:2px}
+.account-switch:disabled{opacity:.6;cursor:wait}
+.account-switcher{width:300px;padding:0}
+.account-switcher [cmdk-list]{max-height:min(60vh,380px)}
+.account-switcher [cmdk-group-heading]{font-size:11px;letter-spacing:.8px;text-transform:uppercase}
+.account-switcher [cmdk-item]{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.account-switch-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .account-role{border:1px solid var(--border);border-radius:999px;padding:2px 9px;font-size:11px;letter-spacing:.6px;text-transform:uppercase}
 .account-problem{color:var(--destructive)}
 .viewing-as,.workspace-closed{display:flex;align-items:center;gap:10px;padding:10px 4%;font-size:14px;border-bottom:1px solid var(--border);background:var(--secondary);color:var(--secondary-foreground)}

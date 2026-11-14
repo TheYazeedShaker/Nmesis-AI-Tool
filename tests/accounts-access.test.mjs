@@ -4,6 +4,8 @@
 // Postgres (in-memory SQLite built from the migrations) and S3 (the local stand-in
 // from scripts/verify). Every provider call is refused and counted.
 // V1 cross-company · V2 plan features · V3 viewer · V4 staff · V5 configurators.
+// S2.1: the staff six-digit code (AAL2) on every route, the switcher's sections,
+// and the company deep link.
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {register} from 'node:module';
@@ -13,12 +15,15 @@ register('../scripts/verify/hooks.mjs',{parentURL:import.meta.url,data:{stubs:{
  '@/lib/studio-context':new URL('./support/stub-context.mjs',import.meta.url).href,
  '@/lib/portable/database':new URL('./support/stub-database.mjs',import.meta.url).href,
  '@/lib/accounts/directory':new URL('./support/stub-directory.mjs',import.meta.url).href,
+ 'next/headers':new URL('./support/stub-headers.mjs',import.meta.url).href,
 }}});
+import {readdirSync,statSync} from 'node:fs';
 const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
 const ORG_A=id(0xa),ORG_B=id(0xb),ORG_S=id(0x5),ORG_E=id(0xe),ORG_N=id(0x1);
 const A1={id:id(0xa1),email:'a1@example.test'},A2={id:id(0xa2),email:'a2@example.test'},A3={id:id(0xa3),email:'a3@example.test'};
 const B1={id:id(0xb1),email:'b1@example.test'},S1={id:id(0x51),email:'s1@example.test'},E1={id:id(0xe1),email:'e1@example.test'};
-const T={id:id(0x71),email:'staff@example.test'},NOBODY={id:id(0x99),email:'nobody@example.test'};
+// Staff with the six-digit code in this session (aal2), and the same person before it.
+const T={id:id(0x71),email:'staff@example.test',aal:'aal2'},T0={...T,aal:'aal1'},NOBODY={id:id(0x99),email:'nobody@example.test'};
 const prefix=(org,user)=>`orgs/${org}/users/${user.id}/`;
 const legacy={legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}};
 const starterFeatures={'studio.enabled':true,'studio.max_output':'2k','studio.key_visuals':true,'studio.lineups':false,'studio.area_edit':false,'studio.object_select':false,'studio.pinterest':false,'studio.smart_reference':false,'studio.upscale':false,'studio.film':false,'studio.swap':false,'studio.storyboards':false,'studio.own_keys':false};
@@ -27,11 +32,11 @@ const recentEnd=new Date(Date.now()-5*86_400_000).toISOString().slice(0,10);
 const ended={legacy:false,status:'ended',planId:'growth',planName:'Growth',endsOn:recentEnd,features:Object.fromEntries(Object.keys(starterFeatures).map(k=>[k,k==='studio.max_output'?null:false]))};
 const car=(brand,model)=>({brandId:brand,modelId:model,brandName:'Demo '+brand,modelName:'Model '+model,path:`/${brand}/${model}/`,template:'capture'});
 const ORIGIN='http://studio.test';
-let s3,store,routes={},providerCalls=[];const realFetch=globalThis.fetch;const table=[];
+let s3,store,routes={},providerCalls=[],providerAnswer=null;const realFetch=globalThis.fetch;const table=[];
 before(async()=>{
  s3=await startS3();
- Object.assign(process.env,{S3_REGION:'eu-central-1',S3_BUCKET:'studio-test',S3_ENDPOINT:s3.url,S3_FORCE_PATH_STYLE:'true',S3_ACCESS_KEY_ID:'local',S3_SECRET_ACCESS_KEY:'local-secret',KEY_ENCRYPTION_SECRET:'k'.repeat(48),OPENAI_API_KEY:'not-a-real-key',CONFIGURATOR_ORIGIN:'https://configurator.example.com'});
- globalThis.fetch=async(url,init)=>{const u=String(url instanceof Request?url.url:url);if(u.startsWith(s3.url))return realFetch(url,init);providerCalls.push(u);throw new Error('Provider calls are not allowed in this test.')};
+ Object.assign(process.env,{S3_REGION:'eu-central-1',S3_BUCKET:'studio-test',S3_ENDPOINT:s3.url,S3_FORCE_PATH_STYLE:'true',S3_ACCESS_KEY_ID:'local',S3_SECRET_ACCESS_KEY:'local-secret',KEY_ENCRYPTION_SECRET:'5e'.repeat(32),OPENAI_API_KEY:'not-a-real-key',CONFIGURATOR_ORIGIN:'https://configurator.example.com'});
+ globalThis.fetch=async(url,init)=>{const u=String(url instanceof Request?url.url:url);if(u.startsWith(s3.url))return realFetch(url,init);providerCalls.push(u);if(providerAnswer)return providerAnswer(u,init);throw new Error('Provider calls are not allowed in this test.')};
  state.db=sqliteDatabase();
  state.directory=memoryDirectory({
   orgs:[{id:ORG_A,name:'Company A',kind:'client'},{id:ORG_B,name:'Company B',kind:'client'},{id:ORG_S,name:'Starter Co',kind:'client'},{id:ORG_E,name:'Ended Co',kind:'client'},{id:ORG_N,name:'Nmesis',kind:'internal'}],
@@ -73,7 +78,7 @@ async function call(method,path,file,{body,params,raw}={}){
  const text=await response.text();let parsed=null;try{parsed=JSON.parse(text)}catch{parsed=text}
  return {status:response.status,body:parsed,text,location:response.headers.get('location')};
 }
-const who=()=>state.user===A1?'A owner':state.user===A2?'A creator':state.user===A3?'A viewer':state.user===S1?'Starter':state.user===T?'Staff':state.user===E1?'Ended':state.user===B1?'B owner':'Nobody';
+const who=()=>state.user===A1?'A owner':state.user===A2?'A creator':state.user===A3?'A viewer':state.user===S1?'Starter':state.user===T?'Staff':state.user===T0?'Staff, no code':state.user===E1?'Ended':state.user===B1?'B owner':'Nobody';
 // Records a row of the route × result table and checks it.
 async function expect(method,path,file,opts,check,expected){
  const r=await call(method,path,file,opts);table.push({who:who(),method,path,expected,got:String(r.status)+(r.location?' (redirect)':'')});
@@ -197,4 +202,95 @@ test('signed out, no company, and an ended subscription',async()=>{
  await expect('GET','/api/visuals','app/api/visuals/route.ts',{},r=>{assert.equal(r.status,200)},'200 (library, within 30 days)');
  await expect('POST','/api/generate','app/api/generate/route.ts',{body:{}},r=>{assert.equal(r.status,403);assert.match(r.body.error,/not active/)},'403 paused');
  await expect('GET','/api/films','app/api/films/route.ts',{},r=>{assert.equal(r.status,403)},'403 paused');
+});
+// ── S2.1: Nmesis staff and the six-digit code ────────────────────────────────
+const MFA='Enter the six-digit code from your authenticator app to continue.';
+const apiRoutes=()=>{const files=[];const walk=d=>{for(const n of readdirSync(d)){const p=d+'/'+n;if(statSync(p).isDirectory())walk(p);else if(n==='route.ts')files.push(p)}};walk('app/api');return files.sort()};
+test('S2.1: staff without the six-digit code are refused on every API route',async()=>{
+ as(T0,ORG_N);let checked=0;const before=state.db.raw.prepare('SELECT count(*) AS n FROM staff_access_log').get().n;
+ // Every route outside the sign-in flow itself, plus the company switcher.
+ for(const file of apiRoutes().filter(f=>!/^app\/api\/auth\//.test(f)||f==='app/api/auth/org/route.ts')){
+  routes[file]??=await import('@/'+file);
+  const path='/'+file.replace(/\/route\.ts$/,'').replace(/\[action\]/,'quote').replace(/\[id\]/g,'item-12345678').replace(/^app\//,'');
+  for(const method of ['GET','POST','PUT','PATCH','DELETE']){
+   if(typeof routes[file][method]!=='function')continue;
+   const body=method==='GET'||method==='DELETE'?undefined:{orgId:ORG_N};
+   await expect(method,path,file,{params:{id:'item-12345678',action:'quote'},body},r=>{assert.equal(r.status,401,method+' '+path+' '+r.text);assert.equal(r.body.error,MFA,method+' '+path)},'401 code needed');
+   checked++;
+  }
+ }
+ assert.ok(checked>55,'checked '+checked);
+ assert.equal(state.db.raw.prepare('SELECT count(*) AS n FROM staff_access_log').get().n,before,'nothing was logged or opened');
+ assert.deepEqual(providerCalls,[]);
+ // A client person is never asked for a code.
+ as(A1);await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200)},'200 (password only)');
+});
+test('S2.1: staff with the code cannot write in a client workspace, and can in Nmesis\'s own',async()=>{
+ as(T,ORG_B);
+ const readOnly=r=>{assert.equal(r.status,403);assert.match(r.body.error,/Your role is viewer/)};
+ await expect('POST','/api/storyboards','app/api/storyboards/route.ts',{body:{title:'staff story'}},readOnly,'403 read-only');
+ await expect('POST','/api/generate','app/api/generate/route.ts',{body:{id:'staff-visual-1',sourceId:'bvisual-001',moodId:'bvisual-001',brief:'A premium key visual of the car'}},readOnly,'403 read-only');
+ await expect('DELETE','/api/visuals/bvisual-001','app/api/visuals/[id]/route.ts',{params:{id:'bvisual-001'}},readOnly,'403 read-only');
+ await expect('POST','/api/films','app/api/films/route.ts',{body:{sourceId:'bimage-0001'}},readOnly,'403 read-only');
+ assert.equal(await store.head(prefix(ORG_B,B1)+'deleted-visuals/bvisual-001.json'),null,'B\'s visual was not deleted');
+ as(T,ORG_N);
+ const board=await expect('POST','/api/storyboards','app/api/storyboards/route.ts',{body:{title:'Nmesis story'}},r=>{assert.equal(r.status,200,r.text)},'200 (owner)');
+ const row=state.db.raw.prepare('SELECT org_id,owner FROM storyboards WHERE id=?').get(board.body.board.id);
+ assert.deepEqual({...row},{org_id:ORG_N,owner:prefix(ORG_N,T)});
+ assert.deepEqual(providerCalls,[]);
+});
+test('S2.1: the switcher has Nmesis and Clients sections for staff only',async()=>{
+ as(T,ORG_N);
+ await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,true);assert.deepEqual(r.body.switcher.nmesis,[{id:ORG_N,name:'Nmesis'}]);assert.deepEqual(r.body.switcher.clients.map(o=>o.name).sort(),['Company A','Company B','Ended Co','Starter Co'])},'200, two sections');
+ for(const member of [A1,B1,S1]){
+  as(member);
+  await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,false);assert.equal(r.body.switcher,null);assert.ok(r.body.orgs.every(o=>o.id!==ORG_N),'no Nmesis workspace');assert.ok(!r.text.includes('Nmesis'),'no staff section');assert.equal(r.body.orgs.length,1)},'200, own company only');
+ }
+});
+test('S2.1: the company deep link is checked on the server',async()=>{
+ const open=async(org)=>{state.cookies=new Map();const r=await call('GET','/auth/open?org='+encodeURIComponent(org),'app/auth/open/route.ts');return {...r,cookie:state.cookies.get('studio_org')?.value}};
+ routes['app/auth/open/route.ts']??=await import('@/app/auth/open/route.ts');
+ as(A1);
+ let r=await open(ORG_B);table.push({who:who(),method:'GET',path:'/?org=<B>',expected:'refused',got:r.location});
+ assert.equal(r.status,303);assert.equal(r.location,ORIGIN+'/?opened=refused');assert.equal(r.cookie,undefined,'no company was opened');
+ r=await open(ORG_N);assert.equal(r.location,ORIGIN+'/?opened=refused');assert.equal(r.cookie,undefined,'not Nmesis\'s workspace either');
+ r=await open('not-a-company');assert.equal(r.location,ORIGIN+'/?opened=refused');assert.equal(r.cookie,undefined);
+ r=await open(ORG_A);table.push({who:who(),method:'GET',path:'/?org=<A>',expected:'own company',got:r.location});
+ assert.equal(r.location,ORIGIN+'/');assert.equal(r.cookie,ORG_A);
+ as(T);r=await open(ORG_B);table.push({who:who(),method:'GET',path:'/?org=<B>',expected:'viewing as',got:r.location});
+ assert.equal(r.location,ORIGIN+'/');assert.equal(r.cookie,ORG_B);
+ as(T0);r=await open(ORG_B);table.push({who:who(),method:'GET',path:'/?org=<B>',expected:'code first',got:r.location});
+ assert.equal(r.location,ORIGIN+'/auth/code?next='+encodeURIComponent('/?org='+ORG_B));assert.equal(r.cookie,undefined);
+ as(null);r=await open(ORG_B);assert.equal(r.location,ORIGIN+'/signin?next='+encodeURIComponent('/?org='+ORG_B));
+ // The switcher refuses the same way.
+ routes['app/api/auth/org/route.ts']??=await import('@/app/api/auth/org/route.ts');
+ as(A1);state.cookies=new Map();
+ await expect('POST','/api/auth/org','app/api/auth/org/route.ts',{body:{orgId:ORG_B}},r=>{assert.equal(r.status,403);assert.equal(state.cookies.get('studio_org'),undefined)},'403');
+});
+// ── S2.1: hosted-run fixes at the route level ────────────────────────────────
+test('S2.1: OpenAI with no credit: the generation fails at once with a plain sentence and reserves nothing',async()=>{
+ as(A1);providerCalls.length=0;
+ providerAnswer=async u=>{assert.match(u,/^https:\/\/api\.openai\.com\/v1\/images\/edits$/);return Response.json({error:{message:'You exceeded your current quota, please check your plan and billing details.',type:'insufficient_quota',code:'insufficient_quota'}},{status:429})};
+ const budgets=()=>state.db.raw.prepare("SELECT (SELECT count(*) FROM film_budgets) + (SELECT count(*) FROM image_jobs WHERE reserved_day IS NOT NULL) + (SELECT count(*) FROM films WHERE reserved_day IS NOT NULL) + (SELECT count(*) FROM swap_jobs WHERE reserved_day IS NOT NULL) AS n").get().n;
+ const before=budgets();
+ try{
+  const said='Your OpenAI account has no credit left. Add credit at OpenAI, then try again. Nothing was charged here.';
+  await expect('POST','/api/generate','app/api/generate/route.ts',{body:{id:'nocredit-0001',sourceId:'avisual-001',moodId:'avisual-001',brief:'A premium key visual of the car'}},r=>{assert.equal(r.status,402);assert.equal(r.body.error,said)},'402 no credit');
+  const record=await (await store.get(prefix(ORG_A,A1)+'visuals/nocredit-0001.json')).json();
+  assert.equal(record.status,'failed','nothing stays running');assert.equal(record.error,said);
+  await expect('GET','/api/visuals/nocredit-0001','app/api/visuals/[id]/route.ts',{params:{id:'nocredit-0001'}},r=>{assert.equal(r.status,200);assert.equal(r.body.visual.status,'failed')},'200 failed');
+  assert.equal(providerCalls.length,1,'one request, no retry');assert.equal(budgets(),before,'no budget row or reservation');
+ }finally{providerAnswer=null;providerCalls.length=0}
+});
+test('S2.1: a malformed KEY_ENCRYPTION_SECRET answers 503 "Secure key storage is misconfigured." and logs the rule once, never the value',async()=>{
+ const good=process.env.KEY_ENCRYPTION_SECRET,bad='not-hex-'+'z'.repeat(40),lines=[],error=console.error;
+ console.error=(...a)=>lines.push(a.map(String).join(' '));
+ try{
+  process.env.KEY_ENCRYPTION_SECRET=bad;as(A1);
+  for(let i=0;i<2;i++)await expect('POST','/api/connection','app/api/connection/route.ts',{body:{key:'sk-'+'x'.repeat(30)}},r=>{assert.equal(r.status,503);assert.equal(r.body.error,'Secure key storage is misconfigured.')},'503 misconfigured');
+  const said=lines.filter(l=>l.includes('KEY_ENCRYPTION_SECRET'));
+  assert.equal(said.length,1,'one log line per process');assert.match(said[0],/exactly 64 hex characters \(32 bytes\)/);
+  assert.ok(lines.every(l=>!l.includes(bad)),'the value is never logged');
+  assert.deepEqual(providerCalls,[],'the key was not sent anywhere');
+ }finally{console.error=error;process.env.KEY_ENCRYPTION_SECRET=good}
 });

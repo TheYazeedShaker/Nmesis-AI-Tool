@@ -1,7 +1,8 @@
 import {bucket,StudioError,imageKey,validId} from './studio-server';
 import {database,type FilmContext} from './film-server';
 import {credentialContext,keyAccess,keysManagedBy,KEYS_NOT_ON_PLAN} from './org-keys';
-import {sealKey,unsealKey,type SealedKey} from './secret-crypto';
+import {sealKey,unsealKey,type SealedKey,requireKeySecret} from './secret-crypto';
+import {noCreditMessage,NO_CREDIT_STATUS,outOfCredit,readProviderError} from './provider-credit';
 import {keyFingerprint,publicMediaUrl} from './film-policy';
 import {publicImage,type ImageRow} from './image-server';
 import {imageDimensions} from './image-dimensions';
@@ -14,17 +15,17 @@ type Ctx=FilmContext;
 type Row={id:string;owner:string;parent_id:string;status:string;data:string;provider_id:string|null;created_at:number;updated_at:number;lock_until:number;error:string|null};
 type Data={parent:Visual;width:number;height:number;fingerprint:string;progress?:number;credits?:number};
 const secretPath=(ctx:Ctx)=>ctx.prefix+'credentials/topaz.json';
-export class TopazFailure extends StudioError{constructor(public httpStatus:number){super(httpStatus===401||httpStatus===403?'Topaz did not accept this key. Check your Topaz API connection.':httpStatus===402?'Add API credits to your Topaz account before upscaling.':httpStatus===429?'Topaz is busy or your request limit has been reached. Wait a moment and refresh.':httpStatus===404?'This Topaz request is unavailable. Results are held by Topaz for seven days.':`Topaz could not complete this request (HTTP ${httpStatus}).`,httpStatus===429?429:502)}}
+export class TopazFailure extends StudioError{constructor(public httpStatus:number,public noCredit=httpStatus===402){super(noCredit?noCreditMessage('topaz'):httpStatus===401||httpStatus===403?'Topaz did not accept this key. Check your Topaz API connection.':httpStatus===402?'Add API credits to your Topaz account before upscaling.':httpStatus===429?'Topaz is busy or your request limit has been reached. Wait a moment and refresh.':httpStatus===404?'This Topaz request is unavailable. Results are held by Topaz for seven days.':`Topaz could not complete this request (HTTP ${httpStatus}).`,noCredit?NO_CREDIT_STATUS:httpStatus===429?429:502)}}
 export async function topazRequest(key:string,path:string,form?:FormData){
   let r:Response;try{r=await fetch('https://api.topazlabs.com/'+path,{method:form?'POST':'GET',headers:{'X-API-Key':key},...(form?{body:form}:{}),signal:AbortSignal.timeout(45000),redirect:'manual'})}catch{throw new StudioError('The Topaz connection was interrupted. Refresh the saved request before starting another upscale.',504)}
-  if(!r.ok)throw new TopazFailure(r.status);return await r.json() as Record<string,any>;
+  if(!r.ok){const said=readProviderError(await r.json().catch(()=>null));throw new TopazFailure(r.status,outOfCredit('topaz',{status:r.status,...said}))}return await r.json() as Record<string,any>;
 }
 export async function topazStatus(ctx:Ctx){const owner=await credentialContext(ctx),sponsored=!keyAccess(ctx).manage;const saved=owner?await bucket(owner.BUCKET).get(secretPath(owner)):null;const data=saved?await saved.json<SealedKey&{credits?:number}>():null;return {connected:!!data,keySetup:!sponsored&&!!ctx.KEY_ENCRYPTION_SECRET,sponsored,checkedAt:data?.verifiedAt,credits:data?.credits}}
-export async function topazKey(ctx:Ctx){const owner=await credentialContext(ctx);if(!owner)throw new StudioError('Upscaling with Topaz needs your company’s own Topaz key, which is not on your plan yet. Ask Nmesis.',503);ctx=owner;const saved=await bucket(ctx.BUCKET).get(secretPath(ctx));if(!saved||!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Connect your Topaz API key before upscaling.',503);try{return await unsealKey(await saved.json<SealedKey>(),ctx.KEY_ENCRYPTION_SECRET,ctx.prefix+'topaz')}catch{throw new StudioError('Reconnect your Topaz API key.',503)}}
+export async function topazKey(ctx:Ctx){const owner=await credentialContext(ctx);if(!owner)throw new StudioError('Upscaling with Topaz needs your company’s own Topaz key, which is not on your plan yet. Ask Nmesis.',503);ctx=owner;const saved=await bucket(ctx.BUCKET).get(secretPath(ctx));requireKeySecret(ctx.KEY_ENCRYPTION_SECRET);if(!saved||!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Connect your Topaz API key before upscaling.',503);try{return await unsealKey(await saved.json<SealedKey>(),ctx.KEY_ENCRYPTION_SECRET,ctx.prefix+'topaz')}catch{throw new StudioError('Reconnect your Topaz API key.',503)}}
 async function managedKeys(ctx:Ctx){const access=keyAccess(ctx);if(!access.own)throw new StudioError(KEYS_NOT_ON_PLAN,403);if(!access.manage)throw new StudioError(keysManagedBy('Topaz'),403);return (await credentialContext(ctx))!}
 export async function saveTopazKey(ctx:Ctx,key:string){
   ctx=await managedKeys(ctx);
-  if(!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Secure key storage is not ready.',503);
+  requireKeySecret(ctx.KEY_ENCRYPTION_SECRET);if(!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Secure key storage is not ready.',503);
   const balance=await topazRequest(key,'account/v1/credits/balance');
   if(typeof balance.available_credits!=='number'||!Number.isFinite(balance.available_credits))throw new StudioError('Topaz did not return a verifiable credit balance. Your key was not saved.',502);
   await bucket(ctx.BUCKET).put(secretPath(ctx),JSON.stringify({...await sealKey(key,ctx.KEY_ENCRYPTION_SECRET,ctx.prefix+'topaz'),credits:balance.available_credits}),{httpMetadata:{contentType:'application/json'}});
@@ -61,7 +62,7 @@ export async function startTopaz(ctx:Ctx,id:string,parentId:string,edge:number){
     await store.put(ctx.prefix+'topaz-receipts/'+id+'.json',JSON.stringify({id:acceptedId}),{httpMetadata:{contentType:'application/json'}});
     await db.prepare("UPDATE topaz_jobs SET status='queued',provider_id=?,updated_at=?,lock_until=0 WHERE id=? AND owner=?").bind(acceptedId,Date.now(),id,ctx.prefix).run();
   }catch(e){
-    const rejected=!acceptedId&&e instanceof TopazFailure&&[400,401,402,403,404,412,413,415,422,429].includes(e.httpStatus);
+    const rejected=!acceptedId&&e instanceof TopazFailure&&(e.noCredit||[400,401,402,403,404,412,413,415,422,429].includes(e.httpStatus));
     await db.prepare('UPDATE topaz_jobs SET status=?,provider_id=?,error=?,updated_at=?,lock_until=0 WHERE id=? AND owner=?').bind(acceptedId?'queued':rejected?'failed':'unknown',acceptedId||null,rejected?(e as Error).message:'Submission needs checking. No automatic second request will be sent. Use Refresh status; if no receipt is available, check your Topaz account before trying again.',Date.now(),id,ctx.prefix).run();
   }
   return publicTopaz(ctx,await topazRow(ctx,id));
