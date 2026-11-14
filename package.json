@@ -16,8 +16,8 @@
     "check:setup": "node --env-file-if-exists=.env.local scripts/check-setup.mjs"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1151.0",
-    "@aws-sdk/s3-request-presigner": "3.1151.0",
+    "@aws-sdk/client-s3": "3.1166.0",
+    "@aws-sdk/s3-request-presigner": "3.1166.0",
     "@base-ui/react": "^1.7.0",
     "@hookform/resolvers": "^5.7.1",
     "@shadcn/react": "^0.3.0",
