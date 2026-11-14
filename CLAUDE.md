@@ -36,6 +36,8 @@ Operating manual. Permanent standards only; session state lives in `PROGRESS.md`
 
 Preview deployments must use separate database, storage, secrets and provider budgets from Production.
 
+Releases `development` → `main` use a merge commit, never squash.
+
 ## Non-negotiable engineering rules
 
 - **The repository is public.** No secrets, no infrastructure identifiers, no real third-party brand names, no customer data in source, tests, commits or PR text. Sample data is synthetic ("Demo SUV"). Real configurators come from the master list (`accounts.cars`) at run time.
@@ -55,7 +57,7 @@ branch from development → change → local gate → PR into development → CI
 
 **Local gate before every push** (CI runs the same): `npm run lint && npm run typecheck && npm test && npm run build`.
 
-Commits: Conventional Commits (`feat(films): …`, `fix(auth): …`, `ci: …`, `docs: …`). Squash-merge PRs.
+Commits: Conventional Commits (`feat(films): …`, `fix(auth): …`, `ci: …`, `docs: …`). Squash-merge feature PRs into `development`; releases into `main` use a merge commit.
 
 ## Working rules
 
