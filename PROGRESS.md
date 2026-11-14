@@ -33,7 +33,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Branch rulesets on `main`     | ✅     | Active; PRs, required `verify` / `secrets`, squash only, no bypass (verified 2026-11-10). |
 | Lint debt                     | 🟡     | Enforced; legacy rules downgraded to warnings (BACKLOG #4)            |
 | Data layer (Postgres + S3)    | 🟡     | PR S1 into `development`; hosted Supabase/S3 setup is an owner step   |
-| Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the staging Supabase project and S3 |
+| Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the main Supabase project and S3 |
 | S2.1 hosted fixes, staff portal | ✅ | Merged into `development` and released to `main` (#22) |
 | S3 credits, own keys, support access | 🟡 | PR `feat/credits` into `development`; owner steps (setup SQL section 6, provider accounts and limits, Vercel variables, plans per client) in the PR body |
 
@@ -77,7 +77,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 - **No provider credit (S2.1):** a billing refusal is final: the job fails at once, no retry, the day's budget reservation is released.
 
 - **Repository visibility:** stays public; scrub third-party names and infrastructure identifiers before pushing (owner, 2026-10-14). ADR 0001.
-- **Data layer (owner, 2026-11-11):** Supabase Postgres in schema `studio` with its own login role `studio_app`; Preview uses a separate staging Supabase project. Media in a private AWS S3 bucket in `eu-central-1` with an IAM user scoped to that bucket; one bucket and IAM user per environment.
+- **Data layer (owner, 2026-11-11):** Supabase Postgres in schema `studio` with its own login role `studio_app`; Preview uses a separate staging Supabase project. Correction (owner, 2026-11-15): there is no staging project; Preview and Production both use the main project, so setup SQL and migrations run once. Media in a private AWS S3 bucket in `eu-central-1` with an IAM user scoped to that bucket; one bucket and IAM user per environment.
 - **Multi-client (owner, 2026-11-11):** every row carries `org_id`; every object lives under `orgs/<org>/users/<user>/`. Until S2 all users belong to the studio's own organization (`lib/portable/tenancy.ts`).
 - **Configurators (S2):** from the master list per company (staff: all live cars); no client add/edit; `CONFIGURATOR_ORIGIN` joins catalogue paths; capture template per car in `studio.car_settings`.
 - **Accounts (S2, owner's task brief, 2026-11-12):** Supabase Auth in the company project, `accounts` read-only for the Studio; Google parked; staff open a client's workspace read-only ("Viewing as", logged) and Nmesis's own as owner; provider keys belong to the company (`studio.own_keys`, owners manage); upsell chips name the smallest plan with the feature (Growth, or Enterprise for film, swap, storyboards and own keys).
@@ -92,7 +92,7 @@ _Waiting on owner_
 - S1 and S2 owner steps (exact list in the S2 PR body): Supabase Auth URL configuration and redirect URLs for each Studio address, section 5 of `docs/supabase-setup.sql` in the main and staging projects, `npm run db:migrate`, Vercel variables (`SUPABASE_*`, `CONFIGURATOR_ORIGIN`) and removal of the NextAuth, allow-list, `SHARED_OPENAI_*` and `CONFIGURATOR_PRESETS` values, `STUDIO_URL` on the admin.
 - S3 buckets, IAM users and CORS (unchanged from S1).
 
-- S3 owner steps (exact list in the PR body): setup SQL section 6 in the main and staging projects, then `npm run db:migrate` (0003); Nmesis's provider accounts with billing limits; Vercel variables `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `HIGGSFIELD_API_KEY`, `TOPAZ_API_KEY`, `EMAIL_API_URL`, `EMAIL_API_KEY`, `EMAIL_FROM`, `NMESIS_ALERT_EMAIL`; a plan (and allowance) for every client in the admin, since clients without one lose the Studio.
+- S3 owner steps (exact list in the PR body): setup SQL section 6 once in the main project (Preview and Production share it), then `npm run db:migrate` once (0003); Nmesis's provider accounts with billing limits; Vercel variables `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `HIGGSFIELD_API_KEY`, `TOPAZ_API_KEY`, `EMAIL_API_URL`, `EMAIL_API_KEY`, `EMAIL_FROM`, `NMESIS_ALERT_EMAIL`; a plan (and allowance) for every client in the admin, since clients without one lose the Studio.
 
 _Carried_
 
@@ -113,6 +113,6 @@ _Carried_
 ## Next session — start here
 
 1. Reviewer: review PR `feat/credits` (S3) into `development`; CI's `verify` runs the Postgres credits tests (V1 concurrency, `record_usage`, support-access RLS).
-2. Owner: follow the PR's owner steps on the staging project and the Preview (section 6, migrate, provider keys and limits, email variables, plans per client), then: a Growth creator generates (meter moves, Usage shows it); an owner turns on support access and a staff member opens the company read-only.
+2. Owner: follow the PR's owner steps on the main project and the Preview (section 6, migrate, provider keys and limits, email variables, plans per client), then: a Growth creator generates (meter moves, Usage shows it); an owner turns on support access and a staff member opens the company read-only.
 3. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").
 4. Continue the lint-debt queue (BACKLOG #4).

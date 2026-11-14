@@ -308,7 +308,7 @@ test('record_usage: allowance first, then packs soonest-expiring first, expired 
  try{
   assert.equal(Number((await balanceOf(org)).total),50,'10 allowance + 40 in unexpired packs (the expired 50 do not count)');
   assert.equal(Number((await record(25,'hold-record-0001'))[0].charged),25);
-  const rows=await admin`select -credits::int as credits, p.expires_on is not null as pack, (p.expires_on - (now() at time zone 'utc')::date) as days from accounts.usage_ledger l left join accounts.credit_packs p on p.id=l.pack_id where l.org_id=${org} order by l.id`;
+  const rows=await admin`select -l.credits::int as credits, p.expires_on is not null as pack, (p.expires_on - (now() at time zone 'utc')::date) as days from accounts.usage_ledger l left join accounts.credit_packs p on p.id=l.pack_id where l.org_id=${org} order by l.id`;
   assert.deepEqual(rows.map(r=>({...r})),[{credits:10,pack:false,days:null},{credits:15,pack:true,days:1}],'the allowance, then the pack that expires first');
   assert.equal(Number((await record(25,'hold-record-0001'))[0].charged),25,'the same reference answers what it charged');
   assert.equal((await admin`select count(*)::int as n from accounts.usage_ledger where org_id=${org}`)[0].n,2,'and records nothing again');
