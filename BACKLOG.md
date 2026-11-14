@@ -20,3 +20,4 @@ _(agent appends: date · task · reason)_
 - 2026-10-14 · BRANCH-RULESETS · repository settings are an owner action.
 
 - 2026-11-10 · HOSTED-ENV · configuration remains unverified; the sync preserves environment separation and does not copy hosted credentials.
+- 2026-11-14 · HOSTED-ENV · S2.1 adds `STUDIO_PUBLIC_ORIGIN` (per environment) and corrects the `KEY_ENCRYPTION_SECRET` format (exactly 64 hex characters); owner steps are in the S2.1 PR body.
