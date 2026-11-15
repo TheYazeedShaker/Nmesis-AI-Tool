@@ -294,7 +294,8 @@ test('V1 credits: 20 concurrent actions against a balance that fits 10: exactly 
 
 test('V1 credits: the company lock is what serialises two overlapping reservations',{skip},async()=>{
  await setup();const org=await companyWith(15);const sql=connect(appUrl);
- const asUser=tx=>tx`select set_config('studio.user_id', ${USER_C}, true)`;
+ // What the database layer sends with every statement: the person and the environment.
+ const asUser=tx=>tx`select set_config('studio.user_id', ${USER_C}, true), set_config('studio.env', ${ENV}, true)`;
  const args=h=>[h.id,h.org,h.actor,h.tool,h.action,h.provider,h.billing,h.credits,h.costMicros,null,Date.now(),Date.now(),h.expiresAt,h.org,h.org,Date.now(),h.credits];
  try{
   // A holds the lock and has reserved 10 of 15 but not committed; B (10) starts meanwhile and waits.

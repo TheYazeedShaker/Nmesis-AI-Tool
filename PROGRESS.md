@@ -85,6 +85,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 
 - **Environment scope (owner, 2026-11-15):** every studio table holding client work carries `environment` (production / preview / development, from `VERCEL_ENV`); existing rows are Production's; every read and write is filtered in the database layer (RLS + `studio.env`), not per route; separate `KEY_ENCRYPTION_SECRET`s. Shared on purpose: credit holds and the company lock (one balance), support grants, the staff-access log, car settings.
 - **Wireframes (owner, 2026-11-15):** approved as they are.
+- **Shared records and Preview testing (owner, 2026-11-15, review of #30):** credit holds and the staff-access log stay shared (agreed). Preview is tested with Nmesis's own workspace or a test company, so its credits are never a client's; no admin change needed.
 
 - **Environments (owner, 2026-11-15):** Preview and Production share the main Supabase project; S3 buckets, keys and provider budgets stay separate per environment. Written into CLAUDE.md, AGENTS.md, README and the setup SQL.
 - **Design programme (owner's brief, 2026-11-15):** five phases, one PR each, stop after each for review: 0 foundations, 1 audit (findings only), 2a quick fixes, 2b shared fixes, 3 per approved group ("Home, projects and folders" first), 4 guard. Target: a Canva-style workspace in the Nmesis theme (the admin's tokens), light and dark. The Studio's tokens use the admin's step and colour names with a `--ds-` prefix.
@@ -117,7 +118,6 @@ _Waiting on owner_
 - S3 owner steps (exact list in the PR body): setup SQL section 6 once in the main project (Preview and Production share it), then `npm run db:migrate` once (0003); Nmesis's provider accounts with billing limits; Vercel variables `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `HIGGSFIELD_API_KEY`, `TOPAZ_API_KEY`, `EMAIL_API_URL`, `EMAIL_API_KEY`, `EMAIL_FROM`, `NMESIS_ALERT_EMAIL`; a plan (and allowance) for every client in the admin, since clients without one lose the Studio.
 
 - Environment scope: run `npm run db:migrate` (0004) once, **after** this change is live on both Preview and Production (old code does not send the environment, so against the migrated database it reads nothing). Keep Vercel's system environment variables on (`VERCEL_ENV`).
-- Preview spends real credits: the balance and the ledger are the company's one `accounts` record, shared by both environments. A Preview action by a client's member is charged like a Production one. To decide in the admin (e.g. a separate test company for Preview).
 
 _Carried_
 
