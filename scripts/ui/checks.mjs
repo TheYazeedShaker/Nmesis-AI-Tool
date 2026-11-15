@@ -44,6 +44,9 @@ export function layoutChecks({ phone }) {
   // clip-path / clip hiding): neither a target, nor drawn over, nor clipped text.
   const hiddenOnPurpose = (el) => {
     for (let n = el; n && n !== document.body; n = n.parentElement) {
+      // Inside a closed <details> (other than its summary) nothing is drawn or
+      // reachable; Phase 1 counted those as covered (F-069 was this, in part).
+      if (n.parentElement && n.parentElement.tagName === 'DETAILS' && !n.parentElement.open && n.tagName !== 'SUMMARY') return true;
       const cs = getComputedStyle(n), r = n.getBoundingClientRect();
       if ((r.width <= 2 || r.height <= 2) && cs.overflow !== 'visible') return true;
       if (/inset\(50%\)|rect\(0/.test(cs.clipPath + ' ' + cs.clip)) return true;

@@ -28,6 +28,9 @@ export const STUDIO_NAV:Tool[]=[
  {key:'films',href:'/films',label:'Films',icon:<Film/>,feature:'studio.film'},
  {key:'swap',href:'/swap',label:'Replace car',icon:<Replace/>,feature:'studio.swap'},
 ];
+// A screen's own control in the bar (Films: Video connection): words while they
+// fit, its icon (with its name) when the bar is tight, a row in the phone menu.
+export type BarAction={label:string;icon:React.ReactNode;onClick:()=>void};
 const ROLE_LABEL={owner:'Owner',creator:'Creator',viewer:'Viewer'} as const;
 const offChip=(account:AccountSummary|null,feature:FeatureKey)=>planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[feature]}`;
 
@@ -61,7 +64,8 @@ function NavLink({tool,account,current}:{tool:Tool;account:AccountSummary|null;c
 function Meter({credits}:{credits:ReturnType<typeof useCredits>}){
  if(!credits||credits.unlimited||!credits.meter)return null;
  const m=credits.meter,level=m.level===100?'out':m.level===80?'warn':'ok';
- const words=`Credits: ${creditsLabel(m.used)} used and ${creditsLabel(m.left)} left this month.`;
+ // The name starts with the visible words ("300 left"), so voice control and screen readers agree (2.5.3, F-024).
+ const words=`${m.left.toLocaleString('en-US')} left. Credits: ${creditsLabel(m.used)} used and ${creditsLabel(m.left)} left this month.`;
  const inner=<><span className="ds-meter-track" aria-hidden="true"><span className="ds-meter-fill" style={{transform:`scaleX(${Math.min(100,m.percent)/100})`}}/></span><span aria-hidden="true"><b>{m.left.toLocaleString('en-US')}</b> <span className="ds-meter-word ds-meter-left">left</span></span></>;
  return credits.usage
   ?<Link className="ds-meter studio-meter" href="/usage" data-level={level} aria-label={words+' Open Usage.'} title={words}>{inner}</Link>
@@ -98,7 +102,7 @@ function SignOut({account,withWord}:{account:AccountSummary;withWord?:boolean}){
 }
 
 // Below 768px: the tools, the page's own actions, the company and the account.
-function PhoneMenu({account,current,actions,busy,onChoose}:{account:AccountSummary;current?:StudioPage;actions?:React.ReactNode;busy:boolean;onChoose:(id:string)=>void}){
+function PhoneMenu({account,current,actions,busy,onChoose}:{account:AccountSummary;current?:StudioPage;actions?:BarAction[];busy:boolean;onChoose:(id:string)=>void}){
  const [open,setOpen]=useState(false);
  const many=sectionsOf(account).reduce((n,s)=>n+s.orgs.length,0)>1;
  const settings=account.role==='owner'&&!account.internal||account.viewingAs;
@@ -111,7 +115,7 @@ function PhoneMenu({account,current,actions,busy,onChoose}:{account:AccountSumma
      ?<Link key={t.key} className="studio-menu-row" href={t.href} aria-current={current===t.key?'page':undefined} onClick={()=>setOpen(false)}><span aria-hidden="true">{t.icon}</span>{t.label}</Link>
      :<span key={t.key} className="studio-menu-row studio-nav-off" aria-disabled="true"><Lock aria-hidden="true"/>{t.label}<span className="ds-badge">{offChip(account,t.feature)}</span></span>)}
    </nav>
-   {actions&&<div className="studio-menu-group studio-menu-actions" onClick={()=>setOpen(false)}>{actions}</div>}
+   {!!actions?.length&&<div className="studio-menu-group">{actions.map(a=><button key={a.label} type="button" className="studio-menu-row" onClick={()=>{setOpen(false);a.onClick()}}><span aria-hidden="true">{a.icon}</span>{a.label}</button>)}</div>}
    <div className="studio-menu-group">
     <p className="ds-label-caps">Company</p>
     {many?<CompanyList account={account} busy={busy} onChoose={id=>{setOpen(false);onChoose(id)}}/>
@@ -134,12 +138,14 @@ function useFit(bar:React.RefObject<HTMLElement|null>){
  useLayoutEffect(()=>{
   const el=bar.current,nav=el?.querySelector<HTMLElement>('.studio-nav'),end=el?.querySelector<HTMLElement>('.studio-topbar-end');
   if(!el||!nav||!end||typeof ResizeObserver==='undefined')return;
-  const fit=()=>{el.removeAttribute('data-compact');if(nav.scrollWidth>nav.clientWidth+1)el.setAttribute('data-compact','')};
+  // First the navigation's words go, then the actions' words.
+  const full=()=>nav.scrollWidth>nav.clientWidth+1;
+  const fit=()=>{el.removeAttribute('data-compact');el.removeAttribute('data-tight');if(full()){el.setAttribute('data-compact','');if(full())el.setAttribute('data-tight','')}};
   fit();const watch=new ResizeObserver(fit);watch.observe(el);watch.observe(end);return()=>watch.disconnect();
  },[bar]);
 }
 
-export function StudioTopBar({current,actions}:{current?:StudioPage;/** The page's own controls (a connection button); in the menu on phones. */actions?:React.ReactNode}){
+export function StudioTopBar({current,actions}:{current?:StudioPage;/** The page's own controls (a connection button); in the menu on phones. */actions?:BarAction[]}){
  const {account,credits,ready}=useShellData();
  const bar=useRef<HTMLElement>(null);useFit(bar);
  const {busy,problem,choose}=useSwitch();
@@ -151,7 +157,7 @@ export function StudioTopBar({current,actions}:{current?:StudioPage;/** The page
   </Link>
   <nav className="ds-nav studio-nav" aria-label="Main">{STUDIO_NAV.map(t=><NavLink key={t.key} tool={t} account={account} current={current}/>)}</nav>
   <div className="ds-topbar-end studio-topbar-end">
-   {actions&&<div className="studio-topbar-actions">{actions}</div>}
+   {!!actions?.length&&<div className="studio-topbar-actions">{actions.map(a=><button key={a.label} type="button" className="ds-btn sm" aria-label={a.label} title={a.label} onClick={a.onClick}><span aria-hidden="true">{a.icon}</span><span className="studio-action-word" aria-hidden="true">{a.label}</span></button>)}</div>}
    {ready&&account&&<>
     {problem&&<span className="studio-topbar-problem" role="alert">{problem}</span>}
     {account.workspace.open&&<Meter credits={credits}/>}

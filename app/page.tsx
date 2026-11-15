@@ -1,4 +1,5 @@
 "use client";
+import {useBackoffPoll} from '@/lib/use-backoff-poll';
 import {StudioTopBar} from '@/components/studio-topbar';
 import {studioFetch} from '@/lib/studio-fetch';
 import {importPinterestReference} from '@/lib/pinterest-client';
@@ -120,7 +121,7 @@ export default function Studio(){
  useEffect(()=>{void refreshGoogle()},[refreshGoogle]);
  const refreshResults=useCallback(async()=>{setHistoryLoading(true);try{const data=await responseJson(await studioFetch('/api/visuals'));setResults(data.visuals);setHistoryError(data.warning||'')}catch(e){setHistoryError((e as Error).message)}finally{setHistoryLoading(false)}},[]);
  useEffect(()=>{void refreshStatus()},[refreshStatus]);
- useEffect(()=>{if(!status?.sponsorPending)return;const timer=setInterval(()=>{void refreshStatus()},10000);return()=>clearInterval(timer)},[status?.sponsorPending,refreshStatus]);
+ useBackoffPoll(async()=>{await refreshStatus();return 'same'},{base:10000,max:60000,enabled:!!status?.sponsorPending});
  useEffect(()=>{if(status?.storage)void refreshResults()},[status?.storage,refreshResults]);
  useEffect(()=>{const handler=(e:BeforeUnloadEvent)=>{if(working.current||preparingRef.current){e.preventDefault();e.returnValue=''}};window.addEventListener('beforeunload',handler);return()=>window.removeEventListener('beforeunload',handler)},[]);
  function chooseView(v:View){setView(v);setMode('capture');setDirections(localDirections(brief,v.title));setDirection(0);setDirectionSource('Suggested searches')}
@@ -195,7 +196,8 @@ export default function Studio(){
  async function imageAction(visual:Visual,action:string){if(working.current)return;working.current=true;setBusy(true);setError('');try{const data=await responseJson(await studioFetch(`/api/image-jobs/${visual.id}/${action}`,{method:'POST'}));putImage(data.visual)}catch(e){setError((e as Error).message)}finally{working.current=false;setBusy(false)}}
  const refreshHiggsConnection=useCallback(async()=>{try{setHiggsConnection(await responseJson(await studioFetch('/api/video-connection')))}catch{setHiggsConnection(null)}},[]);
  useEffect(()=>{void refreshHiggsConnection();const onFocus=()=>void refreshHiggsConnection();window.addEventListener('focus',onFocus);return()=>window.removeEventListener('focus',onFocus)},[refreshHiggsConnection]);
- useEffect(()=>{const timer=setInterval(()=>{if(working.current||document.hidden)return;const pending=results.filter(v=>v.provider==='higgsfield'&&['queued','in_progress','archiving'].includes(v.jobStatus||''));if(!pending.length)return;const visual=pending[imagePollIndex.current++%pending.length];working.current=true;void studioFetch(`/api/image-jobs/${visual.id}/refresh`,{method:'POST'}).then(responseJson).then(d=>putImage(d.visual)).catch(e=>setHistoryError(e.message)).finally(()=>{working.current=false})},8000);return()=>clearInterval(timer)},[results]);
+ const imageWaiting=(v:Visual)=>v.provider==='higgsfield'&&['queued','in_progress','archiving'].includes(v.jobStatus||'');
+ useBackoffPoll(async()=>{if(working.current)return 'same';const pending=results.filter(imageWaiting);if(!pending.length)return 'idle';const visual=pending[imagePollIndex.current++%pending.length];working.current=true;try{const d=await responseJson(await studioFetch(`/api/image-jobs/${visual.id}/refresh`,{method:'POST'}));putImage(d.visual);return d.visual.jobStatus!==visual.jobStatus?'changed':'same'}catch(e){setHistoryError((e as Error).message);return 'same'}finally{working.current=false}},{base:8000,max:48000,enabled:results.some(imageWaiting)});
  // Read saved status even after the original request/tab disconnects. Never resubmit.
  useEffect(()=>{
   const pending=results.filter(v=>v.status==='pending'&&v.provider!=='higgsfield');if(!pending.length)return;

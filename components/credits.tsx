@@ -11,8 +11,11 @@ import type {CostKey,CreditProvider} from '@/lib/credits/pricing';
 // The server decides every charge; these only show it.
 let pending:Promise<CreditOverview|null>|undefined;
 const listeners=new Set<(o:CreditOverview|null)=>void>();
+// The last answer, so a part that appears after it arrived (the credit banner,
+// once the notices know what to show) draws at once instead of a moment later.
+let last:CreditOverview|null|undefined;
 export function loadCredits(){
- return pending??=fetch('/api/credits',{credentials:'same-origin',cache:'no-store'}).then(async r=>r.ok?await r.json() as CreditOverview:null).catch(()=>{pending=undefined;return null});
+ return pending??=fetch('/api/credits',{credentials:'same-origin',cache:'no-store'}).then(async r=>r.ok?await r.json() as CreditOverview:null).then(o=>{last=o;return o}).catch(()=>{pending=undefined;return null});
 }
 // Call after a paid action finishes (or fails): the meter and banner catch up.
 export function refreshCredits(){pending=undefined;void loadCredits().then(o=>{for(const l of listeners)l(o)})}
@@ -26,7 +29,7 @@ function watch(){
  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&listeners.size)refreshCredits()});
 }
 export function useCredits(){
- const [overview,setOverview]=useState<CreditOverview|null>(null);
+ const [overview,setOverview]=useState<CreditOverview|null>(()=>last??null);
  useEffect(()=>{let live=true;const on=(o:CreditOverview|null)=>{if(live)setOverview(o)};listeners.add(on);watch();void loadCredits().then(on);return()=>{live=false;listeners.delete(on)}},[]);
  return overview;
 }

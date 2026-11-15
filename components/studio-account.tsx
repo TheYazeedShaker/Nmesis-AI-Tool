@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {Eye,Lock,Info} from 'lucide-react';
-import {CreditBanner} from '@/components/credits';
+import {CreditBanner,loadCredits} from '@/components/credits';
 import {StudioTopBar} from '@/components/studio-topbar';
 import {Popover,PopoverTrigger,PopoverContent} from '@/components/ui/popover';
 import {FEATURE_LABELS,type FeatureKey} from '@/lib/accounts/plan';
@@ -10,17 +10,19 @@ import type {AccountSummary} from '@/lib/accounts/summary';
 // The signed-in person's company and plan, loaded once per page from /api/me.
 // It only decides what to show: every API route checks the same things again.
 let pending:Promise<AccountSummary|null>|undefined;
+// The last answer: a part that appears after it arrived draws at once.
+let last:AccountSummary|null|undefined;
 export function loadAccount(){
  return pending??=fetch('/api/me?page='+encodeURIComponent(location.pathname),{credentials:'same-origin',cache:'no-store'}).then(async r=>{
   if(r.status===401&&(await r.clone().json().catch(()=>null))?.problem==='mfa_required'){location.assign(new URL('/auth/code?next='+encodeURIComponent(location.pathname+location.search),location.origin).href);return null}
   if(r.status===401){location.assign(new URL('/signin?next='+encodeURIComponent(location.pathname+location.search),location.origin).href);return null}
   const d=await r.json().catch(()=>null);
   if(r.status===403&&d?.problem==='no_company'){location.assign(new URL('/auth/no-company',location.origin).href);return null}
-  return r.ok?d as AccountSummary:null;
+  return last=r.ok?d as AccountSummary:null;
  }).catch(()=>{pending=undefined;return null});
 }
 export function useAccount(){
- const [account,setAccount]=useState<AccountSummary|null>(null);
+ const [account,setAccount]=useState<AccountSummary|null>(()=>last??null);
  useEffect(()=>{let live=true;void loadAccount().then(a=>{if(live)setAccount(a)});return()=>{live=false}},[]);
  return account;
 }
@@ -33,10 +35,21 @@ export const hasFeature=(account:AccountSummary|null,key:FeatureKey)=>!account||
 // components/studio-topbar.tsx.
 // Under the top bar: staff "Viewing as" (with support access), a refused company
 // link, no plan or a paused subscription, and the 80% / 100% credit banner.
+// Until the account and the credits are known (both decide which notices show),
+// a marker holds the rest of the page hidden (app/studio-shell.css), so the page
+// appears once, with its notices, instead of jumping down when they arrive
+// (CLS, F-036). Never longer than NOTICES_WAIT_MS, and never on a failed load.
+const NOTICES_WAIT_MS=3000;
+function useNoticesSettled(){
+ const [settled,setSettled]=useState(false);
+ useEffect(()=>{let live=true;const done=()=>{if(live)setSettled(true)};void Promise.allSettled([loadAccount(),loadCredits()]).then(done);const timer=setTimeout(done,NOTICES_WAIT_MS);return()=>{live=false;clearTimeout(timer)}},[]);
+ return settled;
+}
 export function AccountNotices(){
- const account=useAccount();
+ const account=useAccount(),settled=useNoticesSettled();
  // A deep link (/?org=…) the server refused, or could not open, lands here once.
  const [opened]=useState(()=>typeof window==='undefined'?null:new URLSearchParams(window.location.search).get('opened'));
+ if(!settled)return <div className="notices-pending" aria-hidden="true"/>;
  if(!account)return null;
  const w=account.workspace;
  return <>

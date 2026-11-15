@@ -76,3 +76,20 @@ test('films, swaps and stories have Delete with Undo and a Deleted view, by butt
   assert.match(t, /\/api\/\$\{words\.path\}\/\$\{id\}\/restore/);
   for (const [file, kind] of [['app/films/page.tsx', 'films'], ['app/swap/page.tsx', 'swaps'], ['app/storyboard/page.tsx', 'storyboards']]) assert.match(read(file), new RegExp(`<TrashControls kind="${kind}"`), file);
 });
+
+test('job polling backs off while nothing changes, and no screen polls on a fixed interval (F-061)', async () => {
+  const {nextDelay} = await import('../lib/use-backoff-poll.ts');
+  let d = 12000;
+  const waits = [];
+  for (let i = 0; i < 6; i++) { d = nextDelay(d, 'same', 12000, 60000); waits.push(d); }
+  assert.deepEqual(waits, [19200, 30720, 49152, 60000, 60000, 60000]);
+  assert.equal(nextDelay(60000, 'changed', 12000, 60000), 12000);
+  const hook = read('lib/use-backoff-poll.ts');
+  assert.match(hook, /if\(!live\|\|document\.hidden\)return;/);
+  assert.match(hook, /document\.addEventListener\('visibilitychange',shown\)/);
+  for (const file of ['app/films/page.tsx', 'app/swap/page.tsx', 'app/storyboard/page.tsx', 'app/lineup/page.tsx', 'app/page.tsx']) {
+    const s = read(file);
+    assert.match(s, /useBackoffPoll\(async\(\)=>/, file);
+    assert.doesNotMatch(s, /setInterval\(\(\)=>\{if\((document\.hidden|working\.current|action\.current)/, file);
+  }
+});

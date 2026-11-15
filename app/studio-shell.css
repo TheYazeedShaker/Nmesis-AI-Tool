@@ -32,7 +32,7 @@
 .studio-nav-off:hover { background: transparent; color: var(--ds-muted); }
 .studio-topbar-end { gap: var(--ds-space-8); }
 .studio-topbar-actions { display: flex; align-items: center; gap: var(--ds-space-8); }
-.studio-topbar-actions .secondary { min-height: var(--ds-control-h); }
+
 .studio-topbar-problem { color: var(--ds-danger); font-size: var(--ds-text-xs); max-width: var(--ds-settings-w); }
 .studio-role { color: var(--ds-muted); font-size: var(--ds-text-xs); }
 .studio-wide { display: inline-flex; align-items: center; }
@@ -57,7 +57,7 @@
 .studio-menu-row[aria-current="page"], .studio-menu-row[aria-current="true"] { background: var(--ds-panel-hover); color: var(--ds-text-strong); }
 .studio-menu-row .ds-badge { margin-left: auto; }
 .studio-menu-row.ds-btn { justify-content: flex-start; border: var(--ds-border-width) solid var(--ds-border); }
-.studio-menu-actions > * { min-height: var(--ds-tap-phone); }
+
 .studio-menu .studio-signout { display: flex; }
 
 @media (max-width: 1024px) {
@@ -92,3 +92,42 @@
 
 /* The bar is full (useFit in studio-topbar.tsx): the navigation shows its icons. */
 .studio-topbar[data-compact] .ds-nav-word { display: none; }
+
+/* ─── Every screen (Phase 2b), until Phase 3 moves the screens onto the tokens ── */
+
+/* Visible focus everywhere (2.4.7, F-017, F-018, F-031): text boxes, choices,
+   disclosure rows and the live configurator frame showed focus by a faint
+   border at most. The brand lime on the dark screens. */
+body :is(input:not([type="hidden"]), select, textarea, summary):focus-visible,
+body iframe:focus {
+  outline: var(--ds-focus-width) solid var(--nm-lime);
+  outline-offset: var(--ds-space-2);
+}
+
+/* Card actions on touch (F-069): the "…" menu is a target of its own size, and
+   the picture's open-larger mark shows without hover. */
+.studio-makeover .card-actions-menu > summary { min-width: var(--ds-tap-min); min-height: var(--ds-tap-min); }
+@media (hover: none) {
+  .studio-makeover .result-image > span { opacity: 1; }
+}
+@media (pointer: coarse) {
+  .studio-makeover .card-actions-menu > summary { width: var(--ds-tap-phone); height: var(--ds-tap-phone); }
+}
+
+/* 24px targets everywhere (2.5.8, F-022): the small text buttons, disclosure
+   rows and corner buttons that were 15–21px tall. Sizes only; nothing moves
+   to another place. */
+body :is(button.text-button, button.film-text-button, .lineup-car-head button) { min-height: var(--ds-tap-min); min-width: var(--ds-tap-min); }
+body :is(a.text-button, .configurator-address a) { display: inline-flex; align-items: center; min-height: var(--ds-tap-min); }
+body .studio details > summary { min-height: var(--ds-tap-min); }
+body .studio-menu button, body .studio input[type="checkbox"], body .studio input[type="radio"] { min-width: var(--ds-tap-min); min-height: var(--ds-tap-min); }
+
+/* No layout shift while a screen loads (CLS, F-036). The account notices hold
+   the page below them hidden until they know what to show (studio-account.tsx);
+   Films and Line-up keep a screen's height while their work loads, so what is
+   below them starts off-screen instead of jumping. */
+.notices-pending ~ * { visibility: hidden; }
+.film-loading, .lineup-loading { min-height: 100dvh; }
+.studio-topbar[data-tight] .studio-action-word { display: none; }
+.studio-topbar-actions .ds-btn { color: var(--ds-text); }
+.studio-topbar-actions .ds-btn svg, .studio-menu-row > span[aria-hidden="true"] svg { width: var(--ds-icon); height: var(--ds-icon); }
