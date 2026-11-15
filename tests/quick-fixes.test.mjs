@@ -104,7 +104,7 @@ test('the phone top bar keeps the account controls on screen, using tokens only 
   const css = read('app/topbar-phone.css');
   assert.match(read('app/layout.tsx'), /import "\.\/topbar-phone\.css";/);
   assert.match(css, /@media \(max-width: 768px\)/);
-  assert.match(css, /header\.topbar\.topbar > \.account-bar \{[^}]*flex: 1 1 100%;[^}]*flex-wrap: wrap;/);
+  assert.match(css, /header\.topbar\.topbar > \.account-bar \{[^}]*flex: 1 1 100%;[^}]*flex-wrap: nowrap;/);
   assert.match(css, /header\.topbar\.topbar > \.heading-actions,\n  header\.topbar\.topbar > \.film-nav \{[^}]*overflow-x: auto;/);
   // The account row keeps its height while the account loads (no layout shift),
   // and stays one row on phones with an icon-only Sign out that keeps its name.

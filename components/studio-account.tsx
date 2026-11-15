@@ -35,7 +35,7 @@ export function AccountBar(){
  if(!account)return <div className="account-bar account-bar-pending" aria-hidden="true"/>;
  return <div className="account-bar">
   {account.orgs.length>1?<CompanySwitcher account={account} busy={busy} onChoose={id=>void choose(id)}/>
-   :<span className="account-org"><Building2 size={14}/>{account.org.name}</span>}
+   :<span className="account-org" title={account.org.name}><Building2 size={14}/><span className="account-org-name">{account.org.name}</span></span>}
   {account.workspace.open&&<CreditMeter/>}
   <span className="account-role">{account.viewingAs?'Staff':ROLE_LABEL[account.role]}</span>
   {(account.role==='owner'&&!account.internal||account.viewingAs)&&<Link href="/company" className="account-company" aria-label="Company settings" title="Company settings"><Settings size={14}/></Link>}

@@ -28,7 +28,8 @@
     min-width: 0;
     margin-left: 0;
     padding-left: 0;
-    flex-wrap: wrap;
+    /* One row, so it never grows after loading: the company name gives way. */
+    flex-wrap: nowrap;
     justify-content: flex-start;
     row-gap: var(--ds-space-8);
     column-gap: var(--ds-space-8);
@@ -36,8 +37,11 @@
     min-height: var(--ds-control-h);
   }
   /* The company's name stays readable (it was hidden on phones). */
-  header.topbar.topbar .account-org { display: inline-flex; min-width: 0; max-width: 100%; }
+  header.topbar.topbar .account-org { display: inline-flex; flex: 1 1 auto; min-width: 0; max-width: 100%; }
   header.topbar.topbar .account-switch { flex: 1 1 auto; min-width: 0; max-width: 100%; min-height: var(--ds-tap-min); }
+  header.topbar.topbar .account-org-name,
+  header.topbar.topbar .account-switch > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  header.topbar.topbar .account-bar > :not(.account-org):not(.account-switch) { flex: none; }
   header.topbar.topbar .account-company { min-width: var(--ds-control-h-sm); min-height: var(--ds-control-h-sm); }
   header.topbar.topbar .account-bar form { margin-left: auto; }
   header.topbar.topbar .account-bar form .secondary { min-height: var(--ds-control-h-sm); }
@@ -58,13 +62,9 @@
   header.topbar.topbar > .secondary { order: 4; }
 }
 
-/* Phones: one row for the account. The company name gives way first, and Sign
-   out keeps its icon (its name stays "Sign out" for assistive technology). */
+/* Phones: Sign out keeps its icon (its name stays "Sign out" for assistive
+   technology), so the account row fits on one line. */
 @media (max-width: 480px) {
-  header.topbar.topbar > .account-bar { flex-wrap: nowrap; }
-  header.topbar.topbar .account-switch,
-  header.topbar.topbar .account-org { flex: 1 1 auto; min-width: 0; }
-  header.topbar.topbar .account-switch > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   header.topbar.topbar .account-signout-word { display: none; }
   header.topbar.topbar .account-bar form .secondary { min-width: var(--ds-control-h-sm); justify-content: center; }
 }
