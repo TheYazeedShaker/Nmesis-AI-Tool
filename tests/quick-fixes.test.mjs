@@ -106,6 +106,12 @@ test('the phone top bar keeps the account controls on screen, using tokens only 
   assert.match(css, /@media \(max-width: 768px\)/);
   assert.match(css, /header\.topbar\.topbar > \.account-bar \{[^}]*flex: 1 1 100%;[^}]*flex-wrap: wrap;/);
   assert.match(css, /header\.topbar\.topbar > \.heading-actions,\n  header\.topbar\.topbar > \.film-nav \{[^}]*overflow-x: auto;/);
+  // The account row keeps its height while the account loads (no layout shift),
+  // and stays one row on phones with an icon-only Sign out that keeps its name.
+  assert.match(css, /> \.account-bar \{[^}]*min-height: var\(--ds-control-h\);/);
+  assert.match(read('components/studio-account.tsx'), /if\(!account\)return <div className="account-bar account-bar-pending" aria-hidden="true"\/>;/);
+  assert.match(read('components/studio-account.tsx'), /aria-label="Sign out"[^>]*><LogOut size=\{14\}\/><span className="account-signout-word">Sign out<\/span>/);
+  assert.match(css, /@media \(max-width: 480px\) \{[^@]*\.account-signout-word \{ display: none; \}/);
   assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media \([^)]*\)/g, ''), /#[0-9a-f]{3,8}\b|\d+px/i, 'tokens only');
 });
 

@@ -19,6 +19,7 @@
     padding: var(--ds-space-8) var(--ds-space-16);
   }
   header.topbar.topbar > .topnote { display: none; }
+  header.topbar.topbar > .account-bar-pending { visibility: hidden; }
   header.topbar.topbar > .brand { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: var(--ds-control-h-sm); }
 
   header.topbar.topbar > .account-bar {
@@ -31,6 +32,8 @@
     justify-content: flex-start;
     row-gap: var(--ds-space-8);
     column-gap: var(--ds-space-8);
+    /* Its height is kept while the account loads, so nothing below moves. */
+    min-height: var(--ds-control-h);
   }
   /* The company's name stays readable (it was hidden on phones). */
   header.topbar.topbar .account-org { display: inline-flex; min-width: 0; max-width: 100%; }
@@ -53,4 +56,15 @@
   header.topbar.topbar > .heading-actions > *,
   header.topbar.topbar > .film-nav > * { flex: none; white-space: nowrap; display: inline-flex; align-items: center; min-height: var(--ds-control-h-sm); }
   header.topbar.topbar > .secondary { order: 4; }
+}
+
+/* Phones: one row for the account. The company name gives way first, and Sign
+   out keeps its icon (its name stays "Sign out" for assistive technology). */
+@media (max-width: 480px) {
+  header.topbar.topbar > .account-bar { flex-wrap: nowrap; }
+  header.topbar.topbar .account-switch,
+  header.topbar.topbar .account-org { flex: 1 1 auto; min-width: 0; }
+  header.topbar.topbar .account-switch > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  header.topbar.topbar .account-signout-word { display: none; }
+  header.topbar.topbar .account-bar form .secondary { min-width: var(--ds-control-h-sm); justify-content: center; }
 }

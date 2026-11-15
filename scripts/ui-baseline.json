@@ -1,19 +1,19 @@
 {
   "note": "Counts from the full npm run check:ui matrix. They may only go down; Phase 4 brings them to zero.",
-  "measured": "2026-11-15",
+  "measured": "2026-11-15 (Phase 2a)",
   "counts": {
     "pagesWithErrors": 0,
-    "pagesWithSidewaysScroll": 12,
+    "pagesWithSidewaysScroll": 8,
     "consoleErrors": 32,
     "httpErrors": 40,
-    "axeCritical": 88,
-    "axeSerious": 572,
-    "focusWithoutIndicator": 187,
+    "axeCritical": 0,
+    "axeSerious": 536,
+    "focusWithoutIndicator": 184,
     "focusHiddenBySticky": 0,
-    "targetsUnder24": 608,
-    "overlapped": 290,
+    "targetsUnder24": 568,
+    "overlapped": 282,
     "clippedWithoutEllipsis": 0,
-    "ellipsisWithoutFullText": 106,
+    "ellipsisWithoutFullText": 66,
     "serverHostsBlocked": 0
   }
 }

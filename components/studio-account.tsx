@@ -30,7 +30,9 @@ const ROLE_LABEL={owner:'Owner',creator:'Creator',viewer:'Viewer'} as const;
 export function AccountBar(){
  const account=useAccount();const [busy,setBusy]=useState(false),[problem,setProblem]=useState('');
  async function choose(orgId:string){if(!account||orgId===account.org.id)return;setBusy(true);setProblem('');try{const r=await fetch('/api/auth/org',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({orgId})});if(r.ok){location.reload();return}const d=await r.json().catch(()=>({}));setProblem(d.error||'The company could not be changed.')}catch{setProblem('The connection was interrupted. Try again.')}setBusy(false)}
- if(!account)return null;
+ // Until the account arrives, an empty bar keeps its place (on phones it is a
+ // row of its own; appearing late would push the page down).
+ if(!account)return <div className="account-bar account-bar-pending" aria-hidden="true"/>;
  return <div className="account-bar">
   {account.orgs.length>1?<CompanySwitcher account={account} busy={busy} onChoose={id=>void choose(id)}/>
    :<span className="account-org"><Building2 size={14}/>{account.org.name}</span>}
@@ -38,7 +40,7 @@ export function AccountBar(){
   <span className="account-role">{account.viewingAs?'Staff':ROLE_LABEL[account.role]}</span>
   {(account.role==='owner'&&!account.internal||account.viewingAs)&&<Link href="/company" className="account-company" aria-label="Company settings" title="Company settings"><Settings size={14}/></Link>}
   {problem&&<span className="account-problem" role="alert">{problem}</span>}
-  <form method="post" action="/auth/signout"><button className="secondary" type="submit" title={'Signed in as '+account.user.email}><LogOut size={14}/>Sign out</button></form>
+  <form method="post" action="/auth/signout"><button className="secondary" type="submit" aria-label="Sign out" title={'Signed in as '+account.user.email}><LogOut size={14}/><span className="account-signout-word">Sign out</span></button></form>
  </div>;
 }
 // More companies than this and the switcher gets a search field.
@@ -51,7 +53,7 @@ function CompanySwitcher({account,busy,onChoose}:{account:AccountSummary;busy:bo
  const sections=account.switcher?[{label:'Nmesis',orgs:account.switcher.nmesis},{label:'Clients',orgs:account.switcher.clients}].filter(s=>s.orgs.length):[{label:'',orgs:account.orgs}];
  const total=sections.reduce((n,s)=>n+s.orgs.length,0);
  const pick=(id:string)=>{setOpen(false);onChoose(id)};
- return <Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><button type="button" className="account-switch" aria-label={'Company: '+account.org.name} disabled={busy}><Building2 size={14}/><span>{account.org.name}</span><ChevronsUpDown size={14}/></button></PopoverTrigger>
+ return <Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><button type="button" className="account-switch" aria-label={'Company: '+account.org.name} title={account.org.name} disabled={busy}><Building2 size={14}/><span>{account.org.name}</span><ChevronsUpDown size={14}/></button></PopoverTrigger>
   <PopoverContent className="account-switcher" align="end"><Command loop>
    {total>=SEARCH_FROM&&<CommandInput placeholder="Search companies" aria-label="Search companies"/>}
    <CommandList><CommandEmpty>No company with that name.</CommandEmpty>
