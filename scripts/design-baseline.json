@@ -1,0 +1,125 @@
+{
+  "note": "What is wrong today, so nothing can get worse tomorrow. npm run check:design -- --list shows each one. Lower these by fixing screens; never raise one to make the check pass.",
+  "measured": "2026-11-15",
+  "counts": {
+    "app/auth.css": {
+      "raw-colour": 3,
+      "raw-size": 49
+    },
+    "app/films/films.css": {
+      "raw-colour": 150,
+      "raw-size": 237
+    },
+    "app/films/page.tsx": {
+      "unknown-class": 1,
+      "browser-dialog": 2,
+      "unstyled-control": 7
+    },
+    "app/globals.css": {
+      "raw-colour": 322,
+      "raw-size": 557
+    },
+    "app/lineup/lineup.css": {
+      "raw-colour": 59,
+      "raw-size": 91
+    },
+    "app/lineup/page.tsx": {
+      "unknown-class": 2,
+      "unstyled-control": 13
+    },
+    "app/nano-lab/page.tsx": {
+      "unknown-class": 1,
+      "raw-colour": 5,
+      "raw-size": 8,
+      "unstyled-control": 3
+    },
+    "app/page.tsx": {
+      "unknown-class": 2,
+      "unstyled-control": 11
+    },
+    "app/storyboard/page.tsx": {
+      "unknown-class": 1,
+      "unstyled-control": 19
+    },
+    "app/storyboard/storyboard.css": {
+      "raw-colour": 60,
+      "raw-size": 113
+    },
+    "app/studio-workspace.css": {
+      "raw-colour": 71,
+      "raw-size": 170
+    },
+    "app/swap/page.tsx": {
+      "unknown-class": 1,
+      "unstyled-control": 5
+    },
+    "app/swap/swap.css": {
+      "raw-colour": 71,
+      "raw-size": 101
+    },
+    "components/area-editor.tsx": {
+      "unstyled-control": 11
+    },
+    "components/car-capture.tsx": {
+      "unstyled-control": 2
+    },
+    "components/connection-settings.tsx": {
+      "unknown-class": 1
+    },
+    "components/refinement-references.tsx": {
+      "unknown-class": 1
+    },
+    "components/smart-reference-lab.tsx": {
+      "unstyled-control": 3
+    },
+    "components/smart-reference.tsx": {
+      "unstyled-control": 1
+    },
+    "components/topaz-upscale.tsx": {
+      "unstyled-control": 1
+    },
+    "components/ui/bubble.tsx": {
+      "raw-colour": 4
+    },
+    "components/ui/button.tsx": {
+      "unknown-class": 3
+    },
+    "components/ui/calendar.tsx": {
+      "raw-size": 2
+    },
+    "components/ui/chart.tsx": {
+      "raw-size": 2
+    },
+    "components/ui/checkbox.tsx": {
+      "raw-size": 1
+    },
+    "components/ui/input-group.tsx": {
+      "unknown-class": 6,
+      "raw-size": 7
+    },
+    "components/ui/navigation-menu.tsx": {
+      "unknown-class": 1
+    },
+    "components/ui/pagination.tsx": {
+      "unknown-class": 1
+    },
+    "components/ui/sidebar.tsx": {
+      "unknown-class": 21
+    },
+    "components/ui/sonner.tsx": {
+      "unknown-class": 1
+    },
+    "components/ui/tabs.tsx": {
+      "raw-size": 1
+    },
+    "components/ui/tooltip.tsx": {
+      "raw-size": 1
+    },
+    "components/upscale-panel.tsx": {
+      "unstyled-control": 1
+    },
+    "components/visual-comparison.tsx": {
+      "unstyled-control": 2
+    }
+  }
+}

@@ -1,5 +1,6 @@
 import {NextResponse,type NextRequest} from 'next/server';
 import {createServerClient} from '@supabase/ssr';
+import {GALLERY_PATH,galleryOpenWithoutSignIn} from '@/lib/ds/gallery-access';
 // Workspace pages only (API routes verify the session themselves). Refreshes the
 // Supabase session cookies, sends a signed-out visitor to sign in, and holds a
 // person at "Choose your password" while that card is owed (set by the server
@@ -9,6 +10,8 @@ const PUBLIC=/^\/(signin(\/.*)?|auth\/.*)$/;
 export async function proxy(request:NextRequest){
  const path=request.nextUrl.pathname;
  if(PUBLIC.test(path))return NextResponse.next();
+ // Local next dev only, with STUDIO_DESIGN_GALLERY=open (never on a deployment).
+ if(GALLERY_PATH.test(path)&&galleryOpenWithoutSignIn())return NextResponse.next();
  const url=(process.env.SUPABASE_URL||'').trim().replace(/\/+$/,''),key=(process.env.SUPABASE_PUBLISHABLE_KEY||'').trim();
  const here=path+request.nextUrl.search;
  const toSignIn=()=>{const to=request.nextUrl.clone();to.pathname='/signin';to.search=here!=='/'?'?next='+encodeURIComponent(here):'';return NextResponse.redirect(to,303)};

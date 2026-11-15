@@ -33,7 +33,7 @@ git switch -c development
 git push -u origin development
 ```
 
-Future development belongs on **`development`** (and the `moaz-playground` sandbox). Keep `main` as the Vercel Production branch. Every other branch gets a Vercel Preview deployment; use separate test resources there. Promote `development` to `main` only through a reviewed pull request.
+Future development belongs on **`development`** (and the `moaz-playground` sandbox). Keep `main` as the Vercel Production branch. Every other branch gets a Vercel Preview deployment. Preview shares the main Supabase project with Production; its S3 bucket, keys and provider budgets are its own. Promote `development` to `main` only through a reviewed pull request.
 
 ## 2. Set up the three hosting connections
 
@@ -70,7 +70,7 @@ Exactly 64 hex characters (32 bytes): generate it with `openssl rand -hex 32`. K
 
 ### Database: Supabase Postgres
 
-The studio keeps its job records in its own schema, `studio`, inside a Supabase Postgres project, reached with its own login role `studio_app` that can touch nothing else. Production uses the main project; Preview uses a separate staging project with the same schema (the staging project's users, data and keys never mix with real clients').
+The studio keeps its job records in its own schema, `studio`, inside a Supabase Postgres project, reached with its own login role `studio_app` that can touch nothing else. Production and Preview both use the main project, so the setup SQL and the migrations run once.
 
 In each project, once:
 
@@ -116,7 +116,7 @@ In Vercel, choose **Add New → Project → your GitHub repository**:
 
 Use Vercel Pro for this commercial studio and the longer image-generation requests. This code sets 300-second generation route limits. Enable Fluid compute if required by your project settings; availability and platform limits depend on your plan. Add all values from `.env.local` to Vercel's **Production environment variables**, not to GitHub. Add your final HTTPS domain to Supabase Auth's redirect URLs and to the S3 CORS origins, and set `CONFIGURATOR_ORIGIN` (server-only, see `.env.example`). If you configure variables after the first deployment, redeploy.
 
-For Preview/testing, use the staging Supabase project and a separate S3 bucket and IAM user, separate secrets and a stable preview domain with matching OAuth/CORS configuration. Do not reuse production keys merely to make previews run.
+For Preview/testing, use the main Supabase project (shared with Production) with a separate S3 bucket and IAM user, separate provider keys with their own billing limits, separate secrets, and a stable preview domain with matching Auth/CORS configuration. Do not reuse production keys merely to make previews run.
 
 ## 4. Provider accounts and credits
 
