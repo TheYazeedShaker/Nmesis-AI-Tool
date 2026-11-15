@@ -44,6 +44,9 @@ export function layoutChecks({ phone }) {
   // clip-path / clip hiding): neither a target, nor drawn over, nor clipped text.
   const hiddenOnPurpose = (el) => {
     for (let n = el; n && n !== document.body; n = n.parentElement) {
+      // Inside a closed <details> (other than its summary) nothing is drawn or
+      // reachable; Phase 1 counted those as covered (F-069 was this, in part).
+      if (n.parentElement && n.parentElement.tagName === 'DETAILS' && !n.parentElement.open && n.tagName !== 'SUMMARY') return true;
       const cs = getComputedStyle(n), r = n.getBoundingClientRect();
       if ((r.width <= 2 || r.height <= 2) && cs.overflow !== 'visible') return true;
       if (/inset\(50%\)|rect\(0/.test(cs.clipPath + ' ' + cs.clip)) return true;
@@ -133,3 +136,22 @@ export function focusState() {
   return { el: describe(el), indicator: changed, offscreen: pts.length === 0, covered, points: pts.length, coveredBy, size: [Math.round(r.width), Math.round(r.height)] };
 }
 
+
+// F-050: provider and model names a client without its own keys can read —
+// visible text, and aria-label / title / alt. `source` is the pattern's source
+// (lib/provider-words.ts PROVIDER_PATTERN), passed in because this runs in the page.
+export function providerNamesOnPage({ source }) {
+  const re = new RegExp(source, 'i');
+  const found = [];
+  const text = document.body ? document.body.innerText : '';
+  for (const line of text.split('\n')) { const m = re.exec(line); if (m) found.push({ where: 'text', name: m[0], text: line.trim().slice(0, 140) }); }
+  for (const el of document.querySelectorAll('[aria-label], [title], img[alt]')) {
+    for (const attr of ['aria-label', 'title', 'alt']) {
+      const v = el.getAttribute(attr);
+      const m = v && re.exec(v);
+      if (m) found.push({ where: attr, name: m[0], text: v.slice(0, 140) });
+    }
+  }
+  const seen = new Set();
+  return found.filter((f) => { const k = f.where + f.text; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 40);
+}

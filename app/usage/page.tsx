@@ -1,8 +1,7 @@
 'use client';
+import {StudioTopBar} from '@/components/studio-topbar';
 import {useEffect,useState} from 'react';
-import Link from 'next/link';
-import {Aperture} from 'lucide-react';
-import {AccountBar,AccountNotices} from '@/components/studio-account';
+import {AccountNotices} from '@/components/studio-account';
 import {creditsLabel} from '@/lib/credits/words';
 import type {UsagePage} from '@/lib/credits/usage';
 // Usage, for a company's owners (and Nmesis staff with support access): credits
@@ -14,7 +13,7 @@ export default function Usage(){
  useEffect(()=>{let live=true;fetch('/api/usage',{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'Usage could not be loaded.');if(live)setData(d as UsagePage)}).catch(e=>{if(live)setError((e as Error).message)});return()=>{live=false}},[]);
  const m=data?.meter;
  return <>
-  <header className="topbar"><Link href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></Link><AccountBar/></header><AccountNotices/>
+  <StudioTopBar current="usage"/><AccountNotices/>
   <main className="account-page">
    <div><p className="eyebrow">USAGE</p><h1>{data?.company||'Your company'}’s credits</h1></div>
    {error&&<p className="field-error" role="alert">{error}</p>}

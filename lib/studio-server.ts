@@ -1,3 +1,4 @@
+import {enterProviderScope,forClient,providerNamesVisible} from './provider-scope';
 import {getDatabase,type StudioDatabase} from '@/lib/portable/database';
 import {getStorage,type StudioBucket} from '@/lib/portable/storage';
 import {getStudioContext} from '@/lib/studio-context';
@@ -26,9 +27,11 @@ export function requestContext(account:StudioContext,env:StudioEnv=bindings()):R
 // ROUTE_FEATURES table), viewer read-only and an ended subscription are all
 // decided before the route reads its body.
 export async function context(request:Request,write=false){
+ const scope=enterProviderScope();
  const got=await getStudioContext();
  if(!got.ok)throw got.problem==='signed_out'?new StudioError('Please sign in to use your studio.',401):got.problem==='mfa_required'?new StudioError(MFA_REQUIRED,401):got.problem==='no_company'?new StudioError(NO_COMPANY,403):new StudioError('Signing in is not set up on this Studio yet.',503);
  if(write||request.method!=='GET'){const origin=request.headers.get('origin');if(origin&&origin!==new URL(request.url).origin)throw new StudioError('This request must come from your studio.',403)}
+ scope.names=providerNamesVisible(got.ctx);
  try{checkRoute(got.ctx,new URL(request.url).pathname,request.method)}catch(e){if(e instanceof PlanError)throw new StudioError(e.message,e.status);throw e}
  return requestContext(got.ctx);
 }
@@ -36,7 +39,7 @@ export function bucket(value:StudioBucket|undefined){if(!value)throw new StudioE
 export const validId=(id:unknown):id is string=>typeof id==='string'&&/^[a-z0-9-]{8,80}$/.test(id);
 export const imageKey=(prefix:string,id:string)=>prefix+'images/'+id;
 export function str(v:unknown,max=2000){return typeof v==='string'?v.trim().slice(0,max):''}
-export function fail(error:unknown){if(error instanceof StudioError||error instanceof PlanError||error instanceof KeyStorageMisconfigured)return Response.json({error:error.message},{status:error.status});console.error('Studio request failed',error instanceof Error?error.name:'UnknownError');return Response.json({error:'Something went wrong. Your draft is safe; please try again.'},{status:500})}
+export function fail(error:unknown){if(error instanceof StudioError||error instanceof PlanError||error instanceof KeyStorageMisconfigured)return Response.json({error:forClient(error.message)},{status:error.status});console.error('Studio request failed',error instanceof Error?error.name:'UnknownError');return Response.json({error:'Something went wrong. Your draft is safe; please try again.'},{status:500})}
 export async function readJson(request:Request,maxBytes=16000):Promise<Record<string,any>>{if(Number(request.headers.get('content-length')||0)>maxBytes)throw new StudioError('The brief is too long.',413);let data:unknown;try{const text=await request.text();if(new TextEncoder().encode(text).length>maxBytes)throw new StudioError('The brief is too long.',413);data=JSON.parse(text)}catch(e){if(e instanceof StudioError)throw e;throw new StudioError('The request could not be read.')}if(!data||typeof data!=='object'||Array.isArray(data))throw new StudioError('Invalid request.');return data as Record<string,any>}
 export function imageType(bytes:Uint8Array){if(bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71)return 'image/png';if(bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'image/jpeg';if(new TextDecoder().decode(bytes.slice(0,4))==='RIFF'&&new TextDecoder().decode(bytes.slice(8,12))==='WEBP')return 'image/webp';return null}
 export async function providerError(response:Response){

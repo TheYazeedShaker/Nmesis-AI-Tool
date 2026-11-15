@@ -1,11 +1,12 @@
 export const runtime='nodejs';
 export const maxDuration=300;
+import {restoreItem} from '@/lib/trash';
 import {context,fail,readJson,StudioError} from '@/lib/studio-server';
 import {withBoard,planStory,generateFrame} from '@/lib/storyboard-server';
 import {database,filmRow,withFilmLock,quoteFilm,renderFilm} from '@/lib/film-server';
 import {draftFor,publicFilm,type FilmModelId} from '@/lib/films';
 import {orgOf} from '@/lib/portable/tenancy';
-export async function POST(request:Request,{params}:{params:Promise<{id:string;action:string}>}){try{const ctx=await context(request,true),{id,action}=await params,d=await readJson(request);let film;
+export async function POST(request:Request,{params}:{params:Promise<{id:string;action:string}>}){try{const ctx=await context(request,true),{id,action}=await params;if(action==='restore')return Response.json(await restoreItem(ctx,'storyboards',id));const d=await readJson(request);let film;
  const board=await withBoard(ctx,id,d.revision,async(b,save)=>{
  if(action==='plan'){if(d.approved!==true)throw new StudioError('Approve the AI planning request first.');await planStory(ctx,b,d.count===12?12:6);await save(b);return}
  const s=b.shots.find(x=>x.id===d.shotId);if(!s)throw new StudioError('Choose a storyboard shot.');

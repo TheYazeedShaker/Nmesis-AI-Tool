@@ -1,72 +1,55 @@
 'use client';
 import {useEffect,useState} from 'react';
 import Link from 'next/link';
-import {Aperture,Building2,Check,ChevronsUpDown,Eye,LogOut,Lock,Info,Settings} from 'lucide-react';
-import {CreditBanner,CreditMeter} from '@/components/credits';
-import {Command,CommandEmpty,CommandGroup,CommandInput,CommandItem,CommandList} from '@/components/ui/command';
+import {Eye,Lock,Info} from 'lucide-react';
+import {CreditBanner,loadCredits} from '@/components/credits';
+import {StudioTopBar} from '@/components/studio-topbar';
 import {Popover,PopoverTrigger,PopoverContent} from '@/components/ui/popover';
 import {FEATURE_LABELS,type FeatureKey} from '@/lib/accounts/plan';
 import type {AccountSummary} from '@/lib/accounts/summary';
 // The signed-in person's company and plan, loaded once per page from /api/me.
 // It only decides what to show: every API route checks the same things again.
 let pending:Promise<AccountSummary|null>|undefined;
+// The last answer: a part that appears after it arrived draws at once.
+let last:AccountSummary|null|undefined;
 export function loadAccount(){
  return pending??=fetch('/api/me?page='+encodeURIComponent(location.pathname),{credentials:'same-origin',cache:'no-store'}).then(async r=>{
   if(r.status===401&&(await r.clone().json().catch(()=>null))?.problem==='mfa_required'){location.assign(new URL('/auth/code?next='+encodeURIComponent(location.pathname+location.search),location.origin).href);return null}
   if(r.status===401){location.assign(new URL('/signin?next='+encodeURIComponent(location.pathname+location.search),location.origin).href);return null}
   const d=await r.json().catch(()=>null);
   if(r.status===403&&d?.problem==='no_company'){location.assign(new URL('/auth/no-company',location.origin).href);return null}
-  return r.ok?d as AccountSummary:null;
+  return last=r.ok?d as AccountSummary:null;
  }).catch(()=>{pending=undefined;return null});
 }
 export function useAccount(){
- const [account,setAccount]=useState<AccountSummary|null>(null);
+ const [account,setAccount]=useState<AccountSummary|null>(()=>last??null);
  useEffect(()=>{let live=true;void loadAccount().then(a=>{if(live)setAccount(a)});return()=>{live=false}},[]);
  return account;
 }
 // Until the account arrives a tool stays visible; the server refuses it anyway.
+// Whether this person may read provider and model names (F-050): Nmesis staff,
+// and companies whose plan includes their own keys. Everyone else reads plain words.
+export const providerNames=(account:AccountSummary|null)=>!!account&&(account.staff||account.features['studio.own_keys']===true);
 export const hasFeature=(account:AccountSummary|null,key:FeatureKey)=>!account||account.features[key]!==false;
-const ROLE_LABEL={owner:'Owner',creator:'Creator',viewer:'Viewer'} as const;
-export function AccountBar(){
- const account=useAccount();const [busy,setBusy]=useState(false),[problem,setProblem]=useState('');
- async function choose(orgId:string){if(!account||orgId===account.org.id)return;setBusy(true);setProblem('');try{const r=await fetch('/api/auth/org',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({orgId})});if(r.ok){location.reload();return}const d=await r.json().catch(()=>({}));setProblem(d.error||'The company could not be changed.')}catch{setProblem('The connection was interrupted. Try again.')}setBusy(false)}
- // Until the account arrives, an empty bar keeps its place (on phones it is a
- // row of its own; appearing late would push the page down).
- if(!account)return <div className="account-bar account-bar-pending" aria-hidden="true"/>;
- return <div className="account-bar">
-  {account.orgs.length>1?<CompanySwitcher account={account} busy={busy} onChoose={id=>void choose(id)}/>
-   :<span className="account-org" title={account.org.name}><Building2 size={14}/><span className="account-org-name">{account.org.name}</span></span>}
-  {account.workspace.open&&<CreditMeter/>}
-  <span className="account-role">{account.viewingAs?'Staff':ROLE_LABEL[account.role]}</span>
-  {(account.role==='owner'&&!account.internal||account.viewingAs)&&<Link href="/company" className="account-company" aria-label="Company settings" title="Company settings"><Settings size={14}/></Link>}
-  {problem&&<span className="account-problem" role="alert">{problem}</span>}
-  <form method="post" action="/auth/signout"><button className="secondary" type="submit" aria-label="Sign out" title={'Signed in as '+account.user.email}><LogOut size={14}/><span className="account-signout-word">Sign out</span></button></form>
- </div>;
-}
-// More companies than this and the switcher gets a search field.
-const SEARCH_FROM=9;
-// The company switcher. Staff see two sections: Nmesis (their own workspace,
-// where they work as an owner) and Clients (opened read-only, "Viewing as").
-// Everyone else sees only their own companies. The choice is kept by the server.
-function CompanySwitcher({account,busy,onChoose}:{account:AccountSummary;busy:boolean;onChoose:(id:string)=>void}){
- const [open,setOpen]=useState(false);
- const sections=account.switcher?[{label:'Nmesis',orgs:account.switcher.nmesis},{label:'Clients',orgs:account.switcher.clients}].filter(s=>s.orgs.length):[{label:'',orgs:account.orgs}];
- const total=sections.reduce((n,s)=>n+s.orgs.length,0);
- const pick=(id:string)=>{setOpen(false);onChoose(id)};
- return <Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><button type="button" className="account-switch" aria-label={'Company: '+account.org.name} title={account.org.name} disabled={busy}><Building2 size={14}/><span>{account.org.name}</span><ChevronsUpDown size={14}/></button></PopoverTrigger>
-  <PopoverContent className="account-switcher" align="end"><Command loop>
-   {total>=SEARCH_FROM&&<CommandInput placeholder="Search companies" aria-label="Search companies"/>}
-   <CommandList><CommandEmpty>No company with that name.</CommandEmpty>
-    {sections.map(s=><CommandGroup key={s.label||'companies'} heading={s.label||undefined}>{s.orgs.map(o=><CommandItem key={o.id} value={o.name+' '+o.id} keywords={[o.name]} onSelect={()=>pick(o.id)} aria-current={o.id===account.org.id?'true':undefined}><span className="account-switch-name">{o.name}</span>{o.id===account.org.id?<Check size={14}/>:s.label==='Clients'?<Eye size={14} aria-label="Read-only"/>:null}</CommandItem>)}</CommandGroup>)}
-   </CommandList>
-  </Command></PopoverContent></Popover>;
-}
+// The top bar itself (navigation, credits, company switcher, account) is
+// components/studio-topbar.tsx.
 // Under the top bar: staff "Viewing as" (with support access), a refused company
 // link, no plan or a paused subscription, and the 80% / 100% credit banner.
+// Until the account and the credits are known (both decide which notices show),
+// a marker holds the rest of the page hidden (app/studio-shell.css), so the page
+// appears once, with its notices, instead of jumping down when they arrive
+// (CLS, F-036). Never longer than NOTICES_WAIT_MS, and never on a failed load.
+const NOTICES_WAIT_MS=3000;
+function useNoticesSettled(){
+ const [settled,setSettled]=useState(false);
+ useEffect(()=>{let live=true;const done=()=>{if(live)setSettled(true)};void Promise.allSettled([loadAccount(),loadCredits()]).then(done);const timer=setTimeout(done,NOTICES_WAIT_MS);return()=>{live=false;clearTimeout(timer)}},[]);
+ return settled;
+}
 export function AccountNotices(){
- const account=useAccount();
+ const account=useAccount(),settled=useNoticesSettled();
  // A deep link (/?org=…) the server refused, or could not open, lands here once.
  const [opened]=useState(()=>typeof window==='undefined'?null:new URLSearchParams(window.location.search).get('opened'));
+ if(!settled)return <div className="notices-pending" aria-hidden="true"/>;
  if(!account)return null;
  const w=account.workspace;
  return <>
@@ -103,5 +86,5 @@ export function PlanGate({feature,children}:{feature:FeatureKey;children:React.R
  const account=useAccount();
  if(hasFeature(account,feature))return <>{children}</>;
  const ended=planEnded(account);
- return <><header className="topbar"><Link href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></Link><AccountBar/></header><AccountNotices/><main className="plan-gate"><section><p className="eyebrow">YOUR PLAN</p>{ended?<><h1>Your Studio plan has ended</h1><p className="helper">New work, including {FEATURE_LABELS[feature].toLowerCase()}, is paused. Ask Nmesis to renew your company’s plan.</p><div className="upsell"><span className="plan-chip">{PLAN_ENDED_CHIP}</span><AskNmesis feature={feature} ended/></div></>:<><h1>{FEATURE_LABELS[feature]} is available on {account!.upsell[feature]}</h1><p className="helper">Your company’s plan doesn’t include {FEATURE_LABELS[feature].toLowerCase()} yet. Ask Nmesis to add it.</p><div className="upsell"><span className="plan-chip">Available on {account!.upsell[feature]}</span><AskNmesis feature={feature}/></div></>}<Link className="secondary" href="/">Back to key visuals</Link></section></main></>;
+ return <><StudioTopBar/><AccountNotices/><main className="plan-gate"><section><p className="eyebrow">YOUR PLAN</p>{ended?<><h1>Your Studio plan has ended</h1><p className="helper">New work, including {FEATURE_LABELS[feature].toLowerCase()}, is paused. Ask Nmesis to renew your company’s plan.</p><div className="upsell"><span className="plan-chip">{PLAN_ENDED_CHIP}</span><AskNmesis feature={feature} ended/></div></>:<><h1>{FEATURE_LABELS[feature]} is available on {account!.upsell[feature]}</h1><p className="helper">Your company’s plan doesn’t include {FEATURE_LABELS[feature].toLowerCase()} yet. Ask Nmesis to add it.</p><div className="upsell"><span className="plan-chip">Available on {account!.upsell[feature]}</span><AskNmesis feature={feature}/></div></>}<Link className="secondary" href="/">Back to key visuals</Link></section></main></>;
 }

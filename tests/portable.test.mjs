@@ -79,9 +79,13 @@ test('identity comes only from a Supabase session verified on the server; no ses
  const imports={'next/headers':{cookies:async()=>({get:n=>n==='studio_org'?{value:'chosen-org'}:undefined})},
   '@/lib/auth/supabase':{authConfigured:()=>configured,verifiedUser:async()=>answer.error||!answer.data.user?null:{id:answer.data.user.id,email:answer.data.user.email.toLowerCase(),appMetadata:answer.data.user.app_metadata,aal:'aal1',totp:false}},
   '@/lib/accounts/directory':{getDirectory:()=>({})},
-  '@/lib/accounts/context':{resolveContext:async a=>{seen.push(a);return a.user.id===user.id?{ok:true,ctx:{user:a.user}}:{ok:false,reason:'no_company'}}}};
+  '@/lib/accounts/context':{resolveContext:async a=>{seen.push(a);return a.user.id===user.id?{ok:true,ctx:{user:a.user}}:{ok:false,reason:'no_company'}}},
+  '@/lib/accounts/cache':await import('../lib/accounts/cache.ts')};
  const m=await moduleAt('lib/studio-context.ts',imports),plain=v=>JSON.parse(JSON.stringify(v));// objects from the module's own context
  assert.equal((await m.getStudioContext()).ok,true);assert.deepEqual(plain(seen[0]),{user:{id:user.id,email:'person@example.test',aal:'aal1'},chosenOrg:'chosen-org',directory:{}});
+ // The next requests of the same person, company and sign-in level reuse it for
+ // a few seconds (F-060); the session is verified each time all the same.
+ assert.equal((await m.getStudioContext()).ok,true);assert.equal(seen.length,1,'the resolved context is reused');
  // A revoked session still carries a well-formed token; Supabase says so and access ends.
  answer={data:{user:null},error:{code:'session_not_found',message:'Session from session_id claim in JWT does not exist'}};assert.deepEqual(plain(await m.getStudioContext()),{ok:false,problem:'signed_out'});
  answer={data:{user:{...user,id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'}},error:null};assert.deepEqual(plain(await m.getStudioContext()),{ok:false,problem:'no_company'});

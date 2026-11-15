@@ -48,7 +48,8 @@ test('cards say the tool and a plain quality, never the provider or model (F-050
   const page = read('app/page.tsx');
   assert.match(page, /<p className="visual-generator-label">\{visualToolLabel\(r\)\} · \{visualQualityLabel\(r\)\}/);
   assert.match(page, /\{r\.provider&&showProvider&&<p className="visual-generator-label">Made with /);
-  assert.match(page, /const showProvider=!!account&&\(account\.staff\|\|account\.features\['studio\.own_keys'\]===true\)/);
+  assert.match(page, /const showProvider=providerNames\(account\)/);
+  assert.match(read('components/studio-account.tsx'), /export const providerNames=\(account:AccountSummary\|null\)=>!!account&&\(account\.staff\|\|account\.features\['studio\.own_keys'\]===true\)/);
   assert.doesNotMatch(page, /'Creating with Higgsfield'|ChatGPT \/ OpenAI'\)\}\{r\.status/);
 });
 
@@ -100,20 +101,8 @@ test('the configurator choice is a radio group, not tabs without panels (axe cri
   assert.doesNotMatch(read('app/page.tsx'), /from '@\/components\/ui\/tabs'/);
 });
 
-test('the phone top bar keeps the account controls on screen, using tokens only (F-006)', () => {
-  const css = read('app/topbar-phone.css');
-  assert.match(read('app/layout.tsx'), /import "\.\/topbar-phone\.css";/);
-  assert.match(css, /@media \(max-width: 768px\)/);
-  assert.match(css, /header\.topbar\.topbar > \.account-bar \{[^}]*flex: 1 1 100%;[^}]*flex-wrap: nowrap;/);
-  assert.match(css, /header\.topbar\.topbar > \.heading-actions,\n  header\.topbar\.topbar > \.film-nav \{[^}]*overflow-x: auto;/);
-  // The account row keeps its height while the account loads (no layout shift),
-  // and stays one row on phones with an icon-only Sign out that keeps its name.
-  assert.match(css, /> \.account-bar \{[^}]*min-height: var\(--ds-control-h\);/);
-  assert.match(read('components/studio-account.tsx'), /if\(!account\)return <div className="account-bar account-bar-pending" aria-hidden="true"\/>;/);
-  assert.match(read('components/studio-account.tsx'), /aria-label="Sign out"[^>]*><LogOut size=\{14\}\/><span className="account-signout-word">Sign out<\/span>/);
-  assert.match(css, /@media \(max-width: 480px\) \{[^@]*\.account-signout-word \{ display: none; \}/);
-  assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media \([^)]*\)/g, ''), /#[0-9a-f]{3,8}\b|\d+px/i, 'tokens only');
-});
+// F-006 (the account controls on phones): the 2a stopgap, app/topbar-phone.css,
+// gave way to the one top bar in Phase 2b; tests/app-shell.test.mjs holds it.
 
 test('internal links no longer say they open elsewhere, and the client never reads an operator\'s sentence (F-005, F-066)', () => {
   const page = read('app/page.tsx');

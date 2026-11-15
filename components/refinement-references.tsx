@@ -1,10 +1,13 @@
 "use client";
+import {providerNames,useAccount} from '@/components/studio-account';
+import {plainProviderText} from '@/lib/provider-words';
 import {uploadReference} from '@/lib/reference-upload';
 import {useRef,useState} from 'react';
 import {ImagePlus,X} from 'lucide-react';
 import {MAX_REFINEMENT_REFERENCES} from '@/lib/image-models';
 export type RefinementReference={id:string;name:string;src:string};
 export function RefinementReferences({value,onChange,disabled=false,limit=MAX_REFINEMENT_REFERENCES,onPreparingChange}:{value:RefinementReference[];onChange:(value:RefinementReference[])=>void;disabled?:boolean;limit?:number;onPreparingChange?:(busy:boolean)=>void}){
+ const showNames=providerNames(useAccount());const w=(text:string)=>showNames?text:plainProviderText(text);
  const input=useRef<HTMLInputElement>(null),reading=useRef(false);
  const [preparing,setPreparing]=useState(false),[error,setError]=useState('');
  async function receive(files:File[]){
@@ -27,7 +30,7 @@ export function RefinementReferences({value,onChange,disabled=false,limit=MAX_RE
   {!!value.length&&<div className="refinement-reference-grid">{value.map((item,index)=><figure key={item.id}><img crossOrigin="anonymous" src={item.src} alt={`Reference ${index+1}: ${item.name}`}/><button type="button" className="icon-button" aria-label={`Remove Reference ${index+1}`} disabled={disabled||preparing} onClick={()=>{onChange(value.filter(r=>r.id!==item.id));setError(index<value.length-1?'Reference numbers have updated. Check the numbers in your prompt.':'')}}><X size={15}/></button><figcaption><strong>Reference {index+1}</strong><span title={item.name}>{item.name}</span></figcaption></figure>)}</div>}
   <input ref={input} type="file" multiple accept="image/png,image/jpeg,image/webp" aria-label="Add refinement reference images" hidden onChange={e=>{const files=Array.from(e.target.files||[]);e.target.value='';void receive(files)}}/>
   <button type="button" className="button secondary" disabled={disabled||preparing||value.length>=limit} onClick={()=>input.current?.click()}><ImagePlus size={17}/>{preparing?'Reading images…':value.length?'Add more references':'Add reference images'}</button>
-  <p className="refinement-reference-help">{limit===0?'Choose ChatGPT, Sunburst or Flare for extra references. Grok currently uses the car, inspiration and previous visual.':'PNG, JPEG or WebP · up to 40 MB each; originals kept. In your prompt, use “Reference 1”, “Reference 2”, and so on.'}</p>
+  <p className="refinement-reference-help">{limit===0?w('Choose ChatGPT, Sunburst or Flare for extra references. Grok currently uses the car, inspiration and previous visual.'):'PNG, JPEG or WebP · up to 40 MB each; originals kept. In your prompt, use “Reference 1”, “Reference 2”, and so on.'}</p>
   {value.length>limit&&<p role="alert" className="refinement-reference-error">Your references are kept. Choose a supported model or remove them before generating.</p>}
   {error&&<p role="alert" className="refinement-reference-error">{error}</p>}
  </div>

@@ -164,6 +164,8 @@
   --ds-control-h: 36px;
   --ds-control-h-sm: 30px;
   --ds-tap-min: 24px;
+  /* A phone's account controls and menu rows (2.5.5): never under 44px. */
+  --ds-tap-phone: 44px;
   --ds-icon: 16px;
   --ds-icon-lg: 20px;
 

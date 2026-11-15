@@ -2,9 +2,19 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-15 (Design Phase 2a, quick fixes)
+**Last updated:** 2026-11-15 (Design Phase 2b, shared fixes)
 
-**Latest (2026-11-15, design programme Phase 2a, quick fixes):**
+**Latest (2026-11-15, design programme Phase 2b, shared fixes):**
+- F-050 everywhere: a client without its own keys reads no provider or model name on any page (tool pages, cost lines, cards, pickers, progress, errors, recovery messages, notices). Pickers are quality choices (Standard / High detail / Fast, or the tool's plain names: Studio, Reference match, Campaign look). Server errors, job errors and diagnostics are rewritten per request (`lib/provider-scope.ts`, opened by `context()` before its first await); the original stays in the server log. Staff and own-key companies keep the names. `check:ui` reads every client page as a no-own-key client (text, `aria-label`, `title`, `alt`): `providerNamesShown` is 0 and ratcheted.
+- One top bar on every screen (`components/studio-topbar.tsx`, design-system classes, dark like the screens): one shared navigation, the credit meter, the company switcher (a modal), the account; below 768px one menu with 44px rows. Replaces eight different headers and `app/topbar-phone.css`.
+- The design system's dialog in place of `confirm()` (none left); toasts with Undo on every screen (`components/studio-providers.tsx`).
+- Removing a provider key (OpenAI, Google, Topaz, video) waits for Undo; sent when the toast closes, or on leaving the page (keepalive).
+- Films, swaps and stories: Delete with Undo, and a Deleted view with Restore (migration `0005_trash.sql`, `lib/trash.ts`; creator or owner; running work cannot be deleted; a deleted row takes no changes). Until 0005 runs, everything works as before and only Delete says it is not available yet (`lib/trash-ready.ts`).
+- Visible focus on text boxes, choices, disclosure rows and the configurator frame; 24px minimum for the small text and corner buttons; the card "…" menu 44px on touch; no sideways scroll at any width; no layout shift from the notices, Films or Line-up loading.
+- Job polling backs off while nothing changes (`lib/use-backoff-poll.ts`), not while the tab is hidden. The resolved context is reused 10 s per person, company choice and sign-in level (`CONTEXT_REUSE_MS`); the session is still verified on every request.
+- Branch `design/shell` → PR into `development`. No hosted system was touched.
+
+**Earlier (2026-11-15, design programme Phase 2a, quick fixes):**
 - Fixes (`design/quick`):
   - the phone top bar keeps the company, credits, settings and Sign out on screen at 390 / 360 (`app/topbar-phone.css`, tokens only; F-006);
   - an ended plan says "Plan ended … ask Nmesis to renew it" instead of "Available on Growth" (F-051);
@@ -56,7 +66,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the main Supabase project and S3 |
 | S2.1 hosted fixes, staff portal | ✅ | Merged into `development` and released to `main` (#22) |
 | S3 credits, own keys, support access | ✅ | Merged into `development` (#28); owner steps (setup SQL section 6, provider accounts and limits, Vercel variables, plans per client) in the PR body |
-| Design programme | 🟡 | Phases 0 (#29) and 1 (#31) merged; Phase 2a PR `design/quick`; Phase 2b after the owner's review |
+| Design programme | 🟡 | Phases 0 (#29), 1 (#31) and 2a (#32) merged; Phase 2b PR `design/shell`; Phase 3 group 1 after the owner's review |
 | Environment scope | 🟡 | Merged (#30); owner runs `npm run db:migrate` (0004) only after the change is live on Preview **and** Production |
 
 ## What was built last session (Design Phase 0)
@@ -102,6 +112,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 - **Provider names (owner, F-050, 2026-11-15):** clients never see provider or model names on cards or in the library: the tool ("Key visual") and at most "Standard" / "High detail". Staff, and companies using their own keys, see the provider in the item's details.
 - **Design direction (owner, 2026-11-15):** every change uses the Phase 0 design system and the approved wireframes, in the Nmesis theme. Phase 2b builds the new app shell and moves every screen to the new components, without re-laying out Home, the library or the tool screens (only their safety, accessibility and behaviour findings). Phase 3 group 1 rebuilds Home, projects and folders and the library to the wireframes; group 2 rebuilds the editor for all tools. Before each Phase 3 group, post the screens at 1440 and 390 next to the matching wireframe.
 - **check:ui ratchet (owner, 2026-11-15):** focus-without-indicator stays in the ratchet with a tolerance of ±5.
+- **F-050 everywhere (owner, 2026-11-15, Phase 2b brief):** no provider or model name anywhere for a client without own keys: tool pages, cost lines, cards, pickers, progress, errors, recovery messages, notices. Model pickers are quality choices; provider errors are rewritten in plain words with the original in the server log; own-key Enterprise texts and staff views keep the names. A test renders every client page as a no-own-key client and fails on any provider name in the visible text or `aria-label` / `title` / `alt`.
 
 - **Environment scope (owner, 2026-11-15):** every studio table holding client work carries `environment` (production / preview / development, from `VERCEL_ENV`); existing rows are Production's; every read and write is filtered in the database layer (RLS + `studio.env`), not per route; separate `KEY_ENCRYPTION_SECRET`s. Shared on purpose: credit holds and the company lock (one balance), support grants, the staff-access log, car settings.
 - **Wireframes (owner, 2026-11-15):** approved as they are.
@@ -130,6 +141,8 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 
 _Waiting on owner_
 
+- Phase 2b: run `npm run db:migrate` once to apply `0005_trash.sql` (with 0004, after the release to `main`, as planned). Before it runs, films, swaps and stories work as before and Delete answers "Deleting isn't available yet"; within a minute after it, Delete and Deleted work, with no redeploy.
+
 - S2.1 owner steps (exact list in the PR body): `STUDIO_PUBLIC_ORIGIN` per Vercel environment, the bare address and `/**` (and the Preview wildcard) in Supabase Auth's redirect URLs, a `KEY_ENCRYPTION_SECRET` of exactly 64 hex characters, and section 1 of the corrected `docs/supabase-setup.sql` where it failed.
 
 - S1 and S2 owner steps (exact list in the S2 PR body): Supabase Auth URL configuration and redirect URLs for each Studio address, section 5 of `docs/supabase-setup.sql` in the main project, `npm run db:migrate`, Vercel variables (`SUPABASE_*`, `CONFIGURATOR_ORIGIN`) and removal of the NextAuth, allow-list, `SHARED_OPENAI_*` and `CONFIGURATOR_PRESETS` values, `STUDIO_URL` on the admin.
@@ -140,6 +153,9 @@ _Waiting on owner_
 - Environment scope: run `npm run db:migrate` (0004) once, **after** this change is live on both Preview and Production (old code does not send the environment, so against the migrated database it reads nothing). Keep Vercel's system environment variables on (`VERCEL_ENV`).
 
 _Carried_
+
+- Phase 2b: the top bar, dialogs, toasts and menu are dark like the screens; light mode for signed-in screens comes with Phase 3 (F-010). A change of membership, role or support access reaches an open session within 10 s (the context reuse); signing out is immediate.
+- Phase 2b: the Home library's own 15 s check of pending OpenAI renders still runs on a fixed interval (it stops when nothing is pending); the job polls back off.
 
 - The admin's "Open in Studio" button still links unconditionally; it should call `accounts.studio_support_access(org, staff)` and say "Support access not granted" (admin repository). The Studio itself refuses such links with that sentence.
 - Grok (Higgsfield's fixed-price image model) in key visuals is priced by Higgsfield as it starts (one click), so its credits show on the card, not before; films, swaps, Topaz, OpenAI and Google show them before.
@@ -157,16 +173,7 @@ _Carried_
 
 ## Next session — start here
 
-1. Owner: review PR `design/quick` (Phase 2a).
-2. Then Phase 2b · `design/shared` (BACKLOG #8), as the owner listed it:
-   - the new app shell (top bar with the credit meter, company switcher, one shared navigation, phone menu);
-   - design-system dialogs instead of every `confirm()`;
-   - Undo, including removing a provider key;
-   - delete and restore for films, swaps and storyboards;
-   - card actions reachable on touch;
-   - no sideways scroll at any width;
-   - visible focus everywhere and 24 px targets;
-   - CLS < 0.1;
-   - fewer database statements per request (reuse the cached context) and job polling with backoff.
-3. Owner (unchanged): after the next release to `main`, run `npm run db:migrate` once (0004).
+1. Owner: review PR `design/shell` (Phase 2b).
+2. Then Phase 3, group 1 (BACKLOG #9): Home, projects and folders, and the library, to the approved wireframes; post the screens at 1440 and 390 next to the wireframes first.
+3. Owner (unchanged): after the next release to `main`, run `npm run db:migrate` once (0004 and 0005).
 4. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").

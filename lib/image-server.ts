@@ -1,3 +1,4 @@
+import {clientText} from './client-text';
 import {parseLineup,lineupImageIds,lineupPrompt,lineupCapacity} from './lineup';
 import {requireEdge,requireFeature,longEdgeOf} from './accounts/plan';
 import {bucket,imageKey,validId,str,StudioError,imageType} from './studio-server';
@@ -15,7 +16,7 @@ async function imageCredits(ctx:FilmContext,d:ImageData,estimate:number,own:bool
 // Accepted by Higgsfield: the reserved credits are charged (once per hold).
 async function settleImage(ctx:FilmContext,row:ImageRow,own:boolean){const hold=jobHold(ctx,row,imageSpend(own));if(!hold)return;const d=JSON.parse(row.data) as ImageData;const credits=await settleCredits(ctx,hold,higgsImageModel(d.visual.model).variableCost?await tableMicros(ctx,'higgsfield.image.token'):undefined);await database(ctx).prepare('UPDATE image_jobs SET credits=? WHERE id=? AND owner=?').bind(credits,row.id,ctx.prefix).run()}
 export async function imageRow(ctx:FilmContext,id:string){if(!validId(id))throw new StudioError('Image request not found.',404);const row=await database(ctx).prepare('SELECT * FROM image_jobs WHERE id=? AND owner=?').bind(id,ctx.prefix).first<ImageRow>();if(!row)throw new StudioError('Image request not found.',404);return row}
-export function publicImage(row:ImageRow):Visual{const d=JSON.parse(row.data) as ImageData;return{...d.visual,status:row.status==='ready'?'ready':['failed','nsfw','canceled'].includes(row.status)?'failed':'pending',jobStatus:row.status,credits:row.credits,revision:row.updated_at,error:row.error||undefined,provider:'higgsfield',model:higgsImageModel(d.visual.model).id}}
+export function publicImage(row:ImageRow):Visual{const d=JSON.parse(row.data) as ImageData;return{...d.visual,status:row.status==='ready'?'ready':['failed','nsfw','canceled'].includes(row.status)?'failed':'pending',jobStatus:row.status,credits:row.credits,revision:row.updated_at,error:clientText(row.error)||undefined,provider:'higgsfield',model:higgsImageModel(d.visual.model).id}}
 export async function createImage(ctx:FilmContext,d:Record<string,any>){
  if(!validId(d.id)||!validId(d.sourceId)||!validId(d.moodId)||d.parentId&&!validId(d.parentId))throw new StudioError('Choose a saved car image and inspiration first.');
  let size:string,model:string;try{const settings=imageSettings('higgsfield',d.size,d.model);size=settings.size;model=settings.model!}catch(e){throw new StudioError((e as Error).message)}

@@ -110,14 +110,15 @@ export type ConfirmOptions = {
 type Pending = ConfirmOptions & { resolve: (yes: boolean) => void };
 const ConfirmContext = React.createContext<((o: ConfirmOptions) => Promise<boolean>) | null>(null);
 
-export function ConfirmProvider({ children }: { children: React.ReactNode }) {
+/** theme: the dialog's own light or dark, for screens not on the tokens yet. */
+export function ConfirmProvider({ children, theme }: { children: React.ReactNode; theme?: 'light' | 'dark' }) {
   const [pending, setPending] = React.useState<Pending | null>(null);
   const ask = React.useCallback((o: ConfirmOptions) => new Promise<boolean>((resolve) => setPending({ ...o, resolve })), []);
   const done = (yes: boolean) => { pending?.resolve(yes); setPending(null); };
   return (
     <ConfirmContext.Provider value={ask}>
       {children}
-      {pending && <ConfirmDialog {...pending} onAnswer={done} />}
+      {pending && (theme ? <div className="ds-contents" data-theme={theme}><ConfirmDialog {...pending} onAnswer={done} /></div> : <ConfirmDialog {...pending} onAnswer={done} />)}
     </ConfirmContext.Provider>
   );
 }

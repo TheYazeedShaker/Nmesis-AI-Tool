@@ -1,3 +1,6 @@
+// The page's words for a job error (lib/client-text.ts; read through globalThis so
+// this file keeps no imports).
+const clientText=(text:string|null|undefined)=>{const fn=(globalThis as Record<string,unknown>).__studioClientText as ((t:string)=>string)|undefined;return text&&fn?fn(text):text};
 export const VIDEO_MODEL='kling-video/v3.0/std/image-to-video';
 export const KLING_4_IMAGE_MODEL='kling-video/v4.0/image-to-video';
 export const SEEDANCE_IMAGE_MODEL='bytedance/seedance-2.5/image-to-video';
@@ -52,4 +55,4 @@ export function videoBody(d:FilmDraft,imageUrl:string){
  return {image_url:imageUrl,duration:filmDuration(d),sound:d.sound?'on':'off',cfg_scale:0.5,multi_shots:d.mode==='launch',...(d.mode==='launch'?{multi_prompt:d.shots.map(s=>({prompt:`${s.title}: ${s.direction}`.slice(0,512),duration:5}))}:{}),prompt};
 }
 export function usdMicros(v:unknown){const n=Number(v);if(!['string','number'].includes(typeof v)||String(v).trim()===''||!Number.isFinite(n)||n<=0||n>1000)throw new Error('A valid price could not be obtained. No generation was started.');return Math.ceil(n*1_000_000)}
-export function publicFilm(row:any):Film{const d=JSON.parse(row.data) as FilmDraft;const {inputUrl,body,quoteAt,credentialFingerprint,...safe}=d;void inputUrl;void body;void quoteAt;void credentialFingerprint;return{id:row.id,status:row.status,data:safe,credits:Number(row.credits)||0,createdAt:row.created_at,revision:row.updated_at,error:row.error||undefined,videoUrl:row.result_key?'/api/films/'+row.id+'/video':undefined}}
+export function publicFilm(row:any):Film{const d=JSON.parse(row.data) as FilmDraft;const {inputUrl,body,quoteAt,credentialFingerprint,...safe}=d;void inputUrl;void body;void quoteAt;void credentialFingerprint;return{id:row.id,status:row.status,data:safe,credits:Number(row.credits)||0,createdAt:row.created_at,revision:row.updated_at,error:clientText(row.error)||undefined,videoUrl:row.result_key?'/api/films/'+row.id+'/video':undefined}}

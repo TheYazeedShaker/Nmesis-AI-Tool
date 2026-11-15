@@ -1,8 +1,8 @@
 'use client';
+import {StudioTopBar} from '@/components/studio-topbar';
 import {useEffect,useState} from 'react';
-import Link from 'next/link';
-import {Aperture,LifeBuoy,ShieldCheck} from 'lucide-react';
-import {AccountBar,AccountNotices,useAccount} from '@/components/studio-account';
+import {LifeBuoy,ShieldCheck} from 'lucide-react';
+import {AccountNotices,useAccount} from '@/components/studio-account';
 import type {SupportState} from '@/lib/support-access';
 // Company settings: "Allow Nmesis support access" (owners). Off by default; on for
 // 7 days at a time, renewable, with an optional note for Nmesis. Every opening by
@@ -19,7 +19,7 @@ export default function Company(){
  }
  const owner=!!account&&account.role==='owner'&&!account.viewingAs;
  return <>
-  <header className="topbar"><Link href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></Link><AccountBar/></header><AccountNotices/>
+  <StudioTopBar current="company"/><AccountNotices/>
   <main className="account-page">
    <div><p className="eyebrow">COMPANY SETTINGS</p><h1>{account?.org.name||'Your company'}</h1></div>
    {error&&<p className="field-error" role="alert">{error}</p>}

@@ -14,7 +14,7 @@ Status: `queued` · `in-progress` · `blocked` (reason required) · `done` · `a
 | 6   | DESIGN-P0        | owner brief 2026-11-15 | —  | done        | Foundations merged (#29); wireframes approved as they are. |
 | 7   | DESIGN-P1        | owner brief 2026-11-15 | #6 | done        | Merged (#31): `check:ui`, performance baseline, CRUD matrix, 69 findings. |
 | 11  | ENV-SCOPE        | owner 2026-11-15       | —  | done        | Merged (#30). Owner migrates (0004) after the release to `main`. |
-| 8   | DESIGN-P2        | owner brief 2026-11-15 | #7 | in-progress | 2a (`design/quick`): severity 4, wrong information, library robustness, critical axe — PR waiting for review. 2b (`design/shared`): new app shell, dialogs, Undo, delete/restore, touch, no sideways scroll, focus, targets, CLS, statements per request, polling. |
+| 8   | DESIGN-P2        | owner brief 2026-11-15 | #7 | in-progress | 2a merged (#32). 2b (`design/shell`): F-050 everywhere, the new app shell, dialogs, Undo, delete/restore, touch, no sideways scroll, focus, targets, CLS, statements per request, polling — PR waiting for review. |
 | 9   | DESIGN-P3        | owner brief 2026-11-15 | #8 | queued      | Per approved group, after the wireframes are approved; "Home, projects and folders" first (new `studio.folders` migration, routes, tests). |
 | 10  | DESIGN-P4        | owner brief 2026-11-15 | #9 | queued      | Empty `check:design` baseline, visual baselines, JS/Lighthouse budgets, the full PR rule in CLAUDE.md. |
 

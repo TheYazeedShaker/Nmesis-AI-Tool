@@ -24,7 +24,8 @@ import { chromium } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 import { startStack } from './ui/stack.mjs';
 import { seedStudio, ORGS, PEOPLE, PASSWORD } from './ui/seed.mjs';
-import { initScript, quietFor, vitals, layoutChecks, focusState } from './ui/checks.mjs';
+import { initScript, quietFor, vitals, layoutChecks, focusState, providerNamesOnPage } from './ui/checks.mjs';
+import { PROVIDER_PATTERN } from '../lib/provider-words.ts';
 import { runPerf } from './ui/perf.mjs';
 
 const args = process.argv.slice(2);
@@ -38,7 +39,7 @@ const WORKERS = Number(opt('workers')) || 3;
 // Run-to-run noise allowed before a count fails CI (owner, 2026-11-15): the
 // keyboard walk lands on slightly different stops from one run to the next.
 const TOLERANCE = { focusWithoutIndicator: 5 };
-const RATCHETED = ['pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
+const RATCHETED = ['providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
 
 const VIEWPORTS = QUICK ? [[1440, 900], [390, 844]] : [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
 const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
@@ -58,6 +59,8 @@ const ROLES = {
   staffViewing: { person: 'staff', org: 'growth', note: 'staff opening a client that granted support access ("Viewing as")' },
   staffRefused: { person: 'staff', org: 'starter', note: 'staff opening a client that did not grant access' },
 };
+// F-050: these people read no provider or model name anywhere (no own keys, not staff).
+const NO_PROVIDER_NAMES = new Set(['anon', 'owner', 'creator', 'viewer', 'starter', 'ended', 'nocompany']);
 const CLIENT_ROLES = ['owner', 'creator', 'viewer', 'starter', 'enterprise', 'ended', 'staff', 'staffViewing'];
 // The full viewport and theme matrix runs for `full`; other roles at 1440 and 390.
 const SCREENS = [
@@ -186,7 +189,8 @@ async function act(page, action) {
   if (action === 'library') { const el = page.locator('#visual-library'); if (!(await el.count())) return false; await el.scrollIntoViewIfNeeded(); return true; }
   if (action === 'viewer') return click('#visual-library .result-card img, #visual-library article img, #visual-library article button');
   if (action === 'settings') return click('summary[aria-label="Studio settings"]');
-  if (action === 'switcher') return click('button[aria-label^="Company:"]');
+  // The switcher in the top bar; below 768px the companies are in the menu (Phase 2b).
+  if (action === 'switcher') return (await page.locator('button[aria-label^="Company:"]:visible').count()) ? click('button[aria-label^="Company:"]:visible') : click('button[aria-label="Menu"]:visible');
   return false;
 }
 
@@ -218,6 +222,7 @@ async function check({ screen, role, w, h, theme }) {
     if (SHOTS && KEY_WIDTHS.has(w)) await page.screenshot({ path: path.join(OUT, 'shots', `${screen.id}--${role}--${w}--${theme}.png`) }).catch(() => {});
     Object.assign(out, await page.evaluate(layoutChecks, { phone: w <= 480 }));
     out.vitals = await page.evaluate(vitals);
+    if (NO_PROVIDER_NAMES.has(role)) out.providerNames = await page.evaluate(providerNamesOnPage, { source: PROVIDER_PATTERN.source });
     if (KEY_WIDTHS.has(w)) {
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']).analyze();
       out.axe = axe.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length, targets: v.nodes.slice(0, 5).map((n) => n.target.join(' ')) }));
@@ -281,6 +286,7 @@ function summarise(report) {
     clippedWithoutEllipsis: sum((r) => r.clippedNoEllipsis?.length),
     ellipsisWithoutFullText: sum((r) => r.ellipsisNoTitle?.length),
     pagesOverCls01: pages.filter((r) => (r.vitals?.cls || 0) > 0.1).length,
+    providerNamesShown: sum((r) => r.providerNames?.length),
     pagesNeverQuiet: pages.filter((r) => r.ready && !r.ready.quiet).length,
     serverHostsBlocked: Object.keys(report.blockedServerHosts).length,
   };
@@ -288,6 +294,7 @@ function summarise(report) {
   for (const r of pages) for (const v of r.axe || []) { const k = `${v.impact} · ${v.id}`; axeRules[k] = (axeRules[k] || 0) + v.nodes; }
   const lines = ['# UI harness summary', '', `${report.at}. ${totals.pages} page checks. Studio ready in ${report.studioReadyMs} ms.`, '', '| Check | Count |', '|---|---:|',
     ...Object.entries(totals).map(([k, v]) => `| ${k} | ${v} |`), '', '## axe rules (nodes)', '', ...Object.entries(axeRules).sort((a, b) => b[1] - a[1]).map(([k, v]) => `- ${k}: ${v}`),
+    '', '## Provider or model names a client could read (F-050; must be none)', '', ...[...new Set(pages.flatMap((r) => (r.providerNames || []).map((f) => `- ${r.screen} (${r.role}) · ${f.where}: ${f.text}`)))].slice(0, 80),
     '', '## Pending screens', '', ...report.results.filter((r) => r.pending).map((r) => `- ${r.screen} (${r.role}): ${r.pending}`),
     '', '## Server requests the network guard refused', '', ...Object.entries(report.blockedServerHosts).map(([h, n]) => `- ${h}: ${n}`),
     '', '## Mistakes the harness made about itself', '', ...[...new Set(report.harnessMistakes)].map((m) => `- ${m}`)];
