@@ -93,3 +93,8 @@ test('job polling backs off while nothing changes, and no screen polls on a fixe
     assert.doesNotMatch(s, /setInterval\(\(\)=>\{if\((document\.hidden|working\.current|action\.current)/, file);
   }
 });
+
+test('no generic rule outranks the 44px menu rows', () => {
+  const css = read('app/studio-shell.css');
+  assert.doesNotMatch(css, /body \.studio-menu button/);
+});

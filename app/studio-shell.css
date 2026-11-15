@@ -120,7 +120,7 @@ body iframe:focus {
 body :is(button.text-button, button.film-text-button, .lineup-car-head button) { min-height: var(--ds-tap-min); min-width: var(--ds-tap-min); }
 body :is(a.text-button, .configurator-address a) { display: inline-flex; align-items: center; min-height: var(--ds-tap-min); }
 body .studio details > summary { min-height: var(--ds-tap-min); }
-body .studio-menu button, body .studio input[type="checkbox"], body .studio input[type="radio"] { min-width: var(--ds-tap-min); min-height: var(--ds-tap-min); }
+body .studio input[type="checkbox"], body .studio input[type="radio"] { min-width: var(--ds-tap-min); min-height: var(--ds-tap-min); }
 
 /* No layout shift while a screen loads (CLS, F-036). The account notices hold
    the page below them hidden until they know what to show (studio-account.tsx);
