@@ -190,7 +190,7 @@ async function act(page, action) {
   if (action === 'viewer') return click('.ds-tile:has(img) .ds-tile-open');
   if (action === 'settings') return click('summary[aria-label="Studio settings"]');
   // The switcher in the top bar; below 768px the companies are in the menu (Phase 2b).
-  if (action === 'switcher') return (await page.locator('button[aria-label^="Company:"]:visible').count()) ? click('button[aria-label^="Company:"]:visible') : click('button[aria-label="Menu"]:visible');
+  if (action === 'switcher') return (await page.locator('button.studio-switcher:visible').count()) ? click('button.studio-switcher:visible') : click('button[aria-label="Menu"]:visible');
   return false;
 }
 

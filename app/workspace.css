@@ -53,3 +53,16 @@
 .workspace-subfolders .ds-chip { text-decoration: none; }
 .workspace-folder-page { min-width: 0; }
 .workspace-move-list { display: flex; flex-direction: column; gap: var(--ds-space-2); }
+
+/* Status on a picture: the panel colour under the text colour, readable on any
+   picture and in both themes (the soft badge colours were under 4.5:1 on light tiles). */
+.workspace .ds-tile-status .ds-badge { background: var(--ds-panel); color: var(--ds-text-strong); box-shadow: var(--ds-shadow-1); }
+
+/* Phones: every control of the rebuilt screens is at least 44px (2.5.5). */
+@media (max-width: 768px) {
+  .workspace .ds-tile-actions .ds-btn, .workspace .ds-tile-select > input,
+  .workspace .ds-segmented > button, .workspace .workspace-folder-menu .ds-btn { width: var(--ds-tap-phone); height: var(--ds-tap-phone); min-height: var(--ds-tap-phone); }
+  .workspace .ds-link, .workspace .ds-chip, .workspace .ds-skip, .workspace .ds-btn, .workspace .ds-select, .workspace .ds-input { min-height: var(--ds-tap-phone); }
+  .workspace .ds-meter { min-width: var(--ds-tap-phone); justify-content: center; }
+  .workspace .ds-check > input, .workspace .ds-tile-select { width: var(--ds-tap-phone); height: var(--ds-tap-phone); }
+}

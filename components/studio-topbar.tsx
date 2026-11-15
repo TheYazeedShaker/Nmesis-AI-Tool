@@ -117,7 +117,7 @@ function Switcher({account,busy,onChoose}:{account:AccountSummary;busy:boolean;o
  const face=<><span className="ds-avatar" aria-hidden="true">{initials(account.org.name)}</span><span className="ds-switcher-name ds-truncate">{account.org.name}</span></>;
  if(account.orgs.length<=1&&!account.switcher)return <span className="ds-switcher studio-switcher" title={account.org.name}>{face}<span className="ds-sr-only">{'Company: '+account.org.name}</span></span>;
  return <>
-  <button type="button" className="ds-switcher studio-switcher" aria-haspopup="dialog" aria-label={`Company: ${account.org.name}. Switch company.`} title={account.org.name} disabled={busy} onClick={()=>setOpen(true)}>{face}<ChevronsUpDown aria-hidden="true"/></button>
+  <button type="button" className="ds-switcher studio-switcher" aria-haspopup="dialog" title={account.org.name} disabled={busy} onClick={()=>setOpen(true)}>{face}<span className="ds-sr-only">, switch company</span><ChevronsUpDown aria-hidden="true"/></button>
   <Dialog open={open} onClose={()=>setOpen(false)} title="Switch company" className="studio-menu"><CompanyList account={account} busy={busy} onChoose={id=>{setOpen(false);onChoose(id)}}/></Dialog>
  </>;
 }
