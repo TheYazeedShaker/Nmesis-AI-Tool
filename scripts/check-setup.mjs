@@ -10,6 +10,12 @@ const required=['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','SUPABASE_SECRET_KEY',
 const missing=required.filter(k=>!env[k]?.trim());
 for(const key of required)console.log(key+': '+(missing.includes(key)?'MISSING':'set'));
 const issues=[],notes=[];
+// Which environment's rows this server would read and write (Production and
+// Preview share the database; migration 0004).
+{const v=(env.VERCEL_ENV||'').trim();
+ if(v&&!['production','preview','development'].includes(v))issues.push('VERCEL_ENV must be production, preview or development (found '+v+').');
+ else if(!v&&env.NODE_ENV==='production')issues.push('VERCEL_ENV is not set on a production server: the Studio refuses to guess between Production and Preview. Turn on Vercel\'s system environment variables.');
+ console.log('Environment: '+(v||'development'));}
 // Same rule as lib/secret-crypto.ts (an AES-256 key written as hex). Never print the value.
 if(env.KEY_ENCRYPTION_SECRET?.trim()&&!/^[a-f0-9]{64}$/i.test(env.KEY_ENCRYPTION_SECRET.trim()))issues.push('KEY_ENCRYPTION_SECRET must be exactly 64 hex characters (32 bytes), e.g. the output of openssl rand -hex 32. Never change it once keys are saved.');
 // Optional: the address sign-in links return to (https, no path; lib/auth/origin.ts).

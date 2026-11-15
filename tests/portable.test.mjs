@@ -20,7 +20,7 @@ class StudioError extends Error{constructor(message,status=400){super(message);t
 function sqliteSql(){const db=new DatabaseSync(':memory:');const calls=[];const sql={db,calls,unsafe:async(text,args=[])=>{calls.push({text,args});const st=db.prepare(text.replace(/\$(\d+)/g,'?$1'));if(st.columns().length){const rows=st.all(...args);rows.count=rows.length;return rows}const rows=[];rows.count=Number(st.run(...args).changes);return rows},begin:async fn=>{calls.push({text:'BEGIN'});db.exec('BEGIN');try{const out=await fn(sql);db.exec('COMMIT');return out}catch(e){db.exec('ROLLBACK');throw e}}};return sql}
 const postgresStub={default:()=>{throw new Error('No network in tests')}};
 test('placeholders become $1…$n once per statement, never inside literals, identifiers or comments',async()=>{
- const {toPositional}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub});
+ const {toPositional}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub,'./environment':{studioEnvironment:()=>'development'}});
  assert.equal(toPositional("SELECT * FROM t WHERE a=? AND b='?' AND c=\"?x\" AND d=?"),"SELECT * FROM t WHERE a=$1 AND b='?' AND c=\"?x\" AND d=$2");
  assert.equal(toPositional("SELECT 'it''s ?' AS x, ? -- why?\n, ? /* ? */ , ?"),"SELECT 'it''s ?' AS x, $1 -- why?\n, $2 /* ? */ , $3");
  assert.equal(toPositional('SELECT 1'),'SELECT 1');
@@ -29,7 +29,7 @@ test('placeholders become $1…$n once per statement, never inside literals, ide
 });
 test('portable SQL adapter preserves rows, bind isolation, changes and transactional batches',async()=>{
  const sql=sqliteSql();try{
- const {StudioDatabase}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub});const db=new StudioDatabase(sql);
+ const {StudioDatabase}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub,'./environment':{studioEnvironment:()=>'development'}});const db=new StudioDatabase(sql);
  sql.db.exec('CREATE TABLE jobs(id TEXT PRIMARY KEY, owner TEXT, status TEXT, note TEXT)');
  const insert=db.prepare('INSERT INTO jobs VALUES(?,?,?,?)');await insert.bind('job','owner','draft',undefined).run();
  assert.equal(sql.calls.at(-1).text,'INSERT INTO jobs VALUES($1,$2,$3,$4)');assert.deepEqual([...sql.calls.at(-1).args],['job','owner','draft',null]);

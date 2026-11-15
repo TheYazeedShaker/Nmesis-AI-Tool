@@ -2,9 +2,11 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-15 (Design Phase 0)
+**Last updated:** 2026-11-15 (environment scope)
 
-**Latest (2026-11-15, design programme Phase 0, foundations):** The Studio has a design system: tokens (`app/tokens.css`: spacing on a 4px base, 10 text sizes with line heights, 4 weights, tabular figures, 6 corners, 3 elevations, 3 durations and one easing, 7 layers, 6 breakpoints, 36/44px controls, every colour a light/dark token in the admin's Nmesis palette), components (`app/design-system.css` + `components/ds/`: app shell with credit meter, company switcher, support-access status, "Viewing as" and phone navigation; page header, section, remembered fold; field and every control; buttons; confirm dialog; Undo toasts; job card; media tile, grid, bulk bar and viewer; menu; empty/no results/error; upsell; skeletons; tabs in the URL; modal, drawer, bottom sheet; the editor layout), `docs/design-system.md` (measurements, scales, old → new mapping, rules), a staff-only gallery at `/design-system` with wireframes of Home, Projects and folders, Library and the editor at 1440 and 390, and the guard `npm run check:design` in CI (baseline 2,209; counts may only go down). No existing screen changed: the system loads only on the gallery routes. CLAUDE.md, AGENTS.md, README and the setup SQL now say Preview and Production share the main Supabase project, with separate S3 buckets, keys and provider budgets. Branch `design/foundations` → PR into `development`. No hosted system was touched.
+**Latest (2026-11-15, environment scope):** Production and Preview share the main Supabase project, so client work now carries its environment. Migration `0004_environment.sql` adds `environment` to films, swap_jobs, storyboards, image_jobs, topaz_jobs and film_budgets (existing rows → `production`; new rows default to the request's), and their row level security requires `environment = studio.request_env()`. The adapter (`lib/portable/database.ts`) sets `studio.env` from `VERCEL_ENV` (`lib/portable/environment.ts`; `development` locally; a production server without it refuses) on every statement with `studio.user_id`. No route changed. credit_holds and staff_access_log record the environment but stay shared (one company balance; owners see every staff opening); credit_accounts, support_grants and car_settings are unchanged. Saved keys and media were already per environment (S3). Separate `KEY_ENCRYPTION_SECRET`s kept. Branch `fix/env-scope` → PR into `development`. No hosted system was touched.
+
+**Earlier (2026-11-15, design programme Phase 0, foundations):** The Studio has a design system: tokens (`app/tokens.css`: spacing on a 4px base, 10 text sizes with line heights, 4 weights, tabular figures, 6 corners, 3 elevations, 3 durations and one easing, 7 layers, 6 breakpoints, 36/44px controls, every colour a light/dark token in the admin's Nmesis palette), components (`app/design-system.css` + `components/ds/`: app shell with credit meter, company switcher, support-access status, "Viewing as" and phone navigation; page header, section, remembered fold; field and every control; buttons; confirm dialog; Undo toasts; job card; media tile, grid, bulk bar and viewer; menu; empty/no results/error; upsell; skeletons; tabs in the URL; modal, drawer, bottom sheet; the editor layout), `docs/design-system.md` (measurements, scales, old → new mapping, rules), a staff-only gallery at `/design-system` with wireframes of Home, Projects and folders, Library and the editor at 1440 and 390, and the guard `npm run check:design` in CI (baseline 2,209; counts may only go down). No existing screen changed: the system loads only on the gallery routes. CLAUDE.md, AGENTS.md, README and the setup SQL now say Preview and Production share the main Supabase project, with separate S3 buckets, keys and provider budgets. Branch `design/foundations` → PR into `development`. No hosted system was touched.
 
 **Earlier (2026-11-14, S3 credits and opt-in support access):** Nmesis pays the AI providers with its own server-side keys (`OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `HIGGSFIELD_API_KEY`, `TOPAZ_API_KEY`); companies spend credits. Every paid action quotes or looks up its cost, converts it (`ceil(cost ÷ credit_basis)`), reserves a hold atomically against `accounts.credits_balance` (`studio.credit_holds`, a company row lock plus one conditional insert), calls the provider, then settles into `accounts.usage_ledger` through `accounts.record_usage` (setup SQL section 6) or releases the hold. The per-payer daily budget is gone. 80% / 100% emails to the owners (once per period) and a banner; at 100% paid actions stop. A Usage page (owners, staff with access), a top-bar meter, costs in credits before actions and credits used on results; no provider cost reaches a page. Own keys only with `studio.own_keys` (0 credits, "own key"); a key saved earlier is ignored, not deleted. A client with no active subscription has no Studio. Staff open a client only while its owner grants support access (`studio.support_grants`, 7 days, read-only, every opening listed for the owner). Branch `feat/credits` → PR into `development`. No hosted system was touched.
 
@@ -38,7 +40,8 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the main Supabase project and S3 |
 | S2.1 hosted fixes, staff portal | ✅ | Merged into `development` and released to `main` (#22) |
 | S3 credits, own keys, support access | ✅ | Merged into `development` (#28); owner steps (setup SQL section 6, provider accounts and limits, Vercel variables, plans per client) in the PR body |
-| Design programme | 🟡 | Phase 0 (foundations) PR `design/foundations` into `development`, waiting for the owner's review and the wireframes' approval; Phases 1–4 queued (BACKLOG #6–#10) |
+| Design programme | 🟡 | Phase 0 merged (#29), wireframes approved as they are; Phase 1 next (BACKLOG #7) |
+| Environment scope | 🟡 | PR `fix/env-scope` into `development`; owner runs `npm run db:migrate` (0004) only after the change is live on Preview **and** Production |
 
 ## What was built last session (Design Phase 0)
 
@@ -80,6 +83,9 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 
 ## Decisions made (must be remembered)
 
+- **Environment scope (owner, 2026-11-15):** every studio table holding client work carries `environment` (production / preview / development, from `VERCEL_ENV`); existing rows are Production's; every read and write is filtered in the database layer (RLS + `studio.env`), not per route; separate `KEY_ENCRYPTION_SECRET`s. Shared on purpose: credit holds and the company lock (one balance), support grants, the staff-access log, car settings.
+- **Wireframes (owner, 2026-11-15):** approved as they are.
+
 - **Environments (owner, 2026-11-15):** Preview and Production share the main Supabase project; S3 buckets, keys and provider budgets stay separate per environment. Written into CLAUDE.md, AGENTS.md, README and the setup SQL.
 - **Design programme (owner's brief, 2026-11-15):** five phases, one PR each, stop after each for review: 0 foundations, 1 audit (findings only), 2a quick fixes, 2b shared fixes, 3 per approved group ("Home, projects and folders" first), 4 guard. Target: a Canva-style workspace in the Nmesis theme (the admin's tokens), light and dark. The Studio's tokens use the admin's step and colour names with a `--ds-` prefix.
 
@@ -110,8 +116,8 @@ _Waiting on owner_
 
 - S3 owner steps (exact list in the PR body): setup SQL section 6 once in the main project (Preview and Production share it), then `npm run db:migrate` once (0003); Nmesis's provider accounts with billing limits; Vercel variables `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `HIGGSFIELD_API_KEY`, `TOPAZ_API_KEY`, `EMAIL_API_URL`, `EMAIL_API_KEY`, `EMAIL_FROM`, `NMESIS_ALERT_EMAIL`; a plan (and allowance) for every client in the admin, since clients without one lose the Studio.
 
-- Design Phase 0: review the PR and **approve or change the four wireframes** (`/design-system`, Wireframes) before Phase 3.
-- Two consequences of the shared database to confirm: (1) a visual made on a Preview stores its file in the Preview bucket, so Production lists it with no picture (and the other way round); (2) provider keys a company saves are encrypted with `KEY_ENCRYPTION_SECRET`, so with one database both environments need the same secret or the other cannot open them.
+- Environment scope: run `npm run db:migrate` (0004) once, **after** this change is live on both Preview and Production (old code does not send the environment, so against the migrated database it reads nothing). Keep Vercel's system environment variables on (`VERCEL_ENV`).
+- Preview spends real credits: the balance and the ledger are the company's one `accounts` record, shared by both environments. A Preview action by a client's member is charged like a Production one. To decide in the admin (e.g. a separate test company for Preview).
 
 _Carried_
 
@@ -131,7 +137,7 @@ _Carried_
 
 ## Next session — start here
 
-1. Owner: review PR `design/foundations` (Phase 0) and approve or change the wireframes; answer the two shared-database points under Known issues.
-2. Then Phase 1 · `design/audit` (BACKLOG #7): findings only; the `check:ui` harness (Playwright + axe) in CI over every screen at 1440/1280/1024/768/390/360, light and dark, owner/creator/viewer/staff, with seeded synthetic data and stubbed Auth, S3 and providers; the performance baseline; `docs/design-audit/crud.md` and `findings.md`.
+1. Owner: review PR `fix/env-scope`; after it is released to `main`, run `npm run db:migrate` once (0004) and check that Preview and Production each show only their own work.
+2. Then Phase 1 · `design/audit` (BACKLOG #7): findings only; the `check:ui` harness (Playwright + axe) in CI over every screen at 1440/1280/1024/768/390/360, light and dark, owner/creator/viewer/staff, with seeded synthetic data and stubbed Auth, S3 and providers; the performance baseline; `docs/design-audit/crud.md` and `findings.md`. The wireframes are approved as they are.
 3. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").
 4. Continue the lint-debt queue (BACKLOG #4).

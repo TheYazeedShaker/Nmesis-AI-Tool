@@ -7,7 +7,7 @@ Operating manual. Permanent standards only; session state lives in `PROGRESS.md`
 **Nmesis Studio**: an automotive creative studio (key visuals, lineups, films, storyboards, car swap, upscaling) built on Next.js 16 (App Router) and deployed on Vercel. It is being grown into a full platform.
 
 - Auth: Supabase Auth (email + password, email links) in the company's Supabase project; companies, roles, cars and plans are read from its `accounts` schema (read-only). One server-side context per request (`getStudioContext`).
-- Data: Supabase Postgres, schema `studio`, own role `studio_app` (`lib/portable/database.ts`, `supabase/migrations/`, `scripts/migrate.mjs`).
+- Data: Supabase Postgres, schema `studio`, own role `studio_app` (`lib/portable/database.ts`, `supabase/migrations/`, `scripts/migrate.mjs`). Production and Preview share it; client work is scoped by `environment` in the database layer (`studio.env`, row level security, migration 0004), never per route.
 - Media: private AWS S3, signed direct uploads/downloads; keys under `orgs/<org>/users/<user>/` (`lib/portable/tenancy.ts`).
 - Providers: OpenAI, Google AI Studio, Higgsfield, Topaz; per-user keys encrypted server-side (`lib/secret-crypto.ts`).
 
