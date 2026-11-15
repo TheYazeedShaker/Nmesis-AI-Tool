@@ -1,4 +1,5 @@
 "use client";
+import {useUndoableRemoval} from '@/components/undo-removal';
 import {providerNames,useAccount} from '@/components/studio-account';
 import {plainProviderText} from '@/lib/provider-words';
 import {useState} from 'react';
@@ -11,7 +12,10 @@ export function ConnectionSettings({open,onOpenChange,status,onUpdate}:{open:boo
  const [key,setKey]=useState('');const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');
  async function check(){setBusy(true);setError('');setNotice('');try{const r=await fetch('/api/connection',{cache:'no-store',signal:AbortSignal.timeout(30000)});const d=await r.json() as {error?:string;notice:string};if(!r.ok)throw new Error(d.error||'Access check failed.');setNotice(d.notice)}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
  function changeOpen(value:boolean){if(busy)return;setKey('');setError('');setNotice('');onOpenChange(value)}
+ const removeLater=useUndoableRemoval();
  async function submit(remove=false){
+  // Removing waits for Undo (components/undo-removal.tsx); the dialog closes so the toast can be reached.
+  if(remove){onOpenChange(false);removeLater({message:w('Your saved OpenAI key will be removed.'),url:'/api/connection',removed:onUpdate});return}
   setBusy(true);setError('');setNotice('');
   try{
    const response=await fetch('/api/connection',{method:remove?'DELETE':'POST',headers:{'Content-Type':'application/json'},...(remove?{}:{body:JSON.stringify({key:key.trim()})})});

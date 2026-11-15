@@ -11,7 +11,7 @@ export type FilmContext=Awaited<ReturnType<typeof context>>;
 export type FilmRow={id:string;owner:string;payer:string;status:string;data:string;provider_id:string|null;status_url:string|null;cancel_url:string|null;result_key:string|null;estimate:number;credits:number;hold_id:string|null;reserved_day:string|null;created_at:number;updated_at:number;lock_until:number;error:string|null};
 export function database(ctx:FilmContext){if(!ctx.DB)throw new StudioError('Film storage is not connected yet.',503);return ctx.DB}
 // `read`: anyone in the company may look; otherwise only its creator may act on it.
-export async function filmRow(ctx:FilmContext,id:string,read=false){if(!validId(id))throw new StudioError('Film not found.',404);const row=await database(ctx).prepare(read?'SELECT * FROM films WHERE id=? AND org_id=?':'SELECT * FROM films WHERE id=? AND owner=?').bind(id,read?ctx.org:ctx.prefix).first<FilmRow>();if(!row)throw new StudioError('Film not found.',404);return row}
+export async function filmRow(ctx:FilmContext,id:string,read=false){if(!validId(id))throw new StudioError('Film not found.',404);const row=await database(ctx).prepare(read?'SELECT * FROM films WHERE id=? AND org_id=?':'SELECT * FROM films WHERE id=? AND owner=? AND deleted_at IS NULL').bind(id,read?ctx.org:ctx.prefix).first<FilmRow>();if(!row)throw new StudioError('Film not found.',404);return row}
 // The company's key place: where its own key is sealed, and the job's payer.
 export async function payer(ctx:FilmContext){return keysPrefix(ctx)}
 // The company's own Higgsfield key (studio.own_keys, saved by an owner), or Nmesis's

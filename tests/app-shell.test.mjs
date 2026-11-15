@@ -42,3 +42,37 @@ test('the shell is drawn from tokens; phone account controls are 44px', () => {
   assert.match(css, /\.studio-topbar \{[^}]*height: var\(--ds-topbar-h\);/);
   assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/@media \([^)]*\)/g, ''), /#[0-9a-f]{3,8}\b|\d+px/i, 'tokens only');
 });
+
+test('no browser dialogs: the design system asks before unsaved changes are lost', () => {
+  for (const file of ['app/films/page.tsx', 'app/swap/page.tsx', 'app/storyboard/page.tsx', 'app/page.tsx']) assert.doesNotMatch(read(file), /window\.confirm|\balert\(|\bprompt\(/, file);
+  const films = read('app/films/page.tsx');
+  assert.match(films, /ask=useConfirm\(\),discardChanges=\(\)=>ask\(\{title:'Discard your changes\?'/);
+  assert.match(films, /if\(dirty&&!await discardChanges\(\)\)return;/);
+  assert.match(read('components/studio-providers.tsx'), /<ConfirmProvider theme="dark"><ToastProvider theme="dark">/);
+  assert.match(read('app/layout.tsx'), /<StudioProviders>\{children\}<\/StudioProviders>/);
+});
+
+test('removing a provider key waits for Undo and is sent when the toast closes or the page is left', () => {
+  const undo = read('components/undo-removal.tsx');
+  assert.match(undo, /window\.addEventListener\('pagehide'/);
+  assert.match(undo, /keepalive/);
+  assert.match(undo, /onExpire:\(\)=>commit\(\)/);
+  assert.match(undo, /action:\{label:'Undo'/);
+  const toast = read('components/ds/toast.tsx');
+  assert.match(toast, /window\.setTimeout\(\(\) => \{ toast\.onExpire\?\.\(\); onDone\(\); \}/);
+  assert.match(toast, /for \(const old of l\.slice\(0, -3\)\) old\.onExpire\?\.\(\);/);
+  for (const [file, url] of [['components/connection-settings.tsx', '/api/connection'], ['components/google-connection.tsx', '/api/google/connection'], ['components/topaz-upscale.tsx', '/api/topaz/connection'], ['app/films/page.tsx', '/api/video-connection']]) {
+    const s = read(file);
+    assert.ok(s.includes(`url:'${url}'`), file);
+    assert.match(s, /removeLater\(\{message:/, file);
+  }
+  assert.doesNotMatch(read('app/films/page.tsx'), /api\('\/api\/video-connection','DELETE'\)/);
+});
+
+test('films, swaps and stories have Delete with Undo and a Deleted view, by button (touch and keyboard)', () => {
+  const t = read('components/trash-controls.tsx');
+  assert.match(t, /undo\(`“\$\{title\}” moved to Deleted\.`/);
+  assert.match(t, /\/api\/\$\{words\.path\}\?deleted=1/);
+  assert.match(t, /\/api\/\$\{words\.path\}\/\$\{id\}\/restore/);
+  for (const [file, kind] of [['app/films/page.tsx', 'films'], ['app/swap/page.tsx', 'swaps'], ['app/storyboard/page.tsx', 'storyboards']]) assert.match(read(file), new RegExp(`<TrashControls kind="${kind}"`), file);
+});

@@ -1,4 +1,5 @@
 'use client';
+import {useUndoableRemoval} from '@/components/undo-removal';
 import {providerNames,useAccount} from '@/components/studio-account';
 import {plainProviderText} from '@/lib/provider-words';
 import {useState} from 'react';
@@ -9,7 +10,10 @@ export function GoogleConnection({open,onOpenChange,status,onUpdate}:{open:boole
  const showNames=providerNames(useAccount());const w=(text:string)=>showNames?text:plainProviderText(text);
   const [key,setKey]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   function changeOpen(value:boolean){if(busy)return;setKey('');setError('');setNotice('');onOpenChange(value)}
+  const removeLater=useUndoableRemoval();
   async function save(remove=false){
+    // Removing waits for Undo (components/undo-removal.tsx); the dialog closes so the toast can be reached.
+    if(remove){onOpenChange(false);removeLater({message:w('Your Google key will be removed.'),url:'/api/google/connection',removed:onUpdate});return}
     setBusy(true);setError('');setNotice('');
     try{
       const response=await fetch('/api/google/connection',{method:remove?'DELETE':'POST',headers:{'Content-Type':'application/json'},...remove?{}:{body:JSON.stringify({key:key.trim()})}});

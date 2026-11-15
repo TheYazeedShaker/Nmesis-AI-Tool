@@ -189,7 +189,8 @@ async function act(page, action) {
   if (action === 'library') { const el = page.locator('#visual-library'); if (!(await el.count())) return false; await el.scrollIntoViewIfNeeded(); return true; }
   if (action === 'viewer') return click('#visual-library .result-card img, #visual-library article img, #visual-library article button');
   if (action === 'settings') return click('summary[aria-label="Studio settings"]');
-  if (action === 'switcher') return click('button[aria-label^="Company:"]');
+  // The switcher in the top bar; below 768px the companies are in the menu (Phase 2b).
+  if (action === 'switcher') return (await page.locator('button[aria-label^="Company:"]:visible').count()) ? click('button[aria-label^="Company:"]:visible') : click('button[aria-label="Menu"]:visible');
   return false;
 }
 

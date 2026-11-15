@@ -71,3 +71,24 @@
   .studio-meter, .studio-menu-button { min-height: var(--ds-tap-phone); }
   .studio-menu-button { min-width: var(--ds-tap-phone); }
 }
+
+/* Delete / Deleted on films, swaps and stories (components/trash-controls.tsx). */
+.trash-controls { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--ds-space-8); font-family: var(--ds-font-sans); }
+.trash-controls .ds-btn { color: var(--ds-text); }
+.trash-controls .ds-btn svg { width: var(--ds-icon); height: var(--ds-icon); }
+.trash-drawer { color: var(--ds-text); font-family: var(--ds-font-sans); }
+.trash-list { display: flex; flex-direction: column; gap: var(--ds-space-4); margin: 0; padding: 0; list-style: none; }
+.trash-row {
+  display: flex; align-items: center; gap: var(--ds-space-12); min-height: var(--ds-tap-phone);
+  padding: var(--ds-space-4) 0; border-bottom: var(--ds-border-width) solid var(--ds-border);
+}
+.trash-title { flex: 1 1 auto; }
+.trash-when { flex: none; font-size: var(--ds-text-xs); }
+.trash-problem { color: var(--ds-danger); }
+.trash-drawer .ds-btn.sm { min-height: var(--ds-control-h); }
+@media (max-width: 768px) {
+  .trash-controls .ds-btn, .trash-drawer .ds-btn { min-height: var(--ds-tap-phone); }
+}
+
+/* The bar is full (useFit in studio-topbar.tsx): the navigation shows its icons. */
+.studio-topbar[data-compact] .ds-nav-word { display: none; }

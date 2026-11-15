@@ -60,6 +60,8 @@
 .ds-stack { display: flex; flex-direction: column; gap: var(--ds-space-16); min-width: 0; }
 .ds-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ds-space-8); min-width: 0; }
 .ds-spacer { flex: 1 1 auto; }
+/* A wrapper that sets a theme and draws no box of its own. */
+.ds-contents { display: contents; }
 .ds-link {
   color: var(--ds-accent-text); text-decoration: underline; text-underline-offset: 0.2em;
   background: none; border: 0; padding: 0; cursor: pointer;

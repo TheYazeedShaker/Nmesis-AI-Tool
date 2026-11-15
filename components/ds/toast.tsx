@@ -8,21 +8,24 @@ import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 // action: do it at once, then offer Undo here (and a way to restore later).
 
 export type ToastKind = 'info' | 'ok' | 'bad';
-export type ToastInput = { message: string; kind?: ToastKind; action?: { label: string; run: () => void }; duration?: number };
+export type ToastInput = { message: string; kind?: ToastKind; action?: { label: string; run: () => void }; duration?: number;
+  /** It closed without its action (time ran out, Dismiss, or pushed out by newer toasts): a delayed action goes ahead. */
+  onExpire?: () => void };
 type Toast = ToastInput & { id: number };
 
 type Api = { toast: (t: ToastInput) => number; undo: (message: string, run: () => void) => number; dismiss: (id: number) => void };
 const ToastContext = React.createContext<Api | null>(null);
 export const TOAST_MS = 6000;
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
+/** theme: the toasts' own light or dark, for screens not on the tokens yet. */
+export function ToastProvider({ children, theme }: { children: React.ReactNode; theme?: 'light' | 'dark' }) {
   const [list, setList] = React.useState<Toast[]>([]);
   const next = React.useRef(1);
   const dismiss = React.useCallback((id: number) => setList((l) => l.filter((t) => t.id !== id)), []);
   const toast = React.useCallback((t: ToastInput) => {
     const id = next.current++;
     // Newest last; at most four, so the stack never covers the page.
-    setList((l) => [...l.slice(-3), { ...t, id }]);
+    setList((l) => { for (const old of l.slice(0, -3)) old.onExpire?.(); return [...l.slice(-3), { ...t, id }]; });
     return id;
   }, []);
   const undo = React.useCallback((message: string, run: () => void) => toast({ message, kind: 'ok', action: { label: 'Undo', run } }), [toast]);
@@ -30,7 +33,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="ds-toasts" aria-live="polite" aria-relevant="additions" role="region" aria-label="Notifications">
+      <div className="ds-toasts" data-theme={theme} aria-live="polite" aria-relevant="additions" role="region" aria-label="Notifications">
         {list.map((t) => <ToastItem key={t.id} toast={t} onDone={() => dismiss(t.id)} />)}
       </div>
     </ToastContext.Provider>
@@ -49,9 +52,9 @@ function ToastItem({ toast, onDone }: { toast: Toast; onDone: () => void }) {
   React.useEffect(() => {
     if (held) return;
     const started = Date.now();
-    const timer = window.setTimeout(onDone, left.current);
+    const timer = window.setTimeout(() => { toast.onExpire?.(); onDone(); }, left.current);
     return () => { window.clearTimeout(timer); left.current -= Date.now() - started; };
-  }, [held, onDone]);
+  }, [held, onDone, toast]);
   const Icon = toast.kind === 'bad' ? AlertCircle : toast.kind === 'ok' ? CheckCircle2 : Info;
   return (
     <div
@@ -66,7 +69,7 @@ function ToastItem({ toast, onDone }: { toast: Toast; onDone: () => void }) {
       {toast.action && (
         <button type="button" className="ds-toast-action" onClick={() => { toast.action?.run(); onDone(); }}>{toast.action.label}</button>
       )}
-      <button type="button" className="ds-toast-close" aria-label="Dismiss" onClick={onDone}><X aria-hidden="true" /></button>
+      <button type="button" className="ds-toast-close" aria-label="Dismiss" onClick={() => { toast.onExpire?.(); onDone(); }}><X aria-hidden="true" /></button>
     </div>
   );
 }

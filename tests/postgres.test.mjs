@@ -24,7 +24,7 @@ const PASSWORD='local-test-password-0123456789';
 // Stands in for hosted Supabase's SQL-editor user (not a superuser; CREATEROLE).
 const SETUP_ROLE='studio_setup_test';
 const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log'];
-const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql'];
+const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql'];
 // Client work, filtered by environment (0004); the holds and the staff log record it.
 const SCOPED=['films','swap_jobs','storyboards','image_jobs','topaz_jobs','film_budgets'];
 const RECORDED=['credit_holds','staff_access_log'];
@@ -115,8 +115,8 @@ test('migrations apply once, are idempotent, and refuse a changed file; rows fro
   await admin.unsafe(`delete from studio.${table}`);
  }
  assert.deepEqual(await migrate(appUrl,{log:x=>log.push(x)}),[]);
- const [m1,m2,m3,m4]=MIGRATIONS;
- assert.deepEqual(log,[...[m1,m2,m3].map(m=>'Applied: '+m),...[m1,m2,m3].map(m=>'Already applied: '+m),'Applied: '+m4,...MIGRATIONS.map(m=>'Already applied: '+m)]);
+ const [m1,m2,m3,...later]=MIGRATIONS;
+ assert.deepEqual(log,[...[m1,m2,m3].map(m=>'Applied: '+m),...[m1,m2,m3].map(m=>'Already applied: '+m),...later.map(m=>'Applied: '+m),...MIGRATIONS.map(m=>'Already applied: '+m)]);
  const folder=mkdtempSync(join(tmpdir(),'studio-migrations-'));
  try{
   const original=readFileSync(new URL('../supabase/migrations/0001_studio.sql',import.meta.url),'utf8');
@@ -446,5 +446,30 @@ test('environments: Production and Preview never see, change or take each other\
   assert.equal(await new CreditStore(prev.forUser(USER_A)).reserve(holds(1)),true);
   const [{env:holdEnv}]=await admin`select environment as env from studio.credit_holds where id='env-hold-1'`;assert.equal(holdEnv,'preview','the hold records where it came from');
   assert.equal((await prod.forUser(USER_A).prepare("SELECT id FROM credit_holds WHERE id='env-hold-1'").all()).results.length,1,'and Production counts it');
+ }finally{await sql.end({timeout:5})}
+});
+
+// Delete and restore (lib/trash.ts, 0005): the same statements, as the Studio's
+// role, under row level security and the environment rule.
+test('trash: a member deletes and restores their company’s work; another company or environment cannot',{skip},async()=>{
+ await setup();
+ for(const t of ['films','swap_jobs','storyboards']){await admin.unsafe(`delete from studio.${t}`);await insertIn('production',ROW[t]('trash-1',ORG_A))}
+ const sql=connect(appUrl);
+ const prod=new StudioDatabase(sql,null,'production'),prev=new StudioDatabase(sql,null,'preview');
+ try{
+  for(const t of ['films','swap_jobs','storyboards']){
+   const a=prod.forUser(USER_A),now=Date.now();
+   const trash=db=>db.prepare(`UPDATE ${t} SET deleted_at=? WHERE id=? AND org_id=? AND deleted_at IS NULL AND lock_until<?`).bind(now,'trash-1',ORG_A,now+1).run();
+   assert.equal((await trash(prev.forUser(USER_A))).meta.changes,0,t+': Preview cannot delete Production’s row');
+   assert.equal((await trash(prod.forUser(USER_B))).meta.changes,0,t+': another company cannot delete it');
+   assert.equal((await trash(a)).meta.changes,1,t+': its company deletes it');
+   assert.equal((await trash(a)).meta.changes,0,t+': once');
+   const list=async deleted=>(await a.prepare(`SELECT id FROM ${t} WHERE org_id=? AND deleted_at IS ${deleted?'NOT ':''}NULL`).bind(ORG_A).all()).results.map(r=>r.id);
+   assert.deepEqual(await list(false),[],t+': left the list');
+   assert.deepEqual(await list(true),['trash-1'],t+': in Deleted');
+   assert.equal(typeof (await a.prepare(`SELECT deleted_at FROM ${t} WHERE id=?`).bind('trash-1').first('deleted_at')),'number',t+': deleted_at reads back as a number');
+   assert.equal((await a.prepare(`UPDATE ${t} SET deleted_at=NULL WHERE id=? AND org_id=?`).bind('trash-1',ORG_A).run()).meta.changes,1,t+': restored');
+   assert.deepEqual(await list(false),['trash-1'],t+': back in the list');
+  }
  }finally{await sql.end({timeout:5})}
 });

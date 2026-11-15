@@ -1,4 +1,5 @@
 'use client';
+import {useUndoableRemoval} from '@/components/undo-removal';
 import {providerNames,useAccount} from '@/components/studio-account';
 import {plainProviderText} from '@/lib/provider-words';
 import {useCallback,useEffect,useRef,useState} from 'react';
@@ -30,8 +31,11 @@ export function TopazUpscale({visual,onSaved}:{visual:Visual;onSaved:(v:Visual)=
   if(!active||error||busy||!['queued','processing','archiving'].includes(active.status))return;
   const timer=setTimeout(()=>void refresh(active.id),6000);return()=>clearTimeout(timer);
  },[active,error,busy,refresh]);
+ const removeLater=useUndoableRemoval();
  async function connect(remove=false){
-  if(savingKey)return;setSavingKey(true);setError('');setNotice('');
+  if(savingKey)return;
+  // Removing waits for Undo (components/undo-removal.tsx); the dialog closes so the toast can be reached.
+  if(remove){setSettings(false);removeLater({message:w('Your Topaz key will be removed.'),url:'/api/topaz/connection',removed:()=>{setConnection(c=>c?{...c,connected:false}:null);setNotice(w('Topaz key removed.'))}});return}setSavingKey(true);setError('');setNotice('');
   try{const d=await fetch('/api/topaz/connection',{method:remove?'DELETE':'POST',headers:{'Content-Type':'application/json'},...remove?{}:{body:JSON.stringify({key:key.trim()})}}).then(responseJson);if(remove){setConnection(c=>c?{...c,connected:false}:null);setNotice(w('Topaz key removed.'))}else{setConnection(d);setSettings(false);setNotice(w('Topaz connected. ')+d.credits+' API credits available. Verification did not spend credits.')}}catch(e){setError((e as Error).message)}finally{setKey('');setSavingKey(false)}
  }
  async function start(){

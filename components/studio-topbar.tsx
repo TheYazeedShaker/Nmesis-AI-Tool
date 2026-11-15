@@ -1,9 +1,7 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import Link from 'next/link';
 import {Aperture,BarChart3,Building2,Check,ChevronsUpDown,Clapperboard,Eye,Film,ImageIcon,Layers,Lock,LogOut,Menu,Replace,Settings} from 'lucide-react';
-import {Command,CommandEmpty,CommandGroup,CommandInput,CommandItem,CommandList} from '@/components/ui/command';
-import {Popover,PopoverTrigger,PopoverContent} from '@/components/ui/popover';
 import {Dialog} from '@/components/ds/dialog';
 import {loadCredits,useCredits} from '@/components/credits';
 import {hasFeature,loadAccount,planEnded,PLAN_ENDED_CHIP,useAccount} from '@/components/studio-account';
@@ -70,18 +68,29 @@ function Meter({credits}:{credits:ReturnType<typeof useCredits>}){
   :<span className="ds-meter studio-meter" data-level={level} role="img" aria-label={words} title={words}>{inner}</span>;
 }
 
+// The companies, as rows: staff see Nmesis and Clients (read-only); a search
+// from nine. The same list in the desktop switcher and the phone menu.
+function CompanyList({account,busy,onChoose}:{account:AccountSummary;busy:boolean;onChoose:(id:string)=>void}){
+ const [query,setQuery]=useState('');
+ const sections=sectionsOf(account),total=sections.reduce((n,s)=>n+s.orgs.length,0),q=query.trim().toLowerCase();
+ const shown=sections.map(s=>({...s,orgs:s.orgs.filter(o=>!q||o.name.toLowerCase().includes(q))})).filter(s=>s.orgs.length);
+ return <>
+  {total>=9&&<div className="ds-field"><label className="ds-label" htmlFor="studio-company-search">Search companies</label><input id="studio-company-search" className="ds-input" type="search" value={query} onChange={e=>setQuery(e.target.value)} autoComplete="off"/></div>}
+  {shown.length===0&&<p className="ds-muted">No company with that name.</p>}
+  {shown.map(s=><div key={s.label||'companies'} className="studio-menu-group" role="group" aria-label={s.label||'Companies'}>{s.label&&<p className="ds-muted">{s.label}</p>}{s.orgs.map(o=><button key={o.id} type="button" className="studio-menu-row" disabled={busy} aria-current={o.id===account.org.id||undefined} onClick={()=>onChoose(o.id)}><Building2 aria-hidden="true"/><span className="ds-truncate">{o.name}</span>{o.id===account.org.id?<Check aria-label="Current"/>:s.label==='Clients'?<Eye aria-label="Read-only"/>:null}</button>)}</div>)}
+ </>;
+}
+
+// The switcher: a modal, so focus stays in it and nothing on the page sits
+// under it while it is open.
 function Switcher({account,busy,onChoose}:{account:AccountSummary;busy:boolean;onChoose:(id:string)=>void}){
  const [open,setOpen]=useState(false);
- const sections=sectionsOf(account),total=sections.reduce((n,s)=>n+s.orgs.length,0);
  const face=<><span className="ds-avatar" aria-hidden="true">{initials(account.org.name)}</span><span className="ds-switcher-name ds-truncate">{account.org.name}</span></>;
  if(account.orgs.length<=1&&!account.switcher)return <span className="ds-switcher studio-switcher" title={account.org.name}>{face}<span className="ds-sr-only">{'Company: '+account.org.name}</span></span>;
- return <Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><button type="button" className="ds-switcher studio-switcher" aria-label={`Company: ${account.org.name}. Switch company.`} title={account.org.name} disabled={busy}>{face}<ChevronsUpDown aria-hidden="true"/></button></PopoverTrigger>
-  <PopoverContent className="account-switcher" align="end"><Command loop>
-   {total>=9&&<CommandInput placeholder="Search companies" aria-label="Search companies"/>}
-   <CommandList><CommandEmpty>No company with that name.</CommandEmpty>
-    {sections.map(s=><CommandGroup key={s.label||'companies'} heading={s.label||undefined}>{s.orgs.map(o=><CommandItem key={o.id} value={o.name+' '+o.id} keywords={[o.name]} onSelect={()=>{setOpen(false);onChoose(o.id)}} aria-current={o.id===account.org.id?'true':undefined}><span className="account-switch-name">{o.name}</span>{o.id===account.org.id?<Check size={14}/>:s.label==='Clients'?<Eye size={14} aria-label="Read-only"/>:null}</CommandItem>)}</CommandGroup>)}
-   </CommandList>
-  </Command></PopoverContent></Popover>;
+ return <>
+  <button type="button" className="ds-switcher studio-switcher" aria-haspopup="dialog" aria-label={`Company: ${account.org.name}. Switch company.`} title={account.org.name} disabled={busy} onClick={()=>setOpen(true)}>{face}<ChevronsUpDown aria-hidden="true"/></button>
+  <Dialog open={open} onClose={()=>setOpen(false)} title="Switch company" className="studio-menu"><CompanyList account={account} busy={busy} onChoose={id=>{setOpen(false);onChoose(id)}}/></Dialog>
+ </>;
 }
 
 function SignOut({account,withWord}:{account:AccountSummary;withWord?:boolean}){
@@ -91,7 +100,7 @@ function SignOut({account,withWord}:{account:AccountSummary;withWord?:boolean}){
 // Below 768px: the tools, the page's own actions, the company and the account.
 function PhoneMenu({account,current,actions,busy,onChoose}:{account:AccountSummary;current?:StudioPage;actions?:React.ReactNode;busy:boolean;onChoose:(id:string)=>void}){
  const [open,setOpen]=useState(false);
- const sections=sectionsOf(account),many=sections.reduce((n,s)=>n+s.orgs.length,0)>1;
+ const many=sectionsOf(account).reduce((n,s)=>n+s.orgs.length,0)>1;
  const settings=account.role==='owner'&&!account.internal||account.viewingAs;
  return <>
   <button type="button" className="ds-btn icon studio-menu-button" aria-haspopup="dialog" aria-label="Menu" onClick={()=>setOpen(true)}><Menu aria-hidden="true"/></button>
@@ -105,7 +114,7 @@ function PhoneMenu({account,current,actions,busy,onChoose}:{account:AccountSumma
    {actions&&<div className="studio-menu-group studio-menu-actions" onClick={()=>setOpen(false)}>{actions}</div>}
    <div className="studio-menu-group">
     <p className="ds-label-caps">Company</p>
-    {many?sections.map(s=><div key={s.label||'companies'} className="studio-menu-group" role="group" aria-label={s.label||'Companies'}>{s.label&&<p className="ds-muted">{s.label}</p>}{s.orgs.map(o=><button key={o.id} type="button" className="studio-menu-row" disabled={busy} aria-current={o.id===account.org.id||undefined} onClick={()=>{setOpen(false);onChoose(o.id)}}><Building2 aria-hidden="true"/><span className="ds-truncate">{o.name}</span>{o.id===account.org.id?<Check aria-label="Current"/>:s.label==='Clients'?<Eye aria-label="Read-only"/>:null}</button>)}</div>)
+    {many?<CompanyList account={account} busy={busy} onChoose={id=>{setOpen(false);onChoose(id)}}/>
      :<span className="studio-menu-row"><Building2 aria-hidden="true"/><span className="ds-truncate">{account.org.name}</span></span>}
     <span className="studio-menu-row ds-muted">{account.viewingAs?'Staff':ROLE_LABEL[account.role]}</span>
    </div>
@@ -119,11 +128,23 @@ function PhoneMenu({account,current,actions,busy,onChoose}:{account:AccountSumma
  </>;
 }
 
+// Words in the navigation while they fit; icons (each with its name) when the
+// bar is full: a link is never covered by the bar's own end (check:ui overlap).
+function useFit(bar:React.RefObject<HTMLElement|null>){
+ useLayoutEffect(()=>{
+  const el=bar.current,nav=el?.querySelector<HTMLElement>('.studio-nav'),end=el?.querySelector<HTMLElement>('.studio-topbar-end');
+  if(!el||!nav||!end||typeof ResizeObserver==='undefined')return;
+  const fit=()=>{el.removeAttribute('data-compact');if(nav.scrollWidth>nav.clientWidth+1)el.setAttribute('data-compact','')};
+  fit();const watch=new ResizeObserver(fit);watch.observe(el);watch.observe(end);return()=>watch.disconnect();
+ },[bar]);
+}
+
 export function StudioTopBar({current,actions}:{current?:StudioPage;/** The page's own controls (a connection button); in the menu on phones. */actions?:React.ReactNode}){
  const {account,credits,ready}=useShellData();
+ const bar=useRef<HTMLElement>(null);useFit(bar);
  const {busy,problem,choose}=useSwitch();
  const settings=!!account&&(account.role==='owner'&&!account.internal||account.viewingAs);
- return <header className="ds-topbar studio-topbar" data-theme="dark">
+ return <header ref={bar} className="ds-topbar studio-topbar" data-theme="dark">
   <Link className="ds-brand" href="/" aria-label="Nmesis Studio, Key visuals">
    <span className="ds-brand-mark" aria-hidden="true"><Aperture/></span>
    <span aria-hidden="true">NMESIS <span className="ds-brand-sub">STUDIO</span></span>
