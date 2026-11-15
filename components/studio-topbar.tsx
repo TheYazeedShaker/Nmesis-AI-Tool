@@ -1,28 +1,38 @@
 'use client';
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import Link from 'next/link';
-import {Aperture,BarChart3,Building2,Check,ChevronsUpDown,Clapperboard,Eye,Film,ImageIcon,Layers,Lock,LogOut,Menu,Replace,Settings} from 'lucide-react';
+import {Aperture,BarChart3,Building2,Check,ChevronDown,ChevronsUpDown,Clapperboard,Eye,Film,FolderOpen,Home,ImageIcon,LayoutGrid,Layers,Lock,LogOut,Menu,Replace,Settings,Shapes} from 'lucide-react';
 import {Dialog} from '@/components/ds/dialog';
 import {loadCredits,useCredits} from '@/components/credits';
 import {hasFeature,loadAccount,planEnded,PLAN_ENDED_CHIP,useAccount} from '@/components/studio-account';
 import {creditsLabel} from '@/lib/credits/words';
 import type {FeatureKey} from '@/lib/accounts/plan';
 import type {AccountSummary} from '@/lib/accounts/summary';
+import type {CreditOverview} from '@/lib/credits/usage';
 
 // The Studio's one top bar (Phase 2b): the brand, one shared navigation, the
 // credit meter, the company switcher and the account; below 768px the
 // navigation and the account move into one menu, every control 44px tall.
-// Built from the design system (.ds- classes, tokens), dark like the screens
-// until Phase 3 moves the screens themselves onto the tokens.
+// Built from the design system (.ds- classes, tokens). Phase 3: the places
+// (Home, Library, Projects) and a Tools menu; light and dark on the new
+// screens, dark on the tool screens until they are rebuilt (group 2).
 //
 // No layout shift: the bar's height is fixed, and everything that waits for
 // /api/me and /api/credits appears at once, at the right-hand end, where it
 // pushes nothing.
 
-export type StudioPage='visuals'|'lineup'|'storyboard'|'films'|'swap'|'usage'|'company'|'lab';
+export type StudioPage='home'|'library'|'projects'|'visuals'|'lineup'|'storyboard'|'films'|'swap'|'usage'|'company'|'lab';
 type Tool={key:StudioPage;href:string;label:string;icon:React.ReactNode;feature?:FeatureKey};
+// The places: the same for everybody.
+export const STUDIO_PLACES:Tool[]=[
+ {key:'home',href:'/',label:'Home',icon:<Home/>},
+ {key:'library',href:'/library',label:'Library',icon:<LayoutGrid/>},
+ {key:'projects',href:'/projects',label:'Projects',icon:<FolderOpen/>},
+];
+export const KEY_VISUAL_HREF='/key-visual';
+// The tools, in the Tools menu; a tool the plan lacks shows its plan.
 export const STUDIO_NAV:Tool[]=[
- {key:'visuals',href:'/',label:'Key visuals',icon:<ImageIcon/>},
+ {key:'visuals',href:KEY_VISUAL_HREF,label:'Key visual',icon:<ImageIcon/>},
  {key:'lineup',href:'/lineup',label:'Car lineup',icon:<Layers/>,feature:'studio.lineups'},
  {key:'storyboard',href:'/storyboard',label:'Story studio',icon:<Clapperboard/>,feature:'studio.storyboards'},
  {key:'films',href:'/films',label:'Films',icon:<Film/>,feature:'studio.film'},
@@ -35,10 +45,13 @@ const ROLE_LABEL={owner:'Owner',creator:'Creator',viewer:'Viewer'} as const;
 const offChip=(account:AccountSummary|null,feature:FeatureKey)=>planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[feature]}`;
 
 // The account and the credits, together: the bar's end appears once, complete.
-function useShellData(){
+// A preview (the design-system proposals) passes synthetic ones instead.
+export type ShellPreview={account:AccountSummary;credits:CreditOverview|null};
+function useShellData(preview?:ShellPreview){
  const account=useAccount(),credits=useCredits();
  const [ready,setReady]=useState(false);
- useEffect(()=>{let live=true;void Promise.allSettled([loadAccount(),loadCredits()]).then(()=>{if(live)setReady(true)});return()=>{live=false}},[]);
+ useEffect(()=>{if(preview)return;let live=true;void Promise.allSettled([loadAccount(),loadCredits()]).then(()=>{if(live)setReady(true)});return()=>{live=false}},[preview]);
+ if(preview)return {account:preview.account,credits:preview.credits,ready:true};
  return {account,credits,ready:ready&&!!account};
 }
 
@@ -59,6 +72,18 @@ function NavLink({tool,account,current}:{tool:Tool;account:AccountSummary|null;c
  const on=!tool.feature||hasFeature(account,tool.feature);
  if(!on)return <span className="ds-nav-link studio-nav-off" aria-disabled="true" title={`${tool.label}: ${offChip(account,tool.feature!)}`}><Lock aria-hidden="true"/><span className="ds-nav-word" aria-hidden="true">{tool.label}</span><span className="ds-sr-only">{`${tool.label}, ${offChip(account,tool.feature!)}`}</span></span>;
  return <Link className="ds-nav-link" href={tool.href} aria-current={current===tool.key?'page':undefined} aria-label={tool.label}><span aria-hidden="true">{tool.icon}</span><span className="ds-nav-word">{tool.label}</span></Link>;
+}
+
+function ToolsMenu({account,current}:{account:AccountSummary|null;current?:StudioPage}){
+ const [open,setOpen]=useState(false);const root=useRef<HTMLDivElement>(null);
+ const here=STUDIO_NAV.some(t=>t.key===current);
+ useEffect(()=>{if(!open)return;const away=(e:PointerEvent)=>{if(!root.current?.contains(e.target as Node))setOpen(false)};document.addEventListener('pointerdown',away);return()=>document.removeEventListener('pointerdown',away)},[open]);
+ return <div ref={root} className="studio-tools" onKeyDown={e=>{if(e.key==='Escape'&&open){e.stopPropagation();setOpen(false);root.current?.querySelector<HTMLButtonElement>('button')?.focus()}}} onBlur={e=>{if(!root.current?.contains(e.relatedTarget as Node))setOpen(false)}}>
+  <button type="button" className="ds-nav-link" aria-expanded={open} aria-controls="studio-tools-list" data-current={here||undefined} aria-label="Tools" onClick={()=>setOpen(o=>!o)}><span aria-hidden="true"><Shapes/></span><span className="ds-nav-word">Tools</span><ChevronDown aria-hidden="true" className="studio-tools-caret"/></button>
+  {open&&<ul id="studio-tools-list" className="studio-tools-list" aria-label="Tools">{STUDIO_NAV.map(t=><li key={t.key}>{!t.feature||hasFeature(account,t.feature)
+   ?<Link className="studio-menu-row" href={t.href} aria-current={current===t.key?'page':undefined} onClick={()=>setOpen(false)}><span aria-hidden="true">{t.icon}</span>{t.label}</Link>
+   :<span className="studio-menu-row studio-nav-off" aria-disabled="true"><Lock aria-hidden="true"/>{t.label}<span className="ds-badge">{offChip(account,t.feature)}</span></span>}</li>)}</ul>}
+ </div>;
 }
 
 function Meter({credits}:{credits:ReturnType<typeof useCredits>}){
@@ -109,6 +134,9 @@ function PhoneMenu({account,current,actions,busy,onChoose}:{account:AccountSumma
  return <>
   <button type="button" className="ds-btn icon studio-menu-button" aria-haspopup="dialog" aria-label="Menu" onClick={()=>setOpen(true)}><Menu aria-hidden="true"/></button>
   <Dialog open={open} onClose={()=>setOpen(false)} title="Menu" variant="drawer" className="studio-menu">
+   <nav aria-label="Places" className="studio-menu-group">
+    {STUDIO_PLACES.map(t=><Link key={t.key} className="studio-menu-row" href={t.href} aria-current={current===t.key?'page':undefined} onClick={()=>setOpen(false)}><span aria-hidden="true">{t.icon}</span>{t.label}</Link>)}
+   </nav>
    <nav aria-label="Tools" className="studio-menu-group">
     <p className="ds-label-caps">Tools</p>
     {STUDIO_NAV.map(t=>!t.feature||hasFeature(account,t.feature)
@@ -145,17 +173,17 @@ function useFit(bar:React.RefObject<HTMLElement|null>){
  },[bar]);
 }
 
-export function StudioTopBar({current,actions}:{current?:StudioPage;/** The page's own controls (a connection button); in the menu on phones. */actions?:BarAction[]}){
- const {account,credits,ready}=useShellData();
+export function StudioTopBar({current,actions,theme='dark',preview}:{current?:StudioPage;/** The page's own controls (a connection button); in the menu on phones. */actions?:BarAction[];/** 'system' on the rebuilt screens (light and dark); 'dark' on the tool screens until group 2. */theme?:'system'|'dark';preview?:ShellPreview}){
+ const {account,credits,ready}=useShellData(preview);
  const bar=useRef<HTMLElement>(null);useFit(bar);
  const {busy,problem,choose}=useSwitch();
  const settings=!!account&&(account.role==='owner'&&!account.internal||account.viewingAs);
- return <header ref={bar} className="ds-topbar studio-topbar" data-theme="dark">
-  <Link className="ds-brand" href="/" aria-label="Nmesis Studio, Key visuals">
+ return <header ref={bar} className="ds-topbar studio-topbar" data-theme={theme==='dark'?'dark':undefined}>
+  <Link className="ds-brand" href="/" aria-label="Nmesis Studio, Home">
    <span className="ds-brand-mark" aria-hidden="true"><Aperture/></span>
    <span aria-hidden="true">NMESIS <span className="ds-brand-sub">STUDIO</span></span>
   </Link>
-  <nav className="ds-nav studio-nav" aria-label="Main">{STUDIO_NAV.map(t=><NavLink key={t.key} tool={t} account={account} current={current}/>)}</nav>
+  <nav className="ds-nav studio-nav" aria-label="Main">{STUDIO_PLACES.map(t=><NavLink key={t.key} tool={t} account={account} current={current}/>)}<ToolsMenu account={account} current={current}/></nav>
   <div className="ds-topbar-end studio-topbar-end">
    {!!actions?.length&&<div className="studio-topbar-actions">{actions.map(a=><button key={a.label} type="button" className="ds-btn sm" aria-label={a.label} title={a.label} onClick={a.onClick}><span aria-hidden="true">{a.icon}</span><span className="studio-action-word" aria-hidden="true">{a.label}</span></button>)}</div>}
    {ready&&account&&<>

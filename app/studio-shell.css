@@ -16,7 +16,7 @@
   font-family: var(--ds-font-sans);
   font-size: var(--ds-text-sm);
   line-height: var(--ds-leading-sm);
-  color-scheme: dark;
+
 }
 .studio-topbar *, .studio-topbar *::before, .studio-topbar *::after { box-sizing: border-box; }
 .studio-topbar a { color: inherit; }
@@ -131,3 +131,18 @@ body .studio input[type="checkbox"], body .studio input[type="radio"] { min-widt
 .studio-topbar[data-tight] .studio-action-word { display: none; }
 .studio-topbar-actions .ds-btn { color: var(--ds-text); }
 .studio-topbar-actions .ds-btn svg, .studio-menu-row > span[aria-hidden="true"] svg { width: var(--ds-icon); height: var(--ds-icon); }
+
+/* Phase 3: the tool screens keep a dark bar; the rebuilt screens follow the system. */
+.studio-topbar[data-theme="dark"] { color-scheme: dark; }
+/* The Tools menu in the navigation. */
+.studio-nav { overflow: visible; }
+.studio-tools { position: relative; }
+.studio-tools .ds-nav-link { border: 0; background: transparent; cursor: pointer; font: inherit; color: inherit; }
+.studio-tools .ds-nav-link[data-current], .studio-tools .ds-nav-link[aria-expanded="true"] { background: var(--ds-panel-hover); color: var(--ds-text-strong); }
+.studio-tools-caret { width: var(--ds-space-12); height: var(--ds-space-12); }
+.studio-tools-list {
+  position: absolute; top: calc(100% + var(--ds-space-4)); left: 0; z-index: var(--ds-z-dropdown);
+  min-width: var(--ds-settings-w); margin: 0; padding: var(--ds-space-4); list-style: none;
+  background: var(--ds-panel); border: var(--ds-border-width) solid var(--ds-border);
+  border-radius: var(--ds-radius); box-shadow: var(--ds-shadow-2);
+}

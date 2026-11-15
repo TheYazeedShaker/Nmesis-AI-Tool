@@ -8,6 +8,8 @@ import "./tokens.css";
 import "./design-system.css";
 // Phase 2b: the one top bar on every screen (components/studio-topbar.tsx).
 import "./studio-shell.css";
+// Phase 3: the rebuilt screens (components/workspace).
+import "./workspace.css";
 import {LinkLanding} from "@/components/link-landing";
 import {StudioProviders} from "@/components/studio-providers";
 // The Nmesis fonts. preload stays off until screens use them (Phase 2b), so no
