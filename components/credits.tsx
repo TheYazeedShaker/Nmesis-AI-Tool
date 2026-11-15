@@ -48,26 +48,29 @@ export function CreditsUsed({credits}:{credits:number|null|undefined}){
  if(typeof credits!=='number')return null;
  return <span className="credit-used"><Coins size={12} aria-hidden="true"/>Used {creditsLabel(credits)}</span>;
 }
-// Top bar: used / left this period, coloured at 80% and 100%; one click to Usage.
+// Top bar: used / left this period, coloured at 80% and 100%; one click to Usage
+// for those who may open it (owners, staff with access). For everyone else it is
+// a statement, not a link to a page that would refuse them (F-033).
 export function CreditMeter(){
  const o=useCredits();
  if(!o||o.unlimited||!o.meter)return null;
- const m=o.meter;
- return <Link href="/usage" className={'credit-meter'+(m.level===100?' credit-out':m.level===80?' credit-low':'')} title={`${creditsLabel(m.used)} used and ${creditsLabel(m.left)} left this month. Open Usage.`} aria-label={`Credits: ${m.used} used, ${m.left} left this month. Open Usage.`}>
-  <Coins size={14} aria-hidden="true"/><span className="credit-numbers"><b>{m.used.toLocaleString('en-US')}</b> used · <b>{m.left.toLocaleString('en-US')}</b> left</span>
-  <span className="credit-bar" aria-hidden="true"><span style={{width:Math.min(100,m.percent)+'%'}}/></span>
- </Link>;
+ const m=o.meter,className='credit-meter'+(m.level===100?' credit-out':m.level===80?' credit-low':''),words=`${creditsLabel(m.used)} used and ${creditsLabel(m.left)} left this month.`;
+ const inner=<><Coins size={14} aria-hidden="true"/><span className="credit-numbers"><b>{m.used.toLocaleString('en-US')}</b> used · <b>{m.left.toLocaleString('en-US')}</b> left</span>
+  <span className="credit-bar" aria-hidden="true"><span style={{width:Math.min(100,m.percent)+'%'}}/></span></>;
+ return o.usage
+  ?<Link href="/usage" className={className} title={words+' Open Usage.'} aria-label={`Credits: ${m.used} used, ${m.left} left this month. Open Usage.`}>{inner}</Link>
+  :<span className={className} title={words} role="img" aria-label={`Credits: ${m.used} used, ${m.left} left this month.`}>{inner}</span>;
 }
 // Under the top bar at 80% and 100%.
 export function CreditBanner(){
  const o=useCredits();
  if(!o||o.unlimited||!o.meter||!o.meter.level)return null;
  const m=o.meter,resets=m.resetsOn?` They reset on ${m.resetsOn}.`:'';
- return <div className={'credit-banner'+(m.level===100?' credit-out':'')} role="status"><Info size={16}/><span>{m.level===100?CREDITS_USED+resets:`Your company has used ${m.percent}% of this month’s credits: ${creditsLabel(m.left)} left.${resets} Ask Nmesis to add a pack if you need more.`} <Link href="/usage">Usage</Link></span></div>;
+ return <div className={'credit-banner'+(m.level===100?' credit-out':'')} role="status"><Info size={16}/><span>{m.level===100?CREDITS_USED+resets:`Your company has used ${m.percent}% of this month’s credits: ${creditsLabel(m.left)} left.${resets} Ask Nmesis to add a pack if you need more.`}{o.usage?<> <Link href="/usage">Usage</Link></>:null}</span></div>;
 }
 // For companies without their own keys: no key fields, just who provides the AI.
 export function NmesisProvides({provider}:{provider:CreditProvider}){
  const o=useCredits();
  const left=o?.meter?.left;
- return <div className="nmesis-provides"><Coins size={18} aria-hidden="true"/><span><b>Nmesis provides the AI for your plan.</b><small>{o?.unlimited?'This is Nmesis’s own workspace: actions here are recorded and not counted against a client.':typeof left==='number'?`Your company has ${creditsLabel(left)} left this month. `:''}{o&&!o.unlimited&&<Link href="/usage">Usage</Link>}</small>{o?.ignoredKeys&&provider&&<small className="keys-ignored">{o.ignoredKeys}</small>}</span></div>;
+ return <div className="nmesis-provides"><Coins size={18} aria-hidden="true"/><span><b>Nmesis provides the AI for your plan.</b><small>{o?.unlimited?'This is Nmesis’s own workspace: actions here are recorded and not counted against a client.':typeof left==='number'?`Your company has ${creditsLabel(left)} left this month. `:''}{o&&!o.unlimited&&o.usage&&<Link href="/usage">Usage</Link>}</small>{o?.ignoredKeys&&provider&&<small className="keys-ignored">{o.ignoredKeys}</small>}</span></div>;
 }

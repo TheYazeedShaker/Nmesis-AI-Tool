@@ -30,15 +30,17 @@ const ROLE_LABEL={owner:'Owner',creator:'Creator',viewer:'Viewer'} as const;
 export function AccountBar(){
  const account=useAccount();const [busy,setBusy]=useState(false),[problem,setProblem]=useState('');
  async function choose(orgId:string){if(!account||orgId===account.org.id)return;setBusy(true);setProblem('');try{const r=await fetch('/api/auth/org',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({orgId})});if(r.ok){location.reload();return}const d=await r.json().catch(()=>({}));setProblem(d.error||'The company could not be changed.')}catch{setProblem('The connection was interrupted. Try again.')}setBusy(false)}
- if(!account)return null;
+ // Until the account arrives, an empty bar keeps its place (on phones it is a
+ // row of its own; appearing late would push the page down).
+ if(!account)return <div className="account-bar account-bar-pending" aria-hidden="true"/>;
  return <div className="account-bar">
   {account.orgs.length>1?<CompanySwitcher account={account} busy={busy} onChoose={id=>void choose(id)}/>
-   :<span className="account-org"><Building2 size={14}/>{account.org.name}</span>}
+   :<span className="account-org" title={account.org.name}><Building2 size={14}/><span className="account-org-name">{account.org.name}</span></span>}
   {account.workspace.open&&<CreditMeter/>}
   <span className="account-role">{account.viewingAs?'Staff':ROLE_LABEL[account.role]}</span>
   {(account.role==='owner'&&!account.internal||account.viewingAs)&&<Link href="/company" className="account-company" aria-label="Company settings" title="Company settings"><Settings size={14}/></Link>}
   {problem&&<span className="account-problem" role="alert">{problem}</span>}
-  <form method="post" action="/auth/signout"><button className="secondary" type="submit" title={'Signed in as '+account.user.email}><LogOut size={14}/>Sign out</button></form>
+  <form method="post" action="/auth/signout"><button className="secondary" type="submit" aria-label="Sign out" title={'Signed in as '+account.user.email}><LogOut size={14}/><span className="account-signout-word">Sign out</span></button></form>
  </div>;
 }
 // More companies than this and the switcher gets a search field.
@@ -51,7 +53,7 @@ function CompanySwitcher({account,busy,onChoose}:{account:AccountSummary;busy:bo
  const sections=account.switcher?[{label:'Nmesis',orgs:account.switcher.nmesis},{label:'Clients',orgs:account.switcher.clients}].filter(s=>s.orgs.length):[{label:'',orgs:account.orgs}];
  const total=sections.reduce((n,s)=>n+s.orgs.length,0);
  const pick=(id:string)=>{setOpen(false);onChoose(id)};
- return <Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><button type="button" className="account-switch" aria-label={'Company: '+account.org.name} disabled={busy}><Building2 size={14}/><span>{account.org.name}</span><ChevronsUpDown size={14}/></button></PopoverTrigger>
+ return <Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><button type="button" className="account-switch" aria-label={'Company: '+account.org.name} title={account.org.name} disabled={busy}><Building2 size={14}/><span>{account.org.name}</span><ChevronsUpDown size={14}/></button></PopoverTrigger>
   <PopoverContent className="account-switcher" align="end"><Command loop>
    {total>=SEARCH_FROM&&<CommandInput placeholder="Search companies" aria-label="Search companies"/>}
    <CommandList><CommandEmpty>No company with that name.</CommandEmpty>
@@ -78,22 +80,28 @@ export function AccountNotices(){
   {w.open&&account.role==='viewer'&&!account.viewingAs&&<div className="viewing-as" role="status"><Info size={16}/><span>You can look at your company’s work. Ask your company’s owner for creator access to make new work.</span></div>}
  </>;
 }
-export function AskNmesis({feature}:{feature:FeatureKey}){
- return <Popover><PopoverTrigger asChild><button type="button" className="text-button ask-nmesis">Ask Nmesis</button></PopoverTrigger><PopoverContent className="ask-nmesis-popover">{FEATURE_LABELS[feature]} isn’t on your company’s plan yet. Ask your Nmesis contact to add it, or to move you to the plan that includes it.</PopoverContent></Popover>;
+// A company whose subscription has ended (not one that never had a plan): its
+// tools are off because the plan ended, not because the plan lacks them (F-051).
+export const planEnded=(account:AccountSummary|null)=>!!account&&!account.workspace.open&&!account.workspace.noPlan;
+export const PLAN_ENDED_CHIP='Plan ended';
+export function AskNmesis({feature,ended}:{feature:FeatureKey;ended?:boolean}){
+ return <Popover><PopoverTrigger asChild><button type="button" className="text-button ask-nmesis">Ask Nmesis</button></PopoverTrigger><PopoverContent className="ask-nmesis-popover">{ended?'Your company’s Studio plan has ended, so new work is paused. Ask your Nmesis contact to renew it.':`${FEATURE_LABELS[feature]} isn’t on your company’s plan yet. Ask your Nmesis contact to add it, or to move you to the plan that includes it.`}</PopoverContent></Popover>;
 }
 export function UpsellChip({feature,account}:{feature:FeatureKey;account:AccountSummary|null}){
  if(!account)return null;
+ if(planEnded(account))return <span className="upsell"><span className="plan-chip">{PLAN_ENDED_CHIP}</span><AskNmesis feature={feature} ended/></span>;
  return <span className="upsell"><span className="plan-chip">Available on {account.upsell[feature]}</span><AskNmesis feature={feature}/></span>;
 }
 // A navigation link to a tool: the link when the plan has it, otherwise its name with the chip.
 export function FeatureLink({feature,href,children,current,className}:{feature:FeatureKey;href:string;children:React.ReactNode;current?:boolean;className?:string}){
  const account=useAccount();
  if(hasFeature(account,feature))return <a className={className} href={href} aria-current={current?'page':undefined}>{children}</a>;
- return <span className={'feature-off'+(className?' '+className:'')}>{children}<span className="plan-chip">{account!.upsell[feature]}</span></span>;
+ return <span className={'feature-off'+(className?' '+className:'')}>{children}<span className="plan-chip">{planEnded(account)?PLAN_ENDED_CHIP:account!.upsell[feature]}</span></span>;
 }
 // A whole page for one tool: shown when the plan has it, otherwise a plain notice.
 export function PlanGate({feature,children}:{feature:FeatureKey;children:React.ReactNode}){
  const account=useAccount();
  if(hasFeature(account,feature))return <>{children}</>;
- return <><header className="topbar"><Link href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></Link><AccountBar/></header><AccountNotices/><main className="plan-gate"><section><p className="eyebrow">YOUR PLAN</p><h1>{FEATURE_LABELS[feature]} is available on {account!.upsell[feature]}</h1><p className="helper">Your company’s plan doesn’t include {FEATURE_LABELS[feature].toLowerCase()} yet. Ask Nmesis to add it.</p><div className="upsell"><span className="plan-chip">Available on {account!.upsell[feature]}</span><AskNmesis feature={feature}/></div><Link className="secondary" href="/">Back to key visuals</Link></section></main></>;
+ const ended=planEnded(account);
+ return <><header className="topbar"><Link href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></Link><AccountBar/></header><AccountNotices/><main className="plan-gate"><section><p className="eyebrow">YOUR PLAN</p>{ended?<><h1>Your Studio plan has ended</h1><p className="helper">New work, including {FEATURE_LABELS[feature].toLowerCase()}, is paused. Ask Nmesis to renew your company’s plan.</p><div className="upsell"><span className="plan-chip">{PLAN_ENDED_CHIP}</span><AskNmesis feature={feature} ended/></div></>:<><h1>{FEATURE_LABELS[feature]} is available on {account!.upsell[feature]}</h1><p className="helper">Your company’s plan doesn’t include {FEATURE_LABELS[feature].toLowerCase()} yet. Ask Nmesis to add it.</p><div className="upsell"><span className="plan-chip">Available on {account!.upsell[feature]}</span><AskNmesis feature={feature}/></div></>}<Link className="secondary" href="/">Back to key visuals</Link></section></main></>;
 }

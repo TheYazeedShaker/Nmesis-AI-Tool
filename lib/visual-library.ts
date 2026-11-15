@@ -62,8 +62,15 @@ export async function visualLibrary(ctx:Context,deleted=false){
    for(const visual of saved)if(visual)items.push({owner,visual});
   }
   const jobs=await database(ctx).prepare("SELECT * FROM image_jobs WHERE org_id=? AND status<>'archived' ORDER BY created_at DESC").bind(ctx.org).all<ImageRow>();
-  for(const row of jobs.results)if(isUserPrefix(row.owner)&&orgOf(row.owner)===ctx.org)items.push({owner:row.owner,visual:publicImage(row)});
-  const visuals=await eachBatch(items.filter(x=>deletedIds.has(x.visual.id)===deleted),x=>resolveVisual({...ctx,prefix:x.owner},x.visual));
+  // One job row the server cannot read (an unknown model, broken data) is
+  // skipped and logged, like an unreadable stored record; the rest of the
+  // library still shows (F-065).
+  for(const row of jobs.results){
+   if(!isUserPrefix(row.owner)||orgOf(row.owner)!==ctx.org)continue;
+   try{items.push({owner:row.owner,visual:publicImage(row)})}
+   catch(e){warnings.push('An image job could not be read.');console.warn('Library: skipped an unreadable image job',JSON.stringify({id:row.id,status:row.status,reason:e instanceof Error?e.message.slice(0,120):'unknown'}))}
+  }
+  const visuals=await eachBatch(items.filter(x=>deletedIds.has(x.visual.id)===deleted),async x=>({...await resolveVisual({...ctx,prefix:x.owner},x.visual),mine:x.owner===ctx.prefix}));
   return {visuals:visuals.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),warning:warnings.length?'Some image records could not be read. Refresh to try again.':undefined};
 }
 export async function cleanEmptyVisuals(ctx:Context){

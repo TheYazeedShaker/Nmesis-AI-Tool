@@ -2,9 +2,23 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-15 (Design Phase 1, audit)
+**Last updated:** 2026-11-15 (Design Phase 2a, quick fixes)
 
-**Latest (2026-11-15, design programme Phase 1, audit — findings only):** `npm run check:ui` runs every Studio screen in Chromium (Playwright + axe) at 1440 / 1280 / 1024 / 768 / 390 / 360, light and dark, as owner, creator, viewer, staff (own workspace, "Viewing as", refused) and the Starter / ended / Enterprise states, against the production build with CI's Postgres, a mocked Supabase Auth and the S3 stand-in, seeded with a synthetic world (`scripts/ui/seed.mjs`: 5 companies, 300 visuals, films, swaps, storyboards, 85% / 100% credits, long names, zero and huge numbers). The Studio server runs with `scripts/ui/no-network.mjs` (every non-local connection refused) and no provider key. A CI job `ui` runs it on every PR with `--perf --shots` and uploads `ui-report` (7 days); `scripts/ui-baseline.json` ratchets the counts. Docs: `docs/design-audit/harness.md` (checks and the harness's own mistakes), `crud.md`, `findings.md` (69 findings in 18 areas, top 15, fix order). Branch `design/audit` → PR into `development`. No hosted system was touched; nothing in the Studio was changed.
+**Latest (2026-11-15, design programme Phase 2a, quick fixes):**
+- Fixes (`design/quick`):
+  - the phone top bar keeps the company, credits, settings and Sign out on screen at 390 / 360 (`app/topbar-phone.css`, tokens only; F-006);
+  - an ended plan says "Plan ended … ask Nmesis to renew it" instead of "Available on Growth" (F-051);
+  - only the person who started a job is asked to keep the page open (F-034, corrected: Phase 1 had misread seeded work in progress);
+  - plainer Higgsfield wording (F-035), no "↗" on internal links (F-005), no operator sentences (F-066);
+  - the meter and banner link to Usage only for those who may open it (F-033);
+  - library cards say the tool and Standard / High detail, never the provider or model; "Made with …" appears in the card's details only for staff and own-key companies (F-050);
+  - one unreadable job row is skipped and logged and the rest of the library shows (F-065);
+  - the configurator's "Captured view / Live configurator" switch is a radio group, and the gallery's list fixed (critical axe → 0, F-025, F-028).
+- The tokens, the .ds- components and the fonts now load app-wide (no visual change outside .ds-).
+- `check:ui` allows ±5 on focus-without-indicator.
+- Branch `design/quick` → PR into `development`. No hosted system was touched.
+
+**Earlier (2026-11-15, design programme Phase 1, audit — findings only):** `npm run check:ui` runs every Studio screen in Chromium (Playwright + axe) at 1440 / 1280 / 1024 / 768 / 390 / 360, light and dark, as owner, creator, viewer, staff (own workspace, "Viewing as", refused) and the Starter / ended / Enterprise states, against the production build with CI's Postgres, a mocked Supabase Auth and the S3 stand-in, seeded with a synthetic world (`scripts/ui/seed.mjs`: 5 companies, 300 visuals, films, swaps, storyboards, 85% / 100% credits, long names, zero and huge numbers). The Studio server runs with `scripts/ui/no-network.mjs` (every non-local connection refused) and no provider key. A CI job `ui` runs it on every PR with `--perf --shots` and uploads `ui-report` (7 days); `scripts/ui-baseline.json` ratchets the counts. Docs: `docs/design-audit/harness.md` (checks and the harness's own mistakes), `crud.md`, `findings.md` (69 findings in 18 areas, top 15, fix order). Branch `design/audit` → PR into `development`. No hosted system was touched; nothing in the Studio was changed.
 
 **Earlier (2026-11-15, environment scope):** Production and Preview share the main Supabase project, so client work now carries its environment. Migration `0004_environment.sql` adds `environment` to films, swap_jobs, storyboards, image_jobs, topaz_jobs and film_budgets (existing rows → `production`; new rows default to the request's), and their row level security requires `environment = studio.request_env()`. The adapter (`lib/portable/database.ts`) sets `studio.env` from `VERCEL_ENV` (`lib/portable/environment.ts`; `development` locally; a production server without it refuses) on every statement with `studio.user_id`. No route changed. credit_holds and staff_access_log record the environment but stay shared (one company balance; owners see every staff opening); credit_accounts, support_grants and car_settings are unchanged. Saved keys and media were already per environment (S3). Separate `KEY_ENCRYPTION_SECRET`s kept. Branch `fix/env-scope` → PR into `development`. No hosted system was touched.
 
@@ -42,7 +56,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the main Supabase project and S3 |
 | S2.1 hosted fixes, staff portal | ✅ | Merged into `development` and released to `main` (#22) |
 | S3 credits, own keys, support access | ✅ | Merged into `development` (#28); owner steps (setup SQL section 6, provider accounts and limits, Vercel variables, plans per client) in the PR body |
-| Design programme | 🟡 | Phase 0 merged (#29), wireframes approved as they are; Phase 1 (audit) PR `design/audit`; Phase 2a next |
+| Design programme | 🟡 | Phases 0 (#29) and 1 (#31) merged; Phase 2a PR `design/quick`; Phase 2b after the owner's review |
 | Environment scope | 🟡 | Merged (#30); owner runs `npm run db:migrate` (0004) only after the change is live on Preview **and** Production |
 
 ## What was built last session (Design Phase 0)
@@ -84,6 +98,10 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 - **Verification**: lint 0 errors (warnings 169 → 162, none new), typecheck, 257/257 tests including the Postgres tests (local Postgres 17; CI now runs them against a Postgres 17 service container), production build; route-level cross-company, plan, viewer, staff and configurator tests (`tests/accounts-access.test.mjs`); sign-in flows end to end against a mocked Supabase Auth (`scripts/verify/signin-flow.mjs`, 33/33). Review fix (2026-11-13): the 0002 policies compared `org_id` to a subquery of arrays (`text = text[]` on Postgres 16/17); now `any (coalesce((select studio.request_orgs()), '{}'::text[]))`. `tests/postgres.test.mjs` loads a synthetic accounts schema (`tests/fixtures/accounts-schema.sql`), runs the setup SQL and both migrations twice, and checks forced RLS: a member sees and changes only their company, invited-only and no user see nothing, staff see all. **Not run:** a hosted Supabase project; the workspace's account bar and upsell chips in a browser.
 
 ## Decisions made (must be remembered)
+
+- **Provider names (owner, F-050, 2026-11-15):** clients never see provider or model names on cards or in the library: the tool ("Key visual") and at most "Standard" / "High detail". Staff, and companies using their own keys, see the provider in the item's details.
+- **Design direction (owner, 2026-11-15):** every change uses the Phase 0 design system and the approved wireframes, in the Nmesis theme. Phase 2b builds the new app shell and moves every screen to the new components, without re-laying out Home, the library or the tool screens (only their safety, accessibility and behaviour findings). Phase 3 group 1 rebuilds Home, projects and folders and the library to the wireframes; group 2 rebuilds the editor for all tools. Before each Phase 3 group, post the screens at 1440 and 390 next to the matching wireframe.
+- **check:ui ratchet (owner, 2026-11-15):** focus-without-indicator stays in the ratchet with a tolerance of ±5.
 
 - **Environment scope (owner, 2026-11-15):** every studio table holding client work carries `environment` (production / preview / development, from `VERCEL_ENV`); existing rows are Production's; every read and write is filtered in the database layer (RLS + `studio.env`), not per route; separate `KEY_ENCRYPTION_SECRET`s. Shared on purpose: credit holds and the company lock (one balance), support grants, the staff-access log, car settings.
 - **Wireframes (owner, 2026-11-15):** approved as they are.
@@ -139,7 +157,16 @@ _Carried_
 
 ## Next session — start here
 
-1. Owner: review PR `design/audit` (Phase 1): `docs/design-audit/findings.md` (top 15 and fix order), `crud.md`, `harness.md`; the `ui` job's artifact has the report and screenshots. Decide F-050 (show provider names to clients or not).
-2. Owner (unchanged): after the next release to `main`, run `npm run db:migrate` once (0004).
-3. Then Phase 2a · `design/quick` (BACKLOG #8): the severity-4 and wrong-information items in the fix order (F-006, F-051, F-034, F-065, F-042, F-043, F-025, F-033, F-032, F-057, F-004), each with its harness count going down.
+1. Owner: review PR `design/quick` (Phase 2a).
+2. Then Phase 2b · `design/shared` (BACKLOG #8), as the owner listed it:
+   - the new app shell (top bar with the credit meter, company switcher, one shared navigation, phone menu);
+   - design-system dialogs instead of every `confirm()`;
+   - Undo, including removing a provider key;
+   - delete and restore for films, swaps and storyboards;
+   - card actions reachable on touch;
+   - no sideways scroll at any width;
+   - visible focus everywhere and 24 px targets;
+   - CLS < 0.1;
+   - fewer database statements per request (reuse the cached context) and job polling with backoff.
+3. Owner (unchanged): after the next release to `main`, run `npm run db:migrate` once (0004).
 4. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").

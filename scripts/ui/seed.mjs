@@ -225,5 +225,15 @@ export async function seedStudio({ s3, adminUrl, request }) {
         await tx`insert into studio.image_jobs(id,org_id,owner,payer,status,data,created_at,updated_at,error) values (${id}, ${ORGS.growth.id}, ${owner}, ${owner}, ${status}, ${JSON.stringify(data)}, ${Date.now()}, ${Date.now()}, ${error})`;
       });
     }
+    // One job row the Studio can no longer read (a model it does not know): the
+    // library must skip it and show the rest (F-065).
+    {
+      const id = uuid(80_009), owner = prefixOf('growth', 'creator');
+      const data = { visual: { id, title: 'Unreadable job', src: '/api/assets/' + id, status: 'pending', createdAt: new Date().toISOString(), provider: 'higgsfield', model: 'a-model-that-was-retired', vehicle: 'Demo SUV' } };
+      await admin.begin(async (tx) => {
+        await tx`select set_config('studio.env', ${ENV}, true)`;
+        await tx`insert into studio.image_jobs(id,org_id,owner,payer,status,data,created_at,updated_at) values (${id}, ${ORGS.growth.id}, ${owner}, ${owner}, 'queued', ${JSON.stringify(data)}, ${Date.now()}, ${Date.now()})`;
+      });
+    }
   } finally { await admin.end({ timeout: 5 }); }
 }

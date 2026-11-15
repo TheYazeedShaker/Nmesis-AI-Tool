@@ -160,3 +160,13 @@ test('a generation that never answers is failed by the stall check within its ti
  const stalled=await h.library.resolveVisual(h.ctx,{...base,createdAt:at(10*60_000+1000)});
  assert.equal(stalled.status,'failed');assert.equal(stalled.jobStatus,'interrupted');assert.equal(h.calls.length,0,'no retry');
 }finally{h.close()}});
+test('one unreadable image job is skipped and logged; the rest of the library still shows, each marked as the viewer\'s own or not (F-065, F-034)',async()=>{const h=await harness();const warned=[];const warn=console.warn;console.warn=(...a)=>warned.push(a.join(' '));try{
+ for(let i=0;i<3;i++){const id='kept-'+i;await h.store.put(h.ctx.prefix+'visuals/'+id+'.json',JSON.stringify({id,src:'/api/assets/'+id,title:id,status:'ready',createdAt:new Date(1000+i).toISOString()}));await h.store.put(h.ctx.prefix+'images/'+id,'image')}
+ const good=await h.images.createImage(h.ctx,input());const bad=await h.images.createImage(h.ctx,input());
+ const data=JSON.parse(bad.data);data.visual.model='a-model-that-was-retired';await h.db.prepare('UPDATE image_jobs SET data=? WHERE id=?').bind(JSON.stringify(data),bad.id).run();
+ const {visuals,warning}=await h.library.visualLibrary(h.ctx);
+ assert.ok(visuals.some(v=>v.id===good.id),'the readable job still shows');assert.ok(!visuals.some(v=>v.id===bad.id),'the unreadable one is skipped');
+ assert.equal(visuals.filter(v=>v.id.startsWith('kept-')).length,3);assert.match(warning,/could not be read/);
+ assert.ok(warned.some(w=>w.includes('skipped an unreadable image job')&&w.includes(bad.id)),'and logged with its id');
+ assert.ok(visuals.every(v=>v.mine===true),'everything here was made by the viewer');
+}finally{console.warn=warn;h.close()}});

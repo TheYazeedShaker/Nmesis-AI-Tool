@@ -91,10 +91,12 @@ function Home() {
         <div className="ds-block-head"><h2 className="ds-block-title" id="h-cars">Start from your cars</h2></div>
         <div className="ds-scroller" role="list" aria-label="Your company’s cars">
           {CARS.map((c) => (
-            <a key={c} className="ds-car" href={`#car-${c}`} role="listitem">
-              <span className="ds-car-art" aria-hidden="true"><Car /></span>
-              <span className="ds-tile-name ds-truncate">{c}</span>
-            </a>
+            <div key={c} role="listitem">
+              <a className="ds-car" href={`#car-${c}`}>
+                <span className="ds-car-art" aria-hidden="true"><Car /></span>
+                <span className="ds-tile-name ds-truncate">{c}</span>
+              </a>
+            </div>
           ))}
         </div>
       </section>
@@ -112,10 +114,12 @@ function Folders() {
       </>} />
       <div className="ds-folder-cards" role="list" aria-label="Folders">
         {FOLDERS.map((f) => (
-          <a key={f.id} className="ds-folder-card" href={`#${f.id}`} role="listitem">
-            <Folder aria-hidden="true" />
-            <div><span className="ds-tile-name ds-truncate" title={f.name}>{f.name}</span><span className="ds-tile-sub">{f.count.toLocaleString('en-US')} items{f.sub.length ? ` · ${f.sub.length} sub-folder` : ''}</span></div>
-          </a>
+          <div key={f.id} role="listitem">
+            <a className="ds-folder-card" href={`#${f.id}`}>
+              <Folder aria-hidden="true" />
+              <div><span className="ds-tile-name ds-truncate" title={f.name}>{f.name}</span><span className="ds-tile-sub">{f.count.toLocaleString('en-US')} items{f.sub.length ? ` · ${f.sub.length} sub-folder` : ''}</span></div>
+            </a>
+          </div>
         ))}
       </div>
       <div className="ds-block-head ds-gap-top">

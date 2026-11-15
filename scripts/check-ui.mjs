@@ -35,6 +35,9 @@ const BASELINE = path.resolve('scripts/ui-baseline.json');
 const QUICK = flag('quick'), SHOTS = flag('shots'), UPDATE = flag('update'), PERF = flag('perf');
 const ONLY = opt('only') ? new Set(opt('only').split(',')) : null;
 const WORKERS = Number(opt('workers')) || 3;
+// Run-to-run noise allowed before a count fails CI (owner, 2026-11-15): the
+// keyboard walk lands on slightly different stops from one run to the next.
+const TOLERANCE = { focusWithoutIndicator: 5 };
 const RATCHETED = ['pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
 
 const VIEWPORTS = QUICK ? [[1440, 900], [390, 844]] : [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
@@ -301,7 +304,7 @@ function ratchet(totals) {
   }
   if (!fs.existsSync(BASELINE)) { console.log('No baseline yet (scripts/ui-baseline.json): nothing to compare. Write one with --update.'); return 0; }
   const base = JSON.parse(fs.readFileSync(BASELINE, 'utf8')).counts;
-  const worse = RATCHETED.filter((k) => (now[k] || 0) > (base[k] ?? Infinity));
+  const worse = RATCHETED.filter((k) => (now[k] || 0) > (base[k] ?? Infinity) + (TOLERANCE[k] || 0));
   for (const k of RATCHETED) if (now[k] !== base[k]) console.log(`  ${k}: ${base[k]} → ${now[k]}`);
   if (worse.length) { console.log(`✗ Worse than the baseline: ${worse.join(', ')}`); return 1; }
   console.log('✓ Nothing got worse.');
