@@ -35,6 +35,7 @@ const BASELINE = path.resolve('scripts/ui-baseline.json');
 const QUICK = flag('quick'), SHOTS = flag('shots'), UPDATE = flag('update'), PERF = flag('perf');
 const ONLY = opt('only') ? new Set(opt('only').split(',')) : null;
 const WORKERS = Number(opt('workers')) || 3;
+const RATCHETED = ['pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
 
 const VIEWPORTS = QUICK ? [[1440, 900], [390, 844]] : [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
 const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
@@ -292,7 +293,6 @@ function summarise(report) {
   return totals;
 }
 
-const RATCHETED = ['pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
 function ratchet(totals) {
   const now = Object.fromEntries(RATCHETED.map((k) => [k, totals[k]]));
   if (UPDATE || QUICK || ONLY) {

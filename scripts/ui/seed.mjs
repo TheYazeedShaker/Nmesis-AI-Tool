@@ -219,7 +219,7 @@ export async function seedStudio({ s3, adminUrl, request }) {
     // In-progress and failed image jobs (Higgsfield), as the library shows them.
     for (const [n, status, error] of [[1, 'queued', null], [2, 'in_progress', null], [3, 'failed', 'Higgsfield stopped before it finished. Nothing was charged.']]) {
       const id = uuid(80_000 + n), owner = prefixOf('growth', 'owner');
-      const data = { visual: { id, title: `Demo SUV · Higgsfield ${status}`, src: '/api/assets/' + id, status: status === 'failed' ? 'failed' : 'pending', createdAt: new Date().toISOString(), provider: 'higgsfield', model: 'grok', vehicle: 'Demo SUV' } };
+      const data = { visual: { id, title: `Demo SUV · Higgsfield ${status}`, src: '/api/assets/' + id, status: status === 'failed' ? 'failed' : 'pending', createdAt: new Date().toISOString(), provider: 'higgsfield', model: 'marketing-studio/image/sunburst', vehicle: 'Demo SUV' } };
       await admin.begin(async (tx) => {
         await tx`select set_config('studio.env', ${ENV}, true)`;
         await tx`insert into studio.image_jobs(id,org_id,owner,payer,status,data,created_at,updated_at,error) values (${id}, ${ORGS.growth.id}, ${owner}, ${owner}, ${status}, ${JSON.stringify(data)}, ${Date.now()}, ${Date.now()}, ${error})`;
