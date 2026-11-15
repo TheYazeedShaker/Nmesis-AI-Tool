@@ -27,10 +27,11 @@ export function requestContext(account:StudioContext,env:StudioEnv=bindings()):R
 // ROUTE_FEATURES table), viewer read-only and an ended subscription are all
 // decided before the route reads its body.
 export async function context(request:Request,write=false){
+ const scope=enterProviderScope();
  const got=await getStudioContext();
  if(!got.ok)throw got.problem==='signed_out'?new StudioError('Please sign in to use your studio.',401):got.problem==='mfa_required'?new StudioError(MFA_REQUIRED,401):got.problem==='no_company'?new StudioError(NO_COMPANY,403):new StudioError('Signing in is not set up on this Studio yet.',503);
  if(write||request.method!=='GET'){const origin=request.headers.get('origin');if(origin&&origin!==new URL(request.url).origin)throw new StudioError('This request must come from your studio.',403)}
- enterProviderScope(providerNamesVisible(got.ctx));
+ scope.names=providerNamesVisible(got.ctx);
  try{checkRoute(got.ctx,new URL(request.url).pathname,request.method)}catch(e){if(e instanceof PlanError)throw new StudioError(e.message,e.status);throw e}
  return requestContext(got.ctx);
 }

@@ -1,7 +1,8 @@
 "use client";
+import {StudioTopBar} from '@/components/studio-topbar';
 import {studioFetch} from '@/lib/studio-fetch';
 import {importPinterestReference} from '@/lib/pinterest-client';
-import {AccountBar,AccountNotices,FeatureLink,UpsellChip,hasFeature,providerNames,useAccount} from '@/components/studio-account';
+import {AccountNotices,FeatureLink,UpsellChip,hasFeature,providerNames,useAccount} from '@/components/studio-account';
 import {visualQualityLabel,visualToolLabel} from '@/lib/visual-labels';
 import {plainProviderText} from '@/lib/provider-words';
 import {ProgressiveGallery} from '@/components/progressive-gallery';
@@ -13,7 +14,7 @@ import {GEMINI_IMAGE_MODELS,geminiImageModel,type GoogleConnectionStatus} from '
 import {VisualComparison} from '@/components/visual-comparison';
 import {ImageDownload} from '@/components/image-download';
 import {useState,useRef,useEffect,useCallback} from 'react';
-import {Aperture,Camera,Check,ExternalLink,ImagePlus,Sparkles,SlidersHorizontal,LockKeyhole,Maximize2,Upload,Download,X,LoaderCircle,RefreshCw,Crop,Monitor,Info,ChevronDown,MoreHorizontal,Settings2,ArrowDown} from 'lucide-react';
+import {Camera,Check,ExternalLink,ImagePlus,Sparkles,SlidersHorizontal,LockKeyhole,Maximize2,Upload,Download,X,LoaderCircle,RefreshCw,Crop,Monitor,Info,ChevronDown,MoreHorizontal,Settings2,ArrowDown} from 'lucide-react';
 import {ChoiceTabs} from '@/components/choice-tabs';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
@@ -206,7 +207,7 @@ export default function Studio(){
   return()=>{canceled=true;clearInterval(timer);controller.abort();window.removeEventListener('focus',check)};
  },[results]);
  const selectedDirection=directions[direction]||directions[0];
- return <div className="studio studio-makeover"><Toaster theme="dark" position="bottom-right"/><header className="topbar"><a href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></a><span className="topnote">AUTOMOTIVE CREATIVE WORKSPACE</span><div className="heading-actions"><FeatureLink className="secondary" feature="studio.storyboards" href="/storyboard">Story studio</FeatureLink><FeatureLink className="secondary" feature="studio.swap" href="/swap">Replace car in ad</FeatureLink></div><AccountBar/></header><AccountNotices/><main>
+ return <div className="studio studio-makeover"><Toaster theme="dark" position="bottom-right"/><StudioTopBar current="visuals"/><AccountNotices/><main>
  <div className="workspace-heading"><div><p className="eyebrow">YOUR CREATIVE WORKSPACE</p><h1>Key visuals<span>.</span></h1><p className="workspace-subtitle">Your car. Your inspiration. One great shot.</p></div><div className="workspace-navigation"><nav className="kv-mode-switch" aria-label="Key visual mode"><a href="/" aria-current="page">Single car</a><FeatureLink feature="studio.lineups" href="/lineup">Car lineup</FeatureLink></nav><a className="text-button library-jump" href="#visual-library"><ArrowDown size={14}/>Your gallery</a><details className="workspace-menu"><summary aria-label="Studio settings"><Settings2 size={18}/><span>Settings</span></summary><div className="menu-popover"><button onClick={()=>setConnectionOpen(true)} disabled={busy||preparing}><LockKeyhole size={15}/>{status?.ownKeys?(status.personalKey?'OpenAI connected':'Connect OpenAI'):'AI connection'}</button>{googleConnection?.ownKeys&&<button onClick={()=>setGoogleOpen(true)}>Google connection</button>}{higgsConnection?.ownKeys&&<a href="/films?settings=budget">Higgsfield connection</a>}<a href="/usage">Usage</a><button onClick={exportBrief}><Download size={15}/>Export brief</button></div></details></div></div>
  {error&&<div className="error-banner" role="alert"><Info size={18}/><span>{error}</span><button aria-label="Dismiss message" onClick={()=>setError('')}><X size={17}/></button></div>}
  {status?.signedOut&&<div className="error-banner"><Info size={18}/><span>Sign in to save references and generate visuals.</span><a className="primary" href="/signin" target="_top">Sign in</a></div>}

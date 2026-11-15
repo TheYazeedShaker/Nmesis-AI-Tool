@@ -1,0 +1,73 @@
+/* ─── The Studio's top bar (Phase 2b) ──────────────────────────────────────
+   components/studio-topbar.tsx, on every screen: the .ds- top bar with the
+   shared navigation, the credit meter, the company switcher and the account.
+   Below 768px the navigation and the account move into one menu, and every
+   account control is at least 44px (--ds-tap-phone). Tokens only.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.studio-topbar {
+  /* It scrolls with the page, as the old bar did: nothing sticky can cover a
+     focused control (2.4.11), and no screen's own offsets change. */
+  position: relative;
+  height: var(--ds-topbar-h);
+  flex-wrap: nowrap;
+  background: var(--ds-panel);
+  color: var(--ds-text);
+  font-family: var(--ds-font-sans);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-leading-sm);
+  color-scheme: dark;
+}
+.studio-topbar *, .studio-topbar *::before, .studio-topbar *::after { box-sizing: border-box; }
+.studio-topbar a { color: inherit; }
+.studio-topbar :focus-visible, .studio-menu :focus-visible {
+  outline: var(--ds-focus-width) solid var(--ds-ring);
+  outline-offset: var(--ds-space-2);
+}
+.studio-topbar .ds-brand { color: var(--ds-text-strong); flex: none; }
+.studio-nav { flex: 1 1 auto; }
+.studio-nav .ds-nav-link svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; }
+.studio-nav .ds-nav-link > span[aria-hidden="true"] { display: inline-flex; }
+.studio-nav-off { color: var(--ds-muted); cursor: default; }
+.studio-nav-off:hover { background: transparent; color: var(--ds-muted); }
+.studio-topbar-end { gap: var(--ds-space-8); }
+.studio-topbar-actions { display: flex; align-items: center; gap: var(--ds-space-8); }
+.studio-topbar-actions .secondary { min-height: var(--ds-control-h); }
+.studio-topbar-problem { color: var(--ds-danger); font-size: var(--ds-text-xs); max-width: var(--ds-settings-w); }
+.studio-role { color: var(--ds-muted); font-size: var(--ds-text-xs); }
+.studio-wide { display: inline-flex; align-items: center; }
+.studio-narrow { display: none; }
+.studio-switcher { color: var(--ds-text); }
+.studio-switcher:disabled { cursor: progress; }
+.studio-signout { display: inline-flex; margin: 0; }
+.studio-topbar .ds-btn svg, .studio-menu .ds-btn svg { width: var(--ds-icon); height: var(--ds-icon); }
+
+/* The menu (phones): one column of 44px rows. */
+.studio-menu .ds-dialog-body { gap: var(--ds-space-20); }
+.studio-menu-group { display: flex; flex-direction: column; gap: var(--ds-space-4); min-width: 0; }
+.studio-menu-row {
+  display: flex; align-items: center; gap: var(--ds-space-12); width: 100%;
+  min-height: var(--ds-tap-phone); padding: 0 var(--ds-space-12);
+  border: 0; border-radius: var(--ds-radius-md); background: transparent;
+  color: var(--ds-text); text-decoration: none; text-align: left; font: inherit; cursor: pointer;
+}
+.studio-menu-row svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; color: var(--ds-muted); }
+.studio-menu-row > span[aria-hidden="true"] { display: inline-flex; }
+.studio-menu-row:hover { background: var(--ds-panel-2); }
+.studio-menu-row[aria-current="page"], .studio-menu-row[aria-current="true"] { background: var(--ds-panel-hover); color: var(--ds-text-strong); }
+.studio-menu-row .ds-badge { margin-left: auto; }
+.studio-menu-row.ds-btn { justify-content: flex-start; border: var(--ds-border-width) solid var(--ds-border); }
+.studio-menu-actions > * { min-height: var(--ds-tap-phone); }
+.studio-menu .studio-signout { display: flex; }
+
+@media (max-width: 1024px) {
+  .studio-role { display: none; }
+}
+@media (max-width: 768px) {
+  .studio-topbar { padding: 0 var(--ds-space-16); gap: var(--ds-space-8); }
+  .studio-topbar .studio-nav, .studio-topbar .studio-topbar-actions, .studio-wide { display: none; }
+  .studio-narrow { display: inline-flex; }
+  .studio-topbar .ds-brand { min-height: var(--ds-tap-phone); }
+  .studio-meter, .studio-menu-button { min-height: var(--ds-tap-phone); }
+  .studio-menu-button { min-width: var(--ds-tap-phone); }
+}

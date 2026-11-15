@@ -53,11 +53,35 @@ test('job errors go through the per-request rewrite; outside a request they stay
 
 test('server errors, job errors and diagnostics pass through the client rewrite',()=>{
  const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
- assert.match(read('lib/studio-server.ts'),/enterProviderScope\(providerNamesVisible\(got\.ctx\)\)/);
+ // Entered before context()'s first await, so the route's catch and mappers share it.
+ assert.match(read('lib/studio-server.ts'),/export async function context\(request:Request,write=false\)\{\n const scope=enterProviderScope\(\);\n const got=await/);
+ assert.match(read('lib/studio-server.ts'),/scope\.names=providerNamesVisible\(got\.ctx\);/);
  assert.match(read('lib/studio-server.ts'),/error:forClient\(error\.message\)/);
  for(const file of ['lib/films.ts','lib/swaps.ts','lib/image-server.ts','lib/topaz-server.ts'])assert.match(read(file),/error:clientText\(/,file);
  assert.match(read('lib/visual-library.ts'),/error:clientText\(v\.error\)/);
  assert.match(read('app/api/swaps/[id]/diagnostic/route.ts'),/reason:forClient\(/);
  // The original words stay in the server log.
  assert.match(read('lib/provider-scope.ts'),/console\.info\('Provider message shown in plain words'/);
+});
+
+// The real lib/provider-scope.ts, as a route uses it: context() opens the scope
+// before its first await; the route's catch and the mappers after it read it.
+test('a route handler reads the scope context() opened, per request (F-050)',async()=>{
+ const vm=(await import('node:vm')).default,ts=(await import('typescript')).default,hooks=await import('node:async_hooks');
+ const words=await import('../lib/provider-words.ts'),client=await import('../lib/client-text.ts');
+ const featureOn=(e,k)=>e.features[k]===true;
+ const imports={'node:async_hooks':hooks,'./provider-words':words,'./accounts/plan':{featureOn},'./client-text':client};
+ const scopeCtx=vm.createContext({console:{info(){}},JSON});
+ const m=new vm.SourceTextModule(ts.transpileModule(readFileSync(new URL('../lib/provider-scope.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText,{context:scopeCtx});
+ await m.link(s=>new vm.SyntheticModule(Object.keys(imports[s]),function(){for(const [k,v] of Object.entries(imports[s]))this.setExport(k,v)},{context:scopeCtx}));await m.evaluate();
+ const {enterProviderScope,forClient,providerNamesVisible}=m.namespace;
+ const later=()=>new Promise(r=>setTimeout(r,3));
+ async function context(ctx){const scope=enterProviderScope();await later();scope.names=providerNamesVisible(ctx);return ctx}
+ async function route(ctx){try{await context(ctx);await later();const mapped=client.clientText('Higgsfield could not read the source frame.');throw new Error(mapped)}catch(e){return forClient(e.message+' Higgsfield is busy.')}}
+ const client_=({staff:null,entitlements:{features:{}}}),ownKeys=({staff:null,entitlements:{features:{'studio.own_keys':true}}}),staff=({staff:{id:'s'},entitlements:{features:{}}});
+ const [a,b,c]=await Promise.all([route(client_),route(ownKeys),route(staff)]);
+ assert.ok(!namesProvider(a),a);
+ assert.match(b,/Higgsfield could not read the source frame\. Higgsfield is busy\./);
+ assert.match(c,/Higgsfield/);
+ setClientTextRewrite(text=>text);
 });

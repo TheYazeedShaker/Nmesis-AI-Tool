@@ -1,11 +1,12 @@
 'use client';
-import {AccountBar,AccountNotices,FeatureLink,PlanGate,providerNames,useAccount} from '@/components/studio-account';
+import {StudioTopBar} from '@/components/studio-topbar';
+import {AccountNotices,PlanGate,providerNames,useAccount} from '@/components/studio-account';
 import {filmModelLabel} from '@/lib/provider-words';
 import {studioFetch} from '@/lib/studio-fetch';
 import {importPinterestReference} from '@/lib/pinterest-client';
 import {ImageDownload} from '@/components/image-download';
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {Aperture,ArrowRight,Camera,Check,Clapperboard,Download,Plus,Sparkles,X,RefreshCw} from 'lucide-react';
+import {ArrowRight,Camera,Check,Clapperboard,Download,Plus,Sparkles,X,RefreshCw} from 'lucide-react';
 import {CarCapture} from '@/components/car-capture';
 import {CONFIGURATORS,type Configurator} from '@/lib/configurators';
 import {useConfiguratorPresets,isDemoConfigurator} from '@/lib/configurator-presets';
@@ -43,7 +44,7 @@ function StoryStudio(){const showNames=providerNames(useAccount());
  async function estimate(){await run('Checking live video prices…',async()=>{await save();for(const s of current.current.shots.filter(s=>s.selected)){await action('quote',s.id)}setNotice('Review the total below. Only new clips are included.');setStep(3)})}
  async function assemble(){await run('Assembling your 15-second film…',async()=>{const saved=await save();const approvedIds=saved.shots.filter(s=>s.selected).map(s=>s.filmId);if(selectedFilms.some((f,i)=>!f||f.id!==approvedIds[i]))throw new Error('Your storyboard changed. Generate the updated clips before assembling.');abort.current=new AbortController();setProgress(0);const {assembleStory}=await import('@/lib/storyboard-export');const blob=await assembleStory(selectedFilms.map(f=>f!.videoUrl!),saved.brand,saved.tagline,music,setProgress,abort.current.signal);const form=new FormData();form.set('video',blob,'story.mp4');form.set('revision',String(saved.revision));const r=await studioFetch(`/api/storyboards/${saved.id}/video`,{method:'POST',body:form});const d:any=await r.json();if(!r.ok){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='nmesis-story.mp4';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);throw new Error('Your film was downloaded, but could not be saved to the library. '+(d.error||''))}put(d.board);setNotice('Your finished film is saved.')} )}
  const config:Configurator=presets.find(c=>c.url===b.configurator)||{id:'custom-car',name:b.vehicle,url:b.configurator||presets[0].url};
- return <div className="studio film-studio story-studio"><header className="topbar"><a href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></a><nav className="film-nav"><a href="/">Key visuals</a><a href="/storyboard" aria-current="page">Story studio</a><FeatureLink feature="studio.film" href="/films">Single film</FeatureLink><FeatureLink feature="studio.swap" href="/swap">Replace car</FeatureLink></nav><AccountBar/></header><AccountNotices/><main>
+ return <div className="studio film-studio story-studio"><StudioTopBar current="storyboard"/><AccountNotices/><main>
  <div className="story-heading"><div><p className="eyebrow">YOUR CAR. YOUR STORY.</p><h1>From a car to a campaign<span>.</span></h1><p className="film-intro">Capture the car. Shape the story. Make your film.</p></div><label className="story-mode"><input type="checkbox" checked={expert} onChange={e=>setExpert(e.target.checked)}/>Expert mode</label></div>
  <div className="story-steps">{['Pick your car','Create your story','Make your film'].map((title,i)=><button key={title} className={step===i+1?'active':''} disabled={!!busy||(i>0&&!b.views.length)||(i===2&&!b.shots.length)} onClick={()=>setStep(i+1)}><b>0{i+1}</b><span>{title}</span><ArrowRight size={16}/></button>)}</div>
  {error&&<div className="film-alert" role="alert">{error}<button onClick={()=>setError('')} aria-label="Dismiss error"><X size={16}/></button></div>}{notice&&<p className="film-notice" role="status">{notice}</p>}{busy&&<div className="story-working" role="status"><RefreshCw className="spin" size={16}/>{busy}{busy.startsWith('Assembling')&&<><span>{progress}%</span><button onClick={()=>abort.current?.abort()}>Cancel</button></>}</div>}

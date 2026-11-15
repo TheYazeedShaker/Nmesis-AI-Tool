@@ -1,5 +1,6 @@
 'use client';
-import {AccountBar,AccountNotices,FeatureLink,PlanGate,providerNames,useAccount} from '@/components/studio-account';
+import {StudioTopBar} from '@/components/studio-topbar';
+import {AccountNotices,PlanGate,providerNames,useAccount} from '@/components/studio-account';
 import {visualQualityLabel} from '@/lib/visual-labels';
 import {studioFetch} from '@/lib/studio-fetch';
 import {importPinterestReference} from '@/lib/pinterest-client';
@@ -8,7 +9,7 @@ import {ClipboardImageInput} from '@/components/clipboard-image-input';
 import {clipboardImage} from '@/lib/clipboard-image';
 import {ImageDownload} from '@/components/image-download';
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {Aperture,ArrowLeft,ArrowRight,Camera,Check,Crown,Download,Plus,RefreshCw,Sparkles,X} from 'lucide-react';
+import {ArrowLeft,ArrowRight,Camera,Check,Crown,Download,Plus,RefreshCw,Sparkles,X} from 'lucide-react';
 import {LineupReferenceMatch} from '@/components/lineup-reference-match';
 import {CarCapture} from '@/components/car-capture';
 import {AreaEditor} from '@/components/area-editor';
@@ -66,7 +67,7 @@ function LineupStudio(){const names=providerNames(useAccount());
  for(const v of visuals){if(v.status!=='ready'||!v.sourceId)continue;const refs:LineupCar[]=v.lineup?.cars||[{id:v.id,name:v.vehicle||v.title,configurator:v.configurator||presets[0].url,finish:v.finish||'',views:[{id:v.sourceId,label:v.angle||'Saved captured view'}],x:50,y:72,scale:35}];for(const c of refs)if(!savedMap.has(c.views[0].id))savedMap.set(c.views[0].id,c)}
  const savedCars=Array.from(savedMap.values());
  const lineups=visuals.filter(v=>v.lineup),filled=cars.filter(c=>c.views.length).length;
- return <div className="studio film-studio lineup-studio"><header className="topbar"><a href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></a><nav className="film-nav"><a href="/">Single car</a><a href="/lineup" aria-current="page">Car lineup</a><FeatureLink feature="studio.storyboards" href="/storyboard">Story studio</FeatureLink><FeatureLink feature="studio.film" href="/films">Film studio</FeatureLink></nav><AccountBar/></header><AccountNotices/><main>
+ return <div className="studio film-studio lineup-studio"><StudioTopBar current="lineup"/><AccountNotices/><main>
  <div className="lineup-heading"><div><p className="eyebrow">KEY VISUALS / CAR LINEUP</p><h1>Different cars. One scene<span>.</span></h1><p>Choose your cars, set the scene and create a campaign together.</p></div><label className="lineup-expert"><input type="checkbox" checked={expert} onChange={e=>setExpert(e.target.checked)}/>Expert placement</label></div>
  <div className="workflow"><span className="current"><b>01</b> Pick 2–6 cars</span><i/><span className={filled===cars.length?'current':''}><b>02</b> Set the scene</span><i/><span className={lineups.length?'current':''}><b>03</b> Generate lineup</span></div>
  {error&&<div className="film-alert" role="alert">{error}<button onClick={()=>setError('')} aria-label="Dismiss error"><X size={16}/></button></div>}{notice&&<p className="film-notice" role="status">{notice}</p>}{busy&&<p className="lineup-progress" role="status"><RefreshCw size={18} className="spin"/>{busy} Keep this tab open; saved results appear below.</p>}

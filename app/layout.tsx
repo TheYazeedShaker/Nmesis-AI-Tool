@@ -6,8 +6,8 @@ import "./globals.css";
 // keep their look until they move onto it (Phase 2b and 3).
 import "./tokens.css";
 import "./design-system.css";
-// Phase 2a: the existing top bar on phones (until the new shell, Phase 2b).
-import "./topbar-phone.css";
+// Phase 2b: the one top bar on every screen (components/studio-topbar.tsx).
+import "./studio-shell.css";
 import {LinkLanding} from "@/components/link-landing";
 // The Nmesis fonts. preload stays off until screens use them (Phase 2b), so no
 // page fetches a font it does not draw.

@@ -4,12 +4,16 @@ import {featureOn,type Entitlements} from './accounts/plan';
 import {setClientTextRewrite} from './client-text';
 // Whether this request's person may read provider and model names (owner's
 // decision F-050): Nmesis staff, and companies whose plan includes their own
-// keys. Set once per API request by context() (lib/studio-server.ts) and read
+// keys. Opened once per API request by context() (lib/studio-server.ts) and read
 // wherever a provider's words could reach the page: errors (fail()), job errors
 // and recovery messages (the public row mappers), diagnostics.
 const scope=new AsyncLocalStorage<{names:boolean}>();
 export const providerNamesVisible=(ctx:{staff:unknown;entitlements:Entitlements})=>!!ctx.staff||featureOn(ctx.entitlements,'studio.own_keys');
-export function enterProviderScope(names:boolean){scope.enterWith({names})}
+// Called synchronously at the very start of context(), before its first await,
+// so the store belongs to the route handler that called it: its catch (fail())
+// and every mapper after it see the same holder. A store entered after an await
+// would stay inside context() and never reach the route. Clients until known.
+export function enterProviderScope(){const holder={names:false};scope.enterWith(holder);return holder}
 // A message as this person may read it. Outside a request (scripts, tests that
 // call a library directly) the text is left as it is.
 export function forClient<T extends string|null|undefined>(text:T):T{
