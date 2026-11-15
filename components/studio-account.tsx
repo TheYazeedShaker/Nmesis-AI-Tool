@@ -78,22 +78,28 @@ export function AccountNotices(){
   {w.open&&account.role==='viewer'&&!account.viewingAs&&<div className="viewing-as" role="status"><Info size={16}/><span>You can look at your company’s work. Ask your company’s owner for creator access to make new work.</span></div>}
  </>;
 }
-export function AskNmesis({feature}:{feature:FeatureKey}){
- return <Popover><PopoverTrigger asChild><button type="button" className="text-button ask-nmesis">Ask Nmesis</button></PopoverTrigger><PopoverContent className="ask-nmesis-popover">{FEATURE_LABELS[feature]} isn’t on your company’s plan yet. Ask your Nmesis contact to add it, or to move you to the plan that includes it.</PopoverContent></Popover>;
+// A company whose subscription has ended (not one that never had a plan): its
+// tools are off because the plan ended, not because the plan lacks them (F-051).
+export const planEnded=(account:AccountSummary|null)=>!!account&&!account.workspace.open&&!account.workspace.noPlan;
+export const PLAN_ENDED_CHIP='Plan ended';
+export function AskNmesis({feature,ended}:{feature:FeatureKey;ended?:boolean}){
+ return <Popover><PopoverTrigger asChild><button type="button" className="text-button ask-nmesis">Ask Nmesis</button></PopoverTrigger><PopoverContent className="ask-nmesis-popover">{ended?'Your company’s Studio plan has ended, so new work is paused. Ask your Nmesis contact to renew it.':`${FEATURE_LABELS[feature]} isn’t on your company’s plan yet. Ask your Nmesis contact to add it, or to move you to the plan that includes it.`}</PopoverContent></Popover>;
 }
 export function UpsellChip({feature,account}:{feature:FeatureKey;account:AccountSummary|null}){
  if(!account)return null;
+ if(planEnded(account))return <span className="upsell"><span className="plan-chip">{PLAN_ENDED_CHIP}</span><AskNmesis feature={feature} ended/></span>;
  return <span className="upsell"><span className="plan-chip">Available on {account.upsell[feature]}</span><AskNmesis feature={feature}/></span>;
 }
 // A navigation link to a tool: the link when the plan has it, otherwise its name with the chip.
 export function FeatureLink({feature,href,children,current,className}:{feature:FeatureKey;href:string;children:React.ReactNode;current?:boolean;className?:string}){
  const account=useAccount();
  if(hasFeature(account,feature))return <a className={className} href={href} aria-current={current?'page':undefined}>{children}</a>;
- return <span className={'feature-off'+(className?' '+className:'')}>{children}<span className="plan-chip">{account!.upsell[feature]}</span></span>;
+ return <span className={'feature-off'+(className?' '+className:'')}>{children}<span className="plan-chip">{planEnded(account)?PLAN_ENDED_CHIP:account!.upsell[feature]}</span></span>;
 }
 // A whole page for one tool: shown when the plan has it, otherwise a plain notice.
 export function PlanGate({feature,children}:{feature:FeatureKey;children:React.ReactNode}){
  const account=useAccount();
  if(hasFeature(account,feature))return <>{children}</>;
- return <><header className="topbar"><Link href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></Link><AccountBar/></header><AccountNotices/><main className="plan-gate"><section><p className="eyebrow">YOUR PLAN</p><h1>{FEATURE_LABELS[feature]} is available on {account!.upsell[feature]}</h1><p className="helper">Your company’s plan doesn’t include {FEATURE_LABELS[feature].toLowerCase()} yet. Ask Nmesis to add it.</p><div className="upsell"><span className="plan-chip">Available on {account!.upsell[feature]}</span><AskNmesis feature={feature}/></div><Link className="secondary" href="/">Back to key visuals</Link></section></main></>;
+ const ended=planEnded(account);
+ return <><header className="topbar"><Link href="/" className="brand"><Aperture/><span>NMESIS <b>STUDIO</b></span></Link><AccountBar/></header><AccountNotices/><main className="plan-gate"><section><p className="eyebrow">YOUR PLAN</p>{ended?<><h1>Your Studio plan has ended</h1><p className="helper">New work, including {FEATURE_LABELS[feature].toLowerCase()}, is paused. Ask Nmesis to renew your company’s plan.</p><div className="upsell"><span className="plan-chip">{PLAN_ENDED_CHIP}</span><AskNmesis feature={feature} ended/></div></>:<><h1>{FEATURE_LABELS[feature]} is available on {account!.upsell[feature]}</h1><p className="helper">Your company’s plan doesn’t include {FEATURE_LABELS[feature].toLowerCase()} yet. Ask Nmesis to add it.</p><div className="upsell"><span className="plan-chip">Available on {account!.upsell[feature]}</span><AskNmesis feature={feature}/></div></>}<Link className="secondary" href="/">Back to key visuals</Link></section></main></>;
 }

@@ -145,7 +145,7 @@ function Wireframes() {
           {frames.map((f) => (
             <figure key={f.w} className="ds-frame">
               <div className="ds-frame-box" style={{ width: f.w * f.scale, height: f.h * f.scale }}>
-                <iframe title={`${SCREEN_TITLES[s]} at ${f.w}px, ${theme}`} src={`/design-system/wireframes/${s}?theme=${theme}`} width={f.w} height={f.h} loading="lazy" style={{ transform: `scale(${f.scale})` }} tabIndex={-1} />
+                <iframe title={`${SCREEN_TITLES[s]} at ${f.w}px, ${theme}`} src={`/design-system/wireframes/${s}?theme=${theme}`} width={f.w} height={f.h} loading="lazy" style={{ transform: `scale(${f.scale})` }} />
               </div>
               <figcaption className="ds-help">{f.w} × {f.h}</figcaption>
             </figure>
@@ -250,7 +250,7 @@ function Media() {
   return <Both label="Media tiles">{() => <>
     <MediaGrid label="Sample library" selecting={chosen.size > 0}>
       {items.map((m) => <MediaTile key={m.id} item={m} selected={chosen.has(m.id)} onSelect={(on) => setChosen((s) => { const n = new Set(s); if (on) n.add(m.id); else n.delete(m.id); return n; })} onOpen={() => {}} onMove={() => {}} onDelete={() => {}} onDownload={() => {}} />)}
-      <Loading label="Loading more visuals"><SkeletonTile /></Loading>
+      <div role="listitem"><Loading label="Loading more visuals"><SkeletonTile /></Loading></div>
     </MediaGrid>
     <BulkBar count={chosen.size} onClear={() => setChosen(new Set())}>
       <Button size="sm" icon={<FolderInput aria-hidden="true" />}>Move to…</Button>

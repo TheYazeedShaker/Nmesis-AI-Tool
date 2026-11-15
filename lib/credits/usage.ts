@@ -14,19 +14,22 @@ export async function providerBilling(ctx:Ctx):Promise<Record<CreditProvider,Bil
  const stored=own?await Promise.all(PROVIDERS.map(p=>ctx.BUCKET!.head(keysPrefix(ctx)+keyFile(p as KeyProvider)).then(Boolean).catch(()=>false))):PROVIDERS.map(()=>false);
  return Object.fromEntries(PROVIDERS.map((p,i)=>[p,billingFor(ctx,stored[i])])) as Record<CreditProvider,Billing>;
 }
-export type CreditOverview={unlimited:boolean;meter:CreditMeter|null;prices:Record<CostKey,number>;billing:Record<CreditProvider,Billing>;ignoredKeys:string|null};
+// usage: whether this person may open the Usage page (owners, and staff with
+// support access), so the meter and banner link there only for them (F-033).
+export type CreditOverview={unlimited:boolean;meter:CreditMeter|null;prices:Record<CostKey,number>;billing:Record<CreditProvider,Billing>;ignoredKeys:string|null;usage:boolean};
 // The meter in the top bar, the banner, and every "N credits" label.
 export async function creditOverview(ctx:Ctx):Promise<CreditOverview>{
  const store=storeOf(ctx),internal=ctx.account.org.kind==='internal';
  const [book,billing,meter]=await Promise.all([store.priceBook(),providerBilling(ctx),internal?Promise.resolve(null):store.meter(ctx.org)]);
  const ignored=ctx.role==='owner'&&!ctx.account.viewingAs&&(await ignoredKeys(ctx)).length>0;
- return {unlimited:internal,meter,prices:creditPrices(book),billing,ignoredKeys:ignored?KEYS_IGNORED_NOTE:null};
+ return {unlimited:internal,meter,prices:creditPrices(book),billing,ignoredKeys:ignored?KEYS_IGNORED_NOTE:null,usage:canSeeUsage(ctx)};
 }
+export const canSeeUsage=(ctx:Pick<Ctx,'role'|'account'>)=>ctx.role==='owner'||!!ctx.account.viewingAs;
 const toolLabel=(tool:string)=>tool in FEATURE_LABELS?FEATURE_LABELS[tool as FeatureKey]:tool.replace(/^studio\./,'');
 export type UsagePage={company:string;unlimited:boolean;meter:CreditMeter|null;byPerson:{who:string;credits:number;actions:number}[];byTool:{tool:string;credits:number;actions:number}[];recent:{at:string;who:string;tool:string;action:string;credits:number;ownKey:boolean}[];packs:{credits:number;left:number;boughtOn:string|null;expiresOn:string|null;expired:boolean}[]};
 // The Usage page: for the company's owners, and Nmesis staff with support access.
 export async function usagePage(ctx:Ctx,now=Date.now()):Promise<UsagePage>{
- if(ctx.role!=='owner'&&!ctx.account.viewingAs)throw new StudioError('Usage is shown to your company’s owners. Ask one of them.',403);
+ if(!canSeeUsage(ctx))throw new StudioError('Usage is shown to your company’s owners. Ask one of them.',403);
  const store=storeOf(ctx),internal=ctx.account.org.kind==='internal';
  const meter=internal?null:await store.meter(ctx.org,now);
  const since=meter?.periodFrom?meter.periodFrom+'T00:00:00Z':new Date(now-30*86_400_000).toISOString();
