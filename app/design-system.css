@@ -449,6 +449,8 @@
   background: var(--ds-panel); color: var(--ds-text); box-shadow: var(--ds-shadow-3);
   width: min(480px, calc(100vw - var(--ds-space-32))); max-height: calc(100dvh - var(--ds-space-48));
   font-family: var(--ds-font-sans); font-size: var(--ds-text-base); line-height: var(--ds-leading-base);
+  /* Centred: Tailwind's reset sets every margin to 0, which would pin a modal to the corner. */
+  margin: auto;
 }
 .ds-dialog.wide { width: min(720px, calc(100vw - var(--ds-space-32))); }
 .ds-dialog::backdrop { background: var(--ds-scrim); }
