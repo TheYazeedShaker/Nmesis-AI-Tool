@@ -8,7 +8,9 @@ export function initScript() {
   const w = window;
   w.__ui = { shifts: [], longTasks: [], events: [], lastMutation: performance.now(), lcp: 0 };
   try {
-    new PerformanceObserver((list) => { for (const e of list.getEntries()) if (!e.hadRecentInput) w.__ui.shifts.push({ t: e.startTime, v: e.value }); }).observe({ type: 'layout-shift', buffered: true });
+    // Each shift with the elements that moved (for finding what causes CLS).
+    const name = (n) => !n || n.nodeType !== 1 ? '#text' : n.tagName.toLowerCase() + (n.id ? '#' + n.id : '') + (typeof n.className === 'string' && n.className.trim() ? '.' + n.className.trim().split(/s+/).slice(0, 2).join('.') : '');
+    new PerformanceObserver((list) => { for (const e of list.getEntries()) if (!e.hadRecentInput) w.__ui.shifts.push({ t: e.startTime, v: e.value, moved: (e.sources || []).slice(0, 4).map((x) => `${name(x.node)} ${Math.round(x.previousRect.y)}→${Math.round(x.currentRect.y)}`) }); }).observe({ type: 'layout-shift', buffered: true });
     new PerformanceObserver((list) => { for (const e of list.getEntries()) w.__ui.longTasks.push(e.duration); }).observe({ type: 'longtask', buffered: true });
     new PerformanceObserver((list) => { for (const e of list.getEntries()) w.__ui.lcp = Math.max(w.__ui.lcp, e.startTime); }).observe({ type: 'largest-contentful-paint', buffered: true });
     new PerformanceObserver((list) => { for (const e of list.getEntries()) if (e.interactionId) w.__ui.events.push({ name: e.name, d: e.duration, id: e.interactionId }); }).observe({ type: 'event', buffered: true, durationThreshold: 16 });
@@ -27,7 +29,8 @@ export function vitals() {
   const byInteraction = new Map();
   for (const e of window.__ui.events) byInteraction.set(e.id, Math.max(byInteraction.get(e.id) || 0, e.d));
   const inp = [...byInteraction.values()].sort((a, b) => b - a)[0] || 0;
-  return { cls: Math.round(best * 1000) / 1000, lcp: Math.round(window.__ui.lcp), inp: Math.round(inp), longTaskMs: Math.round(window.__ui.longTasks.reduce((a, b) => a + b, 0)), longTasks: window.__ui.longTasks.length };
+  const biggest = [...s].sort((x, y) => y.v - x.v).slice(0, 3).map((x) => ({ v: Math.round(x.v * 1000) / 1000, moved: x.moved }));
+  return { shifts: biggest, cls: Math.round(best * 1000) / 1000, lcp: Math.round(window.__ui.lcp), inp: Math.round(inp), longTaskMs: Math.round(window.__ui.longTasks.reduce((a, b) => a + b, 0)), longTasks: window.__ui.longTasks.length };
 }
 
 export function layoutChecks({ phone }) {
