@@ -212,13 +212,14 @@ async function check({ screen, role, w, h, theme }) {
       if (out.action === 'not found') harnessMistakes.push(`${screen.id} (${role}, ${w}): could not find what to open for "${screen.action}"`);
       await ready(page);
     }
+    // The screenshot shows the page as it opened (before the keyboard walk scrolls it).
+    if (SHOTS && KEY_WIDTHS.has(w)) await page.screenshot({ path: path.join(OUT, 'shots', `${screen.id}--${role}--${w}--${theme}.png`) }).catch(() => {});
     Object.assign(out, await page.evaluate(layoutChecks, { phone: w <= 480 }));
     out.vitals = await page.evaluate(vitals);
     if (KEY_WIDTHS.has(w)) {
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']).analyze();
       out.axe = axe.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length, targets: v.nodes.slice(0, 5).map((n) => n.target.join(' ')) }));
       out.focus = await keyboardWalk(page);
-      if (SHOTS) await page.screenshot({ path: path.join(OUT, 'shots', `${screen.id}--${role}--${w}--${theme}.png`) }).catch(() => {});
     }
   } catch (e) {
     out.error = String(e.message || e).slice(0, 300);
