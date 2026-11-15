@@ -49,6 +49,8 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
+      - name: Design guard (counts may only go down; scripts/design-baseline.json)
+        run: npm run check:design
       - name: Test
         run: npm test
         env:

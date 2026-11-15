@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-vm-modules --experimental-strip-types --test tests/*.test.mjs",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.mjs",
-    "check:setup": "node --env-file-if-exists=.env.local scripts/check-setup.mjs"
+    "check:setup": "node --env-file-if-exists=.env.local scripts/check-setup.mjs",
+    "check:design": "node scripts/check-design.mjs",
+    "design:inventory": "node scripts/design-inventory.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1166.0",

@@ -1,5 +1,6 @@
--- Nmesis Studio: one-time database setup, run by the owner in each Supabase
--- project that hosts the studio (the main project and the staging project).
+-- Nmesis Studio: one-time database setup, run by the owner in the Supabase
+-- project that hosts the studio: the main project, which Production and
+-- Preview share.
 -- Run it in the project's SQL editor as the default `postgres` user. On hosted
 -- Supabase that user is not a superuser (it has CREATEROLE), so this file uses
 -- only statements such a user may run. CI runs it twice as a role like that.
@@ -174,8 +175,8 @@ select has_function_privilege('studio_app', 'accounts.entitlements(uuid)', 'exec
        has_function_privilege('studio_app', 'accounts.studio_accept_membership(uuid)', 'execute');
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- 6. Credits and support access (PR S3). Run AFTER section 5, in the main and
---    staging projects, once the admin's accounts migration that creates
+-- 6. Credits and support access (PR S3). Run AFTER section 5, in the main
+--    project, once the admin's accounts migration that creates
 --    accounts.usage_ledger, accounts.credit_packs, accounts.price_book and
 --    accounts.credits_balance(org) exists there. Re-run it whenever the admin
 --    changes those tables (the views below depend on them). Re-running is safe.

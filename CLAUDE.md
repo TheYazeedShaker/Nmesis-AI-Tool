@@ -34,7 +34,7 @@ Operating manual. Permanent standards only; session state lives in `PROGRESS.md`
 | `moaz-playground` | Preview            | Personal sandbox. Never merged directly into `main`.   |
 | `feat/*`, `fix/*` | Preview per push   | Branch from `development`, PR back into `development`. |
 
-Preview deployments must use separate database, storage, secrets and provider budgets from Production.
+Preview and Production share the main Supabase project (one database: the setup SQL and migrations run once). S3 buckets, keys and provider budgets stay separate per environment: Preview has its own bucket and IAM user, its own provider keys and billing limits, and its own secrets.
 
 Releases `development` → `main` use a merge commit, never squash.
 
