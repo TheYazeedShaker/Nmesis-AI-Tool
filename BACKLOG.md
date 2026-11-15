@@ -11,8 +11,9 @@ Status: `queued` · `in-progress` · `blocked` (reason required) · `done` · `a
 | 3   | BRANCH-RULESETS  | —    | #1         | done          | Owner: GitHub ruleset on `main` (PR required, `verify` + `secrets` checks required, no bypass, squash only).            |
 | 4   | LINT-DEBT        | —    | #1         | queued        | Remove 80 `no-explicit-any`, 11 `set-state-in-effect`, 2 `refs`, 15 `no-html-link-for-pages`; restore them to `error`. |
 | 5   | PLATFORM-VISION  | —    | #1         | awaiting-spec | Owner to describe the target platform; agent turns it into specs and ADRs.                                              |
-| 6   | DESIGN-P0        | owner brief 2026-11-15 | —  | in-progress | Foundations: tokens, components, gallery, wireframes, `check:design`. PR `design/foundations` waiting for review and wireframe approval. |
+| 6   | DESIGN-P0        | owner brief 2026-11-15 | —  | done        | Foundations merged (#29); wireframes approved as they are. |
 | 7   | DESIGN-P1        | owner brief 2026-11-15 | #6 | queued      | Audit, findings only: `check:ui` harness (Playwright, axe) in CI, performance baseline, CRUD matrix, findings register. |
+| 11  | ENV-SCOPE        | owner 2026-11-15       | —  | in-progress | `environment` on client-work tables, filtered by RLS (0004). PR `fix/env-scope`; owner migrates after release to `main`. |
 | 8   | DESIGN-P2        | owner brief 2026-11-15 | #7 | queued      | 2a quick severity-4 fixes; 2b shared fixes (dialogs, Undo and trash, job card, skeletons, phone nav, performance). |
 | 9   | DESIGN-P3        | owner brief 2026-11-15 | #8 | queued      | Per approved group, after the wireframes are approved; "Home, projects and folders" first (new `studio.folders` migration, routes, tests). |
 | 10  | DESIGN-P4        | owner brief 2026-11-15 | #9 | queued      | Empty `check:design` baseline, visual baselines, JS/Lighthouse budgets, the full PR rule in CLAUDE.md. |

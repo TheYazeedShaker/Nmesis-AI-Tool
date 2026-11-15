@@ -24,7 +24,12 @@ const PASSWORD='local-test-password-0123456789';
 // Stands in for hosted Supabase's SQL-editor user (not a superuser; CREATEROLE).
 const SETUP_ROLE='studio_setup_test';
 const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log'];
-const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql'];
+const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql'];
+// Client work, filtered by environment (0004); the holds and the staff log record it.
+const SCOPED=['films','swap_jobs','storyboards','image_jobs','topaz_jobs','film_budgets'];
+const RECORDED=['credit_holds','staff_access_log'];
+// The environment these tests run as: no VERCEL_ENV, not production.
+const ENV='development';
 // S3: the credits and support-access tables (their own tests below).
 const CREDIT_TABLES=['credit_accounts','credit_holds','support_grants'];
 // Synthetic companies and people in the accounts fixture.
@@ -91,11 +96,27 @@ async function setup(){
  ({CreditStore,LOCK_CREDITS_SQL,RESERVE_CREDITS_SQL}=await import('../lib/credits/store.ts'));
 }
 
-test('migrations apply once, are idempotent, and refuse a changed file',{skip},async()=>{
+test('migrations apply once, are idempotent, and refuse a changed file; rows from before 0004 are Production\'s',{skip},async()=>{
  await setup();const log=[];
- assert.deepEqual(await migrate(appUrl,{log:x=>log.push(x)}),MIGRATIONS);
+ // As on the hosted project: 0001–0003 already applied, with work in every table.
+ const before=mkdtempSync(join(tmpdir(),'studio-migrations-before-'));
+ try{
+  for(const m of MIGRATIONS.slice(0,3))writeFileSync(join(before,m),migrationSql(m));
+  assert.deepEqual(await migrate(appUrl,{folder:pathToFileURL(before+'/'),log:x=>log.push(x)}),MIGRATIONS.slice(0,3));
+ }finally{rmSync(before,{recursive:true,force:true})}
+ for(const table of SCOPED)await admin.unsafe(...ROW[table]('legacy-1',ORG_A));
+ await admin.unsafe(`insert into studio.credit_holds(id,org_id,actor,tool,action,provider,billing,credits,created_at,updated_at,expires_at) values('legacy-hold','${ORG_A}','x','t','a','p','credits',1,1,1,1)`);
+ await admin.unsafe(ROW.staff_access_log('legacy-1',ORG_A)[0],ROW.staff_access_log('legacy-1',ORG_A)[1]);
+ assert.deepEqual(await migrate(appUrl,{log:x=>log.push(x)}),MIGRATIONS.slice(3));
+ for(const table of [...SCOPED,...RECORDED]){
+  const rows=await admin.unsafe(`select environment from studio.${table}`);
+  assert.ok(rows.length>0,table+' has its existing row');
+  assert.deepEqual([...new Set(rows.map(r=>r.environment))],['production'],table+': existing rows are Production\'s');
+  await admin.unsafe(`delete from studio.${table}`);
+ }
  assert.deepEqual(await migrate(appUrl,{log:x=>log.push(x)}),[]);
- assert.deepEqual(log,[...MIGRATIONS.map(m=>'Applied: '+m),...MIGRATIONS.map(m=>'Already applied: '+m)]);
+ const [m1,m2,m3,m4]=MIGRATIONS;
+ assert.deepEqual(log,[...[m1,m2,m3].map(m=>'Applied: '+m),...[m1,m2,m3].map(m=>'Already applied: '+m),'Applied: '+m4,...MIGRATIONS.map(m=>'Already applied: '+m)]);
  const folder=mkdtempSync(join(tmpdir(),'studio-migrations-'));
  try{
   const original=readFileSync(new URL('../supabase/migrations/0001_studio.sql',import.meta.url),'utf8');
@@ -116,6 +137,9 @@ test('every table has org_id and RLS; anon/authenticated are refused; studio_app
    exists(select 1 from information_schema.columns k where k.table_schema='studio' and k.table_name=c.relname and k.column_name='org_id' and k.is_nullable='NO') as org_id
    from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relkind='r' order by 1`;
  assert.deepEqual(tables.map(t=>t.relname).sort(),['__studio_migrations','car_settings',...TABLES,...CREDIT_TABLES].sort());
+ const envColumns=(await admin`select table_name from information_schema.columns where table_schema='studio' and column_name='environment' and is_nullable='NO'`).map(r=>r.table_name).sort();
+ assert.deepEqual(envColumns,[...SCOPED,...RECORDED].sort(),'client work and the shared records carry their environment');
+ for(const t of SCOPED){const [{q}]=await admin`select pg_get_expr(p.polqual,p.polrelid) as q from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relname=${t}`;assert.match(q,/environment = \( SELECT studio\.request_env\(\)/,t+' policy filters by environment')}
  for(const t of tables){assert.equal(t.relrowsecurity,true,t.relname+' RLS');assert.equal(t.owner,'studio_app');if(!['__studio_migrations','car_settings'].includes(t.relname))assert.equal(t.org_id,true,t.relname+' org_id')}
  const forced=await admin`select c.relname, c.relforcerowsecurity as forced, (select count(*)::int from pg_policy p where p.polrelid=c.oid) as policies
    from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relkind='r' and c.relname<>'__studio_migrations'`;
@@ -179,9 +203,12 @@ const ROW={
  staff_access_log:(id,org)=>[`insert into studio.staff_access_log(id,org_id,staff_user,at) values($1,$2,'x',1)`,[id,org]],
 };
 const KEY={film_budgets:'payer'};
+// A row written as the superuser, in one environment (what the adapter's
+// studio.env does for the Studio's own statements).
+const insertIn=(env,[text,args])=>admin.begin(async tx=>{await tx`select set_config('studio.env', ${env}, true)`;await tx.unsafe(text,args)});
 test('RLS: a member sees and changes only their company; invited-only and no user see nothing; staff see all',{skip},async()=>{
  await setup();
- for(const table of TABLES){await admin.unsafe(`delete from studio.${table}`);for(const org of [ORG_A,ORG_B])await admin.unsafe(...ROW[table]('rls-'+org.slice(7,8),org))}
+ for(const table of TABLES){await admin.unsafe(`delete from studio.${table}`);for(const org of [ORG_A,ORG_B])await insertIn(ENV,ROW[table]('rls-'+org.slice(7,8),org))}
  const sql=connect(appUrl),base=new StudioDatabase(sql);
  const orgsSeen=async(db,table)=>(await db.prepare(`SELECT org_id FROM ${table} ORDER BY org_id`).all()).results.map(r=>r.org_id);
  try{
@@ -267,7 +294,8 @@ test('V1 credits: 20 concurrent actions against a balance that fits 10: exactly 
 
 test('V1 credits: the company lock is what serialises two overlapping reservations',{skip},async()=>{
  await setup();const org=await companyWith(15);const sql=connect(appUrl);
- const asUser=tx=>tx`select set_config('studio.user_id', ${USER_C}, true)`;
+ // What the database layer sends with every statement: the person and the environment.
+ const asUser=tx=>tx`select set_config('studio.user_id', ${USER_C}, true), set_config('studio.env', ${ENV}, true)`;
  const args=h=>[h.id,h.org,h.actor,h.tool,h.action,h.provider,h.billing,h.credits,h.costMicros,null,Date.now(),Date.now(),h.expiresAt,h.org,h.org,Date.now(),h.credits];
  try{
   // A holds the lock and has reserved 10 of 15 but not committed; B (10) starts meanwhile and waits.
@@ -360,5 +388,63 @@ test('support access (RLS): the owner grants, a creator cannot, staff may read b
   await assert.rejects(()=>owner.prepare('UPDATE support_grants SET until=CAST(? AS BIGINT) WHERE org_id=?').bind(Date.now()-86_400_000,ORG_C).run(),/support_grants_until_ck/,'until may not go before the grant itself');
   assert.equal((await owner.prepare('UPDATE support_grants SET granted_at=CAST(? AS BIGINT),until=CAST(? AS BIGINT) WHERE org_id=?').bind(Date.now()-2000,Date.now()-1000,ORG_C).run()).meta.changes,1,'the owner ends it');
   assert.equal((await access(ORG_C,STAFF)).granted,false,'an ended grant is refused');
+ }finally{await sql.end({timeout:5})}
+});
+
+// Production and Preview share the database (owner, 2026-11-15). Each sees and
+// writes only its own client work, for members and staff alike, whatever the
+// statement asks for.
+test('environments: Production and Preview never see, change or take each other\'s client work',{skip},async()=>{
+ await setup();
+ for(const table of SCOPED){
+  await admin.unsafe(`delete from studio.${table}`);
+  await insertIn('production',ROW[table]('prod-1',ORG_A));
+  await insertIn('preview',ROW[table]('prev-1',ORG_A));
+ }
+ const sql=connect(appUrl);
+ const prod=new StudioDatabase(sql,null,'production'),prev=new StudioDatabase(sql,null,'preview');
+ const key=t=>KEY[t]||'id',idOf=(t,id)=>t==='film_budgets'?'orgs/'+ORG_A+'/keys/'+id:id;
+ const seen=async(db,t)=>(await db.prepare(`SELECT ${key(t)} AS k FROM ${t} ORDER BY 1`).all()).results.map(r=>r.k);
+ try{
+  for(const [who,user] of [['the owner',USER_A],['staff',STAFF]]){
+   const p=prod.forUser(user),v=prev.forUser(user);
+   for(const t of SCOPED){
+    assert.deepEqual(await seen(p,t),[idOf(t,'prod-1')],`${t}: ${who} on Production sees only Production's row`);
+    assert.deepEqual(await seen(v,t),[idOf(t,'prev-1')],`${t}: ${who} on Preview sees only Preview's row`);
+    // Naming the other environment's row changes nothing.
+    assert.equal((await v.prepare(`UPDATE ${t} SET org_id=org_id WHERE ${key(t)}=?`).bind(idOf(t,'prod-1')).run()).meta.changes,0,t+': Preview updates nothing of Production');
+    assert.equal((await v.prepare(`DELETE FROM ${t} WHERE ${key(t)}=?`).bind(idOf(t,'prod-1')).run()).meta.changes,0,t+': Preview deletes nothing of Production');
+    assert.equal((await p.prepare(`DELETE FROM ${t} WHERE ${key(t)}=?`).bind(idOf(t,'prev-1')).run()).meta.changes,0,t+': Production deletes nothing of Preview');
+    // Nor can a row be moved across, or written straight into the other environment.
+    await assert.rejects(()=>v.prepare(`UPDATE ${t} SET environment='production' WHERE ${key(t)}=?`).bind(idOf(t,'prev-1')).run(),/row-level security/,t+': a Preview row cannot become Production\'s');
+   }
+  }
+  const owner=prev.forUser(USER_A);
+  const board=(id,env)=>`INSERT INTO storyboards(id,org_id,owner,data,created_at,updated_at${env?',environment':''}) VALUES('${id}','${ORG_A}','orgs/${ORG_A}/users/x/','{}',1,1${env?",'"+env+"'":''})`;
+  await assert.rejects(()=>owner.prepare(board('prev-into-prod','production')).run(),/row-level security/,'Preview cannot write a Production row');
+  assert.equal((await owner.prepare(board('prev-own')).run()).meta.changes,1,'Preview writes its own row');
+  const [{environment}]=await admin`select environment from studio.storyboards where id='prev-own'`;
+  assert.equal(environment,'preview','a new row takes the environment of the request by default');
+  // An id (an application UUID) is unique across both environments: a reused id
+  // is refused, never merged into the other environment's row.
+  await insertIn('production',ROW.storyboards('same-id',ORG_A));
+  assert.equal((await owner.prepare(board('same-id')).run().catch(e=>e)).message?.match(/duplicate key/)?.[0],'duplicate key','storyboard ids are application UUIDs; a reused id is refused, not merged across');
+  // One active upscale per source image, per environment.
+  const active=(env,id)=>insertIn(env,[`insert into studio.topaz_jobs(id,org_id,owner,parent_id,status,data,created_at,updated_at) values($1,$2,$3,'same-parent','queued','{}',1,1)`,[id,ORG_A,'orgs/'+ORG_A+'/users/x/']]);
+  await active('production','up-prod');await active('preview','up-prev');
+  await assert.rejects(()=>active('preview','up-prev-2'),/topaz_jobs_env_one_active/,'a second active upscale in the same environment is refused');
+  // A request that says no environment (or an unknown one) reads nothing and writes nothing.
+  for(const env of [null,'staging']){
+   const rows=await sql.begin(tx=>[tx`select set_config('studio.user_id', ${USER_A}, true), set_config('studio.env', ${env||''}, true)`,tx`select count(*)::int as n from studio.storyboards`]);
+   assert.equal(rows[1][0].n,0,`environment ${env}: nothing to read`);
+   await assert.rejects(()=>sql.begin(tx=>[tx`select set_config('studio.user_id', ${USER_A}, true), set_config('studio.env', ${env||''}, true)`,tx.unsafe(board('no-env-'+(env||'none')))]),/null value in column "environment"|row-level security/,`environment ${env}: nothing written`);
+  }
+  // The credit holds stay shared: both environments spend the one company
+  // balance, so a Preview hold counts against a Production reservation.
+  await admin.unsafe(`delete from studio.credit_holds where org_id='${ORG_A}'`);
+  const holds=n=>({id:'env-hold-'+n,org:ORG_A,actor:USER_A,tool:'studio.key_visuals',action:'Key visual',provider:'openai',billing:'own key',credits:0,costMicros:0,expiresAt:Date.now()+60000});
+  assert.equal(await new CreditStore(prev.forUser(USER_A)).reserve(holds(1)),true);
+  const [{env:holdEnv}]=await admin`select environment as env from studio.credit_holds where id='env-hold-1'`;assert.equal(holdEnv,'preview','the hold records where it came from');
+  assert.equal((await prod.forUser(USER_A).prepare("SELECT id FROM credit_holds WHERE id='env-hold-1'").all()).results.length,1,'and Production counts it');
  }finally{await sql.end({timeout:5})}
 });

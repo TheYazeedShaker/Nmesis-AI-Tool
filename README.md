@@ -72,6 +72,8 @@ Exactly 64 hex characters (32 bytes): generate it with `openssl rand -hex 32`. K
 
 The studio keeps its job records in its own schema, `studio`, inside a Supabase Postgres project, reached with its own login role `studio_app` that can touch nothing else. Production and Preview both use the main project, so the setup SQL and the migrations run once.
 
+Each environment sees only its own client work. Every row of it (films, swaps, storyboards, image jobs, upscales) carries an `environment` (`production`, `preview` or `development`), taken from Vercel's `VERCEL_ENV` (`development` under `next dev`). The database layer sends it with every statement and row level security filters on it (migration `0004_environment.sql`). A production server without `VERCEL_ENV` refuses to start a query rather than guess, so keep Vercel's **Automatically expose System Environment Variables** on. Credit holds and the staff-access log are shared and record their environment, because both environments spend the one company balance. Saved provider keys and media are in each environment's own S3 bucket, encrypted with each environment's own `KEY_ENCRYPTION_SECRET`.
+
 In each project, once:
 
 1. Open the SQL editor and run [`docs/supabase-setup.sql`](docs/supabase-setup.sql) after replacing its password placeholder with a new random password (a different one per project). It creates the `studio_app` role and the `studio` schema owned by it.

@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import {studioEnvironment,type StudioEnvironment} from './environment';
 // Match the small D1 surface used by the studio (prepare/bind/first/all/run)
 // over Postgres. Statements keep `?` placeholders; they are translated to
 // $1…$n once per statement text. Conditional UPDATEs stay single statements,
@@ -28,30 +29,34 @@ function closing(sql:string,start:number,quote:string){
 // Plain fields, not constructor parameter properties: tests import this file
 // under Node's strip-only TypeScript mode, which rejects parameter properties.
 // A database bound to a signed-in user (forUser) runs every statement in a short
-// transaction that first sets `studio.user_id`, which the row level security
-// policies read (supabase/migrations/0002_accounts_access.sql). Unbound, the
-// policies see nobody and every studio table reads as empty.
+// transaction that first sets `studio.user_id` and `studio.env`, which the row
+// level security policies read (migrations 0002 and 0004). Unbound, the policies
+// see nobody and every studio table reads as empty. `studio.env` is this
+// server's environment (./environment.ts): Production and Preview share the
+// database, and each sees and writes only its own rows of client work.
 export class StudioDatabase {
  private sql:Sql;
  private user:string|null;
- constructor(sql:Sql, user:string|null=null) { this.sql=sql; this.user=user; }
- forUser(userId:string) { return new StudioDatabase(this.sql, userId); }
- prepare(text:string) { return new Statement(this.sql, text, [], this.user); }
+ readonly environment:StudioEnvironment;
+ constructor(sql:Sql, user:string|null=null, environment:StudioEnvironment=studioEnvironment()) { this.sql=sql; this.user=user; this.environment=environment; }
+ forUser(userId:string) { return new StudioDatabase(this.sql, userId, this.environment); }
+ prepare(text:string) { return new Statement(this.sql, text, [], this.user, this.environment); }
  // D1 batch: every statement in one transaction, in order; any error rolls back all.
- async batch(statements:Statement[]) { return this.sql.begin(async tx=>{if(this.user)await tx`select set_config('studio.user_id', ${this.user}, true)`;const out=[];for(const s of statements)out.push(await s.runIn(tx as unknown as Sql));return out}); }
+ async batch(statements:Statement[]) { return this.sql.begin(async tx=>{if(this.user)await tx`select set_config('studio.user_id', ${this.user}, true), set_config('studio.env', ${this.environment}, true)`;const out=[];for(const s of statements)out.push(await s.runIn(tx as unknown as Sql));return out}); }
 }
 class Statement {
  private sql:Sql;
  private text:string;
  private args:Param[];
  private user:string|null;
- constructor(sql:Sql, text:string, args:Param[] = [], user:string|null=null) { this.sql=sql; this.text=text; this.args=args; this.user=user; }
- bind(...values: unknown[]) { return new Statement(this.sql,this.text,values.map(v=>v===undefined?null:v) as Param[],this.user); }
+ private environment:StudioEnvironment;
+ constructor(sql:Sql, text:string, args:Param[] = [], user:string|null=null, environment:StudioEnvironment='development') { this.sql=sql; this.text=text; this.args=args; this.user=user; this.environment=environment; }
+ bind(...values: unknown[]) { return new Statement(this.sql,this.text,values.map(v=>v===undefined?null:v) as Param[],this.user,this.environment); }
  private execute(sql:Sql=this.sql):Promise<postgres.RowList<postgres.Row[]>> {
   if(sql!==this.sql||!this.user)return sql.unsafe(toPositional(this.text),this.args);
   // Pipelined: the setting and the statement travel together inside one transaction.
-  const user=this.user,text=toPositional(this.text),args=this.args;
-  return this.sql.begin(tx=>[tx`select set_config('studio.user_id', ${user}, true)`,tx.unsafe(text,args)]).then(r=>(r as unknown as postgres.RowList<postgres.Row[]>[])[1]);
+  const user=this.user,environment=this.environment,text=toPositional(this.text),args=this.args;
+  return this.sql.begin(tx=>[tx`select set_config('studio.user_id', ${user}, true), set_config('studio.env', ${environment}, true)`,tx.unsafe(text,args)]).then(r=>(r as unknown as postgres.RowList<postgres.Row[]>[])[1]);
  }
  async runIn(sql:Sql) {return this.result(await this.execute(sql));}
  async first<T=Record<string,unknown>>(column?:string):Promise<T|null> { const r=await this.execute();const row=r[0];return row?(column?row[column]:{...row}) as T:null; }
