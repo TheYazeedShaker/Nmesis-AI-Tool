@@ -62,7 +62,7 @@
 @media (max-width: 768px) {
   .workspace .ds-tile-actions .ds-btn, .workspace .ds-tile-select > input,
   .workspace .ds-segmented > button, .workspace .workspace-folder-menu .ds-btn { width: var(--ds-tap-phone); height: var(--ds-tap-phone); min-height: var(--ds-tap-phone); }
-  .workspace .ds-link, .workspace .ds-chip, .workspace .ds-skip, .workspace .ds-btn, .workspace .ds-select, .workspace .ds-input { min-height: var(--ds-tap-phone); }
+  .workspace .ds-main .ds-link, .workspace .ds-chip, .workspace .ds-skip, .workspace .ds-btn, .workspace .ds-select, .workspace .ds-input { min-height: var(--ds-tap-phone); }
   .workspace .ds-meter { min-width: var(--ds-tap-phone); justify-content: center; }
   .workspace .ds-check > input, .workspace .ds-tile-select { width: var(--ds-tap-phone); height: var(--ds-tap-phone); }
 }

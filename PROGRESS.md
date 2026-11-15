@@ -2,9 +2,20 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-15 (Design Phase 2b, shared fixes)
+**Last updated:** 2026-11-15 (Design Phase 3 group 1: Home, projects and folders, the library)
 
-**Latest (2026-11-15, design programme Phase 2b, shared fixes):**
+**Latest (2026-11-15, design programme Phase 3 group 1):**
+- Built new from the approved wireframes, in the design system, light and dark, inside the 2b top bar:
+  - Home at `/` (what to make, the tools, recent work, the company's cars);
+  - the one shared library at `/library` (every kind of work, folders on the left, search, filters, grid or list, select several, Move to…, Delete with Undo, Deleted with Restore, the viewer);
+  - Projects at `/projects` and a folder at `/projects/<id>`.
+- The key-visual tool moved to `/key-visual`; it reads `?car=` and `?brief=` from Home.
+- The top bar's navigation is Home · Library · Projects · Tools (a menu of the five tools). It follows the system's light or dark on the new screens and stays dark on the tool screens until group 2.
+- Migration `0006_folders.sql`: `studio.folders` and `studio.folder_items`, with the environment rule and row level security as 0004. Folders have one level of sub-folders, each piece of work is in at most one folder, and deleting a folder can be undone. Until 0006 runs, the library shows everything and folder changes say they are not available yet (`foldersReady`).
+- `/api/library`: one feed of key visuals, line-ups, films, swaps and stories. It carries no provider, model, cost, error or other person's address.
+- Branch `design/home-library` → PR into `development`. No hosted system was touched.
+
+**Earlier (2026-11-15, design programme Phase 2b, shared fixes):**
 - F-050 everywhere: a client without its own keys reads no provider or model name on any page (tool pages, cost lines, cards, pickers, progress, errors, recovery messages, notices). Pickers are quality choices (Standard / High detail / Fast, or the tool's plain names: Studio, Reference match, Campaign look). Server errors, job errors and diagnostics are rewritten per request (`lib/provider-scope.ts`, opened by `context()` before its first await); the original stays in the server log. Staff and own-key companies keep the names. `check:ui` reads every client page as a no-own-key client (text, `aria-label`, `title`, `alt`): `providerNamesShown` is 0 and ratcheted.
 - One top bar on every screen (`components/studio-topbar.tsx`, design-system classes, dark like the screens): one shared navigation, the credit meter, the company switcher (a modal), the account; below 768px one menu with 44px rows. Replaces eight different headers and `app/topbar-phone.css`.
 - The design system's dialog in place of `confirm()` (none left); toasts with Undo on every screen (`components/studio-providers.tsx`).
@@ -66,7 +77,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the main Supabase project and S3 |
 | S2.1 hosted fixes, staff portal | ✅ | Merged into `development` and released to `main` (#22) |
 | S3 credits, own keys, support access | ✅ | Merged into `development` (#28); owner steps (setup SQL section 6, provider accounts and limits, Vercel variables, plans per client) in the PR body |
-| Design programme | 🟡 | Phases 0 (#29), 1 (#31) and 2a (#32) merged; Phase 2b PR `design/shell`; Phase 3 group 1 after the owner's review |
+| Design programme | 🟡 | Phases 0 (#29), 1 (#31), 2a (#32) and 2b (#33) merged; Phase 3 group 1 PR `design/home-library`; group 2 (the editor) next |
 | Environment scope | 🟡 | Merged (#30); owner runs `npm run db:migrate` (0004) only after the change is live on Preview **and** Production |
 
 ## What was built last session (Design Phase 0)
@@ -112,6 +123,14 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 - **Provider names (owner, F-050, 2026-11-15):** clients never see provider or model names on cards or in the library: the tool ("Key visual") and at most "Standard" / "High detail". Staff, and companies using their own keys, see the provider in the item's details.
 - **Design direction (owner, 2026-11-15):** every change uses the Phase 0 design system and the approved wireframes, in the Nmesis theme. Phase 2b builds the new app shell and moves every screen to the new components, without re-laying out Home, the library or the tool screens (only their safety, accessibility and behaviour findings). Phase 3 group 1 rebuilds Home, projects and folders and the library to the wireframes; group 2 rebuilds the editor for all tools. Before each Phase 3 group, post the screens at 1440 and 390 next to the matching wireframe.
 - **check:ui ratchet (owner, 2026-11-15):** focus-without-indicator stays in the ratchet with a tolerance of ±5.
+- **Phase 3 group 1 (owner, 2026-11-15):** don't fix old screens. Group 1 builds Home, projects and folders (`studio.folders`, migration 0006) and the one shared library new from the approved wireframes, in the Nmesis theme, inside the 2b shell, light and dark. Every 2b gain is kept. The screens were posted next to the wireframes and approved ("Yes, build it"), with these decisions:
+  - Home at `/`, the key-visual tool at `/key-visual`, `/library`, `/projects` and `/projects/<id>`;
+  - the navigation is Home · Library · Projects · Tools;
+  - Home shows the five tools that have screens;
+  - deleted work goes to "Deleted" with no automatic purge;
+  - "Not in a folder" replaces "Unsorted";
+  - one level of sub-folders, and at most one folder per piece of work.
+  The wireframe's bottom bar on phones was dropped while building: it covered the work at the bottom of the screen (`check:ui` overlapped), so phones use the top bar's menu.
 - **F-050 everywhere (owner, 2026-11-15, Phase 2b brief):** no provider or model name anywhere for a client without own keys: tool pages, cost lines, cards, pickers, progress, errors, recovery messages, notices. Model pickers are quality choices; provider errors are rewritten in plain words with the original in the server log; own-key Enterprise texts and staff views keep the names. A test renders every client page as a no-own-key client and fails on any provider name in the visible text or `aria-label` / `title` / `alt`.
 
 - **Environment scope (owner, 2026-11-15):** every studio table holding client work carries `environment` (production / preview / development, from `VERCEL_ENV`); existing rows are Production's; every read and write is filtered in the database layer (RLS + `studio.env`), not per route; separate `KEY_ENCRYPTION_SECRET`s. Shared on purpose: credit holds and the company lock (one balance), support grants, the staff-access log, car settings.
@@ -141,6 +160,8 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 
 _Waiting on owner_
 
+- Phase 3 group 1: `npm run db:migrate` applies `0006_folders.sql`, together with 0004 and 0005 after the next release to `main`. Before it runs, the library and Home work and folders say they are not available yet; within a minute after it, they work, with no redeploy.
+
 - Phase 2b: run `npm run db:migrate` once to apply `0005_trash.sql` (with 0004, after the release to `main`, as planned). Before it runs, films, swaps and stories work as before and Delete answers "Deleting isn't available yet"; within a minute after it, Delete and Deleted work, with no redeploy.
 
 - S2.1 owner steps (exact list in the PR body): `STUDIO_PUBLIC_ORIGIN` per Vercel environment, the bare address and `/**` (and the Preview wildcard) in Supabase Auth's redirect URLs, a `KEY_ENCRYPTION_SECRET` of exactly 64 hex characters, and section 1 of the corrected `docs/supabase-setup.sql` where it failed.
@@ -153,6 +174,12 @@ _Waiting on owner_
 - Environment scope: run `npm run db:migrate` (0004) once, **after** this change is live on both Preview and Production (old code does not send the environment, so against the migrated database it reads nothing). Keep Vercel's system environment variables on (`VERCEL_ENV`).
 
 _Carried_
+
+- Phase 3 group 1:
+  - the library's "Person" filter is "You" or "A teammate": names are not in the Studio's data, and teammates' addresses are not shown to creators and viewers;
+  - the feed reads every saved visual from storage (F-059) and lists the latest 200 films, swaps and stories each;
+  - toasts are dark in both themes;
+  - the staff-only preview at `/design-system/proposals/<screen>` keeps the synthetic version of the four screens.
 
 - Phase 2b: the top bar, dialogs, toasts and menu are dark like the screens; light mode for signed-in screens comes with Phase 3 (F-010). A change of membership, role or support access reaches an open session within 10 s (the context reuse); signing out is immediate.
 - Phase 2b: the Home library's own 15 s check of pending OpenAI renders still runs on a fixed interval (it stops when nothing is pending); the job polls back off.
@@ -173,7 +200,7 @@ _Carried_
 
 ## Next session — start here
 
-1. Owner: review PR `design/shell` (Phase 2b).
-2. Then Phase 3, group 1 (BACKLOG #9): Home, projects and folders, and the library, to the approved wireframes; post the screens at 1440 and 390 next to the wireframes first.
-3. Owner (unchanged): after the next release to `main`, run `npm run db:migrate` once (0004 and 0005).
+1. Owner: review PR `design/home-library` (Phase 3 group 1).
+2. Then Phase 3 group 2 (BACKLOG #9): the editor for all tools, from the approved wireframe. Post the screens at 1440 and 390 next to the wireframe first.
+3. Owner (unchanged): after the next release to `main`, run `npm run db:migrate` once (0004, 0005 and 0006).
 4. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").
