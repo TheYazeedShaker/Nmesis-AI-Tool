@@ -19,7 +19,7 @@
     padding: var(--ds-space-8) var(--ds-space-16);
   }
   header.topbar.topbar > .topnote { display: none; }
-  header.topbar.topbar > .brand { flex: 0 0 auto; }
+  header.topbar.topbar > .brand { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: var(--ds-control-h-sm); }
 
   header.topbar.topbar > .account-bar {
     order: 2;
@@ -51,6 +51,6 @@
     scrollbar-width: thin;
   }
   header.topbar.topbar > .heading-actions > *,
-  header.topbar.topbar > .film-nav > * { flex: none; white-space: nowrap; }
+  header.topbar.topbar > .film-nav > * { flex: none; white-space: nowrap; display: inline-flex; align-items: center; min-height: var(--ds-control-h-sm); }
   header.topbar.topbar > .secondary { order: 4; }
 }
