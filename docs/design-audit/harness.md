@@ -88,6 +88,9 @@ person sees. Known limits, and what the harness gets wrong:
   parent, is reported as missing (false positive); a 1 px outline the same
   colour as the background passes (false negative).
 - **Hidden by a sticky bar** samples five points. A sliver can be missed.
+- **Drawn over** (corrected in Phase 2b): until 2b it counted the controls
+  inside a closed `<details>` (a card's "…" menu) as drawn over by the picture;
+  they are not drawn at all, so they are now left out. Part of F-069 was this.
 - **Drawn over** checks only what is on screen when the page is ready, from the
   centre of each control. Transparent overlays that pass clicks through (for
   example `pointer-events: none` badges) are reported as covering.
@@ -103,6 +106,13 @@ person sees. Known limits, and what the harness gets wrong:
   than taps, so hover-only controls are not caught by the clicks; the target
   check and screenshots are how they show.
 - **Themes**: most existing screens are dark whatever the system asks; the light
-  runs of those screens are near-duplicates.
+  runs of those screens are near-duplicates. The 2b top bar, dialogs and toasts
+  are dark too, to match, until Phase 3 moves the screens onto the tokens.
+- **Provider names** (F-050, Phase 2b): every client page is read as a client
+  without its own keys (owner, creator, viewer, Starter, ended, no company,
+  signed out): visible text plus `aria-label`, `title` and `alt`. The names
+  are `PROVIDER_NAMES` in `lib/provider-words.ts`; the count must stay 0.
+- **Company switcher** (Phase 2b): below 768px it lives in the menu, so the
+  harness opens the menu there.
 - The run's own list of what it could not open is in `summary.md` under
   "Mistakes the harness made about itself".

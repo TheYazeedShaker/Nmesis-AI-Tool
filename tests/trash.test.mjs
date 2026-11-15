@@ -12,11 +12,13 @@ import {studioSchemaSql,userPrefix,MEMBER,ORG} from './sqlite-schema.mjs';
 async function harness(){
  const sql=new DatabaseSync(':memory:');sql.exec(studioSchemaSql());
  const db={prepare(query){let args=[];return{bind(...values){args=values;return this},async first(){return sql.prepare(query).get(...args)||null},async all(){return{results:sql.prepare(query).all(...args)}},async run(){return{meta:{changes:sql.prepare(query).run(...args).changes}}}}}};
+ const ready={value:true};
  class StudioError extends Error{constructor(message,status=400){super(message);this.status=status}}
  const sandbox=vm.createContext({console,Date,JSON});
  const stubs={
   './studio-server':{StudioError,validId:x=>typeof x==='string'&&/^[a-z0-9-]{8,80}$/.test(x)},
   './film-server':{database:c=>c.DB},
+  './trash-ready':{trashReady:async()=>ready.value},
   './org-library':{requireDeleteRight:(ctx,owner)=>{if(owner!==ctx.prefix&&ctx.role!=='owner')throw new StudioError('Only the person who made this, or an owner of your company, can delete it.',403)}},
  };
  const lib=new URL('../lib/trash.ts',import.meta.url);
@@ -30,7 +32,7 @@ async function harness(){
  add('films','film-done-1',a,'completed');add('films','film-busy-1',a,'in_progress');add('films','film-other-1',b,'completed');
  add('swap_jobs','swap-done-1',a,'failed');add('storyboards','story-one-1',a);
  const ctx={DB:db,prefix:a,...MEMBER,role:'creator'};
- return {trash:m.namespace,ctx,sql,close:()=>sql.close()};
+ return {trash:m.namespace,ctx,sql,ready,close:()=>sql.close()};
 }
 const deletedAt=(h,table,id)=>h.sql.prepare(`SELECT deleted_at FROM ${table} WHERE id=?`).get(id).deleted_at;
 
@@ -40,9 +42,9 @@ test('films, swaps and stories go to Deleted and come back; lists leave them out
   for(const [kind,table,id] of [['films','films','film-done-1'],['swaps','swap_jobs','swap-done-1'],['storyboards','storyboards','story-one-1']]){
    assert.deepEqual({...await h.trash.trashItem(h.ctx,kind,id)},{deleted:true,id});
    assert.ok(deletedAt(h,table,id)>0,kind);
-   const listedNow=h.sql.prepare(`SELECT id FROM ${table} WHERE org_id=? AND ${h.trash.listed(false)}`).all(ORG).map(r=>r.id);
+   const listedNow=h.sql.prepare(`SELECT id FROM ${table} WHERE org_id=?${h.trash.listed(false)}`).all(ORG).map(r=>r.id);
    assert.ok(!listedNow.includes(id),kind+' left the list');
-   assert.ok(h.sql.prepare(`SELECT id FROM ${table} WHERE org_id=? AND ${h.trash.listed(true)}`).all(ORG).some(r=>r.id===id),kind+' is in Deleted');
+   assert.ok(h.sql.prepare(`SELECT id FROM ${table} WHERE org_id=?${h.trash.listed(true)}`).all(ORG).some(r=>r.id===id),kind+' is in Deleted');
    // Deleting twice is harmless (a double click, a second tab).
    await h.trash.trashItem(h.ctx,kind,id);
    assert.deepEqual({...await h.trash.restoreItem(h.ctx,kind,id)},{restored:true,id});
@@ -72,10 +74,35 @@ test('the routes, the lists and the write paths use the trash rule',()=>{
  for(const [dir,kind] of [['films','films'],['swaps','swaps'],['storyboards','storyboards']]){
   assert.match(read(`app/api/${dir}/[id]/route.ts`),new RegExp(`export async function DELETE[^\\n]*trashItem\\(await context\\(request,true\\),'${kind}'`));
   assert.match(read(`app/api/${dir}/[id]/[action]/route.ts`),new RegExp(`if\\(action==='restore'\\)return Response\\.json\\(await restoreItem\\(ctx,'${kind}',id\\)\\)`));
-  assert.match(read(`app/api/${dir}/route.ts`),/WHERE org_id=\? AND '\+listed\(deleted\)\+' ORDER BY/);
+  assert.match(read(`app/api/${dir}/route.ts`),/WHERE org_id=\?'\+listed\(deleted,ready\)\+' ORDER BY/);
+  assert.match(read(`app/api/${dir}/route.ts`),/ready=await trashReady\(db\)/);
  }
- assert.match(read('lib/film-server.ts'),/WHERE id=\? AND owner=\? AND deleted_at IS NULL/);
- assert.match(read('lib/swap-server.ts'),/WHERE id=\? AND owner=\? AND deleted_at IS NULL/);
- assert.match(read('lib/storyboard-server.ts'),/WHERE id=\? AND owner=\? AND deleted_at IS NULL/);
+ for(const file of ['lib/film-server.ts','lib/swap-server.ts','lib/storyboard-server.ts'])assert.match(read(file),/WHERE id=\? AND owner=\?'\+notDeleted\(await trashReady\(db\)\)/,file);
  assert.match(read('supabase/migrations/0005_trash.sql'),/alter table studio\.films add column if not exists deleted_at bigint;/);
+});
+
+// Before the owner runs 0005 the Studio works as before: lists show every row,
+// Deleted is empty, and Delete says it is not available yet.
+test('before migration 0005: nothing breaks; Delete answers that it is not available yet',async()=>{
+ const h=await harness();
+ try{
+  h.ready.value=false;
+  await assert.rejects(()=>h.trash.trashItem(h.ctx,'films','film-done-1'),e=>e.status===503&&/isn’t available yet/.test(e.message));
+  assert.equal(h.trash.listed(false,false),'');
+  assert.equal(h.trash.listed(true,false),' AND 1=0');
+ }finally{h.close()}
+});
+
+test('trashReady finds the column, switches on once it exists, and never hides a real failure',async()=>{
+ const {trashReady,notDeleted}=await import('../lib/trash-ready.ts');
+ const missing={prepare:()=>({first:async()=>{throw new Error('column "deleted_at" does not exist')}})};
+ const broken={prepare:()=>({first:async()=>{throw new Error('connection terminated')}})};
+ const fine={prepare:()=>({first:async()=>null})};
+ const t0=1_000_000;
+ assert.equal(await trashReady(missing,t0),false);
+ assert.equal(await trashReady(fine,t0+30_000),false,'checked again only after a minute');
+ await assert.rejects(()=>trashReady(broken,t0+61_000),/connection terminated/,'a real failure is not taken for a missing column');
+ assert.equal(await trashReady(fine,t0+62_000),true,'the migration ran: on');
+ assert.equal(await trashReady(missing,t0+999_000),true,'once on, it stays on');
+ assert.equal(notDeleted(true),' AND deleted_at IS NULL');assert.equal(notDeleted(false),'');
 });

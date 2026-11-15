@@ -11,8 +11,6 @@
       "raw-size": 237
     },
     "app/films/page.tsx": {
-      "unknown-class": 1,
-      "browser-dialog": 2,
       "unstyled-control": 7
     },
     "app/globals.css": {
@@ -24,21 +22,19 @@
       "raw-size": 91
     },
     "app/lineup/page.tsx": {
-      "unknown-class": 2,
+      "unknown-class": 1,
       "unstyled-control": 13
     },
     "app/nano-lab/page.tsx": {
-      "unknown-class": 1,
       "raw-colour": 5,
       "raw-size": 8,
       "unstyled-control": 3
     },
     "app/page.tsx": {
-      "unknown-class": 2,
+      "unknown-class": 1,
       "unstyled-control": 11
     },
     "app/storyboard/page.tsx": {
-      "unknown-class": 1,
       "unstyled-control": 19
     },
     "app/storyboard/storyboard.css": {
@@ -50,7 +46,6 @@
       "raw-size": 170
     },
     "app/swap/page.tsx": {
-      "unknown-class": 1,
       "unstyled-control": 5
     },
     "app/swap/swap.css": {
