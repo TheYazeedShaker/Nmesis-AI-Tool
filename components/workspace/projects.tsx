@@ -23,7 +23,6 @@ export type FolderActions={
 
 function NameDialog({open,title,verb,initial,onClose,onSave}:{open:boolean;title:string;verb:string;initial?:string;onClose:()=>void;onSave:(name:string)=>void}){
  const [name,setName]=React.useState(initial||'');
- React.useEffect(()=>{if(open)setName(initial||'')},[open,initial]);
  const clean=name.trim();
  return <Dialog open={open} onClose={onClose} title={title} footer={<><Button onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!clean} onClick={()=>onSave(clean)}>{verb}</Button></>}>
   <form onSubmit={e=>{e.preventDefault();if(clean)onSave(clean)}}><Field label="Name" count={{value:name.length,max:80}}><Input value={name} onChange={e=>setName(e.target.value)} maxLength={80} autoComplete="off"/></Field></form>
@@ -56,13 +55,13 @@ export function ProjectsScreen({folders,canEdit,actions}:{folders:Folder[];canEd
   {top.length
    ?<div className="workspace-folders" role="list" aria-label="Folders">{top.map(f=><FolderCard key={f.id} folder={f} subs={folders.filter(s=>s.parentId===f.id).length} canEdit={canEdit} onRename={()=>setRenaming(f)} onDelete={()=>actions.onDelete(f.id)}/>)}</div>
    :<State kind="empty" title="No folders yet" actions={canEdit&&<Button kind="primary" icon={<FolderPlus aria-hidden="true"/>} onClick={()=>setCreating(true)}>New folder</Button>}>A folder keeps a campaign’s visuals, films and stories together.</State>}
-  <NameDialog open={creating} title="New folder" verb="Create folder" onClose={()=>setCreating(false)} onSave={n=>{actions.onCreate(n,null);setCreating(false)}}/>
-  <NameDialog open={!!renaming} title="Rename folder" verb="Rename" initial={renaming?.name} onClose={()=>setRenaming(null)} onSave={n=>{if(renaming)actions.onRename(renaming.id,n);setRenaming(null)}}/>
+  <NameDialog key={creating?'new-open':'new'} open={creating} title="New folder" verb="Create folder" onClose={()=>setCreating(false)} onSave={n=>{actions.onCreate(n,null);setCreating(false)}}/>
+  <NameDialog key={renaming?.id||'rename'} open={!!renaming} title="Rename folder" verb="Rename" initial={renaming?.name} onClose={()=>setRenaming(null)} onSave={n=>{if(renaming)actions.onRename(renaming.id,n);setRenaming(null)}}/>
  </>;
 }
 
 // One folder: where it is, its sub-folders, then its work as the library shows it.
-export function FolderScreen({folder,folders,items,canEdit,folderActions,libraryActions}:{folder:Folder;folders:Folder[];items:WorkItem[];canEdit:boolean;folderActions:FolderActions;libraryActions:LibraryActions}){
+export function FolderScreen({folder,folders,items,canEdit,folderActions,libraryActions,foldersReady=true}:{folder:Folder;folders:Folder[];items:WorkItem[];canEdit:boolean;folderActions:FolderActions;libraryActions:LibraryActions;foldersReady?:boolean}){
  const parent=folders.find(f=>f.id===folder.parentId),subs=folders.filter(f=>f.parentId===folder.id);
  const [creating,setCreating]=React.useState(false);
  const hrefFor=(p:Place)=>p==='all'?'/library':p==='unsorted'||p==='deleted'?`/library?in=${p}`:`/projects/${p}`;
@@ -77,7 +76,7 @@ export function FolderScreen({folder,folders,items,canEdit,folderActions,library
   </div>}
  </>;
  return <div className="workspace-folder-page">
-  <LibraryScreen items={items} folders={folders} place={folder.id} hrefFor={hrefFor} actions={libraryActions} above={above}/>
-  <NameDialog open={creating} title={`New folder in ${folder.name}`} verb="Create folder" onClose={()=>setCreating(false)} onSave={n=>{folderActions.onCreate(n,folder.id);setCreating(false)}}/>
+  <LibraryScreen items={items} folders={folders} place={folder.id} hrefFor={hrefFor} actions={libraryActions} above={above} readOnly={!canEdit} foldersReady={foldersReady}/>
+  <NameDialog key={creating?'sub-open':'sub'} open={creating} title={`New folder in ${folder.name}`} verb="Create folder" onClose={()=>setCreating(false)} onSave={n=>{folderActions.onCreate(n,folder.id);setCreating(false)}}/>
  </div>;
 }

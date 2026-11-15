@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import ts from 'typescript';
 
 // Exercise the actual page handler with browser/provider boundaries controlled.
-const source=fs.readFileSync(new URL('../app/page.tsx',import.meta.url),'utf8');
+const source=fs.readFileSync(new URL('../app/key-visual/page.tsx',import.meta.url),'utf8');
 const ast=ts.createSourceFile('page.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 let handler;
 function visit(node){if(ts.isFunctionDeclaration(node)&&node.name?.text==='autoGenerate')handler=node.getText(ast);ts.forEachChild(node,visit)}visit(ast);

@@ -39,19 +39,22 @@ export function FolderNav({folders,place,counts,hrefFor,label='Folders'}:{folder
 
 export function MoveDialog({open,folders,count,onClose,onMove}:{open:boolean;folders:Folder[];count:number;onClose:()=>void;onMove:(folderId:string|null)=>void}){
  return <Dialog open={open} onClose={onClose} title={count===1?'Move to a folder':`Move ${count} items to a folder`}>
-  <ul className="workspace-list ds-stack-tight" aria-label="Folders">
+  <ul className="workspace-list workspace-move-list" aria-label="Folders">
    {folders.map(f=><li key={f.id}><button type="button" className="ds-menu-item" onClick={()=>onMove(f.id)}><FolderIcon aria-hidden="true"/><span className="ds-truncate" title={f.name}>{f.parentId?`${folders.find(p=>p.id===f.parentId)?.name} / `:''}{f.name}</span></button></li>)}
    <li><button type="button" className="ds-menu-item" onClick={()=>onMove(null)}><Inbox aria-hidden="true"/>Not in a folder</button></li>
   </ul>
  </Dialog>;
 }
 
-export function LibraryScreen({items,folders,place,hrefFor,actions,createHref='/',above}:{items:WorkItem[];folders:Folder[];place:Place;hrefFor:(p:Place)=>string;actions:LibraryActions;createHref?:string;/** A folder's path and sub-folders, above its title. */above?:React.ReactNode}){
+export function LibraryScreen({items,folders,place,hrefFor,actions,createHref='/',above,readOnly,openId,foldersReady=true}:{items:WorkItem[];folders:Folder[];place:Place;hrefFor:(p:Place)=>string;actions:LibraryActions;createHref?:string;/** A folder's path and sub-folders, above its title. */above?:React.ReactNode;/** Viewers and staff viewing a client: look, open, download. */readOnly?:boolean;/** Open this item in the viewer (?open=). */openId?:string|null;/** Before migration 0006 there are no folders to move to. */foldersReady?:boolean}){
  const [query,setQuery]=React.useState(''),[sort,setSort]=React.useState<Sort>('new'),[view,setView]=React.useState<'grid'|'list'>('grid');
  const [tool,setTool]=React.useState(''),[car,setCar]=React.useState(''),[person,setPerson]=React.useState('');
- const [chosen,setChosen]=React.useState<Set<string>>(new Set()),[open,setOpen]=React.useState<number|null>(null),[moving,setMoving]=React.useState<string[]|null>(null);
- const live=items.filter(i=>!i.deleted),counts={all:live.length,unsorted:live.filter(i=>!i.folderId).length,deleted:items.length-live.length};
- const inPlace=place==='deleted'?items.filter(i=>i.deleted):place==='all'?live:place==='unsorted'?live.filter(i=>!i.folderId):live.filter(i=>i.folderId===place||folders.find(f=>f.id===i.folderId)?.parentId===place);
+ const [chosen,setChosen]=React.useState<Set<string>>(new Set()),[openItem,setOpenItem]=React.useState<string|null>(openId||null),[moving,setMoving]=React.useState<string[]|null>(null);
+ // Work whose folder was deleted is "Not in a folder".
+ const known=new Set(folders.map(f=>f.id)),inFolder=(i:WorkItem)=>!!i.folderId&&known.has(i.folderId);
+ const canMove=!readOnly&&foldersReady&&folders.length>0;
+ const live=items.filter(i=>!i.deleted),counts={all:live.length,unsorted:live.filter(i=>!inFolder(i)).length,deleted:items.length-live.length};
+ const inPlace=place==='deleted'?items.filter(i=>i.deleted):place==='all'?live:place==='unsorted'?live.filter(i=>!inFolder(i)):live.filter(i=>i.folderId===place||folders.find(f=>f.id===i.folderId)?.parentId===place);
  const q=query.trim().toLowerCase();
  const shown=inPlace.filter(i=>(!q||[i.name,i.car,i.person].some(v=>v?.toLowerCase().includes(q)))&&(!tool||i.tool===tool)&&(!car||i.car===car)&&(!person||i.person===person))
   .sort((a,b)=>sort==='name'?a.name.localeCompare(b.name):sort==='old'?a.at.localeCompare(b.at):b.at.localeCompare(a.at));
@@ -59,13 +62,15 @@ export function LibraryScreen({items,folders,place,hrefFor,actions,createHref='/
  const toggle=(id:string,on:boolean)=>setChosen(s=>{const n=new Set(s);if(on)n.add(id);else n.delete(id);return n});
  const clear=()=>{setQuery('');setTool('');setCar('');setPerson('')};
  const ids=[...chosen],deletedView=place==='deleted';
+ const open=openItem?shown.findIndex(m=>m.id===openItem):-1;
+ const openTile=(m:WorkItem)=>{if(m.kind==='image'||!m.href||deletedView)setOpenItem(m.id);else location.assign(m.href)};
  const title=deletedView?'Deleted':place==='all'?'Library':place==='unsorted'?'Not in a folder':folders.find(f=>f.id===place)?.name||'Library';
  return <div className="ds-library">
   <FolderNav folders={folders} place={place} counts={counts} hrefFor={hrefFor}/>
   <div className="workspace-library-main">
    {above}
    <PageHeader title={title} lede={deletedView?'Deleted work keeps everything it had. Restore brings it back where it was.':place==='all'?'Everything your company has made, in one place.':`${inPlace.length.toLocaleString('en-US')} items`}
-    actions={!deletedView&&<Link className="ds-btn primary" href={createHref}><Plus aria-hidden="true"/>Create</Link>}/>
+    actions={!deletedView&&!readOnly&&<Link className="ds-btn primary" href={createHref}><Plus aria-hidden="true"/>Create</Link>}/>
    <div className="workspace-place-phone"><label className="ds-label" htmlFor="library-place">Folder</label>
     <Select id="library-place" value={place} onChange={e=>{location.href=hrefFor(e.target.value)}}>
      <option value="all">Everything ({counts.all})</option>
@@ -92,24 +97,27 @@ export function LibraryScreen({items,folders,place,hrefFor,actions,createHref='/
       :deletedView?<State kind="empty" title="Nothing deleted">What you delete waits here, with Restore.</State>
       :<State kind="empty" title="Nothing here yet" actions={<Link className="ds-btn primary" href={createHref}><Plus aria-hidden="true"/>Create</Link>}>Move work here from the library with Move to…</State>)
     :view==='grid'
-     ?<MediaGrid label={title} selecting={chosen.size>0}>{shown.map((m,i)=><MediaTile key={m.id} item={m} selected={chosen.has(m.id)} onSelect={on=>toggle(m.id,on)} onOpen={()=>setOpen(i)}
-        onMove={deletedView?undefined:()=>setMoving([m.id])} onDownload={actions.onDownload&&m.src?()=>actions.onDownload!(m):undefined} onDelete={deletedView?undefined:()=>actions.onDelete([m.id])}/>)}</MediaGrid>
+     ?<MediaGrid label={title} selecting={chosen.size>0}>{shown.map((m,i)=><MediaTile key={m.id} item={m} selected={chosen.has(m.id)} onSelect={readOnly?undefined:on=>toggle(m.id,on)} onOpen={()=>openTile(m)}
+        onMove={deletedView||!canMove?undefined:()=>setMoving([m.id])} onDownload={actions.onDownload&&m.src?()=>actions.onDownload!(m):undefined} onDelete={deletedView||readOnly?undefined:()=>actions.onDelete([m.id])}/>)}</MediaGrid>
      :<div className="ds-list" role="list" aria-label={title}>{shown.map((m,i)=><div key={m.id} className="ds-list-row" role="listitem" data-selected={chosen.has(m.id)||undefined}>
-        <label className="ds-check"><input type="checkbox" checked={chosen.has(m.id)} onChange={e=>toggle(m.id,e.target.checked)} aria-label={`Select ${m.name}`}/></label>
-        <span className="ds-list-thumb" aria-hidden="true">{/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}{m.src&&<img src={m.src} alt=""/>}</span>
-        <button type="button" className="ds-link ds-truncate" title={m.name} onClick={()=>setOpen(i)}>{m.name}</button>
+        {!readOnly&&<label className="ds-check"><input type="checkbox" checked={chosen.has(m.id)} onChange={e=>toggle(m.id,e.target.checked)} aria-label={`Select ${m.name}`}/></label>}
+        <span className="ds-list-thumb" aria-hidden="true">
+         {/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
+         {m.src&&<img src={m.src} alt=""/>}
+        </span>
+        <button type="button" className="ds-link ds-truncate" title={m.name} onClick={()=>openTile(m)}>{m.name}</button>
         <span className="ds-tile-sub">{m.tool}</span><span className="ds-tile-sub ds-list-hide-phone">{m.person}</span><span className="ds-tile-sub">{m.sub}</span>
        </div>)}</div>}
    <BulkBar count={chosen.size} onClear={()=>setChosen(new Set())}>
     {deletedView
      ?<Button size="sm" icon={<ArchiveRestore aria-hidden="true"/>} onClick={()=>{actions.onRestore(ids);setChosen(new Set())}}>Restore</Button>
-     :<><Button size="sm" icon={<FolderInput aria-hidden="true"/>} onClick={()=>setMoving(ids)}>Move to…</Button>
+     :<>{canMove&&<Button size="sm" icon={<FolderInput aria-hidden="true"/>} onClick={()=>setMoving(ids)}>Move to…</Button>}
        {actions.onDownload&&<Button size="sm" icon={<Download aria-hidden="true"/>} onClick={()=>shown.filter(m=>chosen.has(m.id)&&m.src).forEach(m=>actions.onDownload!(m))}>Download</Button>}
        <Button size="sm" icon={<Trash2 aria-hidden="true"/>} onClick={()=>{actions.onDelete(ids);setChosen(new Set())}}>Delete</Button></>}
    </BulkBar>
    <MoveDialog open={!!moving} folders={folders} count={moving?.length||0} onClose={()=>setMoving(null)} onMove={f=>{actions.onMove(moving||[],f);setMoving(null);setChosen(new Set())}}/>
-   <Viewer items={shown} index={open} onIndex={setOpen} onClose={()=>setOpen(null)} onDownload={actions.onDownload?m=>actions.onDownload!(m as WorkItem):undefined}
-    onMove={deletedView?undefined:m=>setMoving([m.id])} onDelete={deletedView?undefined:m=>{setOpen(null);actions.onDelete([m.id])}}/>
+   <Viewer items={shown} index={open>=0?open:null} onIndex={i=>setOpenItem(shown[i]?.id??null)} onClose={()=>setOpenItem(null)} onDownload={actions.onDownload?m=>actions.onDownload!(m as WorkItem):undefined}
+    onMove={deletedView||!canMove?undefined:m=>setMoving([m.id])} onDelete={deletedView||readOnly?undefined:m=>{setOpenItem(null);actions.onDelete([m.id])}}/>
   </div>
  </div>;
 }

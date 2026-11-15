@@ -3,7 +3,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import {ArrowRight,Car,Lock,Search,Sparkles} from 'lucide-react';
 import {Button} from '@/components/ds/button';
-import {Badge} from '@/components/ds/feedback';
+import {Badge,SkeletonTile} from '@/components/ds/feedback';
 import {MediaTile} from '@/components/ds/media';
 import type {WorkItem} from './items';
 
@@ -12,7 +12,7 @@ import type {WorkItem} from './items';
 export type HomeTool={key:string;name:string;line:string;href:string;icon:React.ReactNode;cost?:string;locked?:string};
 export type HomeCar={name:string;href:string};
 
-export function HomeScreen({greeting,tools,recent,cars,onStart,libraryHref='/library'}:{greeting?:string;tools:HomeTool[];recent:WorkItem[];cars:HomeCar[];onStart:(brief:string)=>void;libraryHref?:string}){
+export function HomeScreen({greeting,tools,recent,cars,onStart,libraryHref='/library'}:{greeting?:string;tools:HomeTool[];/** null while loading: the row keeps its height. */recent:WorkItem[]|null;cars:HomeCar[];onStart:(brief:string)=>void;libraryHref?:string}){
  const [brief,setBrief]=React.useState('');
  return <div className="ds-blocks workspace-home">
   <div className="ds-hero">
@@ -48,7 +48,8 @@ export function HomeScreen({greeting,tools,recent,cars,onStart,libraryHref='/lib
 
   <section aria-labelledby="home-recent">
    <div className="ds-block-head"><h2 className="ds-block-title" id="home-recent">Recent work</h2><Link className="ds-link" href={libraryHref}>Open the library<ArrowRight aria-hidden="true" className="workspace-link-icon"/></Link></div>
-   {recent.length
+   {recent===null?<div className="ds-scroller" aria-busy="true" aria-label="Loading recent work">{Array.from({length:6},(_,i)=><SkeletonTile key={i}/>)}</div>
+    :recent.length
     ?<div className="ds-scroller" role="list" aria-label="Recent work">{recent.map(m=><MediaTile key={m.id} item={m} onOpen={()=>{location.href=m.href||libraryHref}}/>)}</div>
     :<p className="ds-muted">Nothing yet. What you make appears here and in the library.</p>}
   </section>

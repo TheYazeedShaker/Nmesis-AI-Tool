@@ -55,7 +55,8 @@ export async function resolveVisual(ctx:Context,visual:Visual):Promise<Visual>{
  return visual;
 }
 // The whole company's library: every member's saved visuals and image jobs.
-export async function visualLibrary(ctx:Context,deleted=false){
+// `both`: the live and the deleted together, each marked (the one library feed, lib/library.ts).
+export async function visualLibrary(ctx:Context,deleted:boolean|'both'=false){
   const store=bucket(ctx.BUCKET),warnings:string[]=[],deletedIds=new Set<string>(),items:{owner:string;visual:Visual}[]=[];
   for(const owner of await memberPrefixes(ctx)){
    await deletedIn(store,owner,deletedIds);
@@ -71,7 +72,7 @@ export async function visualLibrary(ctx:Context,deleted=false){
    try{items.push({owner:row.owner,visual:publicImage(row)})}
    catch(e){warnings.push('An image job could not be read.');console.warn('Library: skipped an unreadable image job',JSON.stringify({id:row.id,status:row.status,reason:e instanceof Error?e.message.slice(0,120):'unknown'}))}
   }
-  const visuals=await eachBatch(items.filter(x=>deletedIds.has(x.visual.id)===deleted),async x=>{const v=await resolveVisual({...ctx,prefix:x.owner},x.visual);return {...v,error:clientText(v.error),mine:x.owner===ctx.prefix}});
+  const visuals=await eachBatch(items.filter(x=>deleted==='both'||deletedIds.has(x.visual.id)===deleted),async x=>{const v=await resolveVisual({...ctx,prefix:x.owner},x.visual);return {...v,error:clientText(v.error),mine:x.owner===ctx.prefix,deleted:deletedIds.has(x.visual.id)}});
   return {visuals:visuals.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),warning:warnings.length?'Some image records could not be read. Refresh to try again.':undefined};
 }
 export async function cleanEmptyVisuals(ctx:Context){

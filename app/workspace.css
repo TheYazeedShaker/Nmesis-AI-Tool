@@ -51,3 +51,5 @@
 .workspace-crumbs svg { width: var(--ds-icon); height: var(--ds-icon); }
 .workspace-subfolders { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); margin-bottom: var(--ds-space-24); }
 .workspace-subfolders .ds-chip { text-decoration: none; }
+.workspace-folder-page { min-width: 0; }
+.workspace-move-list { display: flex; flex-direction: column; gap: var(--ds-space-2); }

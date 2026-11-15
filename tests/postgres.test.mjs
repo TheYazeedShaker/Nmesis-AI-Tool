@@ -23,10 +23,12 @@ if(skip)console.log('# '+skip);
 const PASSWORD='local-test-password-0123456789';
 // Stands in for hosted Supabase's SQL-editor user (not a superuser; CREATEROLE).
 const SETUP_ROLE='studio_setup_test';
-const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log'];
-const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql'];
+const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log','folders','folder_items'];
+const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql','0006_folders.sql'];
 // Client work, filtered by environment (0004); the holds and the staff log record it.
-const SCOPED=['films','swap_jobs','storyboards','image_jobs','topaz_jobs','film_budgets'];
+// The tables 0004 scoped (they existed before it); 0006 adds folders scoped the same way from the start.
+const SCOPED_0004=['films','swap_jobs','storyboards','image_jobs','topaz_jobs','film_budgets'];
+const SCOPED=[...SCOPED_0004,'folders','folder_items'];
 const RECORDED=['credit_holds','staff_access_log'];
 // The environment these tests run as: no VERCEL_ENV, not production.
 const ENV='development';
@@ -104,11 +106,11 @@ test('migrations apply once, are idempotent, and refuse a changed file; rows fro
   for(const m of MIGRATIONS.slice(0,3))writeFileSync(join(before,m),migrationSql(m));
   assert.deepEqual(await migrate(appUrl,{folder:pathToFileURL(before+'/'),log:x=>log.push(x)}),MIGRATIONS.slice(0,3));
  }finally{rmSync(before,{recursive:true,force:true})}
- for(const table of SCOPED)await admin.unsafe(...ROW[table]('legacy-1',ORG_A));
+ for(const table of SCOPED_0004)await admin.unsafe(...ROW[table]('legacy-1',ORG_A));
  await admin.unsafe(`insert into studio.credit_holds(id,org_id,actor,tool,action,provider,billing,credits,created_at,updated_at,expires_at) values('legacy-hold','${ORG_A}','x','t','a','p','credits',1,1,1,1)`);
  await admin.unsafe(ROW.staff_access_log('legacy-1',ORG_A)[0],ROW.staff_access_log('legacy-1',ORG_A)[1]);
  assert.deepEqual(await migrate(appUrl,{log:x=>log.push(x)}),MIGRATIONS.slice(3));
- for(const table of [...SCOPED,...RECORDED]){
+ for(const table of [...SCOPED_0004,...RECORDED]){
   const rows=await admin.unsafe(`select environment from studio.${table}`);
   assert.ok(rows.length>0,table+' has its existing row');
   assert.deepEqual([...new Set(rows.map(r=>r.environment))],['production'],table+': existing rows are Production\'s');
@@ -201,8 +203,10 @@ const ROW={
  image_jobs:(id,org)=>[`insert into studio.image_jobs(id,org_id,owner,payer,data,created_at,updated_at) values($1,$2,$3,$3,'{}',1,1)`,[id,org,'orgs/'+org+'/users/x/']],
  topaz_jobs:(id,org)=>[`insert into studio.topaz_jobs(id,org_id,owner,parent_id,status,data,created_at,updated_at) values($1,$2,$3,'p','ready','{}',1,1)`,[id,org,'orgs/'+org+'/users/x/']],
  staff_access_log:(id,org)=>[`insert into studio.staff_access_log(id,org_id,staff_user,at) values($1,$2,'x',1)`,[id,org]],
+ folders:(id,org)=>[`insert into studio.folders(id,org_id,name,created_by,created_at,updated_at) values($1,$2,'Folder',$3,1,1)`,[id,org,'orgs/'+org+'/users/x/']],
+ folder_items:(id,org)=>[`insert into studio.folder_items(org_id,item_kind,item_id,folder_id,updated_at) values($2,'visual',$1,'f',1)`,[id,org]],
 };
-const KEY={film_budgets:'payer'};
+const KEY={film_budgets:'payer',folder_items:'item_id'};
 // A row written as the superuser, in one environment (what the adapter's
 // studio.env does for the Studio's own statements).
 const insertIn=(env,[text,args])=>admin.begin(async tx=>{await tx`select set_config('studio.env', ${env}, true)`;await tx.unsafe(text,args)});
@@ -471,5 +475,34 @@ test('trash: a member deletes and restores their company’s work; another compa
    assert.equal((await a.prepare(`UPDATE ${t} SET deleted_at=NULL WHERE id=? AND org_id=?`).bind('trash-1',ORG_A).run()).meta.changes,1,t+': restored');
    assert.deepEqual(await list(false),['trash-1'],t+': back in the list');
   }
+ }finally{await sql.end({timeout:5})}
+});
+
+// Folders (0006) as lib/folders.ts writes them: a member's company only, its
+// environment only, one folder per piece of work, and a deleted folder keeps
+// its memberships for Undo.
+test('folders: a member files work in their company’s folders; another company or environment sees nothing',{skip},async()=>{
+ await setup();
+ for(const t of ['folders','folder_items'])await admin.unsafe(`delete from studio.${t}`);
+ const sql=connect(appUrl);
+ const prod=new StudioDatabase(sql,null,'production'),prev=new StudioDatabase(sql,null,'preview');
+ try{
+  const a=prod.forUser(USER_A),owner=ownerOf(ORG_A,USER_A);
+  assert.equal((await a.prepare('INSERT INTO folders(id,org_id,parent_id,name,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind('folder-a1',ORG_A,null,'Launch',owner,1,1).run()).meta.changes,1);
+  await assert.rejects(()=>a.prepare('INSERT INTO folders(id,org_id,parent_id,name,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind('folder-b1',ORG_B,null,'Not mine',owner,1,1).run(),/row-level security/,'not into another company');
+  const file=(db,item,folder)=>db.prepare('INSERT INTO folder_items(org_id,item_kind,item_id,folder_id,updated_at) VALUES(?,?,?,?,?)').bind(ORG_A,'visual',item,folder,1).run();
+  assert.equal((await file(a,'visual-1','folder-a1')).meta.changes,1);
+  await assert.rejects(()=>file(a,'visual-1','folder-a1'),/duplicate key/,'one folder per piece of work');
+  const seen=async db=>(await db.prepare('SELECT f.name AS name,i.item_id AS item FROM folders f JOIN folder_items i ON i.folder_id=f.id WHERE f.org_id=? AND f.deleted_at IS NULL').bind(ORG_A).all()).results;
+  assert.deepEqual((await seen(a)).map(r=>r.item),['visual-1']);
+  assert.deepEqual(await seen(prod.forUser(USER_B)),[],'another company sees none of it');
+  assert.deepEqual(await seen(prev.forUser(USER_A)),[],'Preview sees none of Production’s folders');
+  assert.equal((await prev.forUser(USER_A).prepare('UPDATE folders SET name=? WHERE id=?').bind('Taken','folder-a1').run()).meta.changes,0,'nor renames them');
+  // Delete keeps the memberships, so Undo puts the work back.
+  assert.equal((await a.prepare('UPDATE folders SET deleted_at=? WHERE org_id=? AND deleted_at IS NULL AND (id=? OR parent_id=?)').bind(5,ORG_A,'folder-a1','folder-a1').run()).meta.changes,1);
+  assert.deepEqual(await seen(a),[]);
+  assert.equal((await a.prepare('UPDATE folders SET deleted_at=NULL WHERE org_id=? AND deleted_at=? AND (id=? OR parent_id=?)').bind(ORG_A,5,'folder-a1','folder-a1').run()).meta.changes,1);
+  assert.deepEqual((await seen(a)).map(r=>r.item),['visual-1']);
+  await assert.rejects(()=>a.prepare("INSERT INTO folder_items(org_id,item_kind,item_id,folder_id,updated_at) VALUES(?,'thing',?,?,1)").bind(ORG_A,'x-1','folder-a1').run(),/folder_items_kind_ck/,'only the four kinds of work');
  }finally{await sql.end({timeout:5})}
 });

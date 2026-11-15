@@ -2,6 +2,7 @@
 import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {Coins,Info} from 'lucide-react';
+import {Banner} from '@/components/ds/shell';
 import {creditsLabel,CREDITS_USED} from '@/lib/credits/words';
 import type {CreditOverview} from '@/lib/credits/usage';
 import type {CostKey,CreditProvider} from '@/lib/credits/pricing';
@@ -65,11 +66,13 @@ export function CreditMeter(){
   :<span className={className} title={words} role="img" aria-label={`Credits: ${m.used} used, ${m.left} left this month.`}>{inner}</span>;
 }
 // Under the top bar at 80% and 100%.
-export function CreditBanner(){
+export function CreditBanner({variant}:{variant?:'ds'}={}){
  const o=useCredits();
  if(!o||o.unlimited||!o.meter||!o.meter.level)return null;
  const m=o.meter,resets=m.resetsOn?` They reset on ${m.resetsOn}.`:'';
- return <div className={'credit-banner'+(m.level===100?' credit-out':'')} role="status"><Info size={16}/><span>{m.level===100?CREDITS_USED+resets:`Your company has used ${m.percent}% of this month’s credits: ${creditsLabel(m.left)} left.${resets} Ask Nmesis to add a pack if you need more.`}{o.usage?<> <Link href="/usage">Usage</Link></>:null}</span></div>;
+ const words=<>{m.level===100?CREDITS_USED+resets:`Your company has used ${m.percent}% of this month’s credits: ${creditsLabel(m.left)} left.${resets} Ask Nmesis to add a pack if you need more.`}{o.usage?<> <Link className={variant==='ds'?'ds-link':undefined} href="/usage">Usage</Link></>:null}</>;
+ if(variant==='ds')return <Banner kind={m.level===100?'bad':'warn'} icon={<Info/>}>{words}</Banner>;
+ return <div className={'credit-banner'+(m.level===100?' credit-out':'')} role="status"><Info size={16}/><span>{words}</span></div>;
 }
 // For companies without their own keys: no key fields, just who provides the AI.
 export function NmesisProvides({provider}:{provider:CreditProvider}){

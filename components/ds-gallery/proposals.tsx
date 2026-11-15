@@ -84,7 +84,7 @@ export function ProposalScreen({screen}:{screen:Proposal}){
  };
  const current:StudioPage=screen==='home'?'home':screen==='library'?'library':'projects';
  return <WorkspaceFrame current={current} preview={PREVIEW} notices={<Notices/>}>
-  {screen==='home'&&<HomeScreen greeting="Good morning, Alex" tools={HOME_TOOLS} recent={all.filter(i=>!i.deleted).slice(0,10)} cars={CARS.map(c=>({name:c,href:'#key-visual?car='+encodeURIComponent(c)}))} onStart={()=>toast.toast({message:'Opens a key visual with your words.'})} libraryHref="/design-system/proposals/library"/>}
+  {screen==="home"&&<HomeScreen tools={HOME_TOOLS} recent={all.filter(i=>!i.deleted).slice(0,10)} cars={CARS.map(c=>({name:c,href:'#key-visual?car='+encodeURIComponent(c)}))} onStart={()=>toast.toast({message:'Opens a key visual with your words.'})} libraryHref="/design-system/proposals/library"/>}
   {screen==='library'&&<LibraryScreen items={all} folders={folders} place={place} hrefFor={p=>`#${p}`} actions={actions} createHref="/design-system/proposals/home"/>}
   {screen==='projects'&&<ProjectsScreen folders={folders} canEdit actions={folderActions}/>}
   {screen==='folder'&&<FolderScreen folder={folders[0]} folders={folders} items={all} canEdit folderActions={folderActions} libraryActions={actions}/>}
