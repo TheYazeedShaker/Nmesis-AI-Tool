@@ -37,10 +37,25 @@ export function layoutChecks({ phone }) {
     const name = (el.getAttribute('aria-label') || el.innerText || el.value || el.getAttribute('title') || '').trim().replace(/\s+/g, ' ').slice(0, 40);
     return el.tagName.toLowerCase() + id + cls + (name ? ' "' + name + '"' : '');
   };
-  const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.01; };
+  // Visually hidden on purpose (screen-reader text, the 1 px skip-link pattern,
+  // clip-path / clip hiding): neither a target, nor drawn over, nor clipped text.
+  const hiddenOnPurpose = (el) => {
+    for (let n = el; n && n !== document.body; n = n.parentElement) {
+      const cs = getComputedStyle(n), r = n.getBoundingClientRect();
+      if ((r.width <= 2 || r.height <= 2) && cs.overflow !== 'visible') return true;
+      if (/inset\(50%\)|rect\(0/.test(cs.clipPath + ' ' + cs.clip)) return true;
+    }
+    return false;
+  };
+  const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.01 && !hiddenOnPurpose(el); };
   const out = { overflowX: document.documentElement.scrollWidth - window.innerWidth, under24: [], under44: [], overlapped: [], clippedNoEllipsis: [], ellipsisNoTitle: [], interactive: 0 };
-  const interactive = [...document.querySelectorAll('a[href], button, input:not([type=hidden]), select, textarea, summary, [role=button], [role=tab], [role=menuitem], [role=switch], [role=checkbox], [tabindex]:not([tabindex="-1"])')].filter(visible);
+  // With a dialog open, only what is in it can be reached; the page behind is
+  // meant to be covered.
+  const dialogs = [...document.querySelectorAll('dialog[open], [role=dialog], [role=alertdialog]')].filter(visible);
+  const scope = dialogs.length ? dialogs[dialogs.length - 1] : document;
+  const interactive = [...scope.querySelectorAll('a[href], button, input:not([type=hidden]), select, textarea, summary, [role=button], [role=tab], [role=menuitem], [role=switch], [role=checkbox], [tabindex]:not([tabindex="-1"])')].filter(visible);
   out.interactive = interactive.length;
+  out.dialogOpen = dialogs.length > 0;
   for (const el of interactive) {
     const r = el.getBoundingClientRect();
     // 2.5.8 exception: a link inside a sentence.
@@ -86,9 +101,21 @@ export function focusState() {
   };
   const el = document.activeElement;
   if (!el || el === document.body || el === document.documentElement) return null;
+  // An indicator is anything that changes when focus arrives: outline, shadow,
+  // border, background or text colour (2.4.7). Read focused, then unfocused.
+  const look = (n) => { const s = getComputedStyle(n); return [s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0 ? s.outlineColor + s.outlineWidth : 'none', s.boxShadow, s.borderTopColor, s.borderBottomColor, s.backgroundColor, s.color].join('|'); };
+  const holder = el.parentElement;
+  const focused = look(el) + '#' + (holder ? look(holder) : '');
   const cs = getComputedStyle(el);
   const outline = cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0;
   const shadow = cs.boxShadow && cs.boxShadow !== 'none';
+  let changed = outline || shadow;
+  if (!changed && typeof el.blur === 'function') {
+    el.blur();
+    const unfocused = look(el) + '#' + (holder ? look(holder) : '');
+    el.focus({ preventScroll: true });
+    changed = unfocused !== focused;
+  }
   const r = el.getBoundingClientRect();
   const pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + 2, r.top + 2], [r.right - 2, r.top + 2], [r.left + 2, r.bottom - 2], [r.right - 2, r.bottom - 2]]
     .filter(([x, y]) => x >= 0 && y >= 0 && x < innerWidth && y < innerHeight);
@@ -100,6 +127,6 @@ export function focusState() {
     while (n && n !== document.body) { const p = getComputedStyle(n).position; if (p === 'fixed' || p === 'sticky') { pinned = true; break; } n = n.parentElement; }
     if (pinned) { covered++; coveredBy = describe(n); }
   }
-  return { el: describe(el), indicator: outline || shadow, offscreen: pts.length === 0, covered, points: pts.length, coveredBy, size: [Math.round(r.width), Math.round(r.height)] };
+  return { el: describe(el), indicator: changed, offscreen: pts.length === 0, covered, points: pts.length, coveredBy, size: [Math.round(r.width), Math.round(r.height)] };
 }
 

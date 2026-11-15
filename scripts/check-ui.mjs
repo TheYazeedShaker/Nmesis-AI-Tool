@@ -62,7 +62,6 @@ const SCREENS = [
   { id: 'forgot-password', path: '/signin/forgot', roles: ['anon'], full: ['anon'] },
   { id: 'choose-password', path: '/auth/password', roles: ['owner'] },
   { id: 'no-company', path: '/auth/no-company', roles: ['nocompany'] },
-  { id: 'six-digit-code', path: '/auth/code', roles: ['staff'] },
   { id: 'workspace', path: '/', roles: CLIENT_ROLES, full: ['owner'] },
   { id: 'library', path: '/', action: 'library', roles: ['owner', 'viewer', 'ended', 'staffViewing'], full: ['owner'] },
   { id: 'viewer', path: '/', action: 'viewer', roles: ['owner', 'viewer'] },
