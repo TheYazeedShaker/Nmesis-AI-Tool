@@ -48,7 +48,8 @@ test('cards say the tool and a plain quality, never the provider or model (F-050
   const page = read('app/page.tsx');
   assert.match(page, /<p className="visual-generator-label">\{visualToolLabel\(r\)\} · \{visualQualityLabel\(r\)\}/);
   assert.match(page, /\{r\.provider&&showProvider&&<p className="visual-generator-label">Made with /);
-  assert.match(page, /const showProvider=!!account&&\(account\.staff\|\|account\.features\['studio\.own_keys'\]===true\)/);
+  assert.match(page, /const showProvider=providerNames\(account\)/);
+  assert.match(read('components/studio-account.tsx'), /export const providerNames=\(account:AccountSummary\|null\)=>!!account&&\(account\.staff\|\|account\.features\['studio\.own_keys'\]===true\)/);
   assert.doesNotMatch(page, /'Creating with Higgsfield'|ChatGPT \/ OpenAI'\)\}\{r\.status/);
 });
 

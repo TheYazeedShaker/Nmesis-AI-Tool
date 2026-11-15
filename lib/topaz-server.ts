@@ -1,3 +1,4 @@
+import {clientText} from './client-text';
 import {bucket,StudioError,imageKey,validId} from './studio-server';
 import {database,type FilmContext} from './film-server';
 import {credentialContext,keyAccess,keysManagedBy,KEYS_NOT_ON_PLAN} from './org-keys';
@@ -39,7 +40,7 @@ export async function saveTopazKey(ctx:Ctx,key:string){
 }
 export async function removeTopazKey(ctx:Ctx){ctx=await managedKeys(ctx);await bucket(ctx.BUCKET).delete(secretPath(ctx))}
 export async function topazRow(ctx:Ctx,id:string){if(!validId(id))throw new StudioError('Upscale request not found.',404);const row=await database(ctx).prepare('SELECT * FROM topaz_jobs WHERE id=? AND owner=?').bind(id,ctx.prefix).first<Row>();if(!row)throw new StudioError('Upscale request not found.',404);return row}
-export async function publicTopaz(ctx:Ctx,row:Row):Promise<TopazJob>{const d=JSON.parse(row.data) as Data;const saved=row.status==='ready'?await bucket(ctx.BUCKET).get(ctx.prefix+'visuals/'+row.id+'.json'):null;return{id:row.id,parentId:row.parent_id,status:row.status,progress:d.progress||0,createdAt:row.created_at,error:row.error||undefined,width:d.width,height:d.height,credits:Number(row.credits)||0,visual:saved?await saved.json<Visual>():undefined}}
+export async function publicTopaz(ctx:Ctx,row:Row):Promise<TopazJob>{const d=JSON.parse(row.data) as Data;const saved=row.status==='ready'?await bucket(ctx.BUCKET).get(ctx.prefix+'visuals/'+row.id+'.json'):null;return{id:row.id,parentId:row.parent_id,status:row.status,progress:d.progress||0,createdAt:row.created_at,error:clientText(row.error)||undefined,width:d.width,height:d.height,credits:Number(row.credits)||0,visual:saved?await saved.json<Visual>():undefined}}
 export async function listTopaz(ctx:Ctx,parentId:string){if(!validId(parentId))throw new StudioError('Choose a saved visual.');const rows=await database(ctx).prepare('SELECT * FROM topaz_jobs WHERE org_id=? AND owner=? AND parent_id=? ORDER BY created_at DESC LIMIT 10').bind(orgOf(ctx.prefix),ctx.prefix,parentId).all<Row>();return await Promise.all(rows.results.map(row=>publicTopaz(ctx,row)))}
 export async function startTopaz(ctx:Ctx,id:string,parentId:string,edge:number){
   if(!validId(id)||!validId(parentId))throw new StudioError('Choose a saved visual.');

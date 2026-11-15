@@ -25,6 +25,9 @@ export function useAccount(){
  return account;
 }
 // Until the account arrives a tool stays visible; the server refuses it anyway.
+// Whether this person may read provider and model names (F-050): Nmesis staff,
+// and companies whose plan includes their own keys. Everyone else reads plain words.
+export const providerNames=(account:AccountSummary|null)=>!!account&&(account.staff||account.features['studio.own_keys']===true);
 export const hasFeature=(account:AccountSummary|null,key:FeatureKey)=>!account||account.features[key]!==false;
 const ROLE_LABEL={owner:'Owner',creator:'Creator',viewer:'Viewer'} as const;
 export function AccountBar(){

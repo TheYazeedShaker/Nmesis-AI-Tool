@@ -1,3 +1,4 @@
+import {clientText} from './client-text';
 import {bucket,imageKey,validId,StudioError} from './studio-server';
 import {database,type FilmContext} from './film-server';
 import {publicImage,type ImageRow} from './image-server';
@@ -70,7 +71,7 @@ export async function visualLibrary(ctx:Context,deleted=false){
    try{items.push({owner:row.owner,visual:publicImage(row)})}
    catch(e){warnings.push('An image job could not be read.');console.warn('Library: skipped an unreadable image job',JSON.stringify({id:row.id,status:row.status,reason:e instanceof Error?e.message.slice(0,120):'unknown'}))}
   }
-  const visuals=await eachBatch(items.filter(x=>deletedIds.has(x.visual.id)===deleted),async x=>({...await resolveVisual({...ctx,prefix:x.owner},x.visual),mine:x.owner===ctx.prefix}));
+  const visuals=await eachBatch(items.filter(x=>deletedIds.has(x.visual.id)===deleted),async x=>{const v=await resolveVisual({...ctx,prefix:x.owner},x.visual);return {...v,error:clientText(v.error),mine:x.owner===ctx.prefix}});
   return {visuals:visuals.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),warning:warnings.length?'Some image records could not be read. Refresh to try again.':undefined};
 }
 export async function cleanEmptyVisuals(ctx:Context){

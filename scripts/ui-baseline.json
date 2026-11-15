@@ -2,6 +2,7 @@
   "note": "Counts from the full npm run check:ui matrix. They may only go down; Phase 4 brings them to zero. focusWithoutIndicator keeps the Phase 1 value: it moves by a few from run to run (CI allows +5).",
   "measured": "2026-11-15 (Phase 2a)",
   "counts": {
+    "providerNamesShown": 0,
     "pagesWithErrors": 0,
     "pagesWithSidewaysScroll": 8,
     "consoleErrors": 32,
