@@ -5,7 +5,7 @@ import {getStorage} from '@/lib/portable/storage';
 import {configuratorApiOrigin,ID,LOGO_HEIGHT,logoKey,readCar,storeSmall} from '@/lib/car-pictures';
 // A brand's logo for the top bar and the switcher: the brand name icon its
 // configurator shows, made small once and kept in the company's storage, on a
-// signed link. Only a brand the person can switch to. 404: no logo (the page
+// signed link. Only a brand the person can switch to. 204: no logo (the page
 // shows the brand's initials).
 export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){try{
  const ctx=await context(request),{id}=await params;
@@ -23,6 +23,7 @@ export async function GET(request:Request,{params}:{params:Promise<{id:string}>}
    if(icon){key=await storeSmall(store,logoKey(ctx.org,id,icon),icon,{box:{height:LOGO_HEIGHT}});break}
   }catch(e){console.warn('Brand logo unavailable',JSON.stringify({brand:id,reason:e instanceof Error?e.message.slice(0,120):'unknown'}))}
  }
- if(!key)return Response.json({error:'This brand has no logo yet.'},{status:404,headers:{'Cache-Control':'private, max-age=300'}});
+ // No frames (or no logo) is expected, not an error: no content, and the page shows its placeholder.
+ if(!key)return new Response(null,{status:204,headers:{'Cache-Control':'private, max-age=300'}});
  return new Response(null,{status:307,headers:{Location:await store.downloadUrl(key),'Cache-Control':'private, max-age=600'}});
 }catch(e){return fail(e)}}

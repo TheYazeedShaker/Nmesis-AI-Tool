@@ -140,6 +140,9 @@
   .ds-editor-canvas:has(.editor-stage) .ds-canvas-bar { min-height: calc(var(--ds-control-h) * 2 + var(--ds-space-8) * 3); align-content: flex-start; }
 }
 /* The chosen car's picture over the car picker (Phase 3 polish). */
-.editor-car-picture { display: grid; place-items: center; aspect-ratio: 16 / 9; border-radius: var(--ds-radius); overflow: hidden; background: var(--ds-panel-2); border: var(--ds-border-width) solid var(--ds-border); color: var(--ds-muted); }
-.editor-car-picture > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.editor-car-picture { display: grid; place-items: center; aspect-ratio: 16 / 9; max-height: calc(var(--ds-space-64) * 2); width: 100%; border-radius: var(--ds-radius); overflow: hidden; background: var(--ds-panel-2); border: var(--ds-border-width) solid var(--ds-border); color: var(--ds-muted); }
+.editor-car-picture > img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .editor-car-picture > svg { width: var(--ds-space-32); height: var(--ds-space-32); }
+/* The canvas bar never shrinks below its rows (Story on phones has three): the
+   canvas gives way, never the bar's buttons (check:ui overlapped). */
+.ds-editor-canvas > .ds-canvas-bar { flex: none; }

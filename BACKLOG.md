@@ -15,7 +15,7 @@ Status: `queued` · `in-progress` · `blocked` (reason required) · `done` · `a
 | 7   | DESIGN-P1        | owner brief 2026-11-15 | #6 | done        | Merged (#31): `check:ui`, performance baseline, CRUD matrix, 69 findings. |
 | 11  | ENV-SCOPE        | owner 2026-11-15       | —  | done        | Merged (#30). Owner migrates (0004) after the release to `main`. |
 | 8   | DESIGN-P2        | owner brief 2026-11-15 | #7 | done        | 2a merged (#32), 2b merged (#33). |
-| 9   | DESIGN-P3        | owner brief 2026-11-15 | #8 | in-progress | Group 1 merged (#34). Group 2 (`design/editor`): the library at scale (migration 0007, thumbnails, backfill) and the one editor for all five tools — PR waiting for review. |
+| 9   | DESIGN-P3        | owner brief 2026-11-15 | #8 | in-progress | Group 1 merged (#34), group 2 merged (#35). Editor polish (`design/editor-polish`): brands, car names and pictures, the drop zone, Inspiration, inner panels, phone Generate bar — PR waiting for review. |
 | 10  | DESIGN-P4        | owner brief 2026-11-15 | #9 | queued      | Empty `check:design` baseline, visual baselines, JS/Lighthouse budgets, the full PR rule in CLAUDE.md. |
 
 ## Blocked log

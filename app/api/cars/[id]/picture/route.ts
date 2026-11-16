@@ -6,7 +6,7 @@ import {configuratorApiOrigin,ID,PICTURE_WIDTH,pictureKey,readCar,storeSmall} fr
 // A car's real picture for Home and the car picker: the configurator's opening
 // frame, made small once and kept in the company's storage, on a signed link.
 // Only a car the company may use (staff: any live car). 404: the car has no
-// frames (the page shows a neutral car instead).
+// frames: 204 (the page shows a neutral car instead).
 export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){try{
  const ctx=await context(request),{id}=await params;
  const [brandId,modelId,...rest]=id.split('.');
@@ -20,6 +20,7 @@ export async function GET(request:Request,{params}:{params:Promise<{id:string}>}
   const {frame}=await readCar(brandId,modelId,{origin});
   if(frame)key=await storeSmall(store,pictureKey(ctx.org,brandId,modelId,frame),frame,{box:{width:PICTURE_WIDTH}});
  }catch(e){console.warn('Car picture unavailable',JSON.stringify({car:id,reason:e instanceof Error?e.message.slice(0,120):'unknown'}))}
- if(!key)return Response.json({error:'This car has no picture yet.'},{status:404,headers:{'Cache-Control':'private, max-age=300'}});
+ // No frames (or no logo) is expected, not an error: no content, and the page shows its placeholder.
+ if(!key)return new Response(null,{status:204,headers:{'Cache-Control':'private, max-age=300'}});
  return new Response(null,{status:307,headers:{Location:await store.downloadUrl(key),'Cache-Control':'private, max-age=600'}});
 }catch(e){return fail(e)}}

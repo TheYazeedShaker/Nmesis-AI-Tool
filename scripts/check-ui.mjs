@@ -342,7 +342,7 @@ async function stateShots() {
   const STATES = [
     { id: 'home', role: 'owner', path: '/' },
     { id: 'key-visual-live', role: 'owner', path: '/key-visual' },
-    { id: 'key-visual-captured', role: 'owner', path: '/key-visual', steps: ['settings', 'text:Captured view'] },
+    { id: 'key-visual-captured', role: 'owner', path: '/key-visual', steps: ['settings', 'radio:Captured view'] },
     { id: 'inspiration', role: 'owner', path: '/key-visual', steps: ['settings', 'scroll:Inspiration'] },
     { id: 'switcher-one-brand', role: 'owner', path: '/', steps: ['switcher'] },
     { id: 'switcher-several-brands', role: 'enterprise', path: '/', steps: ['switcher'] },
@@ -361,6 +361,7 @@ async function stateShots() {
         // The settings are a sheet on phones: open it first.
         else if (step === 'settings') { const b = page.locator('.ds-phone-generate button:visible', { hasText: 'Settings' }).first(); if (await b.count()) await b.click({ timeout: 3000 }).catch(() => {}); }
         else if (step.startsWith('text:')) { const t = page.getByText(step.slice(5), { exact: false }).locator('visible=true').first(); if (await t.count()) await t.click({ timeout: 3000 }).catch(() => {}); }
+        else if (step.startsWith('radio:')) { const t = page.getByRole('radio', { name: step.slice(6) }).first(); if (await t.count()) await t.check({ force: true, timeout: 3000 }).catch(() => {}); }
         else if (step.startsWith('scroll:')) { const t = page.getByRole('heading', { name: step.slice(7) }).locator('visible=true').first(); if (await t.count()) await t.scrollIntoViewIfNeeded().catch(() => {}); }
         await ready(page);
       }
