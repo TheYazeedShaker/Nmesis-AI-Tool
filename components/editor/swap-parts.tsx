@@ -1,11 +1,12 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import {AlertTriangle,Check,Coins,ExternalLink,ImagePlus,LockKeyhole,Upload,X} from 'lucide-react';
+import {AlertTriangle,Check,Coins,ExternalLink,LockKeyhole,X} from 'lucide-react';
 import {Button,IconButton} from '@/components/ds/button';
 import {Banner} from '@/components/ds/shell';
 import {Dialog} from '@/components/ds/dialog';
 import {Checkbox,Field,Input,Radio,RadioGroup} from '@/components/ds/field';
+import {DropZone} from '@/components/ds/drop-zone';
 import {useCredits} from '@/components/credits';
 import {creditsLabel} from '@/lib/credits/words';
 import type {Swap} from '@/lib/swaps';
@@ -50,21 +51,19 @@ export function SwapAlert({error,onDismiss}:{error:string;onDismiss:()=>void}){
  return <Banner kind="bad" icon={<AlertTriangle/>}><span className="editor-swap-alert">{error}<IconButton label="Dismiss" size="sm" onClick={onDismiss}><X aria-hidden="true"/></IconButton></span></Banner>;
 }
 
-export function SwapAdSection({name,seconds,onChoose,disabled}:{name?:string;seconds?:number;onChoose:()=>void;disabled?:boolean}){
+export function SwapAdSection({name,seconds,onFile,busy,disabled}:{name?:string;seconds?:number;onFile:(file:File)=>unknown;busy?:boolean;disabled?:boolean}){
  return <SettingsSection title="Reference ad" id="swap-ad-title">
-  <div className="editor-upload"><Upload aria-hidden="true"/>
-   <span>{name?<><b className="ds-truncate" title={name}>{name}</b><span className="ds-muted">{typeof seconds==='number'?`${seconds.toFixed(1)} seconds`:''}</span></>
-    :<><b>No ad yet</b><span className="ds-muted">MP4 · 4–30 seconds · at least 409,600 pixels per frame</span></>}</span>
-   <Button size="sm" kind="quiet" disabled={disabled} onClick={onChoose}>{name?'Change ad':'Choose ad'}</Button>
-  </div>
+  <DropZone kind="video" name="reference ad" label="Drop or upload your reference ad" hint="MP4 · 4–30 seconds · at least 409,600 pixels per frame · up to 48 MB"
+   value={name?'ad':null} valueName={name} valueMeta={typeof seconds==='number'?`${seconds.toFixed(1)} seconds`:undefined}
+   onFile={onFile} busy={busy?'Uploading your ad…':false} disabled={disabled}/>
   <p className="ds-help">The ad guides the camera move, timing and scene. Use an ad you have permission to edit.</p>
  </SettingsSection>;
 }
 
-export function SwapCarViews({views,onRemove,onAdd,disabled,configuratorUrl}:{views:CarView[];onRemove:(id:string)=>void;onAdd:()=>void;disabled?:boolean;configuratorUrl:string}){
+export function SwapCarViews({views,onRemove,onFile,disabled,configuratorUrl}:{views:CarView[];onRemove:(id:string)=>void;onFile:(file:File)=>unknown;disabled?:boolean;configuratorUrl:string}){
  return <SettingsSection title="Car views" id="swap-views-title">
-  <div className="editor-row editor-swap-views-head"><span className="ds-label">{views.length} / 8 car views</span>
-   <Button size="sm" kind="quiet" icon={<ImagePlus aria-hidden="true"/>} disabled={disabled||views.length>=8} onClick={onAdd}>Add image</Button></div>
+  <div className="editor-row editor-swap-views-head"><span className="ds-label">{views.length} / 8 car views</span></div>
+  <DropZone name="car picture" label="Drop, paste or upload a picture of the car" hint={views.length>=8?'You have eight car views. Remove one to add another.':'PNG, JPEG or WebP · up to 40 MB. You crop it next.'} onFile={onFile} disabled={disabled||views.length>=8}/>
   {views.length?<ol className="editor-swap-refs" aria-label="Car views">{views.map((v,i)=><li key={v.id} className="editor-swap-ref">
     {/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
     <img crossOrigin="anonymous" src={'/api/assets/'+v.id} alt={'Car reference '+(i+1)}/>

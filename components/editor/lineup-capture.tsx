@@ -1,12 +1,13 @@
 'use client';
 import * as React from 'react';
-import {ClipboardPaste,ImagePlus,MonitorUp,X} from 'lucide-react';
+import {MonitorUp,X} from 'lucide-react';
 import {Button,IconButton} from '@/components/ds/button';
 import {Dialog} from '@/components/ds/dialog';
 import {Field,Input,Select} from '@/components/ds/field';
+import {DropZone} from '@/components/ds/drop-zone';
 import {studioFetch} from '@/lib/studio-fetch';
 import {readReference,uploadReference} from '@/lib/reference-upload';
-import {clipboardImage,readClipboardImage} from '@/lib/clipboard-image';
+import {clipboardImage} from '@/lib/clipboard-image';
 import {CONFIGURATORS,type Configurator} from '@/lib/configurators';
 import {mergePresets,useConfiguratorPresets} from '@/lib/configurator-presets';
 import {captureSharedTab,highResolutionDisplayOptions,snapshotStream} from '@/lib/live-capture';
@@ -23,6 +24,8 @@ import {LineupImg,asset} from './lineup-parts';
 // framed (cropped) before it is uploaded.
 
 const MAX_VIEWS=2;
+// Said just before the browser asks to share this tab, and only then.
+const SHARE_NOTICE='Your browser will ask to share this tab once, so the Studio can take the picture. Choose this tab and Share.';
 type Crop={src:string;label:string;revoke:boolean};
 type Box={x:number;y:number;w:number;h:number};
 
@@ -32,7 +35,7 @@ export function LineupCarDialog({car,index,config,onPatch,onClose}:{car:LineupCa
  const options=items.some(x=>x.url===config.url)?items:[...items,config];
  const [busy,setBusy]=React.useState(''),[error,setError]=React.useState(''),[notice,setNotice]=React.useState('');
  const [crop,setCrop]=React.useState<Crop|null>(null),[box,setBox]=React.useState<Box|null>(null),[fallback,setFallback]=React.useState(false);
- const frame=React.useRef<HTMLIFrameElement>(null),image=React.useRef<HTMLImageElement>(null),drag=React.useRef<{x:number;y:number}|null>(null),file=React.useRef<HTMLInputElement>(null),handle=React.useRef('');
+ const frame=React.useRef<HTMLIFrameElement>(null),image=React.useRef<HTMLImageElement>(null),drag=React.useRef<{x:number;y:number}|null>(null),handle=React.useRef('');
  const adapter=React.useRef<ConfiguratorAdapter|null>(null);
  const views=car.views,full=views.length>=MAX_VIEWS;
 
@@ -61,10 +64,11 @@ export function LineupCarDialog({car,index,config,onPatch,onClose}:{car:LineupCa
    if(shot){openCrop(URL.createObjectURL(shot.blob),shot.state.view||'Configurator view',true);setNotice('Current configurator frame captured. Crop out the interface if needed.');return}
    if(navigator.mediaDevices?.getDisplayMedia&&'setCaptureHandleConfig' in navigator.mediaDevices){
     let stream:MediaStream|undefined;
+    setNotice(SHARE_NOTICE);
     try{stream=await navigator.mediaDevices.getDisplayMedia(highResolutionDisplayOptions());openCrop(await snapshotStream(stream,frame.current,handle.current),'Configurator view');setNotice('Current view captured. Crop out any remaining controls if needed.')}
     finally{stream?.getTracks().forEach(t=>t.stop())}
    }else setFallback(true);
-  }catch(e){setFallback(true);if((e as Error).name!=='NotAllowedError')setError((e as Error).message)}
+  }catch(e){setNotice('');setFallback(true);if((e as Error).name!=='NotAllowedError')setError((e as Error).message)}
   finally{setBusy('')}
  }
  async function screenCapture(){
@@ -72,19 +76,17 @@ export function LineupCarDialog({car,index,config,onPatch,onClose}:{car:LineupCa
   let stream:MediaStream|undefined;
   try{
    if(!navigator.mediaDevices?.getDisplayMedia)throw new Error('This browser cannot capture tabs. Upload a screenshot instead.');
+   setNotice(SHARE_NOTICE);
    stream=await navigator.mediaDevices.getDisplayMedia(highResolutionDisplayOptions());
-   openCrop(await captureSharedTab(stream,frame.current,handle.current),'Captured car view');
-  }catch(e){setError((e as Error).name==='NotAllowedError'?'Tab sharing was canceled.':(e as Error).message)}
+   openCrop(await captureSharedTab(stream,frame.current,handle.current),'Captured car view');setNotice('');
+  }catch(e){setNotice('');setError((e as Error).name==='NotAllowedError'?'Tab sharing was canceled.':(e as Error).message)}
   finally{stream?.getTracks().forEach(t=>t.stop())}
  }
+ // A picture of the car from a file; the drop zone shows its own problems.
+ async function readScreenshot(f:File){if(full||crop)return;openCrop(await readReference(f),f.name);setFallback(false)}
  async function screenshot(f?:File|null){
-  if(!f||full||crop)return;
-  try{openCrop(await readReference(f),f.name);setFallback(false)}catch(e){setError((e as Error).message)}
- }
- async function pasteFromClipboard(){
-  if(!navigator.clipboard?.read){setError('Click inside this window and press ⌘V on Mac or Ctrl+V on Windows to paste your screenshot.');return}
-  try{await screenshot(await readClipboardImage(navigator.clipboard))}
-  catch(e){setError((e as Error).name==='NotAllowedError'?'Clipboard access was not allowed. Press ⌘V or Ctrl+V instead.':(e as Error).message)}
+  if(!f)return;
+  try{await readScreenshot(f)}catch(e){setError((e as Error).message)}
  }
  function point(e:React.PointerEvent<HTMLElement>){const r=e.currentTarget.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))}}
  async function saveCrop(){
@@ -138,13 +140,10 @@ export function LineupCarDialog({car,index,config,onPatch,onClose}:{car:LineupCa
    </section>}
    {fallback&&!crop&&<div className="editor-upload">
     <MonitorUp aria-hidden="true"/>
-    <span><b>This configurator does not send a picture</b><span className="ds-muted">Capture its tab or upload a screenshot.</span></span>
+    <span><b>This configurator does not send a picture</b><span className="ds-muted">Capture its tab, or add a screenshot below.</span></span>
     <Button size="sm" onClick={()=>void screenCapture()}>Capture a tab</Button>
    </div>}
-   <div className="editor-row">
-    <Button size="sm" icon={<ImagePlus aria-hidden="true"/>} disabled={full||!!busy||!!crop} onClick={()=>file.current?.click()}>Upload a screenshot</Button>
-    <Button size="sm" kind="quiet" icon={<ClipboardPaste aria-hidden="true"/>} disabled={full||!!busy||!!crop} onClick={()=>void pasteFromClipboard()}>Paste a screenshot</Button>
-   </div>
+   {!crop&&<DropZone name="car screenshot" label="Drop, paste or upload a screenshot of the car" hint={full?`This car has its ${MAX_VIEWS} views. Remove one to add another.`:'PNG, JPEG or WebP · up to 40 MB. You frame it next.'} onFile={readScreenshot} disabled={full||!!busy}/>}
    <section className="ds-stack" aria-label="Views">
     <p className="ds-label">{views.length} / {MAX_VIEWS} views</p>
     {views.length?<ol className="editor-lineup">{views.map((v,j)=><li key={v.id} className="editor-lineup-car">
@@ -155,7 +154,6 @@ export function LineupCarDialog({car,index,config,onPatch,onClose}:{car:LineupCa
     </li>)}</ol>
     :<p className="ds-help">Capture your preferred angle first. Add a second view only to clarify this car’s details.</p>}
    </section>
-   <input hidden ref={file} type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const f=e.target.files?.[0];e.target.value='';void screenshot(f)}}/>
   </div>
  </Dialog>;
 }

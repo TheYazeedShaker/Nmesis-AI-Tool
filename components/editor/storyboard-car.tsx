@@ -1,12 +1,13 @@
 'use client';
 import * as React from 'react';
-import {Check,ClipboardPaste,ExternalLink,ImagePlus,Images,MonitorUp,X} from 'lucide-react';
+import {Check,ExternalLink,Images,MonitorUp,X} from 'lucide-react';
 import {Button,IconButton} from '@/components/ds/button';
 import {Dialog} from '@/components/ds/dialog';
 import {Banner} from '@/components/ds/shell';
 import {Field,Input} from '@/components/ds/field';
+import {DropZone} from '@/components/ds/drop-zone';
 import {readReference,uploadReference} from '@/lib/reference-upload';
-import {clipboardImage,readClipboardImage,validateClipboardImage} from '@/lib/clipboard-image';
+import {clipboardImage} from '@/lib/clipboard-image';
 import {captureSharedTab,highResolutionDisplayOptions,snapshotStream} from '@/lib/live-capture';
 import type {Configurator} from '@/lib/configurators';
 import type {CarView} from '@/lib/storyboards';
@@ -21,6 +22,8 @@ import type {ConfiguratorAdapter,ConfiguratorOptions} from './configurator';
 // screen still work. Every view is framed (cropped) before it is added.
 
 export const MAX_VIEWS=10;
+// Said just before the browser asks to share this tab, and only then.
+const SHARE_NOTICE='Your browser will ask to share this tab once, so the Studio can take the picture. Choose this tab and Share.';
 export type SavedVisual={id:string;title?:string};
 type Crop={src:string;original:Blob|null;label:string};
 type Box={x:number;y:number;w:number;h:number};
@@ -36,7 +39,7 @@ export function StoryCar({config,views,onViews,onLabel,locked,disabled,library,o
  /** A view's label while typing (saved with the story). */onLabel:(id:string,label:string)=>void;
  /** The story has shots: its car is set. */locked:boolean;disabled:boolean;library:SavedVisual[];onNext:()=>void;
 }){
- const frame=React.useRef<HTMLIFrameElement>(null),image=React.useRef<HTMLImageElement>(null),fileInput=React.useRef<HTMLInputElement>(null);
+ const frame=React.useRef<HTMLIFrameElement>(null),image=React.useRef<HTMLImageElement>(null);
  const drag=React.useRef<{x:number;y:number}|null>(null),captureHandle=React.useRef('');
  const [adapter,setAdapter]=React.useState<ConfiguratorAdapter|null>(null),[options,setOptions]=React.useState<ConfiguratorOptions>(NO_OPTIONS),[turn,setTurn]=React.useState(0);
  const [busy,setBusy]=React.useState(''),[error,setError]=React.useState(''),[notice,setNotice]=React.useState('');
@@ -72,10 +75,11 @@ export function StoryCar({config,views,onViews,onLabel,locked,disabled,library,o
    try{
     if(navigator.mediaDevices?.getDisplayMedia&&'setCaptureHandleConfig' in navigator.mediaDevices){
      let stream:MediaStream|undefined;
+     setNotice(SHARE_NOTICE);
      try{stream=await navigator.mediaDevices.getDisplayMedia(highResolutionDisplayOptions());frameIt(await snapshotStream(stream,frame.current,captureHandle.current),null,'Configurator view');setNotice('Current view captured. Crop out any remaining controls if needed.')}
      finally{stream?.getTracks().forEach(t=>t.stop())}
     }else setFallback(true);
-   }catch(e){setFallback(true);if((e as Error).name!=='NotAllowedError')setError((e as Error).message)}
+   }catch(e){setNotice('');setFallback(true);if((e as Error).name!=='NotAllowedError')setError((e as Error).message)}
   }finally{setBusy('')}
  }
  async function captureTab(){
@@ -83,20 +87,17 @@ export function StoryCar({config,views,onViews,onLabel,locked,disabled,library,o
   let stream:MediaStream|undefined;
   try{
    if(!navigator.mediaDevices?.getDisplayMedia)throw new Error('This browser cannot capture tabs. Upload a screenshot instead.');
+   setNotice(SHARE_NOTICE);
    stream=await navigator.mediaDevices.getDisplayMedia(highResolutionDisplayOptions());
-   frameIt(await captureSharedTab(stream,frame.current,captureHandle.current),null,'Captured car view');
-  }catch(e){setError((e as Error).name==='NotAllowedError'?'Tab sharing was canceled.':(e as Error).message)}
+   frameIt(await captureSharedTab(stream,frame.current,captureHandle.current),null,'Captured car view');setNotice('');
+  }catch(e){setNotice('');setError((e as Error).name==='NotAllowedError'?'Tab sharing was canceled.':(e as Error).message)}
   finally{stream?.getTracks().forEach(t=>t.stop())}
  }
+ // A picture of the car from a file; the drop zone shows its own problems.
+ async function readFile(file:File){frameIt(await readReference(file),file,file.name);setFallback(false)}
  async function takeFile(file?:File|null){
   if(!file)return;
-  try{frameIt(await readReference(file),file,file.name);setFallback(false)}catch(e){setError((e as Error).message)}
- }
- async function paste(){
-  if(off||full||crop)return;
-  if(!navigator.clipboard?.read){setNotice('Click the car view area and press ⌘V on Mac or Ctrl+V on Windows to paste your screenshot.');return}
-  try{await takeFile(validateClipboardImage(await readClipboardImage(navigator.clipboard)))}
-  catch(e){setError((e as Error).name==='NotAllowedError'?'Clipboard access was not allowed. Click the car view area and press ⌘V or Ctrl+V instead.':(e as Error).message)}
+  try{await readFile(file)}catch(e){setError((e as Error).message)}
  }
  function point(e:React.PointerEvent<HTMLDivElement>){const r=e.currentTarget.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))}}
  async function addView(){
@@ -132,10 +133,9 @@ export function StoryCar({config,views,onViews,onLabel,locked,disabled,library,o
      <span className="editor-live"><span aria-hidden="true"/>Live configurator</span>
     </ConfiguratorStage>}
   {fallback&&!locked&&<div className="ds-note ds-stack">
-   <p>This configurator does not send a picture. Capture its tab or upload a screenshot.</p>
+   <p>This configurator does not send a picture. Capture its tab, or add a screenshot under Car views.</p>
    <div className="ds-row">
     <Button size="sm" icon={<MonitorUp aria-hidden="true"/>} onClick={()=>void captureTab()}>Capture browser tab</Button>
-    <Button size="sm" icon={<ImagePlus aria-hidden="true"/>} onClick={()=>fileInput.current?.click()}>Upload screenshot</Button>
    </div>
   </div>}
   <section className="ds-stack" aria-labelledby="story-views-title">
@@ -143,12 +143,11 @@ export function StoryCar({config,views,onViews,onLabel,locked,disabled,library,o
     <h2 className="editor-section-title" id="story-views-title">Car views · {views.length} / {MAX_VIEWS}</h2>
     <span className="ds-spacer"/>
     {!locked&&<>
-     <Button size="sm" kind="quiet" icon={<ImagePlus aria-hidden="true"/>} disabled={off||full} onClick={()=>fileInput.current?.click()}>Add image</Button>
-     <Button size="sm" kind="quiet" icon={<ClipboardPaste aria-hidden="true"/>} disabled={off||full||!!crop} onClick={()=>void paste()}>Paste</Button>
      <Button size="sm" kind="quiet" icon={<Images aria-hidden="true"/>} disabled={off||full} onClick={()=>setPicker(true)}>Use a saved key visual</Button>
      <a className="ds-btn sm quiet" href={config.url} target="_blank" rel="noreferrer"><ExternalLink aria-hidden="true"/>Open configurator in a tab</a>
     </>}
    </div>
+   {!locked&&<DropZone name="car picture" label="Drop, paste or upload a picture of the car" hint={full?`The story has its ${MAX_VIEWS} views. Remove one to add another.`:'PNG, JPEG or WebP · up to 40 MB. You frame it next.'} onFile={readFile} disabled={off||full||!!crop}/>}
    {views.length
     ?<ol className="editor-storyboard-views" aria-label="Car views">{views.map((v,i)=><li key={v.id} className="editor-storyboard-view">
       <div className="editor-storyboard-frame">
@@ -166,7 +165,6 @@ export function StoryCar({config,views,onViews,onLabel,locked,disabled,library,o
     <Button kind="primary" disabled={disabled||!views.length} onClick={onNext}>Create your story</Button>
    </div>
   </section>
-  <input hidden className="ds-sr-only" ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" aria-label="Upload a car view" onChange={e=>{void takeFile(e.target.files?.[0]);e.target.value=''}}/>
   <Dialog open={!!crop} onClose={()=>setCrop(null)} title="Frame the car" wide
    footer={<><Button onClick={()=>setBox(null)}>Use full image</Button><Button kind="primary" icon={<Check aria-hidden="true"/>} busy={busy==='upload'} onClick={()=>void addView()}>Add car view</Button></>}>
    <p className="ds-help">Drag to crop out configurator controls. Keep the full car visible, or use the full image.</p>
