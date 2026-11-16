@@ -1,6 +1,6 @@
 {
   "note": "What is wrong today, so nothing can get worse tomorrow. npm run check:design -- --list shows each one. Lower these by fixing screens; never raise one to make the check pass.",
-  "measured": "2026-11-15",
+  "measured": "2026-11-16",
   "counts": {
     "app/auth.css": {
       "raw-colour": 3,
@@ -10,9 +10,6 @@
       "raw-colour": 150,
       "raw-size": 237
     },
-    "app/films/page.tsx": {
-      "unstyled-control": 7
-    },
     "app/globals.css": {
       "raw-colour": 322,
       "raw-size": 557
@@ -21,21 +18,10 @@
       "raw-colour": 59,
       "raw-size": 91
     },
-    "app/lineup/page.tsx": {
-      "unknown-class": 1,
-      "unstyled-control": 13
-    },
     "app/nano-lab/page.tsx": {
       "raw-colour": 5,
       "raw-size": 8,
       "unstyled-control": 3
-    },
-    "app/key-visual/page.tsx": {
-      "unknown-class": 1,
-      "unstyled-control": 11
-    },
-    "app/storyboard/page.tsx": {
-      "unstyled-control": 19
     },
     "app/storyboard/storyboard.css": {
       "raw-colour": 60,
@@ -46,7 +32,7 @@
       "raw-size": 170
     },
     "app/swap/page.tsx": {
-      "unstyled-control": 5
+      "unstyled-control": 1
     },
     "app/swap/swap.css": {
       "raw-colour": 71,
@@ -54,9 +40,6 @@
     },
     "components/area-editor.tsx": {
       "unstyled-control": 11
-    },
-    "components/car-capture.tsx": {
-      "unstyled-control": 2
     },
     "components/connection-settings.tsx": {
       "unknown-class": 1

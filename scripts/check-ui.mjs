@@ -46,6 +46,7 @@ const RATCHETED = ['controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 
 
 const VIEWPORTS = QUICK ? [[1440, 900], [390, 844]] : [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
 const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
+const SHOT_WIDTHS = new Set([1440, 1280, 1024, 390]); // screenshots: small laptops too (Phase 3 group 2)
 const THEMES = ['light', 'dark'];
 
 // Who looks. `org` is opened through the Studio's own deep link after sign-in.
@@ -228,7 +229,7 @@ async function check({ screen, role, w, h, theme }) {
       await ready(page);
     }
     // The screenshot shows the page as it opened (before the keyboard walk scrolls it).
-    if (SHOTS && KEY_WIDTHS.has(w)) await page.screenshot({ path: path.join(OUT, 'shots', `${screen.id}--${role}--${w}--${theme}.png`) }).catch(() => {});
+    if (SHOTS && SHOT_WIDTHS.has(w)) await page.screenshot({ path: path.join(OUT, 'shots', `${screen.id}--${role}--${w}--${theme}.png`) }).catch(() => {});
     Object.assign(out, await page.evaluate(layoutChecks, { phone: w <= 480 }));
     out.vitals = await page.evaluate(vitals);
     if (NO_PROVIDER_NAMES.has(role)) out.providerNames = await page.evaluate(providerNamesOnPage, { source: PROVIDER_PATTERN.source });

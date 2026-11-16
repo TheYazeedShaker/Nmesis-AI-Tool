@@ -8,7 +8,8 @@ const SCREENS = ['app/key-visual/page.tsx', 'app/films/page.tsx', 'app/lineup/pa
 test('every screen uses the one top bar, with one shared navigation (Phase 2b)', () => {
   for (const file of SCREENS) {
     const s = read(file);
-    assert.match(s, /<StudioTopBar[ />]/, file);
+    // The rebuilt editor screens (Phase 3 group 2) get it through the workspace frame.
+    assert.match(s, /<StudioTopBar[ />]|<WorkspaceFrame[ />]/, file);
     assert.doesNotMatch(s, /<header className="topbar">/, file);
     assert.doesNotMatch(s, /className="film-nav"/, file);
   }

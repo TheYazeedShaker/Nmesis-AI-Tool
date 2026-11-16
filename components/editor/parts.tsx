@@ -56,10 +56,11 @@ export function PromptSettings({label='Scene',value,onChange,placeholder,max=600
  </SettingsSection>;
 }
 
-export function QualitySettings({value,onChange,costs}:{value:Quality;onChange:(q:Quality)=>void;costs:Record<Quality,number>}){
+/** costs: the price of each choice when it is known before an estimate (null: priced by the estimate). */
+export function QualitySettings({value,onChange,costs}:{value:Quality;onChange:(q:Quality)=>void;costs?:Record<Quality,number|null>}){
  return <SettingsSection title="Quality" id="quality-title">
   <RadioGroup legend="Quality" className="editor-quality">
-   {(['standard','high'] as Quality[]).map(q=><Radio key={q} name="quality" checked={value===q} onChange={()=>onChange(q)} label={<span className="editor-quality-label">{QUALITY_LABEL[q]}<span className="ds-muted">{creditWords(costs[q])}</span></span>} help={q==='standard'?'Quicker; good for trying ideas.':'Sharper details for the final.'}/>)}
+   {(['standard','high'] as Quality[]).map(q=><Radio key={q} name="quality" checked={value===q} onChange={()=>onChange(q)} label={<span className="editor-quality-label">{QUALITY_LABEL[q]}{typeof costs?.[q]==='number'&&<span className="ds-muted">{creditWords(costs[q] as number)}</span>}</span>} help={q==='standard'?'Quicker; good for trying ideas.':'Sharper details for the final.'}/>)}
   </RadioGroup>
  </SettingsSection>;
 }
@@ -69,7 +70,10 @@ export function LengthSettings({value,onChange,choices}:{value:number;onChange:(
 }
 
 export type Version={id:string;n:number;src?:string;quality:Quality;used:number|null;at:string;status:'ready'|'working'|'failed';label?:string;
- /** While it is being made: the provider's step in words, 0–1 when known, the credits held. */stage?:string;progress?:number;held?:number};
+ /** While it is being made: the provider's step in words, 0–1 when known, the credits held. */stage?:string;progress?:number;held?:number;
+ /** False when this version can no longer be cancelled (e.g. the render has started). */cancellable?:boolean};
+/** A failed version says "nothing used" only when that is known: work a provider accepted can be charged even if it fails. */
+export const failedWords=(used:number|null)=>used===0?'Didn’t finish · nothing used':used&&used>0?`Didn’t finish · used ${creditWords(used)}`:'Didn’t finish';
 /** The history of versions under the canvas: newest first, each with what it used. */
 export function VersionHistory({versions,current,onPick,onCancel}:{versions:Version[];current:string|null;onPick:(id:string)=>void;onCancel?:(id:string)=>void}){
  if(!versions.length)return <p className="ds-muted editor-history-empty">Your versions appear here, newest first.</p>;
@@ -84,7 +88,7 @@ export function VersionHistory({versions,current,onPick,onCancel}:{versions:Vers
    </button>
    {v.status==='working'?<div className="editor-version-progress" role="status"><span>{v.stage||'In progress'}{typeof v.progress==='number'?` · ${Math.round(v.progress*100)}%`:''}</span>
      <span className="ds-progress" data-indeterminate={typeof v.progress!=='number'||undefined}><span className="ds-progress-bar" style={{transform:`scaleX(${v.progress??0.3})`}}/></span>
-     <span className="editor-row">{typeof v.held==='number'&&<span>{creditWords(v.held)} held</span>}{onCancel&&<Button size="sm" kind="quiet" onClick={()=>onCancel(v.id)}>Cancel</Button>}</span></div>:v.status==='failed'?<Badge kind="bad">Didn’t finish · nothing used</Badge>:<CostBadge credits={v.used} used/>}
+     <span className="editor-row">{typeof v.held==='number'&&<span>{creditWords(v.held)} held</span>}{onCancel&&v.cancellable!==false&&<Button size="sm" kind="quiet" onClick={()=>onCancel(v.id)}>Cancel</Button>}</span></div>:v.status==='failed'?<Badge kind="bad">{failedWords(v.used)}</Badge>:<CostBadge credits={v.used} used/>}
   </div>)}
  </div>;
 }
