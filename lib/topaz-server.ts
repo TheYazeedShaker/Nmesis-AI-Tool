@@ -14,6 +14,7 @@ import {orgOf} from './portable/tenancy';
 import {requireEdge} from './accounts/plan';
 import {JOB_TTL,jobHold,releaseCredits,reserveCredits,settleCredits} from './credits/charge';
 import {topazCost} from './credits/words';
+import {fromVisual,indexQuietly} from './library-index';
 type Ctx=FilmContext;
 type Row={id:string;owner:string;parent_id:string;status:string;data:string;provider_id:string|null;hold_id:string|null;credits:number;created_at:number;updated_at:number;lock_until:number;error:string|null};
 const edgeLabel=(edge:number)=>edge>=7680?'8K':edge>=3840?'4K':'2K';
@@ -112,7 +113,7 @@ export async function refreshTopaz(ctx:Ctx,id:string){
       const parent=data.parent;
       const visual:Visual={...parent,id,src:'/api/assets/'+id,title:parent.title+' · HF3 upscale',status:'ready',createdAt:new Date(row.created_at).toISOString(),width:dims.width,height:dims.height,size:dims.width+'x'+dims.height,error:undefined,example:undefined,upscale:{modelId:TOPAZ_MODEL_ID,parentId:parent.id,parentSrc:parent.src,method:'topaz-api',processId:row.provider_id},credits:hold?await settleCredits(ctx,hold):0};
       await store.put(imageKey(ctx.prefix,id),bytes,{httpMetadata:{contentType:dims.type}});
-      await store.put(ctx.prefix+'visuals/'+id+'.json',JSON.stringify(visual),{httpMetadata:{contentType:'application/json'}});
+      await store.put(ctx.prefix+'visuals/'+id+'.json',JSON.stringify(visual),{httpMetadata:{contentType:'application/json'}});await indexQuietly(ctx,fromVisual(ctx.prefix,visual));
       await db.prepare("UPDATE topaz_jobs SET status='ready',credits=?,error=NULL,updated_at=? WHERE id=? AND owner=?").bind(visual.credits??0,Date.now(),id,ctx.prefix).run();
     }
     return publicTopaz(ctx,await topazRow(ctx,id));

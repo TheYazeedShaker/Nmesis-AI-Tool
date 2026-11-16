@@ -91,6 +91,14 @@ person sees. Known limits, and what the harness gets wrong:
 - **Drawn over** (corrected in Phase 2b): until 2b it counted the controls
   inside a closed `<details>` (a card's "…" menu) as drawn over by the picture;
   they are not drawn at all, so they are now left out. Part of F-069 was this.
+- **Drawn over** (corrected in Phase 3 group 2): "on screen" now means inside
+  the window *and* inside every box that scrolls or clips the control. Until
+  then a setting scrolled below the editor's settings panel, or a version card
+  past the end of the history strip, counted as drawn over by whatever lay
+  beyond the box (Generate, the settings panel); a person reaches those by
+  scrolling that box, as the page.
+- **Words spill** (Phase 3 group 2, `controlsSpilling`): a control with words
+  whose text is wider than its box, or that may not wrap and does not fit.
 - **Drawn over** checks only what is on screen when the page is ready, from the
   centre of each control. Transparent overlays that pass clicks through (for
   example `pointer-events: none` badges) are reported as covering.

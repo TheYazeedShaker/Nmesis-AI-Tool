@@ -54,7 +54,7 @@ export function layoutChecks({ phone }) {
     return false;
   };
   const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.01 && !hiddenOnPurpose(el); };
-  const out = { overflowX: document.documentElement.scrollWidth - window.innerWidth, under24: [], under44: [], overlapped: [], clippedNoEllipsis: [], ellipsisNoTitle: [], interactive: 0 };
+  const out = { overflowX: document.documentElement.scrollWidth - window.innerWidth, under24: [], under44: [], overlapped: [], clippedNoEllipsis: [], ellipsisNoTitle: [], spilling: [], interactive: 0 };
   // With a dialog open, only what is in it can be reached; the page behind is
   // meant to be covered.
   const dialogs = [...document.querySelectorAll('dialog[open], [role=dialog], [role=alertdialog]')].filter(visible);
@@ -71,8 +71,25 @@ export function layoutChecks({ phone }) {
     const small = Math.min(target.width, target.height);
     if (!inline && small < 24) out.under24.push({ el: describe(el), w: Math.round(target.width), h: Math.round(target.height) });
     else if (phone && !inline && small < 44) out.under44.push({ el: describe(el), w: Math.round(target.width), h: Math.round(target.height) });
-    // Pointing at it: is it what the pointer reaches? (Only what is on screen now.)
-    if (r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth) {
+    // Its own words spill out of its box, or wrap where the control does not
+    // allow it (Phase 3 group 2: a fixed width squeezed "Your car / Result"
+    // on phones). Text fields and the scrolling regions are not controls of words.
+    if (!/^(INPUT|TEXTAREA|SELECT|IFRAME)$/.test(el.tagName) && (el.textContent || '').trim() && r.width > 0) {
+      const cs = getComputedStyle(el);
+      const spills = cs.overflowX === 'visible' && el.scrollWidth > el.clientWidth + 1;
+      const wraps = cs.whiteSpace === 'nowrap' && el.scrollWidth > el.clientWidth + 1;
+      if (spills || wraps) out.spilling.push({ el: describe(el), w: Math.round(r.width), needs: el.scrollWidth });
+      // Cut off at the side of the screen with nothing that scrolls it into view
+      // (a Generate button pushed off a phone; the page itself does not scroll).
+      else if ((r.right > innerWidth + 1 || r.left < -1) && !sideScroller(el)) out.spilling.push({ el: describe(el), cutOff: true, right: Math.round(r.right) });
+    }
+    // Pointing at it: is it what the pointer reaches? (Only what is on screen now:
+    // inside the window and inside every box that scrolls or clips it. A setting
+    // scrolled below its panel, or a card past the end of a strip that scrolls
+    // sideways, is reached by scrolling that box, as the page; Phase 3 group 2
+    // counted those as covered by whatever lies beyond the box.)
+    const c = shownArea(el);
+    if (r.top >= c.top && r.left >= c.left && r.bottom <= c.bottom && r.right <= c.right) {
       const x = r.left + r.width / 2, y = r.top + r.height / 2, hit = document.elementFromPoint(x, y);
       const lbl = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
       if (hit && hit !== el && !el.contains(hit) && !hit.contains(el) && !(lbl && (lbl === hit || lbl.contains(hit))) && !(el.closest('label') && el.closest('label').contains(hit))) {
@@ -91,8 +108,22 @@ export function layoutChecks({ phone }) {
     if (cs.textOverflow === 'ellipsis') { if (!el.getAttribute('title') && !el.closest('[title]') && !el.getAttribute('aria-label')) out.ellipsisNoTitle.push({ el: describe(el), text: full.slice(0, 80) }); }
     else out.clippedNoEllipsis.push({ el: describe(el), text: full.slice(0, 80) });
   }
-  for (const k of ['under24', 'under44', 'overlapped', 'clippedNoEllipsis', 'ellipsisNoTitle']) out[k] = dedupe(out[k]);
+  for (const k of ['under24', 'under44', 'overlapped', 'clippedNoEllipsis', 'ellipsisNoTitle', 'spilling']) out[k] = dedupe(out[k]);
   return out;
+  function sideScroller(el) {
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) if (/auto|scroll/.test(getComputedStyle(n).overflowX)) return true;
+    return false;
+  }
+  function shownArea(el) {
+    const a = { top: 0, left: 0, bottom: innerHeight, right: innerWidth };
+    for (let n = el.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (!/auto|scroll|hidden|clip/.test(cs.overflowX + ' ' + cs.overflowY)) continue;
+      const q = n.getBoundingClientRect();
+      a.top = Math.max(a.top, q.top); a.left = Math.max(a.left, q.left); a.bottom = Math.min(a.bottom, q.bottom); a.right = Math.min(a.right, q.right);
+    }
+    return a;
+  }
   function dedupe(list) { const seen = new Map(); for (const x of list) { const key = JSON.stringify(x); seen.set(key, x); } return [...seen.values()].slice(0, 40); }
 }
 

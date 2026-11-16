@@ -24,6 +24,9 @@ import { chromium } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 import { startStack } from './ui/stack.mjs';
 import { seedStudio, ORGS, PEOPLE, PASSWORD, FOLDER_ID } from './ui/seed.mjs';
+import { execFile } from 'node:child_process';
+// Asynchronous: the S3 stand-in runs in this process and must keep answering while the backfill runs.
+const backfill = (stack) => new Promise((resolve, reject) => execFile(process.execPath, ['scripts/backfill-library.mjs', '--env', 'preview', '--staff', PEOPLE.staff.id], { env: { ...stack.env, NODE_OPTIONS: '' }, encoding: 'utf8', timeout: 600_000, maxBuffer: 16 * 1024 * 1024 }, (e, out, err) => (e ? reject(new Error('The backfill failed: ' + (err || e.message).slice(-2000))) : resolve(String(out).trim().split(/\r?\n/).pop()))));
 import { initScript, quietFor, vitals, layoutChecks, focusState, providerNamesOnPage } from './ui/checks.mjs';
 import { PROVIDER_PATTERN } from '../lib/provider-words.ts';
 import { runPerf } from './ui/perf.mjs';
@@ -39,10 +42,11 @@ const WORKERS = Number(opt('workers')) || 3;
 // Run-to-run noise allowed before a count fails CI (owner, 2026-11-15): the
 // keyboard walk lands on slightly different stops from one run to the next.
 const TOLERANCE = { focusWithoutIndicator: 5 };
-const RATCHETED = ['providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
+const RATCHETED = ['controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
 
 const VIEWPORTS = QUICK ? [[1440, 900], [390, 844]] : [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
 const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
+const SHOT_WIDTHS = new Set([1440, 1280, 1024, 390]); // screenshots: small laptops too (Phase 3 group 2)
 const THEMES = ['light', 'dark'];
 
 // Who looks. `org` is opened through the Studio's own deep link after sign-in.
@@ -58,6 +62,7 @@ const ROLES = {
   staff: { person: 'staff', org: 'nmesis', note: 'Nmesis staff in their own workspace' },
   staffViewing: { person: 'staff', org: 'growth', note: 'staff opening a client that granted support access ("Viewing as")' },
   staffRefused: { person: 'staff', org: 'starter', note: 'staff opening a client that did not grant access' },
+  scale: { person: 'scale', org: 'scale', note: 'the library at scale: 1,000 pieces of work (--perf only)' },
 };
 // F-050: these people read no provider or model name anywhere (no own keys, not staff).
 const NO_PROVIDER_NAMES = new Set(['anon', 'owner', 'creator', 'viewer', 'starter', 'ended', 'nocompany']);
@@ -101,6 +106,9 @@ let exitCode = 0;
 try {
   for (const [name, role] of Object.entries(ROLES)) contexts[name] = await roleContexts(name, role);
   await seedStudio({ s3: stack.s3, adminUrl: stack.adminUrl, request: { enterprise: contexts.enterprise.desktop.request } });
+  // The one-off backfill (Phase 3 group 2), as the owner runs it after 0007: the
+  // library index and thumbnails for everything seeded above.
+  console.log('  ' + await backfill(stack));
   // Performance first, so the first request to the heaviest route is a cold one.
   const perf = PERF ? await runPerf({ stack, contexts, browser }) : undefined;
 
@@ -126,9 +134,11 @@ try {
   const blocked = Object.fromEntries(stack.blocked);
   const report = { at: new Date().toISOString(), studioReadyMs: stack.readyMs, viewports: VIEWPORTS, roles: ROLES, results: results.sort(byKey), blockedServerHosts: blocked, harnessMistakes };
   if (perf) report.perf = perf;
+  // The library at scale (Phase 3 group 2): a hard limit, not a ratchet.
+  if (perf?.libraryScale && !perf.libraryScale.ok) { console.log('✗ The library at 1,000 items: first paint 1.5 s or more on the phone profile, or storage read for work off screen: ' + JSON.stringify(perf.libraryScale)); exitCode = 1; }
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
   const totals = summarise(report);
-  exitCode = ratchet(totals);
+  exitCode = Math.max(exitCode, ratchet(totals));
 } catch (e) {
   console.error(e);
   console.error(stack.output.slice(-60).join('\n'));
@@ -219,7 +229,7 @@ async function check({ screen, role, w, h, theme }) {
       await ready(page);
     }
     // The screenshot shows the page as it opened (before the keyboard walk scrolls it).
-    if (SHOTS && KEY_WIDTHS.has(w)) await page.screenshot({ path: path.join(OUT, 'shots', `${screen.id}--${role}--${w}--${theme}.png`) }).catch(() => {});
+    if (SHOTS && SHOT_WIDTHS.has(w)) await page.screenshot({ path: path.join(OUT, 'shots', `${screen.id}--${role}--${w}--${theme}.png`) }).catch(() => {});
     Object.assign(out, await page.evaluate(layoutChecks, { phone: w <= 480 }));
     out.vitals = await page.evaluate(vitals);
     if (NO_PROVIDER_NAMES.has(role)) out.providerNames = await page.evaluate(providerNamesOnPage, { source: PROVIDER_PATTERN.source });
@@ -284,6 +294,7 @@ function summarise(report) {
     targetsUnder44OnPhones: sum((r) => r.under44?.length),
     overlapped: sum((r) => r.overlapped?.length),
     clippedWithoutEllipsis: sum((r) => r.clippedNoEllipsis?.length),
+    controlsSpilling: sum((r) => r.spilling?.length),
     ellipsisWithoutFullText: sum((r) => r.ellipsisNoTitle?.length),
     pagesOverCls01: pages.filter((r) => (r.vitals?.cls || 0) > 0.1).length,
     providerNamesShown: sum((r) => r.providerNames?.length),
@@ -295,6 +306,7 @@ function summarise(report) {
   const lines = ['# UI harness summary', '', `${report.at}. ${totals.pages} page checks. Studio ready in ${report.studioReadyMs} ms.`, '', '| Check | Count |', '|---|---:|',
     ...Object.entries(totals).map(([k, v]) => `| ${k} | ${v} |`), '', '## axe rules (nodes)', '', ...Object.entries(axeRules).sort((a, b) => b[1] - a[1]).map(([k, v]) => `- ${k}: ${v}`),
     '', '## Provider or model names a client could read (F-050; must be none)', '', ...[...new Set(pages.flatMap((r) => (r.providerNames || []).map((f) => `- ${r.screen} (${r.role}) · ${f.where}: ${f.text}`)))].slice(0, 80),
+    ...(report.perf?.libraryScale ? ['', '## The library at 1,000 items (phone: 390 wide, 4x CPU, throttled network)', '', ...Object.entries(report.perf.libraryScale).map(([k, v]) => `- ${k}: ${v}`)] : []),
     '', '## Pending screens', '', ...report.results.filter((r) => r.pending).map((r) => `- ${r.screen} (${r.role}): ${r.pending}`),
     '', '## Server requests the network guard refused', '', ...Object.entries(report.blockedServerHosts).map(([h, n]) => `- ${h}: ${n}`),
     '', '## Mistakes the harness made about itself', '', ...[...new Set(report.harnessMistakes)].map((m) => `- ${m}`)];

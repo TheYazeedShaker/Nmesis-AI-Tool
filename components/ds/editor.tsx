@@ -65,7 +65,8 @@ export function EditorLayout({ name, tools, tool, onTool, canvasBar, canvas, job
       </section>
       <aside className="ds-editor-settings" aria-label={settingsTitle}>
         <div className="ds-settings-head"><h2 className="ds-section-title">{settingsTitle}</h2></div>
-        <div className="ds-settings-body">{settings}</div>
+        {/* One copy of the settings at a time: while the phone sheet is open it holds them (duplicate radio groups and ids otherwise). */}
+        <div className="ds-settings-body">{sheet ? null : settings}</div>
         <div className="ds-generate">{generate}</div>
       </aside>
       <div className="ds-phone-generate">

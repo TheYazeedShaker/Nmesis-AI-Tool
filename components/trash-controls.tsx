@@ -43,7 +43,7 @@ export function TrashControls({kind,item,onDeleted,onRestored}:{kind:TrashKind;/
   setOpen(true);setProblem('');setDeleted(null);
   try{setDeleted(listOf(await call(`/api/${words.path}?deleted=1`,'GET')))}catch(e){setProblem(e instanceof Error?e.message:'Deleted items could not be loaded.');setDeleted([])}
  }
- return <div className="trash-controls" data-theme="dark">
+ return <div className="trash-controls">
   {item&&<button type="button" className="ds-btn sm" disabled={busy||item.busy} title={item.busy?`Wait for this ${words.one} to finish before deleting it.`:undefined} onClick={()=>void remove()}><Trash2 aria-hidden="true"/>{`Delete ${words.one}`}</button>}
   <button type="button" className="ds-btn sm quiet" aria-haspopup="dialog" onClick={()=>void show()}><ArchiveRestore aria-hidden="true"/>Deleted</button>
   <Dialog open={open} onClose={()=>setOpen(false)} title={`Deleted ${words.many}`} variant="drawer" className="trash-drawer">

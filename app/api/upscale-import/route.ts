@@ -7,6 +7,7 @@ import {publicImage,type ImageRow} from '@/lib/image-server';
 import {upscaleModel} from '@/lib/upscale-models';
 import {imageDimensions} from '@/lib/image-dimensions';
 import type {Visual} from '@/lib/studio';
+import {fromVisual,indexQuietly} from '@/lib/library-index';
 
 export async function POST(request:Request){try{
   const ctx=await context(request,true),store=bucket(ctx.BUCKET);
@@ -28,6 +29,6 @@ export async function POST(request:Request){try{
   const id=crypto.randomUUID(),{width,height,type}=dimensions;
   const visual:Visual={id,title:parent.title+' · upscaled',src:'/api/assets/'+id,status:'ready',createdAt:new Date().toISOString(),width,height,size:width+'x'+height,provider:parent.provider,model:parent.model,vehicle:parent.vehicle,configurator:parent.configurator,sourceId:parent.sourceId,moodId:parent.moodId,brief:parent.brief,prompt:parent.prompt,finish:parent.finish,angle:parent.angle,pin:parent.pin,upscale:{modelId:model.id,parentId,parentSrc:parent.src,method:'external-import'}};
   await store.put(imageKey(ctx.prefix,id),bytes,{httpMetadata:{contentType:type}});
-  await store.put(ctx.prefix+'visuals/'+id+'.json',JSON.stringify(visual),{httpMetadata:{contentType:'application/json'}});
+  await store.put(ctx.prefix+'visuals/'+id+'.json',JSON.stringify(visual),{httpMetadata:{contentType:'application/json'}});await indexQuietly(ctx,fromVisual(ctx.prefix,visual));
   return Response.json({visual},{headers:{'Cache-Control':'private, no-store'}});
 }catch(e){return fail(e)}}

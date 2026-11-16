@@ -60,12 +60,12 @@ export function ProjectsScreen({folders,canEdit,actions}:{folders:Folder[];canEd
  </>;
 }
 
-// One folder: where it is, its sub-folders, then its work as the library shows it.
-export function FolderScreen({folder,folders,items,canEdit,folderActions,libraryActions,foldersReady=true}:{folder:Folder;folders:Folder[];items:WorkItem[];canEdit:boolean;folderActions:FolderActions;libraryActions:LibraryActions;foldersReady?:boolean}){
+// One folder's path and sub-folders, above the library scoped to it.
+export function FolderHeader({folder,folders,canEdit,folderActions}:{folder:Folder;folders:Folder[];canEdit:boolean;folderActions:FolderActions}){
  const parent=folders.find(f=>f.id===folder.parentId),subs=folders.filter(f=>f.parentId===folder.id);
  const [creating,setCreating]=React.useState(false);
- const hrefFor=(p:Place)=>p==='all'?'/library':p==='unsorted'||p==='deleted'?`/library?in=${p}`:`/projects/${p}`;
- const above=<>  <nav className="workspace-crumbs" aria-label="Where you are"><ol>
+ return <>
+  <nav className="workspace-crumbs" aria-label="Where you are"><ol>
    <li><Link className="ds-link" href="/projects">Projects</Link></li>
    {parent&&<li><ChevronRight aria-hidden="true"/><Link className="ds-link" href={`/projects/${parent.id}`}>{parent.name}</Link></li>}
    <li aria-current="page"><ChevronRight aria-hidden="true"/><span className="ds-truncate" title={folder.name}>{folder.name}</span></li>
@@ -74,9 +74,14 @@ export function FolderScreen({folder,folders,items,canEdit,folderActions,library
    {subs.map(s=><Link key={s.id} className="ds-chip" href={`/projects/${s.id}`}><FolderIcon aria-hidden="true"/>{s.name}<span className="ds-folder-count">{s.count}</span></Link>)}
    {canEdit&&!folder.parentId&&<Button size="sm" kind="quiet" icon={<FolderPlus aria-hidden="true"/>} onClick={()=>setCreating(true)}>New sub-folder</Button>}
   </div>}
- </>;
- return <div className="workspace-folder-page">
-  <LibraryScreen items={items} folders={folders} place={folder.id} hrefFor={hrefFor} actions={libraryActions} above={above} readOnly={!canEdit} foldersReady={foldersReady}/>
   <NameDialog key={creating?'sub-open':'sub'} open={creating} title={`New folder in ${folder.name}`} verb="Create folder" onClose={()=>setCreating(false)} onSave={n=>{folderActions.onCreate(n,folder.id);setCreating(false)}}/>
+ </>;
+}
+export const folderHref=(p:Place)=>p==='all'?'/library':p==='unsorted'||p==='deleted'?`/library?in=${p}`:`/projects/${p}`;
+
+// One folder over a list held in the page (the design-system previews).
+export function FolderScreen({folder,folders,items,canEdit,folderActions,libraryActions,foldersReady=true}:{folder:Folder;folders:Folder[];items:WorkItem[];canEdit:boolean;folderActions:FolderActions;libraryActions:LibraryActions;foldersReady?:boolean}){
+ return <div className="workspace-folder-page">
+  <LibraryScreen items={items} folders={folders} place={folder.id} hrefFor={folderHref} actions={libraryActions} above={<FolderHeader folder={folder} folders={folders} canEdit={canEdit} folderActions={folderActions}/>} readOnly={!canEdit} foldersReady={foldersReady}/>
  </div>;
 }

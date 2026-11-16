@@ -1,0 +1,18 @@
+/* ─── Film in the one editor (Phase 3 group 2) ───────────────────────────────
+   Only what app/editor.css has no piece for: the film itself (a video, not a
+   picture), the job beside it, and the settings that wait while a film is
+   rendered. Tokens only. */
+
+.editor-films-figure { margin: 0; display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.editor-films-frame { position: relative; min-width: 0; }
+.editor-films-media { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: 56dvh; object-fit: contain; border-radius: var(--ds-radius); border: var(--ds-border-width) solid var(--ds-border); background: var(--ds-media-bg); }
+.editor-films-job { display: flex; flex-direction: column; gap: var(--ds-space-8); padding: var(--ds-space-12); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel); font-size: var(--ds-text-sm); }
+.editor-films-fieldset { display: flex; flex-direction: column; gap: var(--ds-space-16); margin: 0; padding: 0; border: 0; min-width: 0; }
+/* The fieldset's last section is not the panel's last: it keeps its line. */
+.editor-films-fieldset > .editor-section:last-child { border-bottom: var(--ds-border-width) solid var(--ds-border); padding-bottom: var(--ds-space-16); }
+.editor-films-price { font-family: var(--ds-font-display); font-size: var(--ds-text-lg); font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); font-variant-numeric: var(--ds-numeric); }
+.editor-films-hidden { display: none; }
+
+@media (max-width: 768px) {
+  .editor-films-media { max-height: 40dvh; }
+}

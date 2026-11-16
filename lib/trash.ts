@@ -8,9 +8,11 @@ import {trashReady} from './trash-ready';
 // the company sees the company's work; only its creator or a company owner may
 // delete or restore it (the library's rule, lib/org-library.ts).
 import type {TrashKind} from './trash-words';
+import {markDeleted} from './library-index';
 export type {TrashKind};
 export const TRASH_KINDS:TrashKind[]=['films','swaps','storyboards'];
 const TABLE:Record<TrashKind,string>={films:'films',swaps:'swap_jobs',storyboards:'storyboards'};
+const INDEX_KIND={films:'film',swaps:'swap',storyboards:'story'} as const;
 const NAME:Record<TrashKind,string>={films:'Film',swaps:'Swap',storyboards:'Story'};
 const WORD:Record<TrashKind,string>={films:'film',swaps:'swap',storyboards:'story'};
 // A job the provider may still be working on (and may still charge for).
@@ -36,11 +38,13 @@ export async function trashItem(ctx:FilmContext,kind:TrashKind,id:string,now=Dat
  // at the same moment wins, and this asks again.
  const r=await database(ctx).prepare(`UPDATE ${TABLE[kind]} SET deleted_at=? WHERE id=? AND org_id=? AND deleted_at IS NULL AND lock_until<?`).bind(now,id,ctx.org,now+1).run();
  if(!r.meta.changes)throw new StudioError(`This ${WORD[kind]} is being updated. Wait a moment, then try again.`,409);
+ await markDeleted(ctx,INDEX_KIND[kind],id,now);
  return {deleted:true,id};
 }
 export async function restoreItem(ctx:FilmContext,kind:TrashKind,id:string){
  const row=await find(ctx,kind,id);
  if(!row.deleted_at)return {restored:true,id};
  await database(ctx).prepare(`UPDATE ${TABLE[kind]} SET deleted_at=NULL WHERE id=? AND org_id=?`).bind(id,ctx.org).run();
+ await markDeleted(ctx,INDEX_KIND[kind],id,null);
  return {restored:true,id};
 }

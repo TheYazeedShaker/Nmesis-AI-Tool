@@ -19,6 +19,7 @@ import {textureFill} from '@/lib/texture-fill';
 import {placementBounds,objectLayerPrompt,compositeObjectLayer} from '@/lib/object-layer';
 import type {Visual} from '@/lib/studio';
 import type {StudioBucket} from '@/lib/portable/storage';
+import {fromVisual,indexQuietly} from '@/lib/library-index';
 export async function POST(request:Request){let record:Visual|undefined,store:StudioBucket|undefined,recordKey='',reserved=false;
  try{
   const ctx=await context(request,true);store=bucket(ctx.BUCKET);
@@ -75,7 +76,7 @@ export async function POST(request:Request){let record:Visual|undefined,store:St
     const fill=textureFill(readPng(base),proposal,mask,matte);if(fill){candidate=encode(fill);record.areaEdit!.method='texture-fill'}
    }
    composite=addObject?compositeObjectLayer(base,candidate,matte,work,region!):compositeArea(base,candidate,matte,work,region,contentAware&&blending>0,contentAware&&blending>0?mask:undefined)}catch(e){throw new StudioError((e as Error).message,502)}
-  await store.put(imageKey(ctx.prefix,id),composite,{httpMetadata:{contentType:'image/png'}});record={...record,status:'ready',width:dimensions.width,height:dimensions.height,size:dimensions.width+'x'+dimensions.height,credits};await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});
+  await store.put(imageKey(ctx.prefix,id),composite,{httpMetadata:{contentType:'image/png'}});record={...record,status:'ready',width:dimensions.width,height:dimensions.height,size:dimensions.width+'x'+dimensions.height,credits};await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});await indexQuietly(ctx,fromVisual(ctx.prefix,record));
   return Response.json({visual:record},{headers:{'Cache-Control':'private, no-store'}});
  }catch(e){if(reserved&&record&&store){record.status='failed';record.error=e instanceof StudioError?e.message:'The area edit was interrupted. Check saved visuals before retrying.';await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}}).catch(()=>{})}const response=fail(e);if(!record)response.headers.set('X-Area-Edit-Not-Started','true');return response}
 }

@@ -43,11 +43,11 @@ test('cards say the tool and a plain quality, never the provider or model (F-050
   assert.equal(visualQualityLabel({ width: 3840, height: 2160 }), 'High detail');
   assert.equal(visualQualityLabel({ size: '4096x2304' }), 'High detail');
   assert.equal(visualQualityLabel({}), 'Standard');
-  // The card line itself names no provider; "Made with …" sits in the card's
-  // details, only for staff and companies using their own keys.
+  // The result's line itself names no provider; "Made with …" follows it only
+  // for staff and companies using their own keys.
   const page = read('app/key-visual/page.tsx');
-  assert.match(page, /<p className="visual-generator-label">\{visualToolLabel\(r\)\} · \{visualQualityLabel\(r\)\}/);
-  assert.match(page, /\{r\.provider&&showProvider&&<p className="visual-generator-label">Made with /);
+  assert.match(page, /<span className="ds-muted">\{visualToolLabel\(r\)\} · \{visualQualityLabel\(r\)\}/);
+  assert.match(page, /\{r\.provider&&showProvider&&<span className="ds-muted">Made with /);
   assert.match(page, /const showProvider=providerNames\(account\)/);
   assert.match(read('components/studio-account.tsx'), /export const providerNames=\(account:AccountSummary\|null\)=>!!account&&\(account\.staff\|\|account\.features\['studio\.own_keys'\]===true\)/);
   assert.doesNotMatch(page, /'Creating with Higgsfield'|ChatGPT \/ OpenAI'\)\}\{r\.status/);

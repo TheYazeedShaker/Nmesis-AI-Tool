@@ -1,0 +1,53 @@
+/* Line-up in the one editor (components/editor/lineup-*.tsx). Tokens only;
+   the shared editor classes are in app/editor.css. */
+
+/* The settings are one fieldset (disabled while something runs) that adds no box. */
+.editor-lineup-fields { display: contents; margin: 0; padding: 0; border: 0; min-width: 0; }
+
+/* Canvas bar: what is shown. */
+.editor-lineup-title { min-width: 0; margin: 0; font-size: var(--ds-text-base); line-height: var(--ds-leading-base); font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); }
+
+/* A car in the list: the whole row opens its views. */
+.editor-lineup-open { display: flex; align-items: center; gap: var(--ds-space-12); flex: 1 1 auto; min-width: 0; min-height: var(--ds-tap-min); padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; border-radius: var(--ds-radius-sm); }
+.editor-lineup-open > span:not(.editor-lineup-thumb) { display: flex; flex-direction: column; min-width: 0; }
+.editor-lineup-open:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.editor-lineup-thumb { display: grid; place-items: center; color: var(--ds-muted); }
+.editor-lineup-thumb > svg { width: var(--ds-icon); height: var(--ds-icon); }
+.editor-lineup-car > .ds-field { flex: 1 1 auto; min-width: 0; }
+.editor-lineup-car[data-hero] .editor-lineup-thumb { box-shadow: 0 0 0 var(--ds-border-width) var(--ds-ring); }
+
+/* Placement guide: where each car stands, before anything is generated. */
+.editor-lineup-stage { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 56dvh; overflow: hidden; border-radius: var(--ds-radius); border: var(--ds-border-width) solid var(--ds-border); background: var(--ds-media-bg); }
+.editor-lineup-horizon { position: absolute; left: 0; right: 0; top: 55%; bottom: 0; border-top: var(--ds-border-width) solid var(--ds-border); background: var(--ds-panel-2); }
+.editor-lineup-stage-car { position: absolute; transform: translate(-50%, -90%); aspect-ratio: 16 / 9; display: grid; place-items: center; border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius-sm); background: var(--ds-panel); box-shadow: var(--ds-shadow-1); color: var(--ds-muted); }
+.editor-lineup-stage-car[data-hero] { border-color: var(--ds-ring); box-shadow: 0 0 0 var(--ds-border-width) var(--ds-ring), var(--ds-shadow-1); }
+.editor-lineup-stage-car > img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
+.editor-lineup-stage-car > svg { width: var(--ds-icon-lg); height: var(--ds-icon-lg); }
+.editor-lineup-stage-car > span { position: absolute; top: 100%; left: 50%; transform: translate(-50%, var(--ds-space-4)); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 var(--ds-space-4); border-radius: var(--ds-radius-xs); background: var(--ds-media-shade); color: var(--ds-on-media); font-size: var(--ds-text-2xs); line-height: var(--ds-leading-2xs); }
+.editor-lineup-locked { width: 100%; max-height: 56dvh; object-fit: contain; border-radius: var(--ds-radius); border: var(--ds-border-width) solid var(--ds-ring); background: var(--ds-media-bg); }
+
+/* Expert placement: one small group of sliders per car. */
+.editor-lineup-place { display: flex; flex-direction: column; gap: var(--ds-space-8); margin: 0; padding: 0; border: 0; min-width: 0; }
+.editor-lineup-place .ds-slider { width: 100%; }
+
+/* The fixed prompt behind Match reference exactly. */
+.editor-lineup-prompt { max-height: calc(var(--ds-space-64) * 3); overflow: auto; margin: var(--ds-space-8) 0 0; padding: var(--ds-space-8); border-radius: var(--ds-radius-sm); background: var(--ds-panel-2); font-family: var(--ds-font-mono); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); white-space: pre-wrap; }
+.editor-lineup-details > summary { cursor: pointer; font-size: var(--ds-text-sm); min-height: var(--ds-tap-min); display: flex; align-items: center; }
+.editor-lineup-paste:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-4); border-radius: var(--ds-radius-sm); }
+
+/* Saved car references: a grid of pictures to pick from. */
+.editor-lineup-saved { margin: 0; padding: 0; list-style: none; }
+.editor-lineup-pick { display: flex; flex-direction: column; gap: var(--ds-space-4); width: 100%; padding: var(--ds-space-8); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel); color: inherit; font: inherit; font-size: var(--ds-text-sm); text-align: left; cursor: pointer; min-width: 0; }
+.editor-lineup-pick:hover:not(:disabled) { background: var(--ds-panel-hover); }
+.editor-lineup-pick:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.editor-lineup-pick:disabled { opacity: 0.5; cursor: not-allowed; }
+.editor-lineup-pick > img { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; border-radius: var(--ds-radius-sm); background: var(--ds-media-bg); }
+
+/* Framing a captured view: drag a box around the car. */
+.editor-lineup-crop { position: relative; display: block; width: fit-content; max-width: 100%; margin: 0 auto; touch-action: none; cursor: crosshair; user-select: none; border-radius: var(--ds-radius); overflow: hidden; background: var(--ds-media-bg); }
+.editor-lineup-crop > img { display: block; width: auto; height: auto; max-width: 100%; max-height: 56dvh; }
+.editor-lineup-crop > span { position: absolute; border: var(--ds-focus-width) solid var(--ds-ring); box-shadow: 0 0 0 100vmax var(--ds-scrim); pointer-events: none; }
+
+@media (max-width: 768px) {
+  .editor-lineup-open, .editor-lineup-details > summary { min-height: var(--ds-tap-phone); }
+}

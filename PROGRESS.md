@@ -2,9 +2,21 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-15 (Design Phase 3 group 1: Home, projects and folders, the library)
+**Last updated:** 2026-11-16 (Design Phase 3 group 2: the library at scale, the one editor)
 
-**Latest (2026-11-15, design programme Phase 3 group 1):**
+**Latest (2026-11-16, design programme Phase 3 group 2):**
+- The library at scale:
+  - migration `0007_library_index.sql`: `studio.library_items`, one row per piece of work, kept up to date on every save, delete and restore, with the environment rule and row level security as 0004;
+  - small WebP thumbnails are made when work is saved; `npm run library:backfill -- --env <production|preview> --staff <uuid>` indexes existing work and makes its thumbnails (once per environment, after 0007);
+  - `/api/library` lists from the database only, 40 at a time with infinite scroll ("Load more" too), and signs thumbnail links; full images load only in the viewer through short-lived signed links. Until 0007 runs, the group 1 feed is used (`indexReady`);
+  - `check:ui` seeds 1,000 items: on the phone profile (4x CPU, throttled network) first paint 332 ms, thumbnails only for the tiles on screen, no full image and no storage read for work.
+- The one editor for key visual, line-up, film, swap and story, built from the approved editor screens, inside the 2b shell, light and dark: the canvas or preview, the history of versions under it, one settings panel (car, view, prompt, quality as Standard / High detail), Generate with its credit cost, the credits used on every result, Save to project. Each screen keeps its old behaviour.
+- The configurator sits behind one adapter (`components/editor/configurator.ts`: getOptions, setColour, setTrim, setView, setFrame, capture). Today's adapter (`iframe-configurator.ts`) drives the in-iframe capture flow; remote control will be a new adapter, with no editor change.
+- Responsive root fix (owner's review of the editor screens): on phones and touch screens the control tokens are 44px; text controls grow with their words (min sizes only, never a fixed width); buttons, chips, badges and segmented controls never shrink and their rows wrap; the editor fills the height left with flex. Guarded by a test (no size token as a fixed width on a control with text) and `check:ui` `controlsSpilling` (0, ratcheted). Checked at 390, 768, 1024, 1280 and 1440.
+- Home: the tool cards are all the same width and height.
+- Branch `design/editor` → PR into `development`. No hosted system was touched.
+
+**Earlier (2026-11-15, design programme Phase 3 group 1):**
 - Built new from the approved wireframes, in the design system, light and dark, inside the 2b top bar:
   - Home at `/` (what to make, the tools, recent work, the company's cars);
   - the one shared library at `/library` (every kind of work, folders on the left, search, filters, grid or list, select several, Move to…, Delete with Undo, Deleted with Restore, the viewer);
@@ -77,7 +89,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the main Supabase project and S3 |
 | S2.1 hosted fixes, staff portal | ✅ | Merged into `development` and released to `main` (#22) |
 | S3 credits, own keys, support access | ✅ | Merged into `development` (#28); owner steps (setup SQL section 6, provider accounts and limits, Vercel variables, plans per client) in the PR body |
-| Design programme | 🟡 | Phases 0 (#29), 1 (#31), 2a (#32) and 2b (#33) merged; Phase 3 group 1 PR `design/home-library`; group 2 (the editor) next |
+| Design programme | 🟡 | Phases 0 (#29), 1 (#31), 2a (#32), 2b (#33) and Phase 3 group 1 (#34) merged; group 2 (library at scale, the editor) PR `design/editor`; owner migrates 0007 and runs the backfill |
 | Environment scope | 🟡 | Merged (#30); owner runs `npm run db:migrate` (0004) only after the change is live on Preview **and** Production |
 
 ## What was built last session (Design Phase 0)
@@ -131,6 +143,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
   - "Not in a folder" replaces "Unsorted";
   - one level of sub-folders, and at most one folder per piece of work.
   The wireframe's bottom bar on phones was dropped while building: it covered the work at the bottom of the screen (`check:ui` overlapped), so phones use the top bar's menu.
+- **Phase 3 group 2 (owner, 2026-11-16):** the library lists from the database only (about 40 at a time), thumbnails made on save plus a one-off backfill, full images only in the viewer through short-lived signed links; tested with 1,000 items (first paint under 1.5 s on the phone profile, no storage reads for work off screen). One editor for all five tools; the configurator behind one adapter with the remote-control protocol's functions, implemented today with the in-iframe capture. The editor screens were approved with one correction: fix mobile responsiveness at its cause in the grid/flex system and test small laptops too. Rule kept since: touch sizes come from the tokens as min sizes; a fixed width only for square icon controls.
 - **F-050 everywhere (owner, 2026-11-15, Phase 2b brief):** no provider or model name anywhere for a client without own keys: tool pages, cost lines, cards, pickers, progress, errors, recovery messages, notices. Model pickers are quality choices; provider errors are rewritten in plain words with the original in the server log; own-key Enterprise texts and staff views keep the names. A test renders every client page as a no-own-key client and fails on any provider name in the visible text or `aria-label` / `title` / `alt`.
 
 - **Environment scope (owner, 2026-11-15):** every studio table holding client work carries `environment` (production / preview / development, from `VERCEL_ENV`); existing rows are Production's; every read and write is filtered in the database layer (RLS + `studio.env`), not per route; separate `KEY_ENCRYPTION_SECRET`s. Shared on purpose: credit holds and the company lock (one balance), support grants, the staff-access log, car settings.
@@ -200,7 +213,8 @@ _Carried_
 
 ## Next session — start here
 
-1. Owner: review PR `design/home-library` (Phase 3 group 1).
-2. Then Phase 3 group 2 (BACKLOG #9): the editor for all tools, from the approved wireframe. Post the screens at 1440 and 390 next to the wireframe first.
-3. Owner (unchanged): after the next release to `main`, run `npm run db:migrate` once (0004, 0005 and 0006).
-4. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").
+1. Owner: review PR `design/editor` (Phase 3 group 2).
+2. Owner, after the release to `main`: `npm run db:migrate` once (0004 to 0007), then `npm run library:backfill -- --env production --staff <staff uuid>` and the same with `--env preview` (each prints its counts; `--dry` first to see them).
+3. Then Phase 4 (BACKLOG #10).
+4. Follow-ups from group 2: design-system versions of the older inner panels the editor still hosts (area edit, upscale, inspiration match, paste box, the provider connection dialogs); the remote-control configurator adapter when the protocol is ready.
+5. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").

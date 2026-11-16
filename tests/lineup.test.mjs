@@ -28,3 +28,23 @@ test('five- and six-car placement fits the frame without overlaps within each ro
  for(const y of new Set(arranged.map(c=>c.y))){const row=arranged.filter(c=>c.y===y).sort((a,b)=>a.x-b.x);for(let i=1;i<row.length;i++)assert.ok(row[i].x-row[i].scale/2>row[i-1].x+row[i-1].scale/2)}
  }
 });
+
+test('the line-up page is the one editor: gate, frame, adapter-only capture, Save to project, plain provider words', async () => {
+ const {readFileSync} = await import('node:fs');
+ const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+ const page = read('app/lineup/page.tsx'), capture = read('components/editor/lineup-capture.tsx'), parts = read('components/editor/lineup-parts.tsx');
+ assert.match(page, /<PlanGate feature="studio\.lineups"><LineupStudio\/><\/PlanGate>/);
+ assert.match(page, /<WorkspaceFrame current="lineup" bleed notices=\{<AccountNotices variant="ds"\/>\}>/);
+ assert.match(page, /<EditorScreen tool="lineup"/);
+ assert.match(page, /project\.save\('visual',selected\.id,f\)/);
+ assert.match(page, /say=\(t:string\)=>names\?t:plainProviderText\(t\)/);
+ assert.doesNotMatch(page, /films\.css|swap\.css|'\.\/lineup\.css'/);
+ // The configurator is reached only through the adapter.
+ for (const s of [page, capture, parts]) assert.doesNotMatch(s, /requestFrameCapture|<CarCapture/);
+ assert.match(capture, /iframeConfigurator\(\(\)=>frame\.current,\(\)=>config\.url\)/);
+ assert.match(capture, /adapter\.current\?\.capture\(\)/);
+ assert.match(capture, /<ConfiguratorStage /);
+ // Standard and High detail are the 2K and 4K sizes the screen already had; prices come from the price book.
+ assert.match(parts, /QUALITY_SIZE:Record<Quality,string>=\{standard:'2048x1152',high:'3840x2160'\}/);
+ assert.match(parts, /const n=o\.prices\[key\];/);
+});

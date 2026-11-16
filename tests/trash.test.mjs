@@ -19,6 +19,7 @@ async function harness(){
   './studio-server':{StudioError,validId:x=>typeof x==='string'&&/^[a-z0-9-]{8,80}$/.test(x)},
   './film-server':{database:c=>c.DB},
   './trash-ready':{trashReady:async()=>ready.value},
+  './library-index':{markDeleted:async()=>{}},
   './org-library':{requireDeleteRight:(ctx,owner)=>{if(owner!==ctx.prefix&&ctx.role!=='owner')throw new StudioError('Only the person who made this, or an owner of your company, can delete it.',403)}},
  };
  const lib=new URL('../lib/trash.ts',import.meta.url);

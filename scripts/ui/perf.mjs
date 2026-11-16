@@ -60,6 +60,52 @@ export async function runPerf({ stack, contexts, browser }) {
     }
   }
 
+  // The library at scale (Phase 3 group 2): 1,000 pieces of work, on a phone
+  // (390 wide, 4x CPU slowdown, the network above). First paint must be under
+  // 1.5 s; the server lists from the database alone (no storage read), and the
+  // browser fetches only the thumbnails of the tiles on or next to the screen.
+  {
+    const ctx = await browser.newContext({ baseURL: stack.origin, storageState: await contexts.scale.desktop.storageState(), viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+    await ctx.addInitScript(initScript);
+    await ctx.route('**/*', (r) => (/^(localhost|127\.0\.0\.1)$/.test(new URL(r.request().url()).hostname) ? r.continue() : r.abort('blockedbyclient')));
+    const page = await ctx.newPage();
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Network.enable');
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    await cdp.send('Network.emulateNetworkConditions', NETWORK);
+    // A first visit warms the server (the build's first request); the measured visit is the second.
+    await page.goto('/library', { waitUntil: 'load', timeout: 60_000 });
+    for (let i = 0; i < 60; i++) { await page.waitForTimeout(150); if ((await page.evaluate(quietFor)) > 600) break; }
+    const mark = stack.s3.log.length;
+    await page.goto('/library', { waitUntil: 'load', timeout: 60_000 });
+    await page.waitForFunction(() => [...document.querySelectorAll('.ds-tile img')].some((i) => i.complete && i.naturalWidth > 0), null, { timeout: 30_000 }).catch(() => {});
+    const firstTilesMs = await page.evaluate(() => Math.round(performance.now()));
+    for (let i = 0; i < 60; i++) { await page.waitForTimeout(150); if ((await page.evaluate(quietFor)) > 600) break; }
+    const seen = await page.evaluate(() => {
+      const near = 200, h = window.innerHeight;
+      const tiles = [...document.querySelectorAll('.ds-tile')];
+      const onScreen = tiles.filter((t) => { const r = t.getBoundingClientRect(); return r.bottom > -near && r.top < h + near; }).length;
+      const fcp = performance.getEntriesByName('first-contentful-paint')[0];
+      return { listed: tiles.length, onScreen, fcpMs: fcp ? Math.round(fcp.startTime) : null, total: document.querySelector('.workspace-count')?.textContent || '' };
+    });
+    const log = stack.s3.log.slice(mark);
+    // Work lives under orgs/<org>/users/<user>/. The page also checks whether the
+    // company has its own provider keys (orgs/<org>/keys/…): that is the account,
+    // not the library, so it is reported apart and is not an item read.
+    const serverRead = (l) => !l.includes('(presigned)') && /^(GET|HEAD) /.test(l);
+    const work = (l) => /\/users\/[^/ ]+\//.test(l);
+    out.libraryScale = {
+      ...seen, firstTilesMs,
+      serverReads: log.filter((l) => serverRead(l) && work(l)).length,
+      accountReads: log.filter((l) => serverRead(l) && !work(l)).length,
+      browserThumbReads: log.filter((l) => l.includes('(presigned)') && l.includes('/thumbs/')).length,
+      browserFullReads: log.filter((l) => l.includes('(presigned)') && /\/images\//.test(l)).length,
+      serverReadKeys: log.filter((l) => serverRead(l) && work(l)).slice(0, 12).map((l) => l.replace(/orgs\/[^/]+\/users\/[^/]+\//, '…/')).join(' | '),
+    };
+    out.libraryScale.ok = (seen.fcpMs ?? 99999) < 1500 && out.libraryScale.serverReads === 0 && out.libraryScale.browserThumbReads <= seen.onScreen && out.libraryScale.browserFullReads === 0;
+    await ctx.close();
+  }
+
   // The library at 300 visuals.
   {
     const page = await contexts.owner.desktop.newPage();

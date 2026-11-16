@@ -769,9 +769,21 @@
 }
 .ds-chip svg { width: var(--ds-space-12); height: var(--ds-space-12); }
 .ds-chip[aria-pressed="true"] { background: var(--ds-text); color: var(--ds-bg); border-color: var(--ds-text); }
-.ds-segmented { display: inline-flex; padding: var(--ds-space-2); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-pill); background: var(--ds-panel-2); }
-.ds-segmented > button { display: inline-flex; align-items: center; justify-content: center; gap: var(--ds-space-4); min-height: calc(var(--ds-control-h) - var(--ds-space-8)); min-width: calc(var(--ds-control-h) - var(--ds-space-4)); padding: 0 var(--ds-space-8); border: 0; border-radius: var(--ds-radius-pill); background: transparent; color: var(--ds-muted); cursor: pointer; }
+.ds-segmented { display: inline-flex; flex: none; padding: var(--ds-space-2); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-pill); background: var(--ds-panel-2); }
+.ds-segmented > button { display: inline-flex; flex: none; white-space: nowrap; align-items: center; justify-content: center; gap: var(--ds-space-4); min-height: calc(var(--ds-control-h) - var(--ds-space-8)); min-width: calc(var(--ds-control-h) - var(--ds-space-4)); padding: 0 var(--ds-space-8); border: 0; border-radius: var(--ds-radius-pill); background: transparent; color: var(--ds-muted); cursor: pointer; }
 .ds-segmented > button svg { width: var(--ds-icon); height: var(--ds-icon); }
+/* At phone width the segments are the full control height (44px), with no inset. */
+@media (max-width: 768px) {
+  .ds-segmented { padding: 0; }
+  .ds-segmented > button { min-height: var(--ds-control-h); min-width: var(--ds-control-h); padding: 0 var(--ds-space-12); }
+}
+
+/* ── Rows of controls (the flexbox rule) ───────────────────────────────────
+   In a row, a control keeps its natural size: its words never wrap, squeeze
+   or spill. What gives way is text beside it (min-width: 0, with an
+   ellipsis), and the row itself, which wraps onto a second line. */
+.ds-btn, .ds-chip, .ds-badge, .ds-segmented, .ds-meter { flex-shrink: 0; }
+.ds-canvas-bar, .ds-toolbar, .ds-filters, .ds-row { flex-wrap: wrap; row-gap: var(--ds-space-8); }
 .ds-segmented > button[aria-pressed="true"] { background: var(--ds-panel); color: var(--ds-text-strong); box-shadow: var(--ds-shadow-1); }
 
 /* ── Editor: tools rail, canvas, settings, one Generate ────────────────── */
@@ -801,7 +813,7 @@
 .ds-canvas-jobs { position: absolute; left: var(--ds-space-16); bottom: var(--ds-space-16); width: min(360px, calc(100% - var(--ds-space-32))); z-index: var(--ds-z-raised); }
 .ds-editor-settings { display: flex; flex-direction: column; min-height: 0; background: var(--ds-panel); border-left: var(--ds-border-width) solid var(--ds-border); }
 .ds-settings-head { display: flex; align-items: center; gap: var(--ds-space-8); padding: var(--ds-space-12) var(--ds-space-16); border-bottom: var(--ds-border-width) solid var(--ds-border); }
-.ds-settings-body { flex: 1 1 auto; overflow-y: auto; padding: var(--ds-space-16); display: flex; flex-direction: column; gap: var(--ds-space-16); }
+.ds-settings-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--ds-space-16); display: flex; flex-direction: column; gap: var(--ds-space-16); }
 /* The one primary Generate, always at the bottom of the settings, with its
    cost on it before it is pressed. */
 .ds-generate { padding: var(--ds-space-12) var(--ds-space-16) var(--ds-space-16); border-top: var(--ds-border-width) solid var(--ds-border); display: flex; flex-direction: column; gap: var(--ds-space-8); }
@@ -822,7 +834,8 @@
     display: flex; gap: var(--ds-space-8); position: sticky; bottom: var(--ds-phone-nav-h); z-index: var(--ds-z-sticky);
     padding: var(--ds-space-8) var(--ds-space-12); background: var(--ds-panel); border-top: var(--ds-border-width) solid var(--ds-border);
   }
-  .ds-phone-generate .ds-btn.primary { flex: 1 1 auto; }
+  .ds-phone-generate .ds-btn.primary { flex: 1 1 auto; min-width: 0; white-space: normal; text-align: center; }
+  .ds-phone-generate .ds-btn.primary .ds-btn-meta { white-space: nowrap; }
   .ds-phone-generate .ds-generate-note { display: none; }
   .ds-hide-phone { display: none; }
 }

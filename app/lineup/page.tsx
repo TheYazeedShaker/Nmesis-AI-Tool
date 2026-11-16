@@ -1,84 +1,185 @@
 'use client';
+import {useCallback,useEffect,useRef,useState} from 'react';
+import {useRouter} from 'next/navigation';
+import {AlertTriangle,ClipboardPaste,Columns2,Download,Loader2,MoreHorizontal,RefreshCw,RotateCcw,Scissors,Upload,Wand2,X} from 'lucide-react';
 import {useBackoffPoll} from '@/lib/use-backoff-poll';
-import {StudioTopBar} from '@/components/studio-topbar';
-import {AccountNotices,PlanGate,providerNames,useAccount} from '@/components/studio-account';
-import {visualQualityLabel} from '@/lib/visual-labels';
+import {AccountNotices,PlanGate,hasFeature,providerNames,useAccount} from '@/components/studio-account';
 import {studioFetch} from '@/lib/studio-fetch';
 import {importPinterestReference} from '@/lib/pinterest-client';
-import {readReference,uploadReference} from '@/lib/reference-upload';
-import {ClipboardImageInput} from '@/components/clipboard-image-input';
-import {clipboardImage} from '@/lib/clipboard-image';
-import {ImageDownload} from '@/components/image-download';
-import {useCallback,useEffect,useRef,useState} from 'react';
-import {ArrowLeft,ArrowRight,Camera,Check,Crown,Download,Plus,RefreshCw,Sparkles,X} from 'lucide-react';
-import {LineupReferenceMatch} from '@/components/lineup-reference-match';
-import {CarCapture} from '@/components/car-capture';
+import {uploadReference} from '@/lib/reference-upload';
+import {clipboardImage,readClipboardImage} from '@/lib/clipboard-image';
+import {fetchDownloadImage,imageFilename} from '@/lib/image-download';
 import {AreaEditor} from '@/components/area-editor';
-import {ImageGenerationSettings} from '@/components/image-generation-settings';
-import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {CONFIGURATORS,type Configurator} from '@/lib/configurators';
 import {useConfiguratorPresets,isDemoConfigurator} from '@/lib/configurator-presets';
-import {LINEUP_LAYOUTS,MAX_LINEUP_CARS,MIN_LINEUP_SCALE,arrangeCars,parseLineup,lineupCapacity,type Lineup,type LineupCar} from '@/lib/lineup';
+import {MAX_LINEUP_CARS,arrangeCars,parseLineup,lineupCapacity,type Lineup,type LineupCar} from '@/lib/lineup';
 import {OPENAI_IMAGE_MODEL,OPENAI_IMAGE_MODELS,higgsImageModel,HIGGSFIELD_IMAGE_MODELS,type ImageProvider} from '@/lib/image-models';
-import type {Visual} from '@/lib/studio';
-import '../films/films.css';
-import {CreditCost} from '@/components/credits';
+import {plainProviderText} from '@/lib/provider-words';
+import {visualQualityLabel} from '@/lib/visual-labels';
+import {credits as creditWords} from '@/lib/ds/words';
 import {openaiImageCost} from '@/lib/credits/words';
-import {higgsImageModel as lineupHiggsModel} from '@/lib/image-models';
-// What a line-up costs before it starts: the cost table for OpenAI and Higgsfield's
-// token-priced models; Higgsfield's fixed-price models are priced as they start.
-function LineupCost({provider,model,size}:{provider:string;model:string;size:string}){const account=useAccount();if(provider==='openai')return <CreditCost cost={openaiImageCost(size)} provider="openai"/>;if(provider==='higgsfield'){let token=false;try{token=lineupHiggsModel(model).variableCost}catch{/* not a Higgsfield model */}return token?<CreditCost cost="higgsfield.image.token" provider="higgsfield"/>:<span className="credit-cost">{providerNames(account)?'Higgsfield prices it in credits as it starts':'Its credits are set as it starts'}</span>}return null}
-import '../swap/swap.css';
-import './lineup.css';
+import type {Visual} from '@/lib/studio';
+import {costLabel,refreshCredits,useCredits} from '@/components/credits';
+import {Button,IconButton} from '@/components/ds/button';
+import {Banner} from '@/components/ds/shell';
+import {Dialog} from '@/components/ds/dialog';
+import {State} from '@/components/ds/feedback';
+import {Field,Input} from '@/components/ds/field';
+import {Menu,MenuItem} from '@/components/ds/menu';
+import {useToast} from '@/components/ds/toast';
+import {WorkspaceFrame} from '@/components/workspace/frame';
+import {EDITOR_TOOLS,EditorScreen} from '@/components/editor/editor-screen';
+import {CostBadge,PromptSettings,SaveToProject,SettingsSection,VersionHistory,type Version} from '@/components/editor/parts';
+import {useProject} from '@/components/editor/use-project';
+import {LineupCarDialog} from '@/components/editor/lineup-capture';
+import {LineupCars,LineupEngine,LineupImg,LineupLayout,LineupPlacement,LineupQuality,LineupReferenceSwitch,LineupRefineDialog,LineupSavedDialog,asset,lineupBillingNote,lineupCredits} from '@/components/editor/lineup-parts';
+import './editor-lineup.css';
+
+// Line-up: several cars in one picture, in the one editor (Phase 3 group 2).
+// The canvas shows the placement guide or the version picked under it; one
+// settings panel holds the cars, layout, inspiration, prompt, quality and
+// engine; Refine a car, Area edit and Download act on the version shown.
+
 const DEFAULT_BRIEF='A premium automotive lineup. Follow the inspiration lighting and environment, with natural shared reflections, believable relative vehicle sizes and grounded contact shadows.';
-async function api(url:string,body?:unknown){const r=await studioFetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:undefined);const d:any=await r.json().catch(()=>({error:'The connection was interrupted. Refresh saved lineups before trying again.'}));if(!r.ok)throw new Error(d.error||'Request failed.');return d}
+type Reply={visual:Visual;visuals:Visual[];warning?:string;generation?:unknown};
+async function api(url:string,body?:unknown):Promise<Reply>{const r=await studioFetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:undefined);const d=await r.json().catch(()=>({error:'The connection was interrupted. Refresh saved lineups before trying again.'})) as Partial<Reply>&{error?:string};if(!r.ok)throw new Error(d.error||'Request failed.');return d as Reply}
 function newCar(config=CONFIGURATORS[0]):LineupCar{return{id:crypto.randomUUID(),name:config.name,configurator:config.url,finish:'',views:[],x:50,y:72,scale:35}}
+const lineupWaiting=(v:Visual)=>!!v.lineup&&v.provider==='higgsfield'&&['queued','in_progress','archiving'].includes(v.jobStatus||'');
+const STAGE:Record<string,string>={queued:'Waiting to start',in_progress:'Rendering',archiving:'Saving'};
+function when(iso:string){const d=new Date(iso);if(Number.isNaN(d.getTime()))return '';return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString([],{day:'numeric',month:'short'})}
+const modelFor=(v:Visual)=>v.provider==='higgsfield'?v.model||HIGGSFIELD_IMAGE_MODELS[0].id:(OPENAI_IMAGE_MODELS.find(m=>m.id===v.model)?.id||OPENAI_IMAGE_MODEL);
+
 export default function Page(){return <PlanGate feature="studio.lineups"><LineupStudio/></PlanGate>}
-function LineupStudio(){const names=providerNames(useAccount());
- const [cars,setCars]=useState<LineupCar[]>([]),[layout,setLayout]=useState<Lineup['layout']>('inspiration'),[heroId,setHeroId]=useState(''),[strictReference,setStrictReference]=useState(false),[refineStrict,setRefineStrict]=useState(false),[compareReference,setCompareReference]=useState(false),[expert,setExpert]=useState(false),[captureId,setCaptureId]=useState(''),[libraryId,setLibraryId]=useState(''),[librarySearch,setLibrarySearch]=useState('');
+function LineupStudio(){
+ const router=useRouter(),toast=useToast(),account=useAccount(),o=useCredits(),project=useProject();
+ const names=providerNames(account),say=(t:string)=>names?t:plainProviderText(t);
+ const [cars,setCars]=useState<LineupCar[]>([]),[layout,setLayout]=useState<Lineup['layout']>('inspiration'),[heroId,setHeroId]=useState(''),[strictReference,setStrictReference]=useState(false),[refineStrict,setRefineStrict]=useState(false),[compare,setCompare]=useState(false),[expert,setExpert]=useState(false),[captureId,setCaptureId]=useState(''),[libraryId,setLibraryId]=useState('');
  // Cars still on the placeholder (no views yet) move to the deployment's presets once they load.
  const presets=useConfiguratorPresets(list=>{if(!isDemoConfigurator(list[0]))setCars(p=>p.map((c,i)=>!c.views.length&&isDemoConfigurator({url:c.configurator})?{...c,name:(list[i<2?i:0]||list[0]).name,configurator:(list[i<2?i:0]||list[0]).url}:c))});
  const [pin,setPin]=useState(''),[mood,setMood]=useState<{id:string;name:string;pin:string}|null>(null),[brief,setBrief]=useState(''),[provider,setProvider]=useState<ImageProvider>('openai'),[model,setModel]=useState<string>(OPENAI_IMAGE_MODEL),[size,setSize]=useState('2048x1152');
- const [visuals,setVisuals]=useState<Visual[]>([]),[selected,setSelected]=useState<Visual|null>(null),[refineCar,setRefineCar]=useState(''),[refinement,setRefinement]=useState(''),[areaOpen,setAreaOpen]=useState(false),[connected,setConnected]=useState(false),[ready,setReady]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const working=useRef(false),pollIndex=useRef(0),upload=useRef<HTMLInputElement>(null),results=useRef<HTMLElement>(null);
+ const [visuals,setVisuals]=useState<Visual[]>([]),[currentId,setCurrentId]=useState<string|null>(null),[view,setView]=useState<'setup'|'result'>('setup'),[refineCar,setRefineCar]=useState(''),[refinement,setRefinement]=useState(''),[refineOpen,setRefineOpen]=useState(false),[areaOpen,setAreaOpen]=useState(false),[connected,setConnected]=useState(false),[ready,setReady]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState(''),[downloading,setDownloading]=useState(false);
+ const working=useRef(false),pollIndex=useRef(0),upload=useRef<HTMLInputElement>(null),download=useRef<AbortController|null>(null);
+ const tell=useCallback((message:string)=>toast.toast({message:names?message:plainProviderText(message),kind:'ok'}),[toast,names]);
  const put=useCallback((v:Visual)=>setVisuals(p=>[v,...p.filter(x=>x.id!==v.id)]),[]);
- const refresh=useCallback(async()=>{const d=await api('/api/visuals');setVisuals(d.visuals);if(d.warning)setError(d.warning)},[]);
- useEffect(()=>{try{const d=JSON.parse(localStorage.getItem('nmesis-lineup-v1')||'null');if(d?.cars?.length>=2&&d.cars.length<=MAX_LINEUP_CARS&&d.cars.every((c:LineupCar)=>c.id&&Array.isArray(c.views))){setCars(d.cars);setLayout(d.layout||'inspiration');setStrictReference(d.strictReference===true);setHeroId(d.heroId||d.cars[0].id);setPin(d.pin||'');setMood(d.mood||null);setBrief(d.brief||'')}else{const initial=[newCar(),newCar(CONFIGURATORS[1])];setCars(arrangeCars(initial,'inspiration',initial[0].id));setHeroId(initial[0].id)}}catch{const initial=[newCar(),newCar(CONFIGURATORS[1])];setCars(arrangeCars(initial,'inspiration',initial[0].id));setHeroId(initial[0].id)}setReady(true);void refresh().catch(e=>setError(e.message));void api('/api/status').then(d=>setConnected(!!d.generation)).catch(()=>{});},[refresh]);
- useEffect(()=>{if(ready)try{localStorage.setItem('nmesis-lineup-v1',JSON.stringify({cars,layout,heroId,pin,mood,brief,strictReference}))}catch{}},[cars,layout,heroId,pin,mood,brief,strictReference,ready]);
+ const refresh=useCallback(async()=>{const d=await api('/api/visuals');setVisuals(d.visuals);if(d.warning)setError(d.warning);return d.visuals},[]);
+ /** Show one version in the canvas; a finished line-up also sets refinement and the engine it was made with. */
+ const pick=useCallback((v:Visual)=>{setCurrentId(v.id);setView('result');setCompare(false);if(v.status!=='ready')return;setAreaOpen(false);setRefinement('');if(v.lineup){setRefineStrict(v.lineup.strictReference===true);setRefineCar(v.lineup.heroId)}setProvider(v.provider||'openai');setModel(modelFor(v));setSize(v.size||'2048x1152')},[]);
+ useEffect(()=>{try{const d=JSON.parse(localStorage.getItem('nmesis-lineup-v1')||'null');if(d?.cars?.length>=2&&d.cars.length<=MAX_LINEUP_CARS&&d.cars.every((c:LineupCar)=>c.id&&Array.isArray(c.views))){setCars(d.cars);setLayout(d.layout||'inspiration');setStrictReference(d.strictReference===true);setHeroId(d.heroId||d.cars[0].id);setPin(d.pin||'');setMood(d.mood||null);setBrief(d.brief||'')}else{const initial=[newCar(),newCar(CONFIGURATORS[1])];setCars(arrangeCars(initial,'inspiration',initial[0].id));setHeroId(initial[0].id)}}catch{const initial=[newCar(),newCar(CONFIGURATORS[1])];setCars(arrangeCars(initial,'inspiration',initial[0].id));setHeroId(initial[0].id)}setReady(true);
+  // A link to one line-up (/lineup?visual=…) opens it once the versions load.
+  void refresh().then(list=>{const id=new URLSearchParams(location.search).get('visual');const v=id?list.find(x=>x.id===id&&x.lineup):undefined;if(v){pick(v);window.history.replaceState(null,'','/lineup')}},e=>setError((e as Error).message));
+  void api('/api/status').then(d=>setConnected(!!d.generation),()=>setConnected(false));},[refresh,pick]);
+ useEffect(()=>{if(ready)try{localStorage.setItem('nmesis-lineup-v1',JSON.stringify({cars,layout,heroId,pin,mood,brief,strictReference}))}catch{/* storage full or blocked: the draft stays in this tab only */}},[cars,layout,heroId,pin,mood,brief,strictReference,ready]);
  useEffect(()=>{if(!busy)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue=''};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[busy]);
- const lineupWaiting=(v:Visual)=>!!v.lineup&&v.provider==='higgsfield'&&['queued','in_progress','archiving'].includes(v.jobStatus||'');
+ useEffect(()=>()=>download.current?.abort(),[]);
  useBackoffPoll(async()=>{if(working.current)return 'same';const pending=visuals.filter(lineupWaiting);if(!pending.length)return 'idle';const v=pending[pollIndex.current++%pending.length];working.current=true;try{const d=await api(`/api/image-jobs/${v.id}/refresh`,{});put(d.visual);return d.visual.jobStatus!==v.jobStatus?'changed':'same'}catch(e){setError((e as Error).message);return 'same'}finally{working.current=false}},{base:9000,max:45000,enabled:visuals.some(lineupWaiting)});
- useEffect(()=>{const id=new URLSearchParams(location.search).get('visual');if(!id||!visuals.length)return;const v=visuals.find(x=>x.id===id&&x.lineup);if(v){setSelected(v);setRefineStrict(v.lineup?.strictReference===true);setCompareReference(false);setRefineCar(v.lineup!.heroId);setProvider(v.provider||'openai');setModel(v.provider==='higgsfield'?v.model||HIGGSFIELD_IMAGE_MODELS[0].id:(OPENAI_IMAGE_MODELS.find(m=>m.id===v.model)?.id||OPENAI_IMAGE_MODEL));setSize(v.size||'2048x1152');history.replaceState(null,'','/lineup')}},[visuals]);
- async function run(label:string,fn:()=>Promise<void>){if(working.current)return;working.current=true;setBusy(label);setError('');setNotice('');try{await fn()}catch(e){setError((e as Error).message)}finally{working.current=false;setBusy('')}}
+ async function run(label:string,fn:()=>Promise<void>){if(working.current)return;working.current=true;setBusy(label);setError('');try{await fn()}catch(e){setError((e as Error).message)}finally{working.current=false;setBusy('')}}
  function update(id:string,patch:Partial<LineupCar>){setCars(p=>p.map(c=>c.id===id?{...c,...patch}:c))}
  function chooseLayout(value:Lineup['layout']){setLayout(value);setCars(arrangeCars(cars,value,heroId))}
  function chooseHero(id:string){setHeroId(id);if(layout==='hero')setCars(arrangeCars(cars,layout,id))}
- async function importPin(){const d=await importPinterestReference(pin);setMood({id:d.id,name:d.name,pin});setNotice('Inspiration added. Its vehicles will be replaced by your lineup.');return d.id as string}
+ function moveCar(i:number,by:-1|1){const j=i+by;if(j<0||j>=cars.length)return;const next=[...cars];[next[i],next[j]]=[next[j],next[i]];setCars(arrangeCars(next,layout,heroId))}
+ function removeCar(id:string){if(cars.length<=2)return;const next=cars.filter(c=>c.id!==id),hero=heroId===id?next[0].id:heroId;setHeroId(hero);setCars(arrangeCars(next,layout,hero))}
+ function addCar(){if(cars.length>=MAX_LINEUP_CARS)return;setCars(arrangeCars([...cars,newCar(presets[0])],layout,heroId))}
+ async function importPin(){const d=await importPinterestReference(pin);setMood({id:d.id,name:d.name,pin});tell('Inspiration added. Its vehicles will be replaced by your lineup.');return d.id as string}
  async function uploadMood(file:File){const d=await uploadReference(file);setPin('');setMood({id:d.id,name:file.name,pin:''})}
+ async function pasteMood(){if(!navigator.clipboard?.read){setError('Click the inspiration area and press ⌘V on Mac or Ctrl+V on Windows to paste your image.');return}let file:File;try{file=await readClipboardImage(navigator.clipboard)}catch(e){setError((e as Error).name==='NotAllowedError'?'Clipboard access was not allowed. Click the inspiration area and press ⌘V or Ctrl+V instead.':(e as Error).message);return}await run('Adding inspiration…',()=>uploadMood(file))}
  let issue='';try{const l=parseLineup({cars,layout,heroId,strictReference})!;lineupCapacity(l,provider==='higgsfield'?higgsImageModel(model).maxImages:16)}catch(e){issue=(e as Error).message}
  async function generate(parent?:Visual){await run(parent?'Refining your selected car…':'Creating your car lineup…',async()=>{
- const lineup=parseLineup(parent?{...parent.lineup,targetCarId:refineCar,strictReference:refineStrict}:{cars,layout,heroId,strictReference})!;lineupCapacity(lineup,provider==='higgsfield'?higgsImageModel(model).maxImages:16,!!parent);
- const moodId=parent?.moodId||(mood&&(!pin||mood.pin===pin)?mood.id:pin?await importPin():undefined);if(!moodId)throw new Error('Add a Pinterest inspiration or upload a reference image.');
- const id=crypto.randomUUID(),body={id,lineup,sourceId:lineup.cars[0].views[0].id,moodId,brief:parent?.brief||brief||DEFAULT_BRIEF,vehicle:lineup.cars.map(c=>c.name).join(' + '),title:parent?parent.title.replace(/ · refined$/,'')+' · refined':lineup.cars.map(c=>c.name).join(' + ').slice(0,88)+' · lineup',pin:parent?.pin||pin,size,provider,model,parentId:parent?.id,refinement:parent?(refinement||'Restore the locked reference shot.'):undefined,generate:true};
- const pending:Visual={...body,src:'/api/assets/'+id,status:'pending',createdAt:new Date().toISOString()};put(pending);results.current?.scrollIntoView({behavior:'smooth'});
- try{const d=await api(provider==='higgsfield'?'/api/image-jobs':'/api/generate',body);put(d.visual);if(d.visual.status==='ready'){setSelected(d.visual);setRefineStrict(lineup.strictReference===true);setCompareReference(false);setRefineCar(lineup.heroId);setRefinement('')}else{setSelected(null);setNotice('Your lineup is rendering. Progress is saved and updates automatically.');}}
- catch(e){try{await refresh()}catch{}throw e}
+  const lineup=parseLineup(parent?{...parent.lineup,targetCarId:refineCar,strictReference:refineStrict}:{cars,layout,heroId,strictReference})!;lineupCapacity(lineup,provider==='higgsfield'?higgsImageModel(model).maxImages:16,!!parent);
+  const moodId=parent?.moodId||(mood&&(!pin||mood.pin===pin)?mood.id:pin?await importPin():undefined);if(!moodId)throw new Error('Add a Pinterest inspiration or upload a reference image.');
+  const id=crypto.randomUUID(),body={id,lineup,sourceId:lineup.cars[0].views[0].id,moodId,brief:parent?.brief||brief||DEFAULT_BRIEF,vehicle:lineup.cars.map(c=>c.name).join(' + '),title:parent?parent.title.replace(/ · refined$/,'')+' · refined':lineup.cars.map(c=>c.name).join(' + ').slice(0,88)+' · lineup',pin:parent?.pin||pin,size,provider,model,parentId:parent?.id,refinement:parent?(refinement||'Restore the locked reference shot.'):undefined,generate:true};
+  const pending:Visual={...body,src:'/api/assets/'+id,status:'pending',createdAt:new Date().toISOString()};put(pending);setCurrentId(id);setView('result');
+  try{const d=await api(provider==='higgsfield'?'/api/image-jobs':'/api/generate',body);put(d.visual);if(d.visual.status==='ready')pick(d.visual);else tell('Your lineup is rendering. Progress is saved and updates automatically.')}
+  catch(e){await refresh().catch(()=>null/* the request's own error is the one to show */);throw e}
+  finally{refreshCredits()}
  })}
- const captureCar=cars.find(c=>c.id===captureId),config:Configurator|undefined=captureCar?presets.find(c=>c.url===captureCar.configurator)||{id:captureCar.id,name:captureCar.name,url:captureCar.configurator}:undefined;
+ function checkOriginal(v:Visual){void run('Checking original request…',async()=>{const action=['unknown','submitting'].includes(v.jobStatus||'')?'recover':['draft','quoted'].includes(v.jobStatus||'')?'generate':'refresh';put((await api(`/api/image-jobs/${v.id}/${action}`,{})).visual)})}
+ function reuse(v:Visual){const l=v.lineup;if(!l)return;setCars(l.cars);setHeroId(l.heroId);setLayout(l.layout);setStrictReference(l.strictReference===true);setMood(v.moodId?{id:v.moodId,name:'Saved inspiration',pin:v.pin||''}:null);setPin(v.pin||'');setBrief(v.brief||'');setView('setup')}
+ async function save(v:Visual){
+  if(download.current)return;const c=new AbortController();download.current=c;setDownloading(true);
+  const original={label:'Open original',run:()=>{window.open(v.src,'_blank','noopener,noreferrer')}};
+  try{const blob=await fetchDownloadImage(v.src,c.signal);if(c.signal.aborted)return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=imageFilename(v.title,blob.type);a.hidden=true;document.body.appendChild(a);try{a.click();toast.toast({message:'Download requested. If no file appears, open the original and save it.',kind:'ok',action:original})}finally{a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}}
+  catch(e){if(!c.signal.aborted)toast.toast({message:e instanceof Error?e.message:'Download interrupted. Try again or open the original.',kind:'bad',action:original})}
+  finally{download.current=null;if(!c.signal.aborted)setDownloading(false)}
+ }
+
+ // What the canvas and the history show.
+ const placed=new Set<string>(),versionsOf:Visual[]=[];
+ for(const v of [...visuals].reverse())if(v.lineup||(v.areaEdit&&placed.has(v.areaEdit.parentId))){placed.add(v.id);versionsOf.unshift(v)}
+ const versions:Version[]=versionsOf.map((v,i)=>({id:v.id,n:versionsOf.length-i,src:v.status==='ready'?v.src:undefined,quality:visualQualityLabel(v)==='High detail'?'high':'standard',used:typeof v.credits==='number'?v.credits:null,at:when(v.createdAt),status:v.status==='ready'?'ready':v.status==='failed'?'failed':'working',stage:v.status==='pending'?STAGE[v.jobStatus||'']||'Creating your lineup':undefined,label:v.areaEdit?`Version ${versionsOf.length-i} · area edit`:undefined}));
+ const shown=visuals.find(v=>v.id===currentId),selected=shown?.status==='ready'?shown:null,showResult=view==='result'&&!!shown;
  const savedMap=new Map<string,LineupCar>();
- for(const v of visuals){if(v.status!=='ready'||!v.sourceId)continue;const refs:LineupCar[]=v.lineup?.cars||[{id:v.id,name:v.vehicle||v.title,configurator:v.configurator||presets[0].url,finish:v.finish||'',views:[{id:v.sourceId,label:v.angle||'Saved captured view'}],x:50,y:72,scale:35}];for(const c of refs)if(!savedMap.has(c.views[0].id))savedMap.set(c.views[0].id,c)}
- const savedCars=Array.from(savedMap.values());
- const lineups=visuals.filter(v=>v.lineup),filled=cars.filter(c=>c.views.length).length;
- return <div className="studio film-studio lineup-studio"><StudioTopBar current="lineup"/><AccountNotices/><main>
- <div className="lineup-heading"><div><p className="eyebrow">KEY VISUALS / CAR LINEUP</p><h1>Different cars. One scene<span>.</span></h1><p>Choose your cars, set the scene and create a campaign together.</p></div><label className="lineup-expert"><input type="checkbox" checked={expert} onChange={e=>setExpert(e.target.checked)}/>Expert placement</label></div>
- <div className="workflow"><span className="current"><b>01</b> Pick 2–6 cars</span><i/><span className={filled===cars.length?'current':''}><b>02</b> Set the scene</span><i/><span className={lineups.length?'current':''}><b>03</b> Generate lineup</span></div>
- {error&&<div className="film-alert" role="alert">{error}<button onClick={()=>setError('')} aria-label="Dismiss error"><X size={16}/></button></div>}{notice&&<p className="film-notice" role="status">{notice}</p>}{busy&&<p className="lineup-progress" role="status"><RefreshCw size={18} className="spin"/>{busy} Keep this tab open; saved results appear below.</p>}
- <fieldset disabled={!!busy} className={'lineup-fields'+(ready?'':' lineup-loading')} aria-busy={!ready||undefined}><section className="lineup-cast"><div className="lineup-section-heading"><div><h2>01 / Your cars</h2><p>One primary angle + an optional detail view for each car. Keep its color and trim consistent.</p></div><button className="secondary" disabled={cars.length>=MAX_LINEUP_CARS||!ready} onClick={()=>{if(cars.length>=MAX_LINEUP_CARS)return;const next=[...cars,newCar(presets[0])];setCars(arrangeCars(next,layout,heroId))}}><Plus size={17}/>Add car</button></div><div className="lineup-cars">{cars.map((car,i)=><article key={car.id} className={'lineup-car '+(heroId===car.id?'hero':'')}><div className="lineup-car-head"><span>CAR {String(i+1).padStart(2,'0')}</span><button className={heroId===car.id?'is-hero':''} disabled={strictReference} aria-label={'Make car '+(i+1)+' the hero'} onClick={()=>chooseHero(car.id)}><Crown size={15}/>{heroId===car.id?'Hero':'Make hero'}</button><button disabled={cars.length<=2} aria-label={'Remove car '+(i+1)} onClick={()=>{const next=cars.filter(c=>c.id!==car.id),hero=heroId===car.id?next[0].id:heroId;setHeroId(hero);setCars(arrangeCars(next,layout,hero))}}><X size={16}/></button></div><button className="lineup-car-image" onClick={()=>setCaptureId(car.id)} aria-label={'Capture car '+(i+1)}>{car.views[0]?<img crossOrigin="anonymous" src={'/api/assets/'+car.views[0].id} alt={car.name+' primary angle'}/>:<><Camera size={27}/><span>Choose an angle</span></>}</button><div className="lineup-car-body"><label>Car name<input value={car.name} onChange={e=>update(car.id,{name:e.target.value})} maxLength={100}/></label><label>Color & trim<input value={car.finish} onChange={e=>update(car.id,{finish:e.target.value})} placeholder="As captured · optional notes" maxLength={200}/></label>{car.views.map((v,j)=><div className="lineup-view-label" key={v.id}><label>{j?'Detail reference':'Primary angle'}<input value={v.label} onChange={e=>update(car.id,{views:car.views.map(x=>x.id===v.id?{...x,label:e.target.value}:x)})} maxLength={100}/></label>{j>0&&<button aria-label={'Make view '+(j+1)+' primary for car '+(i+1)} onClick={()=>update(car.id,{views:[v,...car.views.filter(x=>x.id!==v.id)]})}>Use as primary</button>}</div>)}<div className="lineup-card-actions"><button className="secondary" onClick={()=>setCaptureId(car.id)}><Camera size={15}/>{car.views.length?'Edit views':'Capture / upload'}</button><button className="secondary" onClick={()=>{setLibrarySearch('');setLibraryId(car.id)}}>Saved references</button></div><div className="lineup-car-order"><span>{car.views.length}/2 views</span><button aria-label={'Move car '+(i+1)+' left'} disabled={i===0} onClick={()=>{const next=[...cars];[next[i-1],next[i]]=[next[i],next[i-1]];setCars(arrangeCars(next,layout,heroId))}}><ArrowLeft size={15}/></button><button aria-label={'Move car '+(i+1)+' right'} disabled={i===cars.length-1} onClick={()=>{const next=[...cars];[next[i+1],next[i]]=[next[i],next[i+1]];setCars(arrangeCars(next,layout,heroId))}}><ArrowRight size={15}/></button></div></div></article>)}</div></section>
- <section className="lineup-direction"><div className="lineup-composition"><h2>02 / Set the scene</h2><div className="lineup-layouts">{LINEUP_LAYOUTS.map(l=><button key={l.id} className={layout===l.id?'active':''} aria-pressed={layout===l.id} disabled={strictReference} onClick={()=>chooseLayout(l.id)}><strong>{l.name}</strong><span>{l.description}</span></button>)}</div>{strictReference&&mood?<img crossOrigin="anonymous" className="lineup-locked-preview" src={'/api/assets/'+mood.id} alt="Locked reference composition"/>:<div className="lineup-stage" aria-label="Lineup placement preview"><div className="lineup-horizon"/>{[...cars].sort((a,b)=>a.y-b.y).map(car=><div key={car.id} className={'lineup-stage-car '+(car.id===heroId?'hero':'')} style={{left:car.x+'%',top:car.y+'%',width:car.scale+'%'}}>{car.views[0]?<img crossOrigin="anonymous" src={'/api/assets/'+car.views[0].id} alt=""/>:<Camera size={32}/>}<span>{cars.findIndex(c=>c.id===car.id)+1} · {car.name}</span></div>)}</div>}<p className="helper">{strictReference?'Reference composition is locked. Car order replaces reference vehicles from left to right.':'Placement guide, not a generated preview.'} {layout==='inspiration'?'The inspiration sets the final camera and staging.':'The generator adapts placement to realistic perspective and vehicle sizes.'}</p>{expert&&<div className="lineup-placement">{cars.map((c,i)=><div key={c.id}><strong>Car {i+1} · {c.name}</strong>{(['x','y','scale'] as const).map((k,j)=><label key={k}>{['Left / right','Near / far','Apparent width'][j]} <span>{c[k]}%</span><input type="range" min={k==='x'?5:k==='y'?25:MIN_LINEUP_SCALE} max={k==='x'?95:k==='y'?90:60} value={c[k]} disabled={strictReference||layout==='inspiration'} onChange={e=>update(c.id,{[k]:Number(e.target.value)})}/></label>)}</div>)}{layout==='inspiration'&&<p>Choose another layout to use custom placement.</p>}</div>}</div><aside className="lineup-brief" onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!busy)void run('Adding inspiration…',()=>uploadMood(file))}}}><label>Pinterest inspiration<input type="url" value={pin} onChange={e=>{setPin(e.target.value);setMood(null)}} placeholder="https://www.pinterest.com/pin/…"/></label><button className="secondary" disabled={!pin.trim()} onClick={()=>void run('Loading inspiration…',async()=>{await importPin()})}>Load inspiration</button>{mood?<div className="lineup-mood"><img crossOrigin="anonymous" src={'/api/assets/'+mood.id} alt="Lineup inspiration"/><span><Check size={15}/>Inspiration ready</span></div>:<p className="lineup-mood-empty">Use a lineup reference for staging, or a location image for atmosphere.</p>}<button className="secondary" onClick={()=>upload.current?.click()}>Upload inspiration image</button><ClipboardImageInput label="inspiration image" onImage={file=>run('Adding inspiration…',()=>uploadMood(file))} disabled={!!busy}/><LineupReferenceMatch active={strictReference} onChange={active=>{setStrictReference(active);if(active)setLayout('inspiration')}} disabled={!!busy}/><label>Anything else? <small>Optional</small><textarea value={brief} onChange={e=>setBrief(e.target.value)} maxLength={2000} placeholder="A mountain overlook at sunset. Keep every car visible, with warm light from the right…"/></label><ImageGenerationSettings provider={provider} model={model} size={size} disabled={!!busy} onProvider={p=>{setProvider(p);setModel(p==='openai'?OPENAI_IMAGE_MODEL:HIGGSFIELD_IMAGE_MODELS[0].id);setSize('2048x1152')}} onModel={m=>{setModel(m);if(provider==='higgsfield'&&!higgsImageModel(m).max4k&&size==='3840x2160')setSize('2048x1152')}} onSize={setSize}/>{issue&&<p className="helper">{issue}</p>}<button className="generate" disabled={!!issue||(!mood&&!pin.trim())} onClick={()=>void generate()}><Sparkles size={18}/>Generate lineup</button><LineupCost provider={provider} model={model} size={size}/><p className="helper">Creates one paid image. Original references and earlier versions stay saved.</p><a className="text-button" href={provider==='higgsfield'?'/films?settings=budget':'/'}>Connection & settings ↗</a></aside></section></fieldset>
- <section className="results-section" ref={results}><div className="results-heading"><div><p className="eyebrow">YOUR CAMPAIGN</p><h2>Saved lineups.</h2></div><button className="secondary" disabled={!!busy} onClick={()=>void run('Refreshing lineups…',refresh)}><RefreshCw size={16}/>Refresh</button></div>{!lineups.length&&<div className="lineup-empty">Your first lineup will appear here. Your draft is saved on this device.</div>}<div className="results-grid">{lineups.map(v=><article className="result-card" key={v.id}>{v.status==='ready'?<button className="result-image" onClick={()=>{setSelected(v);setRefineStrict(v.lineup?.strictReference===true);setCompareReference(false);setRefineCar(v.lineup!.heroId);setRefinement('');setAreaOpen(false);setProvider(v.provider||'openai');setModel(v.provider==='higgsfield'?v.model||HIGGSFIELD_IMAGE_MODELS[0].id:(OPENAI_IMAGE_MODELS.find(m=>m.id===v.model)?.id||OPENAI_IMAGE_MODEL));setSize(v.size||'2048x1152')}}><img crossOrigin="anonymous" src={v.src} alt={v.title}/><small>{v.width} × {v.height}</small></button>:<div className="generation-placeholder"><RefreshCw size={24} className={v.status==='pending'?'spin':''}/><strong>{v.status==='failed'?'Could not finish':'Creating your lineup…'}</strong><p>{v.error||'Aligning cars, light and atmosphere.'}</p>{v.provider==='higgsfield'&&<button className="secondary" disabled={!!busy} onClick={()=>void run('Checking original request…',async()=>{const action=['unknown','submitting'].includes(v.jobStatus||'')?'recover':['draft','quoted'].includes(v.jobStatus||'')?'generate':'refresh';put((await api(`/api/image-jobs/${v.id}/${action}`,{})).visual)})}>Check original request</button>}</div>}<h3>{v.title}</h3><p className="helper">{v.lineup!.strictReference?'Reference locked · ':''}{v.lineup!.cars.length} cars · {names?(v.provider==='higgsfield'?'Higgsfield':'ChatGPT'):visualQualityLabel(v)}</p></article>)}</div></section>
- <input hidden ref={upload} type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void run('Uploading inspiration…',()=>uploadMood(f))}}/>
- <Dialog open={!!captureCar} onOpenChange={open=>{if(!open)setCaptureId('')}}><DialogContent className="lineup-capture-dialog"><DialogTitle>{captureCar?.name} · references</DialogTitle><DialogDescription>The first view sets this car’s angle. Add an optional second view for detail accuracy.</DialogDescription>{captureCar&&config&&<CarCapture key={captureCar.id} config={config} refs={captureCar.views} maxViews={2} onConfig={c=>update(captureCar.id,{name:c.name,configurator:c.url,views:[],finish:''})} onViews={views=>update(captureCar.id,{views})}/>}<button className="generate" onClick={()=>setCaptureId('')}>Done</button></DialogContent></Dialog>
- <Dialog open={!!libraryId} onOpenChange={open=>{if(!open)setLibraryId('')}}><DialogContent className="lineup-library-dialog"><DialogTitle>Use a saved car reference</DialogTitle><DialogDescription>These are the original car images used in your saved visuals.</DialogDescription><label>Find a car<input value={librarySearch} onChange={e=>setLibrarySearch(e.target.value)} placeholder="Car name or color…"/></label><div className="lineup-library">{savedCars.filter(c=>(c.name+' '+c.finish).toLowerCase().includes(librarySearch.toLowerCase())).map(c=><button key={c.views[0].id} disabled={cars.some(x=>x.id!==libraryId&&x.views.some(v=>c.views.some(r=>r.id===v.id)))} onClick={()=>{update(libraryId,{name:c.name,configurator:c.configurator,finish:c.finish,views:c.views.slice(0,2)});setLibraryId('')}}><img crossOrigin="anonymous" loading="lazy" src={'/api/assets/'+c.views[0].id} alt={c.name}/><strong>{c.name}</strong><span>{c.finish}</span></button>)}</div>{!savedCars.length&&<p>No saved car references yet. Capture or upload a car view.</p>}</DialogContent></Dialog>
- <Dialog open={!!selected} onOpenChange={open=>{if(!open&&!busy){setSelected(null);setAreaOpen(false)}}}><DialogContent className="visual-dialog"><DialogTitle>{selected?.title}</DialogTitle><DialogDescription>{selected?.width} × {selected?.height} · check each car against its references before approval.</DialogDescription>{selected&&<>{!areaOpen&&<img crossOrigin="anonymous" className="lineup-result" src={compareReference&&selected.moodId?'/api/assets/'+selected.moodId:selected.src} alt={compareReference?'Original inspiration':selected.title}/>}<div className="visual-actions"><ImageDownload key={selected.id} src={selected.src} name={selected.title}/><button className="secondary" aria-pressed={compareReference} onClick={()=>setCompareReference(!compareReference)}>{compareReference?'Show generated lineup':'Compare with reference'}</button><button className="secondary" disabled={!!busy} onClick={()=>{const l=selected.lineup!;setCars(l.cars);setHeroId(l.heroId);setLayout(l.layout);setStrictReference(l.strictReference===true);setMood({id:selected.moodId!,name:'Saved inspiration',pin:selected.pin||''});setPin(selected.pin||'');setBrief(selected.brief||'');setSelected(null);window.scrollTo({top:0,behavior:'smooth'})}}>Reuse this setup</button><button className="secondary" disabled={!!busy} onClick={()=>setAreaOpen(!areaOpen)}>{areaOpen?'Back to car refinement':'Edit an exact area'}</button></div>{areaOpen?<AreaEditor key={selected.id} visual={selected} connected={connected} onBusy={b=>{working.current=b;setBusy(b?'Editing selected area…':'')}} onSaved={v=>{put(v);setSelected(v);setAreaOpen(false)}}/>:<div className="lineup-refine"><LineupReferenceMatch refining active={refineStrict} onChange={setRefineStrict} disabled={!!busy}/><h3>{refineStrict?'Refine the reference match':'Refine one car'}</h3><div className="lineup-refine-cars">{selected.lineup!.cars.map((c,i)=><button disabled={!!busy} className={refineCar===c.id?'active':''} key={c.id} onClick={()=>setRefineCar(c.id)}><img crossOrigin="anonymous" src={'/api/assets/'+c.views[0].id} alt=""/><span>Car {i+1} · {c.name}</span></button>)}</div><label>What should change?<textarea value={refinement} onChange={e=>setRefinement(e.target.value)} maxLength={1000} placeholder="Correct this car’s wheels to match its reference. Keep the other cars and scenery unchanged." disabled={!!busy}/></label><button className="generate" disabled={!!busy||!refinement.trim()||!refineCar} onClick={()=>void generate(selected)}><Sparkles size={17}/>{busy||'Create refined lineup'}</button><p className="helper">Edits the displayed lineup and keeps previous changes. For changes confined to a precise region, use “Edit an exact area.” Every version is saved separately.</p>{error&&<p className="field-error" role="alert">{error}</p>}</div>}</>}</DialogContent></Dialog>
- </main></div>
+ for(const v of visuals){if(v.status!=='ready'||!v.sourceId)continue;const refs:LineupCar[]=v.lineup?.cars||[{id:v.id,name:v.vehicle||v.title,configurator:v.configurator||presets[0]?.url||'',finish:v.finish||'',views:[{id:v.sourceId,label:v.angle||'Saved captured view'}],x:50,y:72,scale:35}];for(const c of refs)if(!savedMap.has(c.views[0].id))savedMap.set(c.views[0].id,c)}
+ const editCar=cars.find(c=>c.id===captureId),editConfig:Configurator|undefined=editCar?presets.find(c=>c.url===editCar.configurator)||{id:editCar.id,name:editCar.name,url:editCar.configurator}:undefined;
+ const cost=lineupCredits(o,provider,model,size),billing=lineupBillingNote(o,provider,model,size,names);
+ const areaCost=costLabel(o,openaiImageCost('2048x1152'),'openai'),canArea=hasFeature(account,'studio.area_edit');
+ const engineWords=(v:Visual)=>names?(v.provider==='higgsfield'?'Higgsfield':'ChatGPT'):visualQualityLabel(v);
+ const title=showResult&&shown?shown.title:'Car line-up';
+
+ const bar=<>
+  <h1 className="editor-lineup-title ds-truncate" title={title}>{title}</h1>
+  {shown&&<div className="ds-segmented editor-stage-switch" role="group" aria-label="Show"><button type="button" aria-pressed={!showResult} onClick={()=>setView('setup')}>Placement</button><button type="button" aria-pressed={showResult} onClick={()=>setView('result')}>Result</button></div>}
+  {selected&&showResult&&<SaveToProject folders={project.folders} folderId={project.folderOf('visual',selected.id)} disabled={!project.ready} onSave={f=>void project.save('visual',selected.id,f)}/>}
+  <span className="editor-bar-actions">
+   {selected&&showResult&&<>
+    {selected.lineup&&<Button size="sm" kind="quiet" icon={<Wand2 aria-hidden="true"/>} disabled={!!busy} onClick={()=>setRefineOpen(true)}>Refine a car{cost!==null&&<span className="ds-btn-meta">· {creditWords(cost)}</span>}</Button>}
+    {canArea&&<Button size="sm" kind="quiet" icon={<Scissors aria-hidden="true"/>} disabled={!!busy} onClick={()=>setAreaOpen(true)}>Area edit{areaCost&&<span className="ds-btn-meta">· {areaCost}</span>}</Button>}
+    <IconButton label="Download" size="sm" busy={downloading} onClick={()=>void save(selected)}><Download aria-hidden="true"/></IconButton>
+   </>}
+   <Menu label="More for this line-up" trigger={<MoreHorizontal aria-hidden="true"/>} size="sm">
+    {selected&&showResult&&selected.moodId&&<MenuItem icon={<Columns2/>} onSelect={()=>setCompare(c=>!c)}>{compare?'Show generated lineup':'Compare with reference'}</MenuItem>}
+    {selected?.lineup&&<MenuItem icon={<RotateCcw/>} disabled={!!busy} onSelect={()=>reuse(selected)}>Reuse this setup</MenuItem>}
+    <MenuItem icon={<RefreshCw/>} disabled={!!busy} onSelect={()=>void run('Refreshing lineups…',async()=>{await refresh()})}>Refresh versions</MenuItem>
+   </Menu>
+  </span>
+ </>;
+
+ const stage=!showResult||!shown?<LineupPlacement cars={cars} heroId={heroId} strict={strictReference} moodId={mood?.id}/>
+  :selected?<figure className="editor-result">
+    <LineupImg src={compare&&selected.moodId?asset(selected.moodId):selected.src} alt={compare?'Original inspiration':selected.title}/>
+    <figcaption><span>{compare?'Original inspiration':[selected.width&&selected.height?`${selected.width} × ${selected.height}`:'',selected.lineup?.strictReference?'Reference locked':'',selected.lineup?`${selected.lineup.cars.length} cars`:'',engineWords(selected),'check each car against its references'].filter(Boolean).join(' · ')}</span><CostBadge credits={typeof selected.credits==='number'?selected.credits:null} used/></figcaption>
+   </figure>
+  :<State kind={shown.status==='failed'?'error':'empty'} icon={shown.status==='failed'?undefined:<Loader2 className="ds-spin-icon"/>} title={shown.status==='failed'?'Could not finish':'Creating your lineup…'}
+    actions={shown.provider==='higgsfield'?<Button size="sm" disabled={!!busy} onClick={()=>checkOriginal(shown)}>Check original request</Button>:undefined}>{say(shown.error||'Aligning cars, light and atmosphere.')}</State>;
+
+ const settings=<fieldset className="editor-lineup-fields" disabled={!!busy}>
+  <LineupCars cars={cars} heroId={heroId} strict={strictReference} ready={ready} onEdit={setCaptureId} onSaved={setLibraryId} onHero={chooseHero} onMove={moveCar} onRemove={removeCar} onAdd={addCar}/>
+  <LineupLayout cars={cars} layout={layout} strict={strictReference} expert={expert} onLayout={chooseLayout} onExpert={setExpert} onPlace={update}/>
+  <SettingsSection title="Inspiration" id="lineup-inspiration-title">
+   <div className="editor-inspiration editor-lineup-paste" role="group" aria-label="Inspiration. Paste an image here with ⌘V or Ctrl+V." tabIndex={0} onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!busy)void run('Adding inspiration…',()=>uploadMood(file))}}}>
+    {mood?<div className="editor-upload"><span className="editor-lineup-thumb"><LineupImg src={asset(mood.id)} alt="Lineup inspiration"/></span><span><b>Inspiration ready</b><span className="ds-muted ds-truncate">{mood.name}</span></span></div>
+     :<p className="ds-help">Use a lineup reference for staging, or a location image for atmosphere.</p>}
+    <Field label="Pinterest inspiration"><Input type="url" value={pin} onChange={e=>{setPin(e.target.value);setMood(null)}} placeholder="https://www.pinterest.com/pin/…"/></Field>
+    <div className="editor-row">
+     <Button size="sm" disabled={!pin.trim()} onClick={()=>void run('Loading inspiration…',async()=>{await importPin()})}>Load inspiration</Button>
+     <Button size="sm" kind="quiet" icon={<Upload aria-hidden="true"/>} onClick={()=>upload.current?.click()}>Upload a picture</Button>
+     <Button size="sm" kind="quiet" icon={<ClipboardPaste aria-hidden="true"/>} onClick={()=>void pasteMood()}>Paste</Button>
+    </div>
+   </div>
+   <LineupReferenceSwitch active={strictReference} onChange={active=>{setStrictReference(active);if(active)setLayout('inspiration')}}/>
+  </SettingsSection>
+  <PromptSettings label="Anything else? (optional)" value={brief} onChange={setBrief} max={2000} inspiration={false} placeholder="A mountain overlook at sunset. Keep every car visible, with warm light from the right…"/>
+  <LineupQuality o={o} provider={provider} model={model} size={size} onSize={setSize} names={names}/>
+  <LineupEngine names={names} provider={provider} model={model} size={size}
+   onProvider={p=>{setProvider(p);setModel(p==='openai'?OPENAI_IMAGE_MODEL:HIGGSFIELD_IMAGE_MODELS[0].id);setSize('2048x1152')}}
+   onModel={m=>{setModel(m);if(provider==='higgsfield'&&!higgsImageModel(m).max4k&&size==='3840x2160')setSize('2048x1152')}} onSize={setSize}/>
+ </fieldset>;
+
+ const jobs=busy||error?<div className="ds-stack">
+  {busy&&<article className="ds-job" data-state="running" aria-label={busy}><div className="ds-job-head"><Loader2 aria-hidden="true" className="ds-spin-icon"/><h3 className="ds-job-title">{busy}</h3></div><p className="ds-job-stage" role="status">Keep this tab open; saved results appear in your versions.</p></article>}
+  {error&&<Banner kind="bad" icon={<AlertTriangle/>}><span className="ds-row editor-message"><span>{say(error)}</span><IconButton label="Dismiss error" size="sm" onClick={()=>setError('')}><X aria-hidden="true"/></IconButton></span></Banner>}
+ </div>:undefined;
+ const note=issue?say(issue):!mood&&!pin.trim()?'Add an inspiration to generate.':[billing,'Creates one paid image. Original references and earlier versions stay saved.'].filter(Boolean).join(' ');
+
+ return <WorkspaceFrame current="lineup" bleed notices={<AccountNotices variant="ds"/>}>
+  <EditorScreen tool="lineup" onTool={t=>{if(t!=='lineup')router.push(EDITOR_TOOLS.find(x=>x.id===t)?.href||'/')}}
+   bar={bar} stage={stage} history={<VersionHistory versions={versions} current={showResult?currentId:null} onPick={id=>{const v=visuals.find(x=>x.id===id);if(v)pick(v)}}/>}
+   jobs={jobs} settings={settings} cost={cost} busy={!!busy} disabled={!ready||!!issue||(!mood&&!pin.trim())} onGenerate={()=>void generate()} note={note}/>
+  <input hidden ref={upload} type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void run('Uploading inspiration…',()=>uploadMood(f))}}/>
+  {editCar&&editConfig&&<LineupCarDialog key={editCar.id} car={editCar} index={cars.indexOf(editCar)} config={editConfig} onPatch={patch=>update(editCar.id,patch)} onClose={()=>setCaptureId('')}/>}
+  {libraryId&&<LineupSavedDialog saved={Array.from(savedMap.values())} cars={cars} targetId={libraryId} onClose={()=>setLibraryId('')} onPick={c=>{update(libraryId,{name:c.name,configurator:c.configurator,finish:c.finish,views:c.views.slice(0,2)});setLibraryId('')}}/>}
+  {refineOpen&&selected?.lineup&&<LineupRefineDialog visual={selected} strict={refineStrict} onStrict={setRefineStrict} carId={refineCar} onCar={setRefineCar} text={refinement} onText={setRefinement} cost={cost} note={billing} onClose={()=>setRefineOpen(false)} onRefine={()=>{setRefineOpen(false);void generate(selected)}}/>}
+  {areaOpen&&selected&&<Dialog open wide title="Edit an exact area" onClose={()=>{if(!busy)setAreaOpen(false)}}>
+   <AreaEditor key={selected.id} visual={selected} connected={connected} onBusy={b=>{working.current=b;setBusy(b?'Editing selected area…':'')}} onSaved={v=>{put(v);pick(v);setAreaOpen(false)}}/>
+  </Dialog>}
+ </WorkspaceFrame>;
 }

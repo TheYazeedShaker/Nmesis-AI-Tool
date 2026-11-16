@@ -1,7 +1,8 @@
 {
   "note": "Counts from the full npm run check:ui matrix. They may only go down; Phase 4 brings them to zero. focusWithoutIndicator moves by a few from run to run (CI allows +5). Phase 2b lowered overlapped partly by a harness correction: controls inside a closed <details> are not drawn and are no longer counted (docs/design-audit/harness.md).",
-  "measured": "2026-11-15 (Phase 3 group 1)",
+  "measured": "2026-11-16 (Phase 3 group 2)",
   "counts": {
+    "controlsSpilling": 0,
     "providerNamesShown": 0,
     "pagesWithErrors": 0,
     "pagesWithSidewaysScroll": 0,

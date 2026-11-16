@@ -170,3 +170,12 @@ test('one unreadable image job is skipped and logged; the rest of the library st
  assert.ok(warned.some(w=>w.includes('skipped an unreadable image job')&&w.includes(bad.id)),'and logged with its id');
  assert.ok(visuals.every(v=>v.mine===true),'everything here was made by the viewer');
 }finally{console.warn=warn;h.close()}});
+test('a status check that finds another one running answers with the job as it stands; other actions stay refused',async()=>{const h=await harness();try{
+ h.setHandler(h.normal);const row=await h.images.createImage(h.ctx,input());
+ let inner;await h.images.withImageLock(h.ctx,row.id,async()=>{
+  inner=await h.images.withImageLock(h.ctx,row.id,async()=>{throw new Error('must not run')},{busy:'answer'});
+  await assert.rejects(()=>h.images.withImageLock(h.ctx,row.id,async()=>{}),/updating/);
+ });
+ assert.equal(inner.id,row.id);
+ assert.match(readFileSync(new URL('../app/api/image-jobs/[id]/[action]/route.ts',import.meta.url),'utf8'),/action==='refresh'\?\{busy:'answer'\}:\{\}/);
+}finally{h.close()}});

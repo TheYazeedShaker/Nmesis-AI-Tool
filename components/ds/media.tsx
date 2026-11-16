@@ -16,12 +16,33 @@ export type MediaItem = {
   id: string;
   name: string;
   sub?: string;
+  /** The small picture the tile shows. */
   src?: string;
+  /** The full picture, loaded only by the viewer (a short-lived signed link). */
+  full?: string;
   kind?: 'image' | 'video' | 'film' | 'storyboard' | 'swap';
   status?: { kind: BadgeKind; label: string };
   width?: number;
   height?: number;
 };
+
+/** A tile's picture, fetched only when the tile is on screen or within 200px
+ *  of it (the browser's own lazy loading reaches much further): a long library
+ *  reads nothing from storage for what is not shown. */
+function TileImage({ src, width, height }: { src: string; width?: number; height?: number }) {
+  const ref = React.useRef<HTMLImageElement>(null);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const load = () => { if (el.getAttribute('src') !== src) el.setAttribute('src', src); };
+    if (typeof IntersectionObserver === 'undefined') { load(); return; }
+    const watch = new IntersectionObserver((seen) => { if (seen.some((e) => e.isIntersecting)) { load(); watch.disconnect(); } }, { rootMargin: '200px' });
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [src]);
+  // eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs, set when on screen
+  return <img ref={ref} alt="" decoding="async" width={width} height={height} />;
+}
 
 export function MediaTile({ item, selected, onSelect, onOpen, onMove, onDelete, onDownload }: {
   item: MediaItem;
@@ -38,8 +59,7 @@ export function MediaTile({ item, selected, onSelect, onOpen, onMove, onDelete, 
         {item.src
           // Signed URLs are sized by the server; the tile reserves the space so
           // nothing moves when the picture arrives (CLS).
-          // eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs; how they are sized (next/image or sized URLs) is decided in Phase 2b
-          ? <img src={item.src} alt="" loading="lazy" decoding="async" width={item.width} height={item.height} />
+          ? <TileImage src={item.src} width={item.width} height={item.height} />
           : <span className="ds-tile-placeholder" aria-hidden="true"><ImageIcon /></span>}
         {onOpen && <button type="button" className="ds-tile-open" onClick={onOpen}><span className="ds-sr-only">Open {item.name}</span></button>}
         {item.status && <span className="ds-tile-status"><Badge kind={item.status.kind}>{item.status.label}</Badge></span>}
@@ -135,7 +155,7 @@ export function Viewer({ items, index, onIndex, onClose, onDownload, onVariation
         </div>
         <div className="ds-viewer-stage">
           {/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs (Phase 2b) */}
-          {item.src ? <img src={item.src} alt={item.name} /> : <div className="ds-viewer-media" role="img" aria-label={item.name}><ImageIcon aria-hidden="true" /></div>}
+          {(item.full || item.src) ? <img src={item.full || item.src} alt={item.name} /> : <div className="ds-viewer-media" role="img" aria-label={item.name}><ImageIcon aria-hidden="true" /></div>}
           {items.length > 1 && <>
             <IconButton className="ds-viewer-prev" label="Previous" onClick={() => go(-1)}><ChevronLeft aria-hidden="true" /></IconButton>
             <IconButton className="ds-viewer-next" label="Next" onClick={() => go(1)}><ChevronRight aria-hidden="true" /></IconButton>
