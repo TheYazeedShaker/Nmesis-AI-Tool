@@ -68,3 +68,11 @@ test('the editor never draws one thing over another: flex boxes do not shrink be
  assert.match(css,/\.editor-stage \{ height: auto; min-height: 100%; \}/);
  assert.match(css,/\.editor-stage-main \{ flex: 1 0 auto; \}/);
 });
+
+test('on phones Generate keeps its cost on screen: the label wraps, the cost stays whole', () => {
+ const css=read('app/design-system.css');
+ assert.match(css,/\.ds-phone-generate \.ds-btn\.primary \{ flex: 1 1 auto; min-width: 0; white-space: normal;/);
+ assert.match(css,/\.ds-phone-generate \.ds-btn\.primary \.ds-btn-meta \{ white-space: nowrap; \}/);
+ // check:ui counts a control cut off at the side of the screen as spilling.
+ assert.match(read('scripts/ui/checks.mjs'),/cutOff: true/);
+});

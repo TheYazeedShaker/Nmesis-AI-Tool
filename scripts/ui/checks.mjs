@@ -79,6 +79,9 @@ export function layoutChecks({ phone }) {
       const spills = cs.overflowX === 'visible' && el.scrollWidth > el.clientWidth + 1;
       const wraps = cs.whiteSpace === 'nowrap' && el.scrollWidth > el.clientWidth + 1;
       if (spills || wraps) out.spilling.push({ el: describe(el), w: Math.round(r.width), needs: el.scrollWidth });
+      // Cut off at the side of the screen with nothing that scrolls it into view
+      // (a Generate button pushed off a phone; the page itself does not scroll).
+      else if ((r.right > innerWidth + 1 || r.left < -1) && !sideScroller(el)) out.spilling.push({ el: describe(el), cutOff: true, right: Math.round(r.right) });
     }
     // Pointing at it: is it what the pointer reaches? (Only what is on screen now:
     // inside the window and inside every box that scrolls or clips it. A setting
@@ -107,6 +110,10 @@ export function layoutChecks({ phone }) {
   }
   for (const k of ['under24', 'under44', 'overlapped', 'clippedNoEllipsis', 'ellipsisNoTitle', 'spilling']) out[k] = dedupe(out[k]);
   return out;
+  function sideScroller(el) {
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) if (/auto|scroll/.test(getComputedStyle(n).overflowX)) return true;
+    return false;
+  }
   function shownArea(el) {
     const a = { top: 0, left: 0, bottom: innerHeight, right: innerWidth };
     for (let n = el.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {

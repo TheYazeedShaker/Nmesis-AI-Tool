@@ -834,7 +834,8 @@
     display: flex; gap: var(--ds-space-8); position: sticky; bottom: var(--ds-phone-nav-h); z-index: var(--ds-z-sticky);
     padding: var(--ds-space-8) var(--ds-space-12); background: var(--ds-panel); border-top: var(--ds-border-width) solid var(--ds-border);
   }
-  .ds-phone-generate .ds-btn.primary { flex: 1 1 auto; }
+  .ds-phone-generate .ds-btn.primary { flex: 1 1 auto; min-width: 0; white-space: normal; text-align: center; }
+  .ds-phone-generate .ds-btn.primary .ds-btn-meta { white-space: nowrap; }
   .ds-phone-generate .ds-generate-note { display: none; }
   .ds-hide-phone { display: none; }
 }
