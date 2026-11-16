@@ -1,8 +1,9 @@
 'use client';
 import * as React from 'react';
-import {Link2,Music,Upload} from 'lucide-react';
+import {Link2,Music} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {Field,Input,Radio,RadioGroup,Select,Switch,Textarea} from '@/components/ds/field';
+import {DropZone} from '@/components/ds/drop-zone';
 import {filmModelLabel} from '@/lib/provider-words';
 import {FILM_MODELS,VIDEO_MODEL} from '@/lib/films';
 import type {Configurator} from '@/lib/configurators';
@@ -32,7 +33,7 @@ export function StorySettings({board,edit,cars,car,onCar,count,onCount,expert,on
  music:File|null;onMusic:(f:File|null)=>void;onPin:()=>void;onMood:(f:File)=>void;
  /** The quoted price of the new clips at the chosen quality, in words. */quote:string|null;disabled:boolean;
 }){
- const moodInput=React.useRef<HTMLInputElement>(null),musicInput=React.useRef<HTMLInputElement>(null);
+ const musicInput=React.useRef<HTMLInputElement>(null);
  const planned=board.shots.length>0,locked=planned||disabled;
  const quality=qualityOf(board.model),standardModel=board.model===QUALITY_MODEL.standard||board.model===QUALITY_MODEL.high;
  const names=cars.some(c=>c.url===car.url)?cars:[...cars,car];
@@ -45,16 +46,13 @@ export function StorySettings({board,edit,cars,car,onCar,count,onCount,expert,on
   {!planned&&<div className="ds-row" role="group" aria-label="Start from an idea">{IDEAS.map(([name,idea])=><Button key={name} size="sm" kind="quiet" aria-pressed={board.idea===idea} onClick={()=>edit({idea})}>{name}</Button>)}</div>}
   <SettingsSection title="Atmosphere" id="story-mood-title">
    <Field label={<>Art direction <span className="ds-muted">(optional)</span></>} count={{value:board.direction.length,max:2000}}><Textarea value={board.direction} onChange={e=>edit({direction:e.target.value})} maxLength={2000} rows={3} placeholder="Natural reflections, warm highlights, cinematic contrast…"/></Field>
+   <DropZone name="place picture" label="Drop, paste or upload a picture of the place" hint="Optional · PNG, JPEG or WebP · up to 40 MB"
+    value={board.moodId?'/api/assets/'+board.moodId:null} valueName="Atmosphere picture" valueAlt="Campaign atmosphere reference"
+    onFile={onMood} onRemove={()=>edit({moodId:'',pin:''})} disabled={disabled}/>
    <Field label={<>Pinterest image pin <span className="ds-muted">(optional)</span></>}><Input value={board.pin} onChange={e=>edit({pin:e.target.value})} placeholder="https://www.pinterest.com/pin/…" inputMode="url"/></Field>
    <div className="editor-row">
     <Button size="sm" icon={<Link2 aria-hidden="true"/>} disabled={!board.pin} onClick={onPin}>Add reference</Button>
-    <Button size="sm" kind="quiet" icon={<Upload aria-hidden="true"/>} onClick={()=>moodInput.current?.click()}>Upload a location</Button>
    </div>
-   <input hidden className="ds-sr-only" ref={moodInput} type="file" accept="image/png,image/jpeg,image/webp" aria-label="Upload a location reference" onChange={e=>{const f=e.target.files?.[0];if(f)onMood(f);e.target.value=''}}/>
-   {board.moodId&&<div className="editor-storyboard-frame">
-    {/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
-    <img crossOrigin="anonymous" src={'/api/assets/'+board.moodId} alt="Campaign atmosphere reference"/>
-   </div>}
    <p className="ds-help">The car views define your vehicle. This image guides the environment and lighting.{planned?' Changing the shared idea, art direction or references resets the affected images. Earlier versions stay saved.':''}</p>
   </SettingsSection>
   <SettingsSection title="Story" id="story-shots-title">

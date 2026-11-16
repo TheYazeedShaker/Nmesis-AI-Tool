@@ -7,7 +7,8 @@ import { spawn } from 'node:child_process';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { startAuthMock } from '../verify/auth-mock.mjs';
 import { startS3 } from '../verify/s3-standin.mjs';
-import { prepareDatabase, seedAccounts } from './seed.mjs';
+import { prepareDatabase, seedAccounts, SEED_CARS } from './seed.mjs';
+import { startConfiguratorStandin } from './configurator-standin.mjs';
 
 const GUARD = fileURLToPath(new URL('./no-network.mjs', import.meta.url));
 // Provider and email settings a developer may have locally: never passed on.
@@ -17,6 +18,8 @@ export async function startStack({ adminUrl, port = 3940, log = () => {} }) {
   if (!adminUrl) throw new Error('Set TEST_DATABASE_URL to a disposable Postgres (superuser), as CI does.');
   const s3 = await startS3();
   const auth = await startAuthMock();
+  // The configurator site's settings and pictures (car pictures and brand logos), on this machine.
+  const configurator = await startConfiguratorStandin(SEED_CARS.map(([b, m]) => [b, m]));
   const appUrl = await prepareDatabase(adminUrl, { log });
   await seedAccounts(adminUrl, auth);
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !DROP.test(k)));
@@ -29,6 +32,7 @@ export async function startStack({ adminUrl, port = 3940, log = () => {} }) {
     S3_REGION: 'eu-central-1', S3_BUCKET: 'studio-ui', S3_ENDPOINT: s3.url, S3_FORCE_PATH_STYLE: 'true', S3_ACCESS_KEY_ID: 'local', S3_SECRET_ACCESS_KEY: 'local-secret',
     KEY_ENCRYPTION_SECRET: '5e'.repeat(32),
     CONFIGURATOR_ORIGIN: 'https://configurator.example.test',
+    CONFIGURATOR_API_ORIGIN: configurator.origin,
   });
   const origin = `http://localhost:${port}`;
   const startedAt = Date.now();
@@ -53,6 +57,6 @@ export async function startStack({ adminUrl, port = 3940, log = () => {} }) {
   }
   return {
     origin, s3, auth, appUrl, adminUrl, output, blocked, readyMs: ready, env,
-    stop: async () => { server.kill(); auth.server.close(); s3.server.close(); },
+    stop: async () => { server.kill(); auth.server.close(); s3.server.close(); configurator.server.close(); },
   };
 }

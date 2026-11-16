@@ -83,6 +83,10 @@ language sql stable security definer set search_path = '' as $fn$
 $fn$;`;
 
 /** A clean `studio` schema and role, the accounts fixture, the owner's setup SQL and every migration. */
+// Cars from the master list (synthetic). The pickup's model name starts with its
+// brand, as some real ones do: the Studio shows it once ("Sample Pickup").
+export const SEED_CARS = [['demo', 'suv', 'Demo', 'SUV'], ['demo', 'saloon', 'Demo', 'Saloon'], ['demo', 'hatch', 'Demo', 'Hatch'], ['sample', 'pickup', 'Sample', 'Sample Pickup'], ['sample', 'coupe', 'Sample', 'Coupé with a very long trim name for clipping checks']];
+
 export async function prepareDatabase(adminUrl, { log = () => {} } = {}) {
   const admin = postgres(adminUrl, { max: 1, prepare: false, ssl: ssl(adminUrl), onnotice: () => {} });
   try {
@@ -145,7 +149,7 @@ export async function seedAccounts(adminUrl, auth) {
     await used(ORGS.starter.id, [PEOPLE.starter.id], 500, 25);
     await admin`insert into accounts.credit_packs(org_id,credits,price,bought_on,expires_on) values (${ORGS.enterprise.id}, 1250000, 0, ${daysAgo(3)}, ${daysAgo(-365)})`;
     // Cars from the master list, through the companies' brands.
-    const cars = [['demo', 'suv', 'Demo', 'SUV'], ['demo', 'saloon', 'Demo', 'Saloon'], ['demo', 'hatch', 'Demo', 'Hatch'], ['sample', 'pickup', 'Sample', 'Pickup'], ['sample', 'coupe', 'Sample', 'Coupé with a very long trim name for clipping checks']];
+    const cars = SEED_CARS;
     for (const [brand, model, brandName, modelName] of cars) {
       await admin`insert into accounts.cars(brand_id,model_id,brand_name,model_name,configurator_url,live) values (${brand}, ${model}, ${brandName}, ${modelName}, ${`/${brand}/${model}/`}, true)`;
     }

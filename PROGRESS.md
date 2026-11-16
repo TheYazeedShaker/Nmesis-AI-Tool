@@ -2,9 +2,26 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-16 (Design Phase 3 group 2: the library at scale, the one editor)
+**Last updated:** 2026-11-16 (Design Phase 3 editor polish: brands, car pictures, the drop zone)
 
-**Latest (2026-11-16, design programme Phase 3 group 2):**
+**Latest (2026-11-16, design programme Phase 3 editor polish, `design/editor-polish`):**
+- Clients work as their brand. The brands come from `accounts.organisation_brands` through a new read-only view, `accounts.studio_brands` (setup SQL, section 5; until the owner re-runs it, they are worked out from each company's cars).
+  - The brand's logo and name replace the company's name in the top bar, the switcher, Home and the notices.
+  - A company with several brands switches between them. The choice is remembered (`studio_brand` cookie, re-checked on every request) and narrows the cars, Home and the library.
+  - Staff see "Brand · Company". The legal name stays in Company settings, Usage and billing.
+- Car names never repeat the brand ("IM 6", not "IM IM 6"), and old work is mended when it is shown or filtered.
+- Home and the car picker show each car's real picture: the configurator's opening frame. The server fetches it once, only for the company's own cars, keeps a small WebP in the company's storage and serves it on a signed link. A new frame makes a new picture. Brand logos work the same way (`/api/cars/<id>/picture`, `/api/brands/<id>/logo`).
+- One design-system drop zone wherever a picture is added. Inspiration is one card. The capture wording is plain, and the screen-share prompt is explained only just before the browser asks. Area edit, upscale and the provider connection dialogs are on the design system.
+- Phones: the editor is a full-screen column, so nothing is ever under the Generate bar.
+- `check:ui`:
+  - fails on a fixed-position control over the settings panel (`fixedOverSettings`);
+  - takes screenshots of screens in given states;
+  - runs a local stand-in configurator;
+  - its ratchet holds the #35 counts.
+- The round "≡" button seen at the right edge on Preview is not the Studio's: it is the Vercel Toolbar, which Vercel adds to protected Preview deployments for signed-in team members. Owner step: turn it off for Preview in the Vercel project's settings.
+- No hosted system was touched.
+
+**Earlier (2026-11-16, design programme Phase 3 group 2):**
 - The library at scale:
   - migration `0007_library_index.sql`: `studio.library_items`, one row per piece of work, kept up to date on every save, delete and restore, with the environment rule and row level security as 0004;
   - small WebP thumbnails are made when work is saved; `npm run library:backfill -- --env <production|preview> --staff <uuid>` indexes existing work and makes its thumbnails (once per environment, after 0007);
@@ -89,7 +106,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the main Supabase project and S3 |
 | S2.1 hosted fixes, staff portal | ✅ | Merged into `development` and released to `main` (#22) |
 | S3 credits, own keys, support access | ✅ | Merged into `development` (#28); owner steps (setup SQL section 6, provider accounts and limits, Vercel variables, plans per client) in the PR body |
-| Design programme | 🟡 | Phases 0 (#29), 1 (#31), 2a (#32), 2b (#33) and Phase 3 group 1 (#34) merged; group 2 (library at scale, the editor) PR `design/editor`; owner migrates 0007 and runs the backfill |
+| Design programme | 🟡 | Phases 0 (#29), 1 (#31), 2a (#32), 2b (#33), Phase 3 group 1 (#34) and group 2 (#35) merged; editor polish PR `design/editor-polish`; owner migrates 0007, runs the backfill, re-runs setup SQL section 5 |
 | Environment scope | 🟡 | Merged (#30); owner runs `npm run db:migrate` (0004) only after the change is live on Preview **and** Production |
 
 ## What was built last session (Design Phase 0)
@@ -144,6 +161,9 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
   - one level of sub-folders, and at most one folder per piece of work.
   The wireframe's bottom bar on phones was dropped while building: it covered the work at the bottom of the screen (`check:ui` overlapped), so phones use the top bar's menu.
 - **Phase 3 group 2 (owner, 2026-11-16):** the library lists from the database only (about 40 at a time), thumbnails made on save plus a one-off backfill, full images only in the viewer through short-lived signed links; tested with 1,000 items (first paint under 1.5 s on the phone profile, no storage reads for work off screen). One editor for all five tools; the configurator behind one adapter with the remote-control protocol's functions, implemented today with the in-iframe capture. The editor screens were approved with one correction: fix mobile responsiveness at its cause in the grid/flex system and test small laptops too. Rule kept since: touch sizes come from the tokens as min sizes; a fixed width only for square icon controls.
+- **Brands (owner, 2026-11-16, editor polish):** clients work as their brand (`accounts.organisation_brands`). The company's legal name appears only in Company settings, Usage and billing. A company with several brands switches between them, and the choice narrows the cars, Home and the library and is remembered. Staff see "Brand · Company".
+- **Car names and pictures (owner, 2026-11-16):** the brand is never repeated in front of a model name that starts with it. A car's picture is the configurator's opening exterior frame, fetched once by the server, kept small in the Studio's storage and refreshed when the configurator changes; a neutral placeholder is shown only when the car has no frames.
+- **Configurator adapter (owner, 2026-11-16):** keep it exactly as it is; the admin is starting remote control.
 - **F-050 everywhere (owner, 2026-11-15, Phase 2b brief):** no provider or model name anywhere for a client without own keys: tool pages, cost lines, cards, pickers, progress, errors, recovery messages, notices. Model pickers are quality choices; provider errors are rewritten in plain words with the original in the server log; own-key Enterprise texts and staff views keep the names. A test renders every client page as a no-own-key client and fails on any provider name in the visible text or `aria-label` / `title` / `alt`.
 
 - **Environment scope (owner, 2026-11-15):** every studio table holding client work carries `environment` (production / preview / development, from `VERCEL_ENV`); existing rows are Production's; every read and write is filtered in the database layer (RLS + `studio.env`), not per route; separate `KEY_ENCRYPTION_SECRET`s. Shared on purpose: credit holds and the company lock (one balance), support grants, the staff-access log, car settings.
@@ -213,8 +233,14 @@ _Carried_
 
 ## Next session — start here
 
-1. Owner: review PR `design/editor` (Phase 3 group 2).
-2. Owner, after the release to `main`: `npm run db:migrate` once (0004 to 0007), then `npm run library:backfill -- --env production --staff <staff uuid>` and the same with `--env preview` (each prints its counts; `--dry` first to see them).
-3. Then Phase 4 (BACKLOG #10).
-4. Follow-ups from group 2: design-system versions of the older inner panels the editor still hosts (area edit, upscale, inspiration match, paste box, the provider connection dialogs); the remote-control configurator adapter when the protocol is ready.
-5. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").
+1. Owner: review PR `design/editor-polish`.
+2. Owner:
+   - re-run section 5 of `docs/supabase-setup.sql` (adds `accounts.studio_brands`);
+   - set `CONFIGURATOR_ORIGIN` if it isn't already set, per environment (it is already used for the configurator links);
+   - turn off the Vercel Toolbar for Preview.
+3. Owner, after the release to `main` (unchanged): `npm run db:migrate` once (0004 to 0007), then the library backfill per environment.
+4. Then Phase 4 (BACKLOG #10).
+5. Follow-ups:
+   - toasts in the browser's top layer, so Undo can be reached while a dialog is open;
+   - the remote-control configurator adapter when the protocol is ready (keep the current adapter as it is until then).
+6. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").

@@ -146,3 +146,11 @@ body .studio input[type="checkbox"], body .studio input[type="radio"] { min-widt
   background: var(--ds-panel); border: var(--ds-border-width) solid var(--ds-border);
   border-radius: var(--ds-radius); box-shadow: var(--ds-shadow-2);
 }
+
+/* The brand people work as (Phase 3 polish): its logo on a light plate in both
+   themes (brand logos are drawn for a light ground), its initials until then. */
+.studio-brand-mark { overflow: hidden; }
+/* A logo is usually a wordmark: a small rounded plate as wide as the logo needs (up to 64px), not a circle. */
+.studio-brand-mark:has(img) { background: var(--ds-on-media); width: auto; min-width: var(--ds-space-24); max-width: var(--ds-space-64); border-radius: var(--ds-radius-sm); padding: var(--ds-space-2) var(--ds-space-4); }
+.studio-brand-mark > img { height: 100%; width: auto; max-width: 100%; object-fit: contain; display: block; }
+.studio-menu-row .studio-brand-mark { flex: none; }

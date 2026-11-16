@@ -92,7 +92,7 @@ select nspname, pg_get_userbyid(nspowner) as owner from pg_namespace where nspna
 --    accounts.organisation_brands, accounts.cars or accounts.configurator_access
 --    (these views depend on them). Re-running is safe.
 --
---    The studio reads the master list and never writes it, through five narrow
+--    The studio reads the master list and never writes it, through six narrow
 --    views and two functions. Nothing else in `accounts` is granted to it. The
 --    views run with their owner's rights (this setup user), which is how they
 --    reach tables that have row level security and no policies.
@@ -125,6 +125,14 @@ select o.id as org_id, c.brand_id, c.model_id, c.brand_name, c.model_name, c.con
                      where a.org_id = o.id and a.brand_id = c.brand_id and a.model_id = c.model_id))
     or (not exists (select 1 from accounts.configurator_access a where a.org_id = o.id)
         and exists (select 1 from accounts.organisation_brands b where b.org_id = o.id and b.brand_id = c.brand_id));
+
+-- The brands each company owns, with the brand's name from its cars (Phase 3
+-- polish: clients work as their brand, and a company with several brands
+-- switches between them). A brand with no car in the list shows its id.
+create or replace view accounts.studio_brands with (security_invoker = false) as
+select b.org_id, b.brand_id,
+       coalesce((select max(c.brand_name) from accounts.cars c where c.brand_id = b.brand_id), b.brand_id) as brand_name
+  from accounts.organisation_brands b;
 
 -- Every live car (staff see them all).
 create or replace view accounts.studio_live_cars with (security_invoker = false) as
@@ -159,18 +167,18 @@ end
 $fn$;
 
 revoke all on accounts.studio_memberships, accounts.studio_staff, accounts.studio_organisations,
-  accounts.studio_cars, accounts.studio_live_cars from public, anon, authenticated;
+  accounts.studio_cars, accounts.studio_live_cars, accounts.studio_brands from public, anon, authenticated;
 grant select on accounts.studio_memberships, accounts.studio_staff, accounts.studio_organisations,
-  accounts.studio_cars, accounts.studio_live_cars to studio_app;
+  accounts.studio_cars, accounts.studio_live_cars, accounts.studio_brands to studio_app;
 revoke all on function accounts.studio_accept_membership(uuid) from public, anon, authenticated;
 grant execute on function accounts.studio_accept_membership(uuid) to studio_app;
 -- The plan document (the admin's own function).
 grant execute on function accounts.entitlements(uuid) to studio_app;
 
--- Check (expect five `t` and two `t`):
+-- Check (expect six `t` and two `t`):
 select has_table_privilege('studio_app', v, 'select')
   from unnest(array['accounts.studio_memberships', 'accounts.studio_staff', 'accounts.studio_organisations',
-                    'accounts.studio_cars', 'accounts.studio_live_cars']) as v;
+                    'accounts.studio_cars', 'accounts.studio_live_cars', 'accounts.studio_brands']) as v;
 select has_function_privilege('studio_app', 'accounts.entitlements(uuid)', 'execute'),
        has_function_privilege('studio_app', 'accounts.studio_accept_membership(uuid)', 'execute');
 

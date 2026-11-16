@@ -1,8 +1,8 @@
 import {readEntitlements,studioEntitlements,type Entitlements,type Role} from './plan';
-import {UUID,type Directory,type Membership} from './directory';
+import {UUID,type Brand,type Directory,type Membership} from './directory';
 // Who is asking and for which company, decided from a verified Supabase user and
 // the master list. No I/O of its own beyond the directory, so tests drive it.
-export type OrgChoice={id:string;name:string;kind:string};
+export type OrgChoice={id:string;name:string;kind:string;/** Its brands (what its people work as). */brands:Brand[]};
 export type StudioContext={
  user:{id:string;email:string};
  org:{id:string;name:string;kind:string};
@@ -14,6 +14,11 @@ export type StudioContext={
  viewingAs:boolean;
  supportUntil:number|null;
  orgs:OrgChoice[];
+ // The company's brands, and the one being worked as: with one brand, that brand;
+ // with several, the person's choice (remembered in a cookie), else the first.
+ // Nmesis's own workspace has none.
+ brands:Brand[];
+ brand:Brand|null;
 };
 export type Resolved={ok:true;ctx:StudioContext}|{ok:false;reason:'no_company'|'mfa_required'};
 export const SUPPORT_NOT_GRANTED='Support access not granted. The company’s owner can allow Nmesis support access in Company settings.';
@@ -23,7 +28,7 @@ export const SUPPORT_NOT_GRANTED='Support access not granted. The company’s ow
 export const MFA_REQUIRED='Enter the six-digit code from your authenticator app to continue.';
 // `chosenOrg` comes from the company cookie (or a deep link) and is only a wish:
 // it is honoured when the user is an active member of that company, or is staff.
-export async function resolveContext({user,chosenOrg,directory}:{user:{id:string;email:string;aal?:'aal1'|'aal2'};chosenOrg?:string|null;directory:Directory}):Promise<Resolved>{
+export async function resolveContext({user,chosenOrg,chosenBrand,directory}:{user:{id:string;email:string;aal?:'aal1'|'aal2'};chosenOrg?:string|null;chosenBrand?:string|null;directory:Directory}):Promise<Resolved>{
  const staffRole=await directory.staffRole(user.id),staff=staffRole?{role:staffRole}:null;
  if(staff&&user.aal!=='aal2')return {ok:false,reason:'mfa_required'};
  let memberships:Membership[]=await directory.memberships(user.id);
@@ -45,21 +50,24 @@ export async function resolveContext({user,chosenOrg,directory}:{user:{id:string
  const viewingAs=!member&&!!staff&&org.kind!=='internal';
  const role:Role=member?member.role:viewingAs?'viewer':'owner';
  const entitlements=studioEntitlements((await directory.entitlements(org.id))??readEntitlements(null),org.kind);
- const orgs=staff?(await directory.organisations()).filter(o=>mayOpen(o)||active.some(m=>m.orgId===o.id)).map(o=>({id:o.id,name:o.name,kind:o.kind})):active.map(m=>({id:m.orgId,name:m.orgName,kind:m.orgKind}));
- return {ok:true,ctx:{user:{id:user.id,email:user.email},org,role,entitlements,staff,viewingAs,supportUntil:viewingAs?grants.get(org.id)??null:null,orgs}};
+ const brandMap=directory.brands?await directory.brands():new Map<string,Brand[]>();
+ const brandsOf=(o:{id:string;kind:string})=>o.kind==='internal'?[]:brandMap.get(o.id)||[];
+ const orgs=staff?(await directory.organisations()).filter(o=>mayOpen(o)||active.some(m=>m.orgId===o.id)).map(o=>({id:o.id,name:o.name,kind:o.kind,brands:brandsOf(o)})):active.map(m=>({id:m.orgId,name:m.orgName,kind:m.orgKind,brands:brandsOf({id:m.orgId,kind:m.orgKind})}));
+ const brands=brandsOf(org),brand=brands.find(b=>b.id===chosenBrand)||brands[0]||null;
+ return {ok:true,ctx:{user:{id:user.id,email:user.email},org,role,entitlements,staff,viewingAs,supportUntil:viewingAs?grants.get(org.id)??null:null,orgs,brands,brand}};
 }
 // The company switcher's sections: staff see Nmesis (their own workspace) and
 // Clients; everyone else sees only their own companies, with no sections.
 export function switcherSections(ctx:Pick<StudioContext,'staff'|'orgs'>){
  if(!ctx.staff)return null;
- const pick=(o:OrgChoice)=>({id:o.id,name:o.name});
+ const pick=(o:OrgChoice)=>({id:o.id,name:o.name,brands:o.brands});
  return {nmesis:ctx.orgs.filter(o=>o.kind==='internal').map(pick),clients:ctx.orgs.filter(o=>o.kind!=='internal').map(pick)};
 }
 // A link straight to a company's workspace (/?org=<id>, from the admin): honoured
 // only when the server agrees this user may open exactly that company.
-export async function openCompany({user,orgId,directory}:{user:{id:string;email:string;aal?:'aal1'|'aal2'};orgId:unknown;directory:Directory}):Promise<{ok:true;ctx:StudioContext}|{ok:false;reason:'no_company'|'mfa_required'|'not_yours'|'no_support'}>{
+export async function openCompany({user,orgId,brandId,directory}:{user:{id:string;email:string;aal?:'aal1'|'aal2'};orgId:unknown;brandId?:unknown;directory:Directory}):Promise<{ok:true;ctx:StudioContext}|{ok:false;reason:'no_company'|'mfa_required'|'not_yours'|'no_support'}>{
  const wish=typeof orgId==='string'&&UUID.test(orgId)?orgId:null;
- const resolved=await resolveContext({user,chosenOrg:wish,directory});
+ const resolved=await resolveContext({user,chosenOrg:wish,chosenBrand:typeof brandId==='string'?brandId:null,directory});
  if(!resolved.ok)return resolved;
  if(!wish||resolved.ctx.org.id!==wish){
   // Staff asking for a client that has not granted support access (or whose grant ended).

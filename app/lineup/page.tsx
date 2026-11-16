@@ -1,13 +1,13 @@
 'use client';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
-import {AlertTriangle,ClipboardPaste,Columns2,Download,Loader2,MoreHorizontal,RefreshCw,RotateCcw,Scissors,Upload,Wand2,X} from 'lucide-react';
+import {AlertTriangle,Columns2,Download,Loader2,MoreHorizontal,RefreshCw,RotateCcw,Scissors,Wand2,X} from 'lucide-react';
 import {useBackoffPoll} from '@/lib/use-backoff-poll';
 import {AccountNotices,PlanGate,hasFeature,providerNames,useAccount} from '@/components/studio-account';
 import {studioFetch} from '@/lib/studio-fetch';
 import {importPinterestReference} from '@/lib/pinterest-client';
 import {uploadReference} from '@/lib/reference-upload';
-import {clipboardImage,readClipboardImage} from '@/lib/clipboard-image';
+import {clipboardImage} from '@/lib/clipboard-image';
 import {fetchDownloadImage,imageFilename} from '@/lib/image-download';
 import {AreaEditor} from '@/components/area-editor';
 import {CONFIGURATORS,type Configurator} from '@/lib/configurators';
@@ -24,13 +24,13 @@ import {Button,IconButton} from '@/components/ds/button';
 import {Banner} from '@/components/ds/shell';
 import {Dialog} from '@/components/ds/dialog';
 import {State} from '@/components/ds/feedback';
-import {Field,Input} from '@/components/ds/field';
 import {Menu,MenuItem} from '@/components/ds/menu';
 import {useToast} from '@/components/ds/toast';
 import {WorkspaceFrame} from '@/components/workspace/frame';
 import {EDITOR_TOOLS,EditorScreen} from '@/components/editor/editor-screen';
-import {CostBadge,PromptSettings,SaveToProject,SettingsSection,VersionHistory,type Version} from '@/components/editor/parts';
+import {CostBadge,PromptSettings,SaveToProject,VersionHistory,type Version} from '@/components/editor/parts';
 import {useProject} from '@/components/editor/use-project';
+import {InspirationCard} from '@/components/editor/inspiration-card';
 import {LineupCarDialog} from '@/components/editor/lineup-capture';
 import {LineupCars,LineupEngine,LineupImg,LineupLayout,LineupPlacement,LineupQuality,LineupReferenceSwitch,LineupRefineDialog,LineupSavedDialog,asset,lineupBillingNote,lineupCredits} from '@/components/editor/lineup-parts';
 import './editor-lineup.css';
@@ -58,7 +58,8 @@ function LineupStudio(){
  const presets=useConfiguratorPresets(list=>{if(!isDemoConfigurator(list[0]))setCars(p=>p.map((c,i)=>!c.views.length&&isDemoConfigurator({url:c.configurator})?{...c,name:(list[i<2?i:0]||list[0]).name,configurator:(list[i<2?i:0]||list[0]).url}:c))});
  const [pin,setPin]=useState(''),[mood,setMood]=useState<{id:string;name:string;pin:string}|null>(null),[brief,setBrief]=useState(''),[provider,setProvider]=useState<ImageProvider>('openai'),[model,setModel]=useState<string>(OPENAI_IMAGE_MODEL),[size,setSize]=useState('2048x1152');
  const [visuals,setVisuals]=useState<Visual[]>([]),[currentId,setCurrentId]=useState<string|null>(null),[view,setView]=useState<'setup'|'result'>('setup'),[refineCar,setRefineCar]=useState(''),[refinement,setRefinement]=useState(''),[refineOpen,setRefineOpen]=useState(false),[areaOpen,setAreaOpen]=useState(false),[connected,setConnected]=useState(false),[ready,setReady]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState(''),[downloading,setDownloading]=useState(false);
- const working=useRef(false),pollIndex=useRef(0),upload=useRef<HTMLInputElement>(null),download=useRef<AbortController|null>(null);
+ const [moodError,setMoodError]=useState(''),[pinError,setPinError]=useState('');
+ const working=useRef(false),pollIndex=useRef(0),download=useRef<AbortController|null>(null);
  const tell=useCallback((message:string)=>toast.toast({message:names?message:plainProviderText(message),kind:'ok'}),[toast,names]);
  const put=useCallback((v:Visual)=>setVisuals(p=>[v,...p.filter(x=>x.id!==v.id)]),[]);
  const refresh=useCallback(async()=>{const d=await api('/api/visuals');setVisuals(d.visuals);if(d.warning)setError(d.warning);return d.visuals},[]);
@@ -81,7 +82,9 @@ function LineupStudio(){
  function addCar(){if(cars.length>=MAX_LINEUP_CARS)return;setCars(arrangeCars([...cars,newCar(presets[0])],layout,heroId))}
  async function importPin(){const d=await importPinterestReference(pin);setMood({id:d.id,name:d.name,pin});tell('Inspiration added. Its vehicles will be replaced by your lineup.');return d.id as string}
  async function uploadMood(file:File){const d=await uploadReference(file);setPin('');setMood({id:d.id,name:file.name,pin:''})}
- async function pasteMood(){if(!navigator.clipboard?.read){setError('Click the inspiration area and press ⌘V on Mac or Ctrl+V on Windows to paste your image.');return}let file:File;try{file=await readClipboardImage(navigator.clipboard)}catch(e){setError((e as Error).name==='NotAllowedError'?'Clipboard access was not allowed. Click the inspiration area and press ⌘V or Ctrl+V instead.':(e as Error).message);return}await run('Adding inspiration…',()=>uploadMood(file))}
+ // The inspiration card says its own problems: under the picture, or under the link.
+ function addMood(file:File,label='Uploading inspiration…'){setMoodError('');return run(label,async()=>{try{await uploadMood(file)}catch(e){setMoodError(say((e as Error).message))}})}
+ function addPin(){setPinError('');void run('Loading inspiration…',async()=>{try{await importPin()}catch(e){setPinError(say((e as Error).message))}})}
  let issue='';try{const l=parseLineup({cars,layout,heroId,strictReference})!;lineupCapacity(l,provider==='higgsfield'?higgsImageModel(model).maxImages:16)}catch(e){issue=(e as Error).message}
  async function generate(parent?:Visual){await run(parent?'Refining your selected car…':'Creating your car lineup…',async()=>{
   const lineup=parseLineup(parent?{...parent.lineup,targetCarId:refineCar,strictReference:refineStrict}:{cars,layout,heroId,strictReference})!;lineupCapacity(lineup,provider==='higgsfield'?higgsImageModel(model).maxImages:16,!!parent);
@@ -144,19 +147,15 @@ function LineupStudio(){
  const settings=<fieldset className="editor-lineup-fields" disabled={!!busy}>
   <LineupCars cars={cars} heroId={heroId} strict={strictReference} ready={ready} onEdit={setCaptureId} onSaved={setLibraryId} onHero={chooseHero} onMove={moveCar} onRemove={removeCar} onAdd={addCar}/>
   <LineupLayout cars={cars} layout={layout} strict={strictReference} expert={expert} onLayout={chooseLayout} onExpert={setExpert} onPlace={update}/>
-  <SettingsSection title="Inspiration" id="lineup-inspiration-title">
-   <div className="editor-inspiration editor-lineup-paste" role="group" aria-label="Inspiration. Paste an image here with ⌘V or Ctrl+V." tabIndex={0} onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!busy)void run('Adding inspiration…',()=>uploadMood(file))}}}>
-    {mood?<div className="editor-upload"><span className="editor-lineup-thumb"><LineupImg src={asset(mood.id)} alt="Lineup inspiration"/></span><span><b>Inspiration ready</b><span className="ds-muted ds-truncate">{mood.name}</span></span></div>
-     :<p className="ds-help">Use a lineup reference for staging, or a location image for atmosphere.</p>}
-    <Field label="Pinterest inspiration"><Input type="url" value={pin} onChange={e=>{setPin(e.target.value);setMood(null)}} placeholder="https://www.pinterest.com/pin/…"/></Field>
-    <div className="editor-row">
-     <Button size="sm" disabled={!pin.trim()} onClick={()=>void run('Loading inspiration…',async()=>{await importPin()})}>Load inspiration</Button>
-     <Button size="sm" kind="quiet" icon={<Upload aria-hidden="true"/>} onClick={()=>upload.current?.click()}>Upload a picture</Button>
-     <Button size="sm" kind="quiet" icon={<ClipboardPaste aria-hidden="true"/>} onClick={()=>void pasteMood()}>Paste</Button>
-    </div>
-   </div>
+  <div className="ds-contents" onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!busy)void addMood(file,'Adding inspiration…')}}}>
+  <InspirationCard id="lineup-inspiration-title" help="Its cars are replaced by yours: the picture sets the staging, light and atmosphere."
+   mood={<><b>What’s the mood?</b> A line-up picture for the staging, or a place for the light.</>}
+   picture={{value:mood?asset(mood.id):null,name:mood?.name,alt:'Lineup inspiration',onFile:file=>addMood(file),onRemove:()=>{setMood(null);setPin('');setMoodError('')},
+    busy:busy==='Uploading inspiration…'||busy==='Adding inspiration…'?busy:false,disabled:!!busy,error:moodError||undefined}}
+   link={{value:pin,onChange:v=>{setPin(v);setMood(null);setPinError('')},onAdd:addPin,busy:busy==='Loading inspiration…',error:pinError||undefined,disabled:!!busy&&busy!=='Loading inspiration…'}}>
    <LineupReferenceSwitch active={strictReference} onChange={active=>{setStrictReference(active);if(active)setLayout('inspiration')}}/>
-  </SettingsSection>
+  </InspirationCard>
+  </div>
   <PromptSettings label="Anything else? (optional)" value={brief} onChange={setBrief} max={2000} inspiration={false} placeholder="A mountain overlook at sunset. Keep every car visible, with warm light from the right…"/>
   <LineupQuality o={o} provider={provider} model={model} size={size} onSize={setSize} names={names}/>
   <LineupEngine names={names} provider={provider} model={model} size={size}
@@ -174,7 +173,6 @@ function LineupStudio(){
   <EditorScreen tool="lineup" onTool={t=>{if(t!=='lineup')router.push(EDITOR_TOOLS.find(x=>x.id===t)?.href||'/')}}
    bar={bar} stage={stage} history={<VersionHistory versions={versions} current={showResult?currentId:null} onPick={id=>{const v=visuals.find(x=>x.id===id);if(v)pick(v)}}/>}
    jobs={jobs} settings={settings} cost={cost} busy={!!busy} disabled={!ready||!!issue||(!mood&&!pin.trim())} onGenerate={()=>void generate()} note={note}/>
-  <input hidden ref={upload} type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(f)void run('Uploading inspiration…',()=>uploadMood(f))}}/>
   {editCar&&editConfig&&<LineupCarDialog key={editCar.id} car={editCar} index={cars.indexOf(editCar)} config={editConfig} onPatch={patch=>update(editCar.id,patch)} onClose={()=>setCaptureId('')}/>}
   {libraryId&&<LineupSavedDialog saved={Array.from(savedMap.values())} cars={cars} targetId={libraryId} onClose={()=>setLibraryId('')} onPick={c=>{update(libraryId,{name:c.name,configurator:c.configurator,finish:c.finish,views:c.views.slice(0,2)});setLibraryId('')}}/>}
   {refineOpen&&selected?.lineup&&<LineupRefineDialog visual={selected} strict={refineStrict} onStrict={setRefineStrict} carId={refineCar} onCar={setRefineCar} text={refinement} onText={setRefinement} cost={cost} note={billing} onClose={()=>setRefineOpen(false)} onRefine={()=>{setRefineOpen(false);void generate(selected)}}/>}

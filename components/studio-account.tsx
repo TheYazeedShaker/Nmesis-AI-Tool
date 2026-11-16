@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useState} from 'react';
+import {staffLabel,workName} from '@/lib/accounts/names';
 import Link from 'next/link';
 import {Eye,Lock,Info} from 'lucide-react';
 import {CreditBanner,loadCredits} from '@/components/credits';
@@ -59,10 +60,10 @@ export function AccountNotices({variant}:{variant?:'ds'}={}){
  if(!account)return null;
  const w=account.workspace,ds=variant==='ds';
  return <>
-  {opened==='refused'&&<Note ds={ds} kind="info" icon={<Info size={16}/>}>That company link isn’t open to you, so you are in <b>{account.org.name}</b>.</Note>}
-  {opened==='support'&&<Note ds={ds} kind="info" icon={<Info size={16}/>}>Support access not granted for that company, so you are in <b>{account.org.name}</b>. Its owner can allow it in Company settings.</Note>}
+  {opened==='refused'&&<Note ds={ds} kind="info" icon={<Info size={16}/>}>That company link isn’t open to you, so you are in <b>{workName(account)}</b>.</Note>}
+  {opened==='support'&&<Note ds={ds} kind="info" icon={<Info size={16}/>}>Support access not granted for that company, so you are in <b>{workName(account)}</b>. Its owner can allow it in Company settings.</Note>}
   {opened==='failed'&&<Note ds={ds} kind="info" icon={<Info size={16}/>}>That company link could not be opened. Try it again, or choose the company here.</Note>}
-  {account.viewingAs&&<Note ds={ds} kind="info" icon={<Eye size={16}/>}>Viewing as <b>{account.org.name}</b> with support access{account.supportUntil?` until ${new Date(account.supportUntil).toLocaleString()}`:''}. Read-only; every opening is logged and the company’s owner can see it.</Note>}
+  {account.viewingAs&&<Note ds={ds} kind="info" icon={<Eye size={16}/>}>Viewing as <b>{staffLabel(account.brand,account.org)}</b> with support access{account.supportUntil?` until ${new Date(account.supportUntil).toLocaleString()}`:''}. Read-only; every opening is logged and the company’s owner can see it.</Note>}
   {!w.open&&w.noPlan&&<Note ds={ds} kind="warn" icon={<Lock size={16}/>}>Your Studio isn’t part of your plan yet. Ask Nmesis.</Note>}
   {w.open&&<CreditBanner variant={variant}/>}
   {!w.open&&!w.noPlan&&<Note ds={ds} kind="warn" icon={<Lock size={16}/>}>{w.libraryOpen?'Your company’s Studio subscription is not active, so new work is paused.'+(w.libraryUntil?` Your library stays viewable until ${w.libraryUntil}.`:' Your library stays viewable.'):'Your company’s Studio subscription has ended and its library is no longer available here.'} Ask Nmesis to reopen it.</Note>}

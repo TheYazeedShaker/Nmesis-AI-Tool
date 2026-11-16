@@ -1,0 +1,84 @@
+/* ─── Adding a picture (Phase 3 polish) ──────────────────────────────────────
+   The design-system drop zone (components/ds/drop-zone.tsx, .ds-drop-*) and
+   the editors' Inspiration card (components/editor/inspiration-card.tsx,
+   .editor-insp-*). Tokens only, so light and dark both follow the theme. */
+
+.ds-drop { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.ds-drop-zone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--ds-space-8);
+  min-width: 0; padding: var(--ds-space-20) var(--ds-space-16); text-align: center;
+  border: var(--ds-border-width) dashed var(--ds-border-strong); border-radius: var(--ds-radius-md);
+  background: var(--ds-panel); color: var(--ds-text);
+  transition: background-color var(--ds-dur-fast) var(--ds-ease), border-color var(--ds-dur-fast) var(--ds-ease);
+}
+.ds-drop-zone:hover { border-color: var(--ds-text); background: var(--ds-panel-hover); }
+.ds-drop-zone:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+/* A file is over the zone: a solid ring and the accent wash, not colour alone (the border style changes too). */
+.ds-drop-zone[data-drag="true"] { border-style: solid; border-color: var(--ds-ring); background: var(--ds-accent-soft); box-shadow: var(--ds-shadow-focus); }
+.ds-drop-zone[data-invalid="true"] { border-color: var(--ds-danger); }
+.ds-drop-zone[data-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+.ds-drop-zone[data-disabled="true"]:hover { border-color: var(--ds-border-strong); background: var(--ds-panel); }
+.ds-drop-icon { width: var(--ds-icon-lg); height: var(--ds-icon-lg); color: var(--ds-muted); flex: none; }
+.ds-drop-label { margin: 0; max-width: var(--ds-measure); font-size: var(--ds-text-base); line-height: var(--ds-leading-base); font-weight: var(--ds-weight-medium); }
+.ds-drop-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--ds-space-8); min-width: 0; }
+.ds-drop-hint { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.ds-drop-input { display: none; }
+
+/* Something added: the thumbnail beside its name, Replace and Remove. */
+.ds-drop-zone[data-filled="true"] {
+  flex-direction: row; align-items: flex-start; justify-content: flex-start; text-align: start;
+  padding: var(--ds-space-8); border-style: solid; border-color: var(--ds-border);
+}
+.ds-drop-zone[data-filled="true"] .ds-drop-actions { justify-content: flex-start; }
+.ds-drop-thumb {
+  flex: none; display: grid; place-items: center; overflow: hidden;
+  width: calc(var(--ds-space-64) + var(--ds-space-32)); aspect-ratio: 4 / 3;
+  border-radius: var(--ds-radius-sm); background: var(--ds-media-bg); color: var(--ds-muted);
+}
+.ds-drop-thumb > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ds-drop-thumb > svg { width: var(--ds-icon-lg); height: var(--ds-icon-lg); }
+.ds-drop-meta { display: flex; flex-direction: column; gap: var(--ds-space-4); flex: 1 1 auto; min-width: 0; }
+.ds-drop-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-weight: var(--ds-weight-semibold); }
+
+@media (max-width: 480px) {
+  .ds-drop-zone[data-filled="true"] { flex-wrap: wrap; }
+}
+
+/* ─── The Inspiration card: help, the picture, the link, the mood ────────── */
+.editor-insp { display: flex; flex-direction: column; gap: var(--ds-space-12); min-width: 0; }
+/* The link and its button on one line; the help or the error under both. */
+.editor-insp-link { display: flex; align-items: center; gap: var(--ds-space-8); min-width: 0; }
+.editor-insp-link > .ds-input { flex: 1 1 auto; min-width: 0; }
+.editor-insp-link > .ds-btn { flex: none; }
+.editor-insp-or { display: flex; align-items: center; gap: var(--ds-space-8); color: var(--ds-muted); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); text-transform: uppercase; letter-spacing: var(--ds-tracking-label); }
+.editor-insp-or::before, .editor-insp-or::after { content: ""; flex: 1 1 auto; border-top: var(--ds-border-width) solid var(--ds-border); }
+.editor-insp-upsell { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-4); margin: 0; color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.editor-insp-upsell > svg { width: var(--ds-space-12); height: var(--ds-space-12); flex: none; }
+
+@media (max-width: 480px) {
+  .editor-insp-link { flex-wrap: wrap; }
+}
+
+/* ─── Refinement references (components/refinement-references.tsx) ─────── */
+.editor-refs { display: flex; flex-direction: column; gap: var(--ds-space-12); min-width: 0; }
+.editor-refs-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ds-space-16); min-width: 0; }
+.editor-refs-head > span { flex: none; white-space: nowrap; }
+.editor-refs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--ds-space-64) * 2), 1fr)); gap: var(--ds-space-12); margin: 0; padding: 0; list-style: none; }
+.editor-refs-item { position: relative; display: flex; flex-direction: column; min-width: 0; margin: 0; overflow: hidden; border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-sm); background: var(--ds-panel); }
+.editor-refs-item > img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: var(--ds-media-bg); }
+.editor-refs-item > figcaption { display: grid; gap: var(--ds-space-2); padding: var(--ds-space-8); min-width: 0; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.editor-refs-item > figcaption > span { color: var(--ds-muted); }
+.editor-refs-remove { position: absolute; top: var(--ds-space-4); right: var(--ds-space-4); box-shadow: var(--ds-shadow-1); }
+
+@media (max-width: 480px) {
+  .editor-refs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ─── Match the inspiration exactly (components/inspiration-match.tsx) ──── */
+.editor-match { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.editor-match-details > summary { display: flex; align-items: center; min-height: var(--ds-tap-min); cursor: pointer; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.editor-match-prompt { max-height: calc(var(--ds-space-64) * 3); overflow: auto; margin: var(--ds-space-8) 0 0; padding: var(--ds-space-8); border-radius: var(--ds-radius-sm); background: var(--ds-panel-2); color: var(--ds-text); font-family: var(--ds-font-mono); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); white-space: pre-wrap; }
+
+@media (pointer: coarse), (max-width: 768px) {
+  .editor-match-details > summary { min-height: var(--ds-tap-phone); }
+}

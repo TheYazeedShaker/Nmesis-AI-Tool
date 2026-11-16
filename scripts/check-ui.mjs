@@ -42,7 +42,7 @@ const WORKERS = Number(opt('workers')) || 3;
 // Run-to-run noise allowed before a count fails CI (owner, 2026-11-15): the
 // keyboard walk lands on slightly different stops from one run to the next.
 const TOLERANCE = { focusWithoutIndicator: 5 };
-const RATCHETED = ['controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
+const RATCHETED = ['fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
 
 const VIEWPORTS = QUICK ? [[1440, 900], [390, 844]] : [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
 const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
@@ -137,6 +137,8 @@ try {
   // The library at scale (Phase 3 group 2): a hard limit, not a ratchet.
   if (perf?.libraryScale && !perf.libraryScale.ok) { console.log('✗ The library at 1,000 items: first paint 1.5 s or more on the phone profile, or storage read for work off screen: ' + JSON.stringify(perf.libraryScale)); exitCode = 1; }
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
+  // Screens in a given state, for the PR (not counted): before/after sheets.
+  if (SHOTS) await stateShots();
   const totals = summarise(report);
   exitCode = Math.max(exitCode, ratchet(totals));
 } catch (e) {
@@ -294,6 +296,7 @@ function summarise(report) {
     targetsUnder44OnPhones: sum((r) => r.under44?.length),
     overlapped: sum((r) => r.overlapped?.length),
     clippedWithoutEllipsis: sum((r) => r.clippedNoEllipsis?.length),
+    fixedOverSettings: sum((r) => r.fixedOverSettings?.length),
     controlsSpilling: sum((r) => r.spilling?.length),
     ellipsisWithoutFullText: sum((r) => r.ellipsisNoTitle?.length),
     pagesOverCls01: pages.filter((r) => (r.vitals?.cls || 0) > 0.1).length,
@@ -328,4 +331,44 @@ function ratchet(totals) {
   if (worse.length) { console.log(`✗ Worse than the baseline: ${worse.join(', ')}`); return 1; }
   console.log('✓ Nothing got worse.');
   return 0;
+}
+
+// Screens in a given state (Phase 3 polish), screenshots only: Home, Key visual
+// with each car view source, Inspiration, the switcher with one brand (Growth)
+// and with several (Enterprise), Story at 768. Saved as
+// shots/state-<id>--<width>--<theme>.png; nothing here is counted.
+async function stateShots() {
+  const SIZES = [[1440, 900], [1280, 800], [1024, 768], [390, 844]];
+  const STATES = [
+    { id: 'home', role: 'owner', path: '/' },
+    { id: 'key-visual-live', role: 'owner', path: '/key-visual' },
+    { id: 'key-visual-captured', role: 'owner', path: '/key-visual', steps: ['settings', 'radio:Captured view'] },
+    { id: 'inspiration', role: 'owner', path: '/key-visual', steps: ['settings', 'scroll:Inspiration'] },
+    { id: 'switcher-one-brand', role: 'owner', path: '/', steps: ['switcher'] },
+    { id: 'switcher-several-brands', role: 'enterprise', path: '/', steps: ['switcher'] },
+    { id: 'story-768', role: 'enterprise', path: '/storyboard', sizes: [[768, 1024]] },
+  ];
+  let n = 0;
+  for (const s of STATES) for (const [w, h] of s.sizes || SIZES) for (const theme of THEMES) {
+    const page = await (w <= 480 ? contexts[s.role].phone : contexts[s.role].desktop).newPage();
+    try {
+      await page.setViewportSize({ width: w, height: h });
+      await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
+      await page.goto(s.path, { waitUntil: 'load', timeout: 30_000 });
+      await ready(page);
+      for (const step of s.steps || []) {
+        if (step === 'switcher') await act(page, 'switcher');
+        // The settings are a sheet on phones: open it first.
+        else if (step === 'settings') { const b = page.locator('.ds-phone-generate button:visible', { hasText: 'Settings' }).first(); if (await b.count()) await b.click({ timeout: 3000 }).catch(() => {}); }
+        else if (step.startsWith('text:')) { const t = page.getByText(step.slice(5), { exact: false }).locator('visible=true').first(); if (await t.count()) await t.click({ timeout: 3000 }).catch(() => {}); }
+        else if (step.startsWith('radio:')) { const t = page.getByRole('radio', { name: step.slice(6) }).first(); if (await t.count()) await t.check({ force: true, timeout: 3000 }).catch(() => {}); }
+        else if (step.startsWith('scroll:')) { const t = page.getByRole('heading', { name: step.slice(7) }).locator('visible=true').first(); if (await t.count()) await t.scrollIntoViewIfNeeded().catch(() => {}); }
+        await ready(page);
+      }
+      await page.screenshot({ path: path.join(OUT, 'shots', `state-${s.id}--${w}--${theme}.png`) });
+      n++;
+    } catch (e) { console.log(`  state shot ${s.id} ${w} ${theme}: ${e instanceof Error ? e.message.slice(0, 120) : e}`); }
+    finally { await page.close().catch(() => {}); }
+  }
+  console.log(`  ${n} state screenshots`);
 }

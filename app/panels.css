@@ -1,0 +1,166 @@
+/* ── The inner tool panels, on the design system (Design Phase 3, item 7b) ──
+   Area edit (components/area-editor.tsx), Upscale (components/upscale-panel.tsx,
+   components/topaz-upscale.tsx) and the provider connection dialogs
+   (components/connection-settings.tsx, components/google-connection.tsx).
+   Tokens only, so the panels follow the editor's light or dark wherever they sit:
+   inline on the Key visual canvas, or in a dialog (Line-up, Upscale). */
+
+.tool-panel {
+  display: flex; flex-direction: column; gap: var(--ds-space-16); min-width: 0;
+  color: var(--ds-text); font-size: var(--ds-text-base); line-height: var(--ds-leading-base);
+}
+/* Inline on a canvas the panel is a card; inside a dialog the dialog is the card. */
+.tool-panel.tp-framed {
+  padding: var(--ds-space-20); border: var(--ds-border-width) solid var(--ds-border);
+  border-radius: var(--ds-radius-lg); background: var(--ds-panel); box-shadow: var(--ds-shadow-1);
+}
+.ds-dialog-body .tool-panel.tp-framed { padding: 0; border: 0; background: none; box-shadow: none; }
+
+.tp-head { display: flex; flex-direction: column; gap: var(--ds-space-4); min-width: 0; }
+.tp-head-row { flex-direction: row; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--ds-space-8) var(--ds-space-16); }
+.tp-title {
+  font-family: var(--ds-font-display); font-size: var(--ds-text-lg); line-height: var(--ds-leading-lg);
+  font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong);
+}
+.tp-subtitle { font-size: var(--ds-text-md); line-height: var(--ds-leading-md); font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); }
+
+/* A set of choices that belong together. */
+.tp-group {
+  display: flex; flex-direction: column; gap: var(--ds-space-12); min-width: 0;
+  padding: var(--ds-space-16); border: var(--ds-border-width) solid var(--ds-border);
+  border-radius: var(--ds-radius); background: var(--ds-panel-2);
+}
+.tp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--ds-space-64) * 3)), 1fr)); gap: var(--ds-space-12); align-items: start; }
+.tp-error > span { min-width: 0; overflow-wrap: anywhere; }
+.tool-panel .ds-error, .tp-dialog .ds-error { overflow-wrap: anywhere; }
+
+/* The selection tools: a pressed tool reads as chosen in both themes. */
+.tp-tools .ds-btn[aria-pressed="true"] { background: var(--ds-text); color: var(--ds-bg); border-color: var(--ds-text); }
+.tp-tools-sep { width: var(--ds-border-width); align-self: stretch; background: var(--ds-border); }
+
+/* The drawing surface. The picture keeps its own colours (it is the work);
+   the mask is drawn on the canvas above it. */
+.tp-viewport {
+  max-height: 58vh; overflow: auto; min-width: 0;
+  border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius-md); background: var(--ds-media-bg);
+}
+.tp-stage { position: relative; line-height: 0; min-width: 100%; }
+.tp-stage > img { display: block; width: 100%; max-height: none; user-select: none; -webkit-user-select: none; }
+.tp-stage > canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0.5; touch-action: none; cursor: crosshair; }
+.tp-stage > canvas:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: calc(var(--ds-focus-width) * -1); }
+.tp-box {
+  position: absolute; pointer-events: none; z-index: var(--ds-z-raised);
+  border: var(--ds-focus-width) dashed var(--ds-on-media); background: var(--ds-accent-soft);
+  box-shadow: 0 0 0 var(--ds-border-width) var(--ds-media-shade);
+}
+
+/* What the selection is doing; empty, it takes no room. */
+.tp-status { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); color: var(--ds-text); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.tp-status:empty { display: none; }
+.tp-status > svg, .tp-progress > svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; }
+
+/* A long job running in the panel. */
+.tp-progress {
+  display: flex; align-items: flex-start; gap: var(--ds-space-12);
+  padding: var(--ds-space-12) var(--ds-space-16); border: var(--ds-border-width) solid var(--ds-border);
+  border-left: var(--ds-space-4) solid var(--ds-accent-edge); border-radius: var(--ds-radius-md); background: var(--ds-panel-2);
+}
+.tp-progress > svg { margin-top: var(--ds-space-2); }
+
+.tp-reference { display: flex; align-items: center; gap: var(--ds-space-12); min-width: 0; }
+.tp-reference > img {
+  width: calc(var(--ds-space-64) + var(--ds-space-32)); aspect-ratio: 4 / 3; flex: none; object-fit: contain;
+  border-radius: var(--ds-radius-sm); background: var(--ds-panel-2);
+}
+.tp-reference-text { display: flex; flex-direction: column; gap: var(--ds-space-2); flex: 1 1 auto; min-width: 0; }
+
+/* A notice that something worked, and a warning before a choice. */
+.tp-notice, .tp-warn {
+  padding: var(--ds-space-12) var(--ds-space-16); border-radius: var(--ds-radius-sm);
+  color: var(--ds-text); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); overflow-wrap: anywhere;
+}
+.tp-notice { border-left: var(--ds-space-4) solid var(--ds-success); background: var(--ds-success-soft); }
+.tp-warn { border-left: var(--ds-space-4) solid var(--ds-warn); background: var(--ds-warn-soft); }
+
+/* Upscale: the size and what it comes to. */
+.tp-output { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--ds-space-12) var(--ds-space-20); }
+.tp-output > .ds-field { flex: 0 1 calc(var(--ds-space-64) * 3); }
+.tp-figure { display: flex; flex-direction: column; gap: var(--ds-space-2); min-width: 0; font-size: var(--ds-text-md); line-height: var(--ds-leading-md); font-variant-numeric: var(--ds-numeric); }
+
+/* Upscale: the other upscalers, a choice of cards. */
+.tp-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--ds-space-64) * 3)), 1fr)); gap: var(--ds-space-8); }
+.tp-choice {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--ds-space-8); min-width: 0;
+  padding: var(--ds-space-12) var(--ds-space-16); text-align: left; font: inherit; cursor: pointer;
+  border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius); background: var(--ds-panel); color: var(--ds-text);
+  transition: background-color var(--ds-dur-fast) var(--ds-ease), border-color var(--ds-dur-fast) var(--ds-ease);
+}
+.tp-choice:hover { background: var(--ds-panel-hover); }
+.tp-choice[aria-pressed="true"] { border-color: var(--ds-text); background: var(--ds-panel-2); box-shadow: inset 0 0 0 var(--ds-border-width) var(--ds-text); }
+.tp-choice:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.tp-choice:disabled { opacity: 0.5; cursor: not-allowed; }
+.tp-choice-name { display: flex; justify-content: space-between; gap: var(--ds-space-8); width: 100%; font-size: var(--ds-text-md); line-height: var(--ds-leading-md); font-weight: var(--ds-weight-semibold); }
+.tp-choice-name > svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; }
+.tp-choice-family { margin-top: auto; color: var(--ds-muted); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); }
+
+.tp-step { display: flex; flex-direction: column; gap: var(--ds-space-12); padding-top: var(--ds-space-16); border-top: var(--ds-border-width) solid var(--ds-border); }
+.tp-details > summary {
+  display: flex; align-items: center; min-height: var(--ds-control-h); cursor: pointer;
+  font-weight: var(--ds-weight-semibold); color: var(--ds-text);
+}
+.tp-details[open] > summary { margin-bottom: var(--ds-space-12); }
+.tp-alternatives { padding-top: var(--ds-space-16); border-top: var(--ds-border-width) solid var(--ds-border); }
+.tp-pre {
+  margin: 0; padding: var(--ds-space-12); white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: inherit; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm);
+  border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel-2);
+}
+.tp-preview { display: flex; flex-direction: column; align-items: flex-start; gap: var(--ds-space-12); }
+.tp-preview > img { max-width: 100%; max-height: calc(var(--ds-space-64) * 5); object-fit: contain; border-radius: var(--ds-radius-sm); background: var(--ds-panel-2); }
+
+/* Upscale: this visual's upscales. */
+.tp-jobs { display: flex; flex-direction: column; gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; }
+.tp-job {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ds-space-12);
+  padding: var(--ds-space-12) var(--ds-space-16); border: var(--ds-border-width) solid var(--ds-border);
+  border-radius: var(--ds-radius); background: var(--ds-panel);
+}
+.tp-job-text { display: flex; flex-direction: column; gap: var(--ds-space-4); flex: 1 1 calc(var(--ds-space-64) * 3); min-width: 0; font-variant-numeric: var(--ds-numeric); }
+
+/* Provider connection dialogs (own-key companies). */
+.tp-dialog-title { display: inline-flex; align-items: center; gap: var(--ds-space-8); }
+.tp-dialog-title > svg { width: var(--ds-icon-lg); height: var(--ds-icon-lg); flex: none; color: var(--ds-accent-text); }
+.tp-form { display: flex; flex-direction: column; align-items: stretch; gap: var(--ds-space-12); }
+.tp-form > .ds-btn { align-self: flex-start; }
+.tp-key-status {
+  display: flex; align-items: flex-start; gap: var(--ds-space-12);
+  padding: var(--ds-space-12) var(--ds-space-16); border: var(--ds-border-width) solid var(--ds-border);
+  border-radius: var(--ds-radius); background: var(--ds-panel-2);
+}
+.tp-key-status > svg { width: var(--ds-icon-lg); height: var(--ds-icon-lg); flex: none; color: var(--ds-accent-text); }
+.tp-key-status > span { display: flex; flex-direction: column; gap: var(--ds-space-2); min-width: 0; font-weight: var(--ds-weight-medium); }
+.tp-key-status small { color: var(--ds-muted); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-regular); }
+.tp-steps { margin: 0; padding-left: var(--ds-space-20); list-style: decimal; display: flex; flex-direction: column; gap: var(--ds-space-4); }
+.tp-models { display: flex; flex-direction: column; gap: var(--ds-space-4); margin: 0; padding: 0; list-style: none; }
+.tp-models > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ds-space-8); }
+.tp-links { justify-content: space-between; }
+
+/* Shared pieces from components/credits.tsx, re-dressed inside these panels
+   (elsewhere they keep their own look until their screens move). */
+:is(.tool-panel, .tp-dialog) .credit-cost,
+:is(.tool-panel, .tp-dialog) .credit-used {
+  gap: var(--ds-space-4); color: var(--ds-muted); font-size: var(--ds-text-sm); font-variant-numeric: var(--ds-numeric);
+}
+:is(.tool-panel, .tp-dialog) .credit-cost { padding: var(--ds-space-2) var(--ds-space-8); border-color: var(--ds-border); border-radius: var(--ds-radius-pill); }
+:is(.tool-panel, .tp-dialog) .nmesis-provides {
+  gap: var(--ds-space-12); padding: var(--ds-space-12) var(--ds-space-16);
+  border-color: var(--ds-border); border-radius: var(--ds-radius); background: var(--ds-panel-2); color: var(--ds-text);
+}
+:is(.tool-panel, .tp-dialog) .nmesis-provides svg { color: var(--ds-accent-text); margin-top: var(--ds-space-2); }
+:is(.tool-panel, .tp-dialog) .nmesis-provides small { color: var(--ds-muted); font-size: var(--ds-text-sm); }
+:is(.tool-panel, .tp-dialog) .nmesis-provides a { color: var(--ds-accent-text); text-decoration: underline; }
+:is(.tool-panel, .tp-dialog) .nmesis-provides .keys-ignored { color: var(--ds-warn); }
+.tool-panel .image-download { gap: var(--ds-space-4); }
+.tool-panel .image-download-help { gap: var(--ds-space-4); color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.tool-panel .image-download-help a { gap: var(--ds-space-4); color: var(--ds-accent-text); }
+.tool-panel .image-download [role="alert"] { color: var(--ds-danger); }

@@ -8,7 +8,6 @@ import {importPinterestReference} from '@/lib/pinterest-client';
 import {AccountNotices,UpsellChip,hasFeature,providerNames,useAccount} from '@/components/studio-account';
 import {visualQualityLabel,visualToolLabel} from '@/lib/visual-labels';
 import {plainProviderText} from '@/lib/provider-words';
-import {ClipboardImageInput} from '@/components/clipboard-image-input';
 import {clipboardImage,validateClipboardImage} from '@/lib/clipboard-image';
 import {GoogleConnection} from '@/components/google-connection';
 import {GEMINI_IMAGE_MODELS,geminiImageModel,type GoogleConnectionStatus} from '@/lib/image-models';
@@ -22,6 +21,8 @@ import {submitSmartImage} from '@/lib/smart-reference-client';
 import {SmartControls,SmartPlanView,SmartReviewView} from '@/components/smart-reference';
 import type {SmartPriority,SmartPlan} from '@/lib/smart-reference';
 import {InspirationMatch} from '@/components/inspiration-match';
+import {DropZone} from '@/components/ds/drop-zone';
+import {InspirationCard} from '@/components/editor/inspiration-card';
 import {UpscalePanel} from '@/components/upscale-panel';
 import {upscaleModel} from '@/lib/upscale-models';
 import {OPENAI_IMAGE_MODEL,OPENAI_IMAGE_MODELS,higgsImageModel,HIGGSFIELD_IMAGE_MODELS,HIGGSFIELD_IMAGE_MODEL,imageSettings,refinementReferenceLimit,type ImageProvider,type HiggsBudget} from '@/lib/image-models';
@@ -35,7 +36,7 @@ import {VIEWS,localDirections,safePinterest,type View,type Direction,type Visual
 import {readReference,uploadReference} from '@/lib/reference-upload';
 import {Button,IconButton,buttonClass} from '@/components/ds/button';
 import {Banner} from '@/components/ds/shell';
-import {Badge,State} from '@/components/ds/feedback';
+import {State} from '@/components/ds/feedback';
 import {Dialog} from '@/components/ds/dialog';
 import {Field,Input,Textarea} from '@/components/ds/field';
 import {Fold} from '@/components/ds/layout';
@@ -89,14 +90,14 @@ export default function Studio(){
  // The editor: what the canvas shows, the version in it, and the result's own dialogs.
  const [stage,setStage]=useState<Stage>('car');const [currentId,setCurrentId]=useState<string|null>(null);const [refineOpen,setRefineOpen]=useState(false);const [compareOpen,setCompareOpen]=useState<false|'references'|'original'>(false);
  const [creatingFilm,setCreatingFilm]=useState(false);const [refinement,setRefinement]=useState('');const [refinementImages,setRefinementImages]=useState<RefinementReference[]>([]);const [readingReferences,setReadingReferences]=useState(false);const refinementOwner=useRef('');const imagePollIndex=useRef(0);const [upscaleOpen,setUpscaleOpen]=useState(false);const [areaOpen,setAreaOpen]=useState(false);const [areaBusy,setAreaBusy]=useState(false);
- const iframeRef=useRef<HTMLIFrameElement>(null);const inputRef=useRef<HTMLInputElement>(null);const uploadRef=useRef<HTMLInputElement>(null);const cropImage=useRef<HTMLImageElement>(null);const dragStart=useRef<{x:number;y:number}|null>(null);const assets=useRef(new Map<string,Asset>());const originals=useRef(new Map<string,string>());const pendingAssets=useRef(new Map<string,Promise<Asset>>());const working=useRef(false);
+ const iframeRef=useRef<HTMLIFrameElement>(null);const uploadRef=useRef<HTMLInputElement>(null);const cropImage=useRef<HTMLImageElement>(null);const dragStart=useRef<{x:number;y:number}|null>(null);const assets=useRef(new Map<string,Asset>());const originals=useRef(new Map<string,string>());const pendingAssets=useRef(new Map<string,Promise<Asset>>());const working=useRef(false);
  useEffect(()=>{setSmartPlan(null)},[view.src,mood?.src,brief,provider,imageModel,size,smartPriority]);
  const current=useRef({view,brief,results,configurator,visualCount});current.current={view,brief,results,configurator,visualCount};
  const captureVersion=useRef(0);
  // The configurator is reached only through the adapter (components/editor/configurator.ts).
  const adapter=useRef<ConfiguratorAdapter|null>(null);
  useEffect(()=>{const a=iframeConfigurator(()=>iframeRef.current,()=>current.current.configurator.url);adapter.current=a;return()=>{a.dispose();if(adapter.current===a)adapter.current=null}},[]);
- const [importingPin,setImportingPin]=useState(false);const [pinError,setPinError]=useState('');const [preparing,setPreparing]=useState(false);const [sharing,setSharing]=useState(false);
+ const [importingPin,setImportingPin]=useState(false);const [pinError,setPinError]=useState('');const [preparing,setPreparing]=useState(false);const [sharing,setSharing]=useState(false);const [askingToShare,setAskingToShare]=useState(false);
  const pinVersion=useRef(0);const pinRequest=useRef<{url:string;promise:Promise<{src:string;name:string}>}|null>(null);const pinAbort=useRef<AbortController|null>(null);const streamRef=useRef<MediaStream|null>(null);const handleRef=useRef('');const preparingRef=useRef(false);
  function stopSharing(){streamRef.current?.getTracks().forEach(t=>t.stop());streamRef.current=null;setSharing(false)}
  useEffect(()=>{handleRef.current=crypto.randomUUID();const media=navigator.mediaDevices as MediaDevices&{setCaptureHandleConfig?:(v:unknown)=>void};try{media?.setCaptureHandleConfig?.({handle:handleRef.current,exposeOrigin:true,permittedOrigins:[location.origin]})}catch{/* Optional: without a capture handle the shared tab is still cropped by position. */}const stop=()=>streamRef.current?.getTracks().forEach(t=>t.stop());window.addEventListener('pagehide',stop);return()=>{stop();pinAbort.current?.abort();window.removeEventListener('pagehide',stop)}},[]);
@@ -120,10 +121,13 @@ export default function Studio(){
     let source:CaptureResult;
     if(shot)source={image:await blobToDataUrl(shot.blob),angle:shot.state.view,finish:shot.state.colour};
     else{
-     if(!navigator.mediaDevices?.getDisplayMedia)throw new Error('Automatic capture is unavailable in this browser. Use Chrome or Edge, or paste your car image.');
+     if(!navigator.mediaDevices?.getDisplayMedia)throw new Error('This browser can’t take the picture by itself. Choose Captured view and add a picture of the car.');
      let stream=streamRef.current;
      if(!stream||stream.getVideoTracks()[0]?.readyState!=='live'){
-      stream=await navigator.mediaDevices.getDisplayMedia(highResolutionDisplayOptions());streamRef.current=stream;setSharing(true);
+      // The browser is about to ask to share this tab: say why, only now.
+      setAskingToShare(true);
+      try{stream=await navigator.mediaDevices.getDisplayMedia(highResolutionDisplayOptions())}finally{setAskingToShare(false)}
+      streamRef.current=stream;setSharing(true);
       stream.getVideoTracks()[0].addEventListener('ended',()=>{if(streamRef.current===stream){streamRef.current=null;setSharing(false)}},{once:true});
      }
      source={image:await snapshotStream(stream,iframeRef.current,handleRef.current)};
@@ -137,7 +141,7 @@ export default function Studio(){
    const inspiration=pin.trim()?await importPin(pin):mood;if(!inspiration)throw new Error('Add an inspiration reference first.');
    if(version!==captureVersion.current)throw new Error('The vehicle changed. Choose its angle and generate again.');
    await generate(undefined,{view:chosen,mood:inspiration});
-  }catch(e){stopSharing();const name=(e as Error).name;setError(name==='NotAllowedError'?'Sharing was cancelled. Click Generate and choose This Tab to capture the configurator.':name==='InvalidStateError'?'Bring this studio tab to the front, then click Generate again.':(e as Error).message)}
+  }catch(e){stopSharing();const name=(e as Error).name;setError(name==='NotAllowedError'?'Sharing was cancelled. Click Generate again and choose this tab, so the Studio can take the picture.':name==='InvalidStateError'?'Bring this studio tab to the front, then click Generate again.':(e as Error).message)}
   finally{preparingRef.current=false;setPreparing(false)}
  }
  // In live mode the configurator must be on screen to be captured: show it first.
@@ -183,7 +187,9 @@ export default function Studio(){
   }catch(e){if(version===pinVersion.current&&(e as Error).name!=='AbortError')setMoodUploadError((e as Error).name==='TimeoutError'?'Upload took too long. Your preview is still here—retry saving it.':(e as Error).message)}
   finally{if(version===pinVersion.current)setMoodUpload('')}
  }
- async function receiveCapture(file?:File){if(!file)return;const version=captureVersion.current;try{const src=await readImage(file);if(version!==captureVersion.current)return;setCropSrc(src);setCrop({x:0,y:0,w:1,h:1});setCaptureOpen(false)}catch(e){setError((e as Error).message)}}
+ // A car picture to review and crop; the drop zone shows its problems under itself.
+ async function readCapture(file:File){const version=captureVersion.current;const src=await readImage(file);if(version!==captureVersion.current)return;setCropSrc(src);setCrop({x:0,y:0,w:1,h:1});setCaptureOpen(false)}
+ async function receiveCapture(file?:File){if(!file)return;try{await readCapture(file)}catch(e){setError((e as Error).message)}}
  async function screenCapture(){setCapturing(true);setCaptureOpen(false);setError('');let stream:MediaStream|undefined;try{
   if(!navigator.mediaDevices?.getDisplayMedia)throw new Error('Screen capture is unavailable in this browser. Upload a screenshot of your chosen view instead.');
   stream=await navigator.mediaDevices.getDisplayMedia(highResolutionDisplayOptions());
@@ -196,7 +202,7 @@ export default function Studio(){
  async function importImage(){setImportingImage(true);setCaptureNotice('');const version=captureVersion.current;try{const file=await imageFromUrl(imageUrl);if(version===captureVersion.current)await receiveCapture(file)}catch(e){setCaptureNotice((e as Error).message)}finally{setImportingImage(false)}}
  async function applyCrop(){const img=cropImage.current;if(capturing||!img||!img.complete||!img.naturalWidth||crop.w<.02||crop.h<.02){say('Select a larger area of the image.','bad');return}setCapturing(true);const version=captureVersion.current;try{const c=document.createElement('canvas');const w=img.naturalWidth*crop.w,h=img.naturalHeight*crop.h;c.width=Math.round(w);c.height=Math.round(h);c.getContext('2d')!.drawImage(img,img.naturalWidth*crop.x,img.naturalHeight*crop.y,w,h,0,0,c.width,c.height);const src=c.toDataURL('image/png');originals.current.set(src,cropSrc);const asset=status?.storage?await ensureAsset(src):null;if(version!==captureVersion.current)return;const captured={id:crypto.randomUUID(),src:asset?.url||src,title:captureTitle.trim()||'Custom view',finish:captureFinish.trim()||'Selected configurator finish'};savedViews.current[configurator.id]=[captured,...(savedViews.current[configurator.id]||[])].slice(0,6);chooseView(captured);setCropSrc('');say('Car reference saved. Your original screenshot is kept.','ok')}catch(e){say((e as Error).message,'bad')}finally{setCapturing(false)}}
  function cropPoint(e:React.PointerEvent<HTMLDivElement>){const b=e.currentTarget.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-b.left)/b.width)),y:Math.max(0,Math.min(1,(e.clientY-b.top)/b.height))}}
- async function generate(parent?:Visual,prepared?:{view:View;mood:{src:string;name:string}}){const productView=prepared?.view||view;const moodReference=prepared?.mood||mood;if(working.current)return;if(!parent&&!productView.src){setError('Capture a view of the selected vehicle before generating.');return}if(provider==='google'&&!googleReady){if(googleConnection?.ownKeys)setGoogleOpen(true);else setError(w('Nano Banana isn’t available in your Studio right now. Ask Nmesis.'));return}if(!(provider==='openai'?status?.generation:provider==='google'?googleConnection?.connected:higgsConnected)){setError(provider==='openai'?w('Connect OpenAI to generate with ChatGPT.'):w('Connect Higgsfield in Film studio to use this generator.'));return}if(!parent&&!moodReference){setError('Add an inspiration image or Pinterest pin link first.');return}if(parent&&!refinement.trim()){say('Describe what you would like to change.','bad');return}if(parent&&(readingReferences||refinementImages.length>refinementReferenceLimit(provider,imageModel))){say('Wait for your references to load, or choose a model that supports them.','bad');return}
+ async function generate(parent?:Visual,prepared?:{view:View;mood:{src:string;name:string}}){const productView=prepared?.view||view;const moodReference=prepared?.mood||mood;if(working.current)return;if(!parent&&!productView.src){setError('Add a picture of the car before generating.');return}if(provider==='google'&&!googleReady){if(googleConnection?.ownKeys)setGoogleOpen(true);else setError(w('Nano Banana isn’t available in your Studio right now. Ask Nmesis.'));return}if(!(provider==='openai'?status?.generation:provider==='google'?googleConnection?.connected:higgsConnected)){setError(provider==='openai'?w('Connect OpenAI to generate with ChatGPT.'):w('Connect Higgsfield in Film studio to use this generator.'));return}if(!parent&&!moodReference){setError('Add an inspiration image or Pinterest pin link first.');return}if(parent&&!refinement.trim()){say('Describe what you would like to change.','bad');return}if(parent&&(readingReferences||refinementImages.length>refinementReferenceLimit(provider,imageModel))){say('Wait for your references to load, or choose a model that supports them.','bad');return}
  working.current=true;setBusy(true);setCompleted(0);setError('');const originalRefinement=refinement;const originalReferences=parent?[...refinementImages]:[];const count=generationCount(visualCount,!!parent);setJobCount(count);
  try{
   const product=parent?.sourceId?{id:parent.sourceId}:await ensureAsset(productView.src);const inspiration=parent?.moodId?{id:parent.moodId}:await ensureAsset(moodReference!.src);
@@ -274,7 +280,7 @@ export default function Studio(){
  const versions:Version[]=results.map((r,i)=>({id:r.id,n:results.length-i,src:r.status==='ready'?r.src:undefined,quality:visualQualityLabel(r)==='High detail'?'high':'standard',used:typeof r.credits==='number'?r.credits:null,at:when(r.createdAt),label:r.title,
   status:r.status==='ready'?'ready':r.status==='failed'?'failed':'working',
   stage:r.provider==='higgsfield'&&higgsDraft(r)?'Not started':r.provider==='higgsfield'&&higgsUnknown(r)?'Check original request':r.mine===false?'Started by someone in your company':'Creating your visual'}));
- const generateVerb=moodUpload?'Saving inspiration…':preparing&&!busy?(mode==='live'?'Capturing car…':'Preparing your visual…'):busy?completed+' / '+jobCount+' completed':'Generate '+visualCount+' key visual'+(visualCount===1?'':'s');
+ const generateVerb=moodUpload?'Saving inspiration…':preparing&&!busy?(mode==='live'?'Taking the picture…':'Preparing your visual…'):busy?completed+' / '+jobCount+' completed':'Generate '+visualCount+' key visual'+(visualCount===1?'':'s');
  const madeWith=(r:Visual)=>r.provider==='higgsfield'?'Higgsfield · '+higgsImageModel(r.model).label:r.provider==='google'?'Google · '+geminiImageModel(r.model).label:(OPENAI_IMAGE_MODELS.find(m=>m.id===r.model)?'OpenAI · '+OPENAI_IMAGE_MODELS.find(m=>m.id===r.model)!.label:'OpenAI');
  // The result's line names the tool and, at most, a plain quality (F-050); "Made with …" only for staff and companies with their own keys.
  const resultLine=(r:Visual)=><>
@@ -299,7 +305,7 @@ export default function Studio(){
   {mode!=='live'&&stage==='car'&&(view.src
    ?<figure className="editor-result">{/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
     <img crossOrigin="anonymous" src={view.src} alt={view.title}/><figcaption><span>Product reference · {view.title}</span><span className="ds-muted">{view.finish}</span></figcaption></figure>
-   :<State kind="empty" icon={<Camera aria-hidden="true"/>} title={`Choose your view of ${configurator.name}`} actions={<Button kind="primary" onClick={()=>{setMode('live');setStage('car')}}>Open live configurator</Button>}>Open the live configurator, set the angle and capture it.</State>)}
+   :<State kind="empty" icon={<Camera aria-hidden="true"/>} title={`Choose your view of ${configurator.name}`} actions={<Button kind="primary" onClick={()=>{setMode('live');setStage('car')}}>Open live configurator</Button>}>Open the live configurator and turn the car to the angle you want.</State>)}
  </>;
  const resultStage=stage==='result'&&<div className="editor-visuals-result">
   {!shown?<State kind="empty" icon={<ImagePlus aria-hidden="true"/>} title={historyLoading?'Loading your versions…':'No versions yet'}>Choose your car and inspiration, then Generate.</State>
@@ -354,12 +360,14 @@ export default function Studio(){
   <div className="ds-contents" onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!busy&&!preparing&&!capturing&&!cropSrc)void receiveCapture(file)}}}>
    <SettingsSection title="Car view" id="kv-view-title">
     <ChoiceChips legend="Car view source" name={sourceName} choices={[{id:'live',name:'Live configurator'},{id:'capture',name:'Captured view'}]} value={mode} onChange={v=>{if(!lock){setMode(v);setStage('car')}}}/>
-    <p className="ds-help">{mode==='live'?'Live view · automatic isolated capture. Choose your angle; Generate captures this view automatically.':view.src?'Selected reference · '+view.title:'Add a car reference to begin'}</p>
+    <p className="ds-help">{mode==='live'?'Turn the car to the angle you want. Generate takes a picture of this view.':view.src?'Your picture of the car · '+view.title:'Add a picture of the car to begin.'}</p>
     <div className="editor-row">
      <Button size="sm" icon={<Monitor aria-hidden="true"/>} disabled={capturing||lock} onClick={()=>{setCaptureNotice('');setCaptureOpen(true)}}>Capture options</Button>
      {sharing&&<Button size="sm" kind="quiet" onClick={stopSharing}>Stop sharing</Button>}
     </div>
-    <ClipboardImageInput compact label="car reference" onImage={receiveCapture} onUpload={()=>uploadRef.current?.click()} disabled={lock||capturing||!!cropSrc}/>
+    <DropZone name="car picture" label="Drop, paste or upload a picture of the car" hint="PNG, JPEG or WebP · up to 40 MB. You can crop it next."
+     value={mode==='capture'&&view.src?view.src:null} valueName={view.title} valueAlt={view.title} valueMeta={view.finish}
+     onFile={readCapture} disabled={lock||capturing||!!cropSrc}/>
     <div className="editor-row">
      <a className="ds-link" href={configurator.url} target="_blank" rel="noreferrer">Open in a separate tab <ExternalLink aria-hidden="true"/></a>
      {mode==='capture'&&view.src.startsWith('/api/assets/')&&<a className="ds-link" href={view.src+'?original=1&download=1'} download>Original image</a>}
@@ -370,19 +378,14 @@ export default function Studio(){
    </SettingsSection>
   </div>
   <div className="ds-contents" onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!lock)void receiveMood(file)}}}>
-   <SettingsSection title="Inspiration" id="kv-inspiration-title">
-    <Badge kind={moodUploadError?'bad':mood&&!moodUpload?'ok':'quiet'}>{moodUpload?'Saving…':moodUploadError?'Not saved':mood?'Ready':'Add a reference'}</Badge>
-    {can('studio.pinterest')?<Field label="Pinterest link" error={pinError||undefined}><Input type="url" value={pin} disabled={lock} onChange={e=>updatePin(e.target.value)} placeholder="Paste a Pinterest pin link…"/></Field>:<div className="ds-row"><span className="ds-label">Pinterest link</span><UpsellChip feature="studio.pinterest" account={account}/></div>}
-    {importingPin&&<p className="ds-help" role="status">Finding the largest Pinterest image…</p>}
-    {moodUpload&&<p className="ds-help" role="status">{moodUpload}</p>}
-    {moodUploadError&&<div className="ds-error" role="alert"><span>{moodUploadError}</span> <Button size="sm" kind="quiet" disabled={lock} onClick={()=>void receiveMood(moodFile.current||undefined)}>Retry upload</Button></div>}
-    {mood?<div className="editor-visuals-ref"><span className="editor-visuals-thumb">{/* eslint-disable-next-line @next/next/no-img-element -- private media */}
-<img crossOrigin="anonymous" src={mood.src} alt="Your inspiration reference"/></span>
-     <span><b className="ds-truncate" title={mood.name}>{mood.name}</b>{mood.src.startsWith('/api/assets/')&&<a className="ds-link" href={mood.src+'?original=1&download=1'} download>Original</a>}</span>
-     <IconButton label="Remove inspiration" size="sm" disabled={lock} onClick={()=>updatePin('')}><X aria-hidden="true"/></IconButton></div>
-     :<p className="ds-help"><b>What’s the mood?</b> Add a location, lighting or composition reference. Paste a link above, or an image below.</p>}
-    <ClipboardImageInput compact label="inspiration image" onImage={receiveMood} onUpload={()=>inputRef.current?.click()} disabled={lock}/>
-   </SettingsSection>
+   <InspirationCard id="kv-inspiration-title" help="A picture that shows the look you want: the place, the light, the framing."
+    mood={<><b>What’s the mood?</b> Add a location, lighting or composition reference.</>}
+    picture={{value:mood?.src||null,name:mood?.name,onFile:receiveMood,onRemove:()=>updatePin(''),disabled:lock,
+     busy:moodUpload||false,error:moodUploadError||undefined,
+     extra:<>{mood?.src.startsWith('/api/assets/')&&<a className="ds-link" href={mood.src+'?original=1&download=1'} download>Original</a>}
+      {moodUploadError&&<span><Button size="sm" kind="quiet" disabled={lock} onClick={()=>void receiveMood(moodFile.current||undefined)}>Retry upload</Button></span>}</>}}
+    link={{value:pin,onChange:updatePin,onAdd:()=>void importPin(pin).catch(()=>undefined/* shown as pinError */),busy:importingPin,error:pinError||undefined,disabled:lock,
+     status:importingPin?'Finding the largest Pinterest image…':undefined}}/>
   </div>
   <PromptSettings label="Your idea (optional)" value={brief===DEFAULT_BRIEF?'':brief} onChange={v=>setBrief(v.trim()?v:DEFAULT_BRIEF)} placeholder="Golden hour, a quiet city street, warm reflections…" max={2000} inspiration={false}/>
   <SettingsSection title="Art direction" id="kv-direction-title">
@@ -405,6 +408,7 @@ export default function Studio(){
 
  const notices=<>
   <AccountNotices variant="ds"/>
+  {askingToShare&&<Banner icon={<Monitor aria-hidden="true"/>}>Your browser will ask to share this tab once, so the Studio can take the picture. Choose this tab and Share.</Banner>}
   {error&&<Banner kind="bad" icon={<Info aria-hidden="true"/>}><span role="alert">{error}</span> <IconButton label="Dismiss message" size="sm" onClick={()=>setError('')}><X aria-hidden="true"/></IconButton></Banner>}
   {status?.signedOut&&<Banner icon={<LogIn aria-hidden="true"/>}>Sign in to save references and generate visuals. <a className="ds-link" href="/signin" target="_top">Sign in</a></Banner>}
  </>;
@@ -417,7 +421,7 @@ export default function Studio(){
    settings={settings}
    cost={cost} verb={generateVerb} busy={lock} onGenerate={startGenerate}
    disabled={!!moodUpload||!!moodUploadError||!!cropSrc||!generationReady||!status?.storage||(!pin.trim()&&!mood)}
-   note={<>{costNote&&<>{costNote}. </>}{mode==='live'?'Automatically captures only the configurator, prepares your references and generates. Your browser may ask to share This Tab once; keep sharing for future generations.':'Uses the car reference shown above. Starts a paid generation.'}</>}/>
+   note={<>{costNote&&<>{costNote}. </>}{mode==='live'?'Takes a picture of the car as it is shown, adds your references and generates.':'Uses the car reference shown above. Starts a paid generation.'}</>}/>
 
   <Dialog open={trashOpen} onClose={()=>{if(!managingVisual)setTrashOpen(false)}} title="Deleted images">
    <p className="ds-help">Restore any image to your library. Original files stay available to existing edits and references.</p>
@@ -428,12 +432,11 @@ export default function Studio(){
   </Dialog>
   <GoogleConnection open={googleOpen} onOpenChange={setGoogleOpen} status={googleConnection} onUpdate={refreshGoogle}/>
   <ConnectionSettings open={connectionOpen} onOpenChange={setConnectionOpen} status={status} onUpdate={refreshStatus}/>
-  <input hidden ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" aria-label="Upload an inspiration image" onChange={e=>{void receiveMood(e.target.files?.[0]);e.target.value=''}}/>
   <input hidden ref={uploadRef} type="file" accept="image/png,image/jpeg,image/webp" aria-label="Upload a car reference" onChange={e=>{void receiveCapture(e.target.files?.[0]);e.target.value=''}}/>
 
   <Dialog open={captureOpen} onClose={()=>setCaptureOpen(false)} title="Capture your chosen view">
    <div className="ds-stack">
-    <p className="ds-help">Capture the exact view of {configurator.name}. Select its tab for a single screenshot, then review the crop. Sharing stops immediately after capture.</p>
+    <p className="ds-help">Take a picture of {configurator.name} as it is shown. Your browser asks which tab to share: choose the one with the car. Sharing stops as soon as the picture is taken, and you check the crop before it is used.</p>
     {captureNotice&&<p className="ds-note" role="status">{captureNotice}</p>}
     <div className="editor-row"><Button kind="primary" busy={capturing} icon={<Monitor aria-hidden="true"/>} onClick={()=>void screenCapture()}>{capturing?'Capturing…':'Capture a browser tab'}</Button><Button icon={<Upload aria-hidden="true"/>} onClick={()=>uploadRef.current?.click()}>Upload a screenshot</Button></div>
     <p className="ds-help">For a larger image, open the configurator in its own browser tab, set your angle there, then capture that tab. You’ll review the image before using it.</p>

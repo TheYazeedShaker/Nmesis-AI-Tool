@@ -7,9 +7,13 @@ import type {StudioDatabase} from '@/lib/portable/database';
 export function accountSummary(ctx:StudioContext,now=Date.now()){
  return {
   user:{email:ctx.user.email},
+  // The company's legal name: shown only in Company settings, Usage and billing.
   org:{id:ctx.org.id,name:ctx.org.name},
+  // What its people work as everywhere else (the top bar, the switcher, Home, titles).
+  brand:ctx.brand,
+  brands:ctx.brands,
   role:ctx.role,
-  orgs:ctx.orgs.map(o=>({id:o.id,name:o.name})),
+  orgs:ctx.orgs.map(o=>({id:o.id,name:o.name,brands:o.brands})),
   // Staff only: the switcher's "Nmesis" and "Clients" sections.
   switcher:switcherSections(ctx),
   staff:!!ctx.staff,

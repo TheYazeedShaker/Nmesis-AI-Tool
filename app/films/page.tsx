@@ -9,6 +9,7 @@ import {useConfirm} from '@/components/ds/dialog';
 import {Button,IconButton,buttonClass} from '@/components/ds/button';
 import {Loading,SkeletonPanel,State} from '@/components/ds/feedback';
 import {Checkbox,Field,Input,Radio,RadioGroup,Select,Switch,Textarea} from '@/components/ds/field';
+import {DropZone} from '@/components/ds/drop-zone';
 import {useToast} from '@/components/ds/toast';
 import {WorkspaceFrame} from '@/components/workspace/frame';
 import {EditorScreen,EDITOR_TOOLS} from '@/components/editor/editor-screen';
@@ -138,9 +139,10 @@ function FilmStudio(){const router=useRouter(),showNames=providerNames(useAccoun
  const reference=draft?.mode==='reference',shotCount=draft?.mode==='launch'?3:1;
  const settingsPanel=<>
   <SettingsSection title="Starting frame" id="film-frame-title">
-   {film&&draft&&<div className="editor-upload"><span className="editor-lineup-thumb" aria-hidden="true">{/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
-<img crossOrigin="anonymous" src={'/api/assets/'+draft.sourceId} alt=""/></span><span><b className="ds-truncate" title={draft.vehicle}>{draft.vehicle}</b><span className="ds-muted">{reference?'Car reference':'Starting frame'}</span></span></div>}
-   <div className="editor-row">{startButtons(false)}</div>
+   <DropZone name="starting frame" label="Drop, paste or upload a picture to start a film from" hint="PNG, JPEG or WebP · up to 40 MB. A new picture starts a new film."
+    value={film&&draft?'/api/assets/'+draft.sourceId:null} valueName={draft?.vehicle} valueMeta={reference?'Car reference':'Starting frame'}
+    onFile={file=>uploadFrame(file)} busy={busy==='upload'?'Uploading your starting frame…':false} disabled={(isBusy&&busy!=='upload')||loading||exporting!==null}/>
+   <div className="editor-row"><a className={buttonClass({kind:'quiet',size:'sm'})} href={KEY_VISUAL_HREF}><Plus aria-hidden="true"/>Choose a key visual</a></div>
    <p className="ds-help">Either one starts a new film. From a key visual, choose Create launch film.</p>
   </SettingsSection>
   {film&&draft&&<fieldset className="editor-films-fieldset" disabled={!editable||isBusy}>

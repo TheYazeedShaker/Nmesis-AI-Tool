@@ -84,8 +84,6 @@
 .editor-shot > span { display: flex; flex-direction: column; }
 
 @media (max-width: 768px) {
-  .workspace:has(> .ds-main.bleed) { height: auto; }
-  .workspace > .ds-main.bleed { display: block; }
   .editor-bar-actions { margin-left: 0; }
   .ds-canvas-bar { flex-wrap: wrap; }
   .editor-history { grid-auto-columns: minmax(180px, 70vw); }
@@ -120,12 +118,14 @@
 /* What is shown sits at the top of the stage: when the history loads under it,
    nothing above moves (check:ui layout shift on Film). */
 .editor-stage-main { place-items: start center; }
-/* Phones have no bottom navigation since group 1: the editor fills the screen
-   under the top bar, so the sticky Generate bar starts at the bottom and does
-   not jump down when the history loads (check:ui layout shift on Film). */
+/* Phones: the editor fills the screen under the top bar as on desktop, as a
+   column: the tools, the canvas (which scrolls inside itself) and Generate in a
+   row of its own. Nothing is ever under the Generate bar, at rest or while
+   scrolling (Story at 768), and it never moves when the history loads. */
 @media (max-width: 768px) {
-  .workspace .ds-editor { min-height: calc(100dvh - var(--ds-topbar-h)); }
   .workspace .ds-main.bleed { padding-bottom: 0; }
+  .workspace > .ds-main.bleed > .ds-editor { min-height: 0; }
+  .workspace .ds-phone-generate { position: static; }
 }
 /* In the editor the work in progress and errors sit in the flow under the
    canvas, never floating over the version history (as on phones). */
@@ -139,3 +139,10 @@
 @media (max-width: 768px) {
   .ds-editor-canvas:has(.editor-stage) .ds-canvas-bar { min-height: calc(var(--ds-control-h) * 2 + var(--ds-space-8) * 3); align-content: flex-start; }
 }
+/* The chosen car's picture over the car picker (Phase 3 polish). */
+.editor-car-picture { display: grid; place-items: center; aspect-ratio: 16 / 9; max-height: calc(var(--ds-space-64) * 2); width: 100%; border-radius: var(--ds-radius); overflow: hidden; background: var(--ds-panel-2); border: var(--ds-border-width) solid var(--ds-border); color: var(--ds-muted); }
+.editor-car-picture > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.editor-car-picture > svg { width: var(--ds-space-32); height: var(--ds-space-32); }
+/* The canvas bar never shrinks below its rows (Story on phones has three): the
+   canvas gives way, never the bar's buttons (check:ui overlapped). */
+.ds-editor-canvas > .ds-canvas-bar { flex: none; }

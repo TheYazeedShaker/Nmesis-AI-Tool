@@ -1,8 +1,10 @@
+import {carName} from './car-names.ts';
 // A configurator the signed-in company may use: one live car from the master list
 // (accounts.cars, narrowed by accounts.configurator_access), served by
 // /api/configurators. Real names and addresses never live in this repository.
 // `template` is the car's explicit capture template (studio.car_settings).
-export type Configurator={id:string;name:string;url:string;template?:'capture'|'choose-view'};
+export type Configurator={id:string;name:string;url:string;template?:'capture'|'choose-view';
+ /** The master list's ids (cars from /api/configurators only): which brand it belongs to, and its picture at /api/cars/<id>/picture. */brandId?:string;brandName?:string;picture?:string};
 // What every page shows until the company's configurators arrive (and when there are none).
 export const DEMO_CONFIGURATOR:Configurator={id:'demo',name:'Demo vehicle',url:'https://configurator.example.com/demo/',template:'choose-view'};
 export const CONFIGURATORS:Configurator[]=[DEMO_CONFIGURATOR];
@@ -14,8 +16,8 @@ export function carConfigurators(cars:{brandId:string;modelId:string;brandName:s
  for(const car of cars){
   if(!car.path)continue;
   let url:string;try{url=normalizeConfiguratorUrl(/^https:\/\//i.test(car.path)?car.path:new URL(car.path,origin||undefined).href)}catch{continue}
-  const name=[car.brandName,car.modelName].filter(Boolean).join(' ').trim().slice(0,100)||'Configurator';
-  out.push({id:(car.brandId+'.'+car.modelId).slice(0,120),name,url,template:car.template==='choose-view'?'choose-view':'capture'});
+  const name=carName(car.brandName,car.modelName).slice(0,100)||'Configurator',id=(car.brandId+'.'+car.modelId).slice(0,120);
+  out.push({id,name,url,template:car.template==='choose-view'?'choose-view':'capture',brandId:car.brandId,brandName:car.brandName,picture:'/api/cars/'+encodeURIComponent(id)+'/picture'});
  }
  return out;
 }

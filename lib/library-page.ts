@@ -1,4 +1,5 @@
 import {database,type FilmContext} from './film-server';
+import {tidyCarText} from './car-names';
 import {bucket,StudioError,validId} from './studio-server';
 import {foldersReady} from './trash-ready';
 import {indexReady} from './library-index';
@@ -34,9 +35,10 @@ const like=(q:string)=>'%'+q.toLowerCase().replace(/[\\%_]/g,m=>'\\'+m)+'%';
 const hrefFor=(kind:PageItem['kind'],id:string,tool:string)=>kind==='film'?`/films?id=${id}`:kind==='swap'?`/swap?id=${id}`:kind==='story'?`/storyboard?id=${id}`:tool==='Line-up'?`/lineup?visual=${id}`:`/library?open=visual:${id}`;
 type Row={kind:PageItem['kind'];id:string;owner:string;title:string;tool:string;car:string|null;status:PageItem['status'];thumb_key:string|null;asset_id:string|null;width:number|null;height:number|null;created_at:number;deleted_at:number|null;folder_id?:string|null};
 
-export async function libraryPage(ctx:FilmContext,query:PageQuery):Promise<LibraryPage>{
+/** brandCars: a company with several brands sees only the chosen brand's work (its cars' names) and work with no car. */
+export async function libraryPage(ctx:FilmContext,query:PageQuery,{brandCars}:{brandCars?:string[]|null}={}):Promise<LibraryPage>{
  const db=database(ctx);
- if(!await indexReady(db))return fromFeed(ctx,query);
+ if(!await indexReady(db))return fromFeed(ctx,query,brandCars||null);
  const store=bucket(ctx.BUCKET),withFolders=await foldersReady(db);
  const folderRows=withFolders?(await db.prepare('SELECT id,name,parent_id,created_by FROM folders WHERE org_id=? AND deleted_at IS NULL ORDER BY name').bind(ctx.org).all<{id:string;name:string;parent_id:string|null;created_by:string}>()).results:[];
  const live=folderRows.map(f=>f.id),known=new Set(live);
@@ -51,22 +53,27 @@ export async function libraryPage(ctx:FilmContext,query:PageQuery):Promise<Libra
   const scope=[query.place,...folderRows.filter(f=>f.parent_id===query.place).map(f=>f.id)];
   where.push(`EXISTS (SELECT 1 FROM folder_items fi WHERE fi.org_id=li.org_id AND fi.item_kind=li.kind AND fi.item_id=li.id AND fi.folder_id IN (${scope.map(()=>'?').join(',')}))`);args.push(...scope);
  }
+ // Car names as stored (work saved before the naming rule may carry a doubled brand); filters and the list use the mended name.
+ const stored=(await db.prepare('SELECT DISTINCT car FROM library_items WHERE org_id=? AND car IS NOT NULL ORDER BY car LIMIT 400').bind(ctx.org).all<{car:string}>()).results.map(c=>c.car);
+ const named=(names:string[])=>{const want=new Set(names);return stored.filter(c=>want.has(tidyCarText(c)||c))};
+ const inBrand=brandCars?named(brandCars.map(c=>tidyCarText(c)||c)):null;
+ const brandWhere=inBrand?(inBrand.length?`(li.car IS NULL OR li.car IN (${inBrand.map(()=>'?').join(',')}))`:'li.car IS NULL'):null;
+ if(brandWhere){where.push(brandWhere);args.push(...(inBrand as string[]))}
  if(query.tool){where.push('li.tool=?');args.push(query.tool)}
- if(query.car){where.push('li.car=?');args.push(query.car)}
+ if(query.car){const these=named([query.car]);if(these.length){where.push(`li.car IN (${these.map(()=>'?').join(',')})`);args.push(...these)}else{where.push('li.car=?');args.push(query.car)}}
  if(query.who){where.push(query.who==='you'?'li.owner=?':'li.owner<>?');args.push(ctx.prefix)}
  if(query.q){where.push("LOWER(li.title) LIKE ? ESCAPE '\\'");args.push(like(query.q))}
  const order=query.sort==='name'?'LOWER(li.title) ASC, li.id ASC':query.sort==='old'?'li.created_at ASC, li.id ASC':'li.created_at DESC, li.id DESC';
  const folderArgs=filed!=='NULL'?live:[];
- const [rows,total,counts,perFolder,covers,cars]=await Promise.all([
+ const [rows,total,counts,perFolder,covers]=await Promise.all([
   db.prepare(`SELECT li.*, ${filed} AS folder_id FROM library_items li WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...folderArgs,...args,query.limit,query.offset).all<Row>(),
   db.prepare(`SELECT COUNT(*) AS n FROM library_items li WHERE ${where.join(' AND ')}`).bind(...args).first<{n:number}>(),
-  db.prepare(`SELECT SUM(CASE WHEN li.deleted_at IS NULL THEN 1 ELSE 0 END) AS live_n, SUM(CASE WHEN li.deleted_at IS NULL AND ${filed} IS NULL THEN 1 ELSE 0 END) AS unsorted_n, SUM(CASE WHEN li.deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS deleted_n FROM library_items li WHERE li.org_id=?`).bind(...folderArgs,ctx.org).first<{live_n:number;unsorted_n:number;deleted_n:number}>(),
+  db.prepare(`SELECT SUM(CASE WHEN li.deleted_at IS NULL THEN 1 ELSE 0 END) AS live_n, SUM(CASE WHEN li.deleted_at IS NULL AND ${filed} IS NULL THEN 1 ELSE 0 END) AS unsorted_n, SUM(CASE WHEN li.deleted_at IS NOT NULL THEN 1 ELSE 0 END) AS deleted_n FROM library_items li WHERE li.org_id=?${brandWhere?' AND '+brandWhere:''}`).bind(...folderArgs,ctx.org,...(brandWhere?inBrand as string[]:[])).first<{live_n:number;unsorted_n:number;deleted_n:number}>(),
   live.length?db.prepare(`SELECT fi.folder_id AS folder_id, COUNT(*) AS n FROM folder_items fi JOIN library_items li ON li.org_id=fi.org_id AND li.kind=fi.item_kind AND li.id=fi.item_id WHERE fi.org_id=? AND li.deleted_at IS NULL AND fi.folder_id IN (${marks}) GROUP BY fi.folder_id`).bind(ctx.org,...live).all<{folder_id:string;n:number}>():Promise.resolve({results:[]}),
   live.length?db.prepare(`SELECT fi.folder_id AS folder_id, li.thumb_key AS thumb_key FROM folder_items fi JOIN library_items li ON li.org_id=fi.org_id AND li.kind=fi.item_kind AND li.id=fi.item_id WHERE fi.org_id=? AND li.deleted_at IS NULL AND li.thumb_key IS NOT NULL AND fi.folder_id IN (${marks}) ORDER BY li.created_at DESC LIMIT 400`).bind(ctx.org,...live).all<{folder_id:string;thumb_key:string}>():Promise.resolve({results:[]}),
-  db.prepare('SELECT DISTINCT car FROM library_items WHERE org_id=? AND car IS NOT NULL ORDER BY car LIMIT 200').bind(ctx.org).all<{car:string}>(),
  ]);
  const sign=(key:string)=>store.downloadUrl(key);
- const items=await Promise.all(rows.results.map(async r=>({kind:r.kind,id:r.id,title:r.title,tool:r.tool,car:r.car,status:r.status,mine:r.owner===ctx.prefix,at:Number(r.created_at),deleted:r.deleted_at!==null&&r.deleted_at!==undefined,
+ const items=await Promise.all(rows.results.map(async r=>({kind:r.kind,id:r.id,title:tidyCarText(r.title)||r.title,tool:r.tool,car:tidyCarText(r.car),status:r.status,mine:r.owner===ctx.prefix,at:Number(r.created_at),deleted:r.deleted_at!==null&&r.deleted_at!==undefined,
   folderId:r.folder_id??null,href:hrefFor(r.kind,r.id,r.tool),width:r.width,height:r.height,
   thumb:r.thumb_key?await sign(r.thumb_key):r.asset_id&&r.status==='ready'?`/api/assets/${r.asset_id}?thumb=1`:null,
   full:r.asset_id&&r.status==='ready'?`/api/assets/${r.asset_id}`:null} satisfies PageItem)));
@@ -79,12 +86,13 @@ export async function libraryPage(ctx:FilmContext,query:PageQuery):Promise<Libra
  const n=Number(total?.n)||0;
  return {items,total:n,next:query.offset+items.length<n?query.offset+items.length:null,
   counts:{all:Number(counts?.live_n)||0,unsorted:Number(counts?.unsorted_n)||0,deleted:Number(counts?.deleted_n)||0},
-  folders,cars:cars.results.map(c=>c.car),foldersReady:withFolders,indexed:true};
+  folders,cars:[...new Set((inBrand||stored).map(c=>tidyCarText(c)||c))].sort().slice(0,200),foldersReady:withFolders,indexed:true};
 }
 
 // Before 0007: the group 1 feed, filtered and paged here.
-async function fromFeed(ctx:FilmContext,query:PageQuery):Promise<LibraryPage>{
- const lib=await companyLibrary(ctx),known=new Set(lib.folders.map(f=>f.id));
+async function fromFeed(ctx:FilmContext,query:PageQuery,brandCars:string[]|null):Promise<LibraryPage>{
+ const all=await companyLibrary(ctx),brand=brandCars?new Set(brandCars.map(c=>tidyCarText(c)||c)):null;
+ const lib={...all,items:all.items.map(i=>({...i,title:tidyCarText(i.title)||i.title,car:tidyCarText(i.car)})).filter(i=>!brand||!i.car||brand.has(i.car))},known=new Set(lib.folders.map(f=>f.id));
  const filed=(i:LibraryItem)=>i.folderId&&known.has(i.folderId)?i.folderId:null;
  const inFolder=(i:LibraryItem,f:string)=>{const at=filed(i);return !!at&&(at===f||lib.folders.find(x=>x.id===at)?.parentId===f)};
  const q=query.q?.toLowerCase();

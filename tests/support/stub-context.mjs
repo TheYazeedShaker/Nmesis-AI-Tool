@@ -5,9 +5,10 @@
 import {state} from './state.mjs';
 import {resolveContext} from '../../lib/accounts/context.ts';
 export const ORG_COOKIE='studio_org';
+export const BRAND_COOKIE='studio_brand';
 export async function sessionUser(){return state.user}
 export async function getStudioContext(){
  if(!state.user)return {ok:false,problem:'signed_out'};
- const resolved=await resolveContext({user:{id:state.user.id,email:state.user.email,aal:state.user.aal||'aal1'},chosenOrg:state.chosenOrg,directory:state.directory});
+ const resolved=await resolveContext({user:{id:state.user.id,email:state.user.email,aal:state.user.aal||'aal1'},chosenOrg:state.chosenOrg,chosenBrand:state.chosenBrand,directory:state.directory});
  return resolved.ok?resolved:{ok:false,problem:resolved.reason};
 }
