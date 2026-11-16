@@ -24,6 +24,8 @@ import { chromium } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 import { startStack } from './ui/stack.mjs';
 import { seedStudio, ORGS, PEOPLE, PASSWORD, FOLDER_ID } from './ui/seed.mjs';
+import { execFileSync } from 'node:child_process';
+const backfill = (stack) => execFileSync(process.execPath, ['scripts/backfill-library.mjs', '--env', 'preview', '--staff', PEOPLE.staff.id], { env: { ...stack.env, NODE_OPTIONS: '' }, encoding: 'utf8', timeout: 600_000 }).trim().split('\n').pop();
 import { initScript, quietFor, vitals, layoutChecks, focusState, providerNamesOnPage } from './ui/checks.mjs';
 import { PROVIDER_PATTERN } from '../lib/provider-words.ts';
 import { runPerf } from './ui/perf.mjs';
@@ -58,6 +60,7 @@ const ROLES = {
   staff: { person: 'staff', org: 'nmesis', note: 'Nmesis staff in their own workspace' },
   staffViewing: { person: 'staff', org: 'growth', note: 'staff opening a client that granted support access ("Viewing as")' },
   staffRefused: { person: 'staff', org: 'starter', note: 'staff opening a client that did not grant access' },
+  scale: { person: 'scale', org: 'scale', note: 'the library at scale: 1,000 pieces of work (--perf only)' },
 };
 // F-050: these people read no provider or model name anywhere (no own keys, not staff).
 const NO_PROVIDER_NAMES = new Set(['anon', 'owner', 'creator', 'viewer', 'starter', 'ended', 'nocompany']);
@@ -101,6 +104,9 @@ let exitCode = 0;
 try {
   for (const [name, role] of Object.entries(ROLES)) contexts[name] = await roleContexts(name, role);
   await seedStudio({ s3: stack.s3, adminUrl: stack.adminUrl, request: { enterprise: contexts.enterprise.desktop.request } });
+  // The one-off backfill (Phase 3 group 2), as the owner runs it after 0007: the
+  // library index and thumbnails for everything seeded above.
+  console.log('  ' + await backfill(stack));
   // Performance first, so the first request to the heaviest route is a cold one.
   const perf = PERF ? await runPerf({ stack, contexts, browser }) : undefined;
 
@@ -126,9 +132,11 @@ try {
   const blocked = Object.fromEntries(stack.blocked);
   const report = { at: new Date().toISOString(), studioReadyMs: stack.readyMs, viewports: VIEWPORTS, roles: ROLES, results: results.sort(byKey), blockedServerHosts: blocked, harnessMistakes };
   if (perf) report.perf = perf;
+  // The library at scale (Phase 3 group 2): a hard limit, not a ratchet.
+  if (perf?.libraryScale && !perf.libraryScale.ok) { console.log('✗ The library at 1,000 items: first paint 1.5 s or more on the phone profile, or storage read for work off screen: ' + JSON.stringify(perf.libraryScale)); exitCode = 1; }
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
   const totals = summarise(report);
-  exitCode = ratchet(totals);
+  exitCode = Math.max(exitCode, ratchet(totals));
 } catch (e) {
   console.error(e);
   console.error(stack.output.slice(-60).join('\n'));
@@ -295,6 +303,7 @@ function summarise(report) {
   const lines = ['# UI harness summary', '', `${report.at}. ${totals.pages} page checks. Studio ready in ${report.studioReadyMs} ms.`, '', '| Check | Count |', '|---|---:|',
     ...Object.entries(totals).map(([k, v]) => `| ${k} | ${v} |`), '', '## axe rules (nodes)', '', ...Object.entries(axeRules).sort((a, b) => b[1] - a[1]).map(([k, v]) => `- ${k}: ${v}`),
     '', '## Provider or model names a client could read (F-050; must be none)', '', ...[...new Set(pages.flatMap((r) => (r.providerNames || []).map((f) => `- ${r.screen} (${r.role}) · ${f.where}: ${f.text}`)))].slice(0, 80),
+    ...(report.perf?.libraryScale ? ['', '## The library at 1,000 items (phone: 390 wide, 4x CPU, throttled network)', '', ...Object.entries(report.perf.libraryScale).map(([k, v]) => `- ${k}: ${v}`)] : []),
     '', '## Pending screens', '', ...report.results.filter((r) => r.pending).map((r) => `- ${r.screen} (${r.role}): ${r.pending}`),
     '', '## Server requests the network guard refused', '', ...Object.entries(report.blockedServerHosts).map(([h, n]) => `- ${h}: ${n}`),
     '', '## Mistakes the harness made about itself', '', ...[...new Set(report.harnessMistakes)].map((m) => `- ${m}`)];

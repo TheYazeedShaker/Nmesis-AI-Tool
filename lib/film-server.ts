@@ -8,6 +8,7 @@ import {VIDEO_MODEL,filmModel,type FilmDraft,usdMicros,videoBody} from './films'
 import {keyFingerprint,providerUrl,publicMediaUrl,requestUrls} from './film-policy';
 import {descriptionPriceMicros} from './swap-pricing';
 import {seedancePriceMicros} from './film-pricing';
+import {syncWork} from './library-sync';
 export type FilmContext=Awaited<ReturnType<typeof context>>;
 export type FilmRow={id:string;owner:string;payer:string;status:string;data:string;provider_id:string|null;status_url:string|null;cancel_url:string|null;result_key:string|null;estimate:number;credits:number;hold_id:string|null;reserved_day:string|null;created_at:number;updated_at:number;lock_until:number;error:string|null};
 export function database(ctx:FilmContext){if(!ctx.DB)throw new StudioError('Film storage is not connected yet.',503);return ctx.DB}
@@ -69,4 +70,4 @@ export async function refreshFilm(ctx:FilmContext,row:FilmRow){if(!['queued','in
 export async function cancelFilm(ctx:FilmContext,row:FilmRow){if(row.status!=='queued'||!row.cancel_url||!row.provider_id)throw new StudioError('Only a queued film can be canceled.',409);const cred=await videoCredential(ctx);await provider(cred.key,providerUrl(row.cancel_url,'cancel',row.provider_id),{});await refreshFilm(ctx,row)}
 // Every slow provider operation holds a lease. A crashed submit remains recoverable
 // with the exact saved body and idempotency key, never a new paid job.
-export async function withFilmLock(ctx:FilmContext,id:string,fn:(row:FilmRow)=>Promise<void>){const db=database(ctx),now=Date.now();await filmRow(ctx,id);const lock=await db.prepare('UPDATE films SET lock_until=? WHERE id=? AND owner=? AND lock_until<?').bind(now+150000,id,ctx.prefix,now).run();if(!lock.meta.changes)throw new StudioError('This film is being updated. Wait a moment, then refresh.',409);try{await fn(await filmRow(ctx,id));return await filmRow(ctx,id)}finally{await db.prepare('UPDATE films SET lock_until=0 WHERE id=? AND owner=?').bind(id,ctx.prefix).run()}}
+export async function withFilmLock(ctx:FilmContext,id:string,fn:(row:FilmRow)=>Promise<void>){const db=database(ctx),now=Date.now();await filmRow(ctx,id);const lock=await db.prepare('UPDATE films SET lock_until=? WHERE id=? AND owner=? AND lock_until<?').bind(now+150000,id,ctx.prefix,now).run();if(!lock.meta.changes)throw new StudioError('This film is being updated. Wait a moment, then refresh.',409);try{await fn(await filmRow(ctx,id));const out=await filmRow(ctx,id);await syncWork(ctx,'film',id);return out}finally{await db.prepare('UPDATE films SET lock_until=0 WHERE id=? AND owner=?').bind(id,ctx.prefix).run()}}

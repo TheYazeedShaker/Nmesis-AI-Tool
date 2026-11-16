@@ -7,11 +7,11 @@ import {StudioTopBar,type ShellPreview,type StudioPage} from '@/components/studi
 // phones the top bar's menu holds Home, Library, Projects and the tools (a
 // bottom bar would cover the work at the bottom of the screen). The tool
 // screens keep their own dark frame until group 2 rebuilds them.
-export function WorkspaceFrame({current,notices,children,preview}:{current:StudioPage;notices?:React.ReactNode;children:React.ReactNode;preview?:ShellPreview}){
+export function WorkspaceFrame({current,notices,children,preview,bleed}:{current:StudioPage;notices?:React.ReactNode;children:React.ReactNode;preview?:ShellPreview;/** No page padding: the editor fills the space. */bleed?:boolean}){
  return <div className="ds-app ds-shell workspace">
   <a className="ds-skip" href="#main">Skip to content</a>
   <StudioTopBar current={current} theme="system" preview={preview}/>
   {notices}
-  <main id="main" className="ds-main" tabIndex={-1}>{children}</main>
+  <main id="main" className={bleed?'ds-main bleed':'ds-main'} tabIndex={-1}>{children}</main>
  </div>;
 }

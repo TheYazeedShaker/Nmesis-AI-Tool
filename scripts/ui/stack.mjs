@@ -52,7 +52,7 @@ export async function startStack({ adminUrl, port = 3940, log = () => {} }) {
     await new Promise((r) => setTimeout(r, 250));
   }
   return {
-    origin, s3, auth, appUrl, adminUrl, output, blocked, readyMs: ready,
+    origin, s3, auth, appUrl, adminUrl, output, blocked, readyMs: ready, env,
     stop: async () => { server.kill(); auth.server.close(); s3.server.close(); },
   };
 }

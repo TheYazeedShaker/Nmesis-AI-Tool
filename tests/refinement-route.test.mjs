@@ -19,7 +19,7 @@ async function harness(){
  const stub=v=>new vm.SyntheticModule(Object.keys(v),function(){for(const [k,x]of Object.entries(v))this.setExport(k,x)},{context:ctx});
  const charge=freeCredits();
  const stubs={
- '@/lib/credits/charge':charge.api,'@/lib/credits/words':{...creditWords},
+ '@/lib/credits/charge':charge.api,'@/lib/credits/words':{...creditWords},'@/lib/library-index':{fromVisual:()=>null,indexQuietly:async()=>{}},
  '@/lib/accounts/plan':plan,'@/lib/studio-server':{context:async()=>({prefix:'owner/',BUCKET:store,org:'nmesis',role:'owner',entitlements:{legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}}}),bucket:x=>x,imageKey:(p,id)=>p+'images/'+id,readJson:r=>r.json(),str:(s,n=2000)=>typeof s==='string'?s.trim().slice(0,n):'',validId:s=>typeof s==='string'&&/^[a-z0-9-]{8,80}$/.test(s),StudioError,fail:e=>Response.json({error:e.message},{status:e.status||500}),providerError:()=>new StudioError('Provider error',502)},
  '@/lib/credentials':{apiKey:async()=> 'synthetic-test-key',openaiKey:async()=>({key:'synthetic-test-key',own:true})},'@/lib/lineup':lineup,'@/lib/image-models':models,'@/lib/studio':studio};
  const code=ts.transpileModule(readFileSync(new URL('../app/api/generate/route.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;

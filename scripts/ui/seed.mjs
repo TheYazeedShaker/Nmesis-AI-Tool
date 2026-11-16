@@ -33,6 +33,8 @@ export const ORGS = {
   starter: { id: uuid(102), name: 'Sample Auto', kind: 'client', plan: 'starter' },
   enterprise: { id: uuid(103), name: 'Example Motors Group Middle East and North Africa Regional Marketing Department', kind: 'client', plan: 'enterprise' },
   ended: { id: uuid(104), name: 'Ended Motors Demo', kind: 'client', plan: 'growth', ended: true },
+  // Phase 3 group 2: the library at scale (1,000 pieces of work), checked only by --perf.
+  scale: { id: uuid(105), name: 'Scale Test Motors', kind: 'client', plan: 'growth' },
 };
 
 // Who signs in. `role` is the audit's name for them.
@@ -45,7 +47,9 @@ export const PEOPLE = {
   ended: { id: uuid(6), email: 'owner@ended.example.test', name: 'Morgan Demo', memberships: [['ended', 'owner']] },
   nocompany: { id: uuid(7), email: 'nobody@example.test', name: 'Riley Nobody', memberships: [] },
   staff: { id: uuid(8), email: 'staff@nmesis.example.test', name: 'Staff Example', memberships: [], staff: true },
+  scale: { id: uuid(9), email: 'owner@scale.example.test', name: 'Taylor Scale', memberships: [['scale', 'owner']] },
 };
+export const SCALE_ITEMS = 1000;
 
 const PLAN_FEATURES = {
   starter: { 'studio.enabled': true, 'studio.key_visuals': true, 'studio.credits_monthly': 500, 'studio.max_output': '2k' },
@@ -198,6 +202,7 @@ export async function seedStudio({ s3, adminUrl, request }) {
   const entIds = seedVisuals(s3, 'enterprise', 'enterprise', 12, 400).filter((_, i) => i % 29 !== 7 && i % 31 !== 11);
   seedVisuals(s3, 'starter', 'starter', 3, 500);
   seedVisuals(s3, 'ended', 'ended', 6, 600);
+  seedVisuals(s3, 'scale', 'scale', SCALE_ITEMS, 1000);
   const api = request.enterprise;
   const ok = async (r, what) => { if (!r.ok()) throw new Error(`${what} -> ${r.status()} ${await r.text()}`); return r.json(); };
   // Films: drafts through the route, then other states as the provider would leave them.

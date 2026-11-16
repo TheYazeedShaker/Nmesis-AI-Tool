@@ -4,6 +4,7 @@ import {database} from './film-server';
 import {openaiKey} from './credentials';
 import {releaseCredits,reserveCredits,settleCredits} from './credits/charge';
 import {framePrompt,type Storyboard,type BoardShot} from './storyboards';
+import {syncWork} from './library-sync';
 type Ctx=Awaited<ReturnType<typeof context>>;
 export async function boardRow(ctx:Ctx,id:string,read=false){if(!validId(id))throw new StudioError('Story not found.',404);const db=database(ctx),row=await db.prepare(read?'SELECT data,revision,updated_at FROM storyboards WHERE id=? AND org_id=?':'SELECT data,revision,updated_at FROM storyboards WHERE id=? AND owner=?'+notDeleted(await trashReady(db))).bind(id,read?ctx.org:ctx.prefix).first<{data:string;revision:number;updated_at:number}>();if(!row)throw new StudioError('Story not found.',404);return {...JSON.parse(row.data),id,revision:row.revision,updatedAt:row.updated_at} as Storyboard;}
 export async function withBoard(ctx:Ctx,id:string,revision:unknown,fn:(board:Storyboard,save:(board:Storyboard)=>Promise<void>)=>Promise<void>){
@@ -11,7 +12,7 @@ export async function withBoard(ctx:Ctx,id:string,revision:unknown,fn:(board:Sto
  const locked=await db.prepare('UPDATE storyboards SET lock_until=?,lock_token=? WHERE id=? AND owner=? AND revision=? AND lock_until<?').bind(now+300000,token,id,ctx.prefix,Number.isInteger(revision)?revision:-1,now).run();
  if(!locked.meta.changes)throw new StudioError('This story changed or is still working. Reload the saved story before continuing.',409);
  const save=async(board:Storyboard)=>{const result=await db.prepare('UPDATE storyboards SET data=?,revision=revision+1,updated_at=? WHERE id=? AND owner=? AND lock_token=?').bind(JSON.stringify(board),Date.now(),id,ctx.prefix,token).run();if(!result.meta.changes)throw new StudioError('This operation no longer owns the story. Reload it.',409)};
- try{await fn(await boardRow(ctx,id),save);return await boardRow(ctx,id)}finally{await db.prepare('UPDATE storyboards SET lock_until=0,lock_token=NULL WHERE id=? AND owner=? AND lock_token=?').bind(id,ctx.prefix,token).run()}
+ try{await fn(await boardRow(ctx,id),save);const out=await boardRow(ctx,id);await syncWork(ctx,'story',id);return out}finally{await db.prepare('UPDATE storyboards SET lock_until=0,lock_token=NULL WHERE id=? AND owner=? AND lock_token=?').bind(id,ctx.prefix,token).run()}
 }
 export async function checkAssets(ctx:Ctx,b:Storyboard){for(const id of [...b.views.map(v=>v.id),...b.moodId?[b.moodId]:[]]){if(!validId(id)||!await bucket(ctx.BUCKET).head(imageKey(ctx.prefix,id)))throw new StudioError('A reference image is missing. Add it again.')}}
 export async function planStory(ctx:Ctx,b:Storyboard,count:number){

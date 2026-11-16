@@ -66,3 +66,13 @@
   .workspace .ds-meter { min-width: var(--ds-tap-phone); justify-content: center; }
   .workspace .ds-check > input, .workspace .ds-tile-select { width: var(--ds-tap-phone); height: var(--ds-tap-phone); }
 }
+
+/* Home's tool cards: one width and one height for all, whatever each says
+   (a cost, a plan, a longer line); the footer sits at the bottom. */
+.workspace-home .ds-tools { grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); grid-auto-rows: 1fr; align-items: stretch; }
+.workspace-home .ds-tools > li { display: flex; min-width: 0; }
+.workspace-home .ds-tools .ds-tool { flex: 1 1 auto; width: 100%; height: 100%; }
+.workspace-home .ds-tool-foot { margin-top: auto; }
+
+/* The next page of the library: skeletons while it comes, then how many are shown. */
+.workspace-more { display: flex; flex-direction: column; gap: var(--ds-space-16); margin-top: var(--ds-space-16); }

@@ -11,6 +11,7 @@ import {generationPrompt,referenceMode,safePinterest,type Visual} from '@/lib/st
 import type {StudioBucket} from '@/lib/portable/storage';
 import {nanoDetailInputs} from '@/lib/nano-detail-inputs';
 import {nanoStrategy,nanoReferencePrompt,type NanoAnalysis} from '@/lib/nano-reference';
+import {fromVisual,indexQuietly} from '@/lib/library-index';
 export async function POST(request:Request){
   let record:Visual|undefined,store:StudioBucket|undefined,recordKey='',reserved=false;
   try{
@@ -48,7 +49,7 @@ export async function POST(request:Request){
     const credits=await settleCredits(ctx,hold);
     await store.put(imageKey(ctx.prefix,d.id),image.bytes,{httpMetadata:{contentType:image.type}});
     record={...record,status:'ready',width:image.width,height:image.height,credits};
-    await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});
+    await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});await indexQuietly(ctx,fromVisual(ctx.prefix,record));
     return Response.json({visual:record});
   }catch(e){
     if(reserved&&record&&store){record.status='failed';record.error=e instanceof StudioError?e.message:'Generation was interrupted. Check saved visuals before trying again.';try{await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}})}catch{}}

@@ -9,6 +9,7 @@ import {requireEdge,requireFeature,longEdgeOf} from '@/lib/accounts/plan';
 import {bucket,context,fail,imageKey,readJson,str,validId,StudioError,providerError} from '@/lib/studio-server';
 import {generationPrompt,safePinterest,referenceMode} from '@/lib/studio';
 import type {StudioBucket,StoredObjectBody} from '@/lib/portable/storage';
+import {fromVisual,indexQuietly} from '@/lib/library-index';
 export async function POST(request:Request){let record:any;let store:StudioBucket|undefined;let recordKey='';
  try{
  const ctx=await context(request,true);const cred=await openaiKey(ctx),key=cred.key;if(!key)throw new StudioError('Live generation is not connected yet. Your selected view, brief and inspiration are ready.',503);
@@ -44,7 +45,7 @@ export async function POST(request:Request){let record:any;let store:StudioBucke
  const credits=await settleCredits(ctx,hold);
  const width=image.readUInt32BE(16),height=image.readUInt32BE(20);
  await store.put(imageKey(ctx.prefix,id),image,{httpMetadata:{contentType:'image/png'}});
- record={...record,status:'ready',width,height,credits};await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});
+ record={...record,status:'ready',width,height,credits};await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});await indexQuietly(ctx,fromVisual(ctx.prefix,record));
  return Response.json({visual:record});
  }catch(e){if(record&&store&&recordKey&&!(e instanceof StudioError&&e.status===409)){record.status='failed';record.error=e instanceof StudioError?e.message:'Generation was interrupted. Check saved visuals before submitting again.';try{await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}})}catch{}}
  return fail(e);}

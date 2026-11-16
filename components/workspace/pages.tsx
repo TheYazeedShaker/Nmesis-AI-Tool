@@ -1,5 +1,6 @@
 'use client';
 import * as React from 'react';
+import Link from 'next/link';
 import {Clapperboard,Film,ImageIcon,Layers,Replace} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {SkeletonTile,State} from '@/components/ds/feedback';
@@ -10,11 +11,11 @@ import type {AccountSummary} from '@/lib/accounts/summary';
 import type {FeatureKey} from '@/lib/accounts/plan';
 import {WorkspaceFrame} from './frame';
 import {HomeScreen,type HomeTool} from './home';
-import {LibraryScreen,type Place} from './library';
-import {FolderScreen,ProjectsScreen} from './projects';
-import {useLibrary} from './data';
+import {LibraryView,type Place} from './library';
+import {FolderHeader,ProjectsScreen,folderHref} from './projects';
+import {useLibraryPage} from './data';
 
-// The rebuilt screens wired to the Studio (Phase 3 group 1).
+// The rebuilt screens wired to the Studio (Phase 3): the library a page at a time.
 
 const canChange=(a:AccountSummary|null)=>!!a&&a.workspace.open&&a.role!=='viewer'&&!a.viewingAs;
 const TOOLS:(Omit<HomeTool,'locked'>&{feature:FeatureKey})[]=[
@@ -32,45 +33,47 @@ function Problem({text,onRetry}:{text:string;onRetry:()=>void}){
  return <State kind="error" title="The library didn’t load" actions={<Button onClick={onRetry}>Try again</Button>}>{text}</State>;
 }
 const query=(name:string)=>typeof window==='undefined'?null:new URLSearchParams(window.location.search).get(name);
+const libraryHref=(p:Place)=>p==='all'?'/library':`/library?in=${encodeURIComponent(p)}`;
 
 export function HomePage(){
- const account=useAccount(),{items,lib,problem,reload}=useLibrary();
+ const account=useAccount(),lib=useLibraryPage('all',{limit:10});
  const presets=useConfiguratorPresets();
  const tools:HomeTool[]=TOOLS.map(t=>({...t,locked:hasFeature(account,t.feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[t.feature]}`}));
  return <WorkspaceFrame current="home" notices={<AccountNotices variant="ds"/>}>
-  {problem&&!lib?<Problem text={problem} onRetry={()=>void reload()}/>:null}
+  {lib.problem&&!lib.ready?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:null}
   <HomeScreen tools={tools}
-   recent={lib?items.filter(i=>!i.deleted).slice(0,10).map(i=>({...i,href:i.kind==='image'?`/library?open=${encodeURIComponent(i.id)}`:i.href})):problem?[]:null}
+   recent={lib.ready?lib.items.map(i=>({...i,href:i.kind==='image'?`/library?open=${encodeURIComponent(i.id)}`:i.href})):lib.problem?[]:null}
    cars={presets.filter(c=>c.url.startsWith('https://')).map(c=>({name:c.name,href:`${KEY_VISUAL_HREF}?car=${encodeURIComponent(c.name)}`}))}
    onStart={brief=>location.assign(brief?`${KEY_VISUAL_HREF}?brief=${encodeURIComponent(brief)}`:KEY_VISUAL_HREF)}/>
  </WorkspaceFrame>;
 }
 
 export function LibraryPage(){
- const account=useAccount(),{items,folders,lib,problem,reload,actions,foldersReady}=useLibrary();
+ const account=useAccount();
  const [place]=React.useState<Place>(()=>query('in')||'all'),[openId]=React.useState(()=>query('open'));
+ const lib=useLibraryPage(place);
  return <WorkspaceFrame current="library" notices={<AccountNotices variant="ds"/>}>
-  {!lib?(problem?<Problem text={problem} onRetry={()=>void reload()}/>:<Loading/>)
-   :<LibraryScreen items={items} folders={folders} place={place} hrefFor={p=>p==='all'?'/library':`/library?in=${encodeURIComponent(p)}`} actions={actions}
-     readOnly={!canChange(account)} openId={openId} foldersReady={foldersReady}/>}
+  {!lib.ready?(lib.problem?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:<Loading/>)
+   :<LibraryView {...lib} hrefFor={libraryHref} readOnly={!canChange(account)} openId={openId}/>}
  </WorkspaceFrame>;
 }
 
 export function ProjectsPage(){
- const account=useAccount(),{folders,lib,problem,reload,folderActions,foldersReady}=useLibrary();
+ const account=useAccount(),lib=useLibraryPage('all',{limit:1});
  return <WorkspaceFrame current="projects" notices={<AccountNotices variant="ds"/>}>
-  {!lib?(problem?<Problem text={problem} onRetry={()=>void reload()}/>:<Loading/>)
-   :!foldersReady?<State kind="empty" title="Folders are on their way">Folders aren’t available yet. Your work is all in the library.</State>
-   :<ProjectsScreen folders={folders} canEdit={canChange(account)} actions={folderActions}/>}
+  {!lib.ready?(lib.problem?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:<Loading/>)
+   :!lib.foldersReady?<State kind="empty" title="Folders are on their way">Folders aren’t available yet. Your work is all in the library.</State>
+   :<ProjectsScreen folders={lib.folders} canEdit={canChange(account)} actions={lib.folderActions}/>}
  </WorkspaceFrame>;
 }
 
 export function FolderPage({id}:{id:string}){
- const account=useAccount(),{items,folders,lib,problem,reload,actions,folderActions,foldersReady}=useLibrary();
- const folder=folders.find(f=>f.id===id);
+ const account=useAccount(),lib=useLibraryPage(id);
+ const folder=lib.folders.find(f=>f.id===id),canEdit=canChange(account);
  return <WorkspaceFrame current="projects" notices={<AccountNotices variant="ds"/>}>
-  {!lib?(problem?<Problem text={problem} onRetry={()=>void reload()}/>:<Loading/>)
-   :!folder?<State kind="empty" title="This folder isn’t here" actions={<a className="ds-btn" href="/projects">All folders</a>}>It may have been deleted, or belong to another company.</State>
-   :<FolderScreen folder={folder} folders={folders} items={items} canEdit={canChange(account)} folderActions={folderActions} libraryActions={actions} foldersReady={foldersReady}/>}
+  {!lib.ready&&!lib.problem?<Loading/>
+   :!folder?<State kind="empty" title="This folder isn’t here" actions={<Link className="ds-btn" href="/projects">All folders</Link>}>It may have been deleted, or belong to another company.</State>
+   :<div className="workspace-folder-page"><LibraryView {...lib} hrefFor={folderHref} readOnly={!canEdit}
+     above={<FolderHeader folder={folder} folders={lib.folders} canEdit={canEdit} folderActions={lib.folderActions}/>}/></div>}
  </WorkspaceFrame>;
 }

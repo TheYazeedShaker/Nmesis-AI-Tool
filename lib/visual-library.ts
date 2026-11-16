@@ -8,6 +8,7 @@ import {isUserPrefix,orgOf} from './portable/tenancy';
 import {locate,memberPrefixes,requireDeleteRight} from './org-library';
 import type {StudioBucket,StoredObject} from './portable/storage';
 import {stalledGeneration,interruptedGenerationMessage} from './generation-status';
+import {markDeleted,removeFromIndex} from './library-index';
 type Context=FilmContext;
 export async function allVisualObjects(store:StudioBucket,prefix:string){
   const objects:StoredObject[]=[];let cursor:string|undefined;
@@ -38,12 +39,13 @@ export async function deleteVisual(ctx:Context,id:string){
  if(record){const visual=await record.json<Visual>();if(visual.status==='pending'&&!stalledGeneration(visual))throw new StudioError('Wait for this generation to finish before deleting it.',409)}
  // A library tombstone preserves source assets, dependent edits and billing rows.
  await store.put(owner+'deleted-visuals/'+id+'.json',JSON.stringify({id,deletedAt:new Date().toISOString()}),{httpMetadata:{contentType:'application/json'}});
+ await markDeleted(ctx,'visual',id,Date.now());
  return {deleted:true,id};
 }
 export async function restoreVisual(ctx:Context,id:string){
  if(!validId(id))throw new StudioError('Image not found.',404);
  const owner=await locate(ctx,'deleted-visuals/'+id+'.json');if(!owner)throw new StudioError('Deleted image not found.',404);
- requireDeleteRight(ctx,owner);await bucket(ctx.BUCKET).delete(owner+'deleted-visuals/'+id+'.json');return {restored:true,id};
+ requireDeleteRight(ctx,owner);await bucket(ctx.BUCKET).delete(owner+'deleted-visuals/'+id+'.json');await markDeleted(ctx,'visual',id,null);return {restored:true,id};
 }
 export async function resolveVisual(ctx:Context,visual:Visual):Promise<Visual>{
  const store=bucket(ctx.BUCKET);
@@ -84,14 +86,14 @@ export async function cleanEmptyVisuals(ctx:Context){
     // toward the daily budget; uncertain/active submissions are never archived.
     let archived:string;try{archived=JSON.stringify({...JSON.parse(row.data),archivedStatus:row.status})}catch{continue}
     // Unchanged data and status (compare-and-swap) keep this as atomic as the former json_set.
-    const result=await db.prepare("UPDATE image_jobs SET data=?,status='archived',updated_at=? WHERE id=? AND owner=? AND status=? AND lock_until<? AND data=?").bind(archived,Date.now(),row.id,ctx.prefix,row.status,Date.now(),row.data).run();removed+=result.meta.changes;
+    const result=await db.prepare("UPDATE image_jobs SET data=?,status='archived',updated_at=? WHERE id=? AND owner=? AND status=? AND lock_until<? AND data=?").bind(archived,Date.now(),row.id,ctx.prefix,row.status,Date.now(),row.data).run();removed+=result.meta.changes;if(result.meta.changes)await removeFromIndex(ctx,'visual',row.id);
   }
   const objects=await allVisualObjects(store,ctx.prefix);
   for(const item of objects){const record=await store.get(item.key);if(!record)continue;let visual:Visual;try{visual=await record.json<Visual>()}catch{continue}
     const stale=visual.status==='pending'&&Date.parse(visual.createdAt)<Date.now()-30*60_000;
     if(visual.status!=='failed'&&!stale)continue;if(await store.head(imageKey(ctx.prefix,visual.id)))continue;
     await store.put(ctx.prefix+'archived-visuals/'+visual.id+'.json',JSON.stringify(visual),{httpMetadata:{contentType:'application/json'}});
-    await store.delete(item.key);removed++;
+    await store.delete(item.key);removed++;await removeFromIndex(ctx,'visual',visual.id);
   }
   return {removed};
 }

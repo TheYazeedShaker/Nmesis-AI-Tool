@@ -26,7 +26,7 @@ async function harness(){
  '@/lib/portable/uploads':stub({readStudioForm:r=>r.formData()}),
  '@/lib/studio-server':stub({context:async()=>({prefix:'owner/',BUCKET:store,org:'nmesis',role:'owner',entitlements:{legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}}}),bucket:x=>x,fail:e=>Response.json({error:e.message},{status:e.status||500}),imageKey:(p,id)=>p+'images/'+id,StudioError,validId:x=>typeof x==='string'&&/^[a-z0-9-]{8,80}$/.test(x)}),
  '@/lib/film-server':stub({database:()=>({prepare:()=>({bind:()=>({first:async()=>null})})})}),
- '@/lib/image-server':stub({publicImage:x=>x}),
+ '@/lib/image-server':stub({publicImage:x=>x}),'@/lib/library-index':stub({fromVisual:()=>null,indexQuietly:async()=>{}}),
  '@/lib/upscale-models':stub({upscaleModel}),
  '@/lib/image-dimensions':stub({imageDimensions}),
  };

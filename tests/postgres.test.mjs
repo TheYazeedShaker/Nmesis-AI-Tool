@@ -23,12 +23,12 @@ if(skip)console.log('# '+skip);
 const PASSWORD='local-test-password-0123456789';
 // Stands in for hosted Supabase's SQL-editor user (not a superuser; CREATEROLE).
 const SETUP_ROLE='studio_setup_test';
-const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log','folders','folder_items'];
-const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql','0006_folders.sql'];
+const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log','folders','folder_items','library_items'];
+const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql','0006_folders.sql','0007_library_index.sql'];
 // Client work, filtered by environment (0004); the holds and the staff log record it.
 // The tables 0004 scoped (they existed before it); 0006 adds folders scoped the same way from the start.
 const SCOPED_0004=['films','swap_jobs','storyboards','image_jobs','topaz_jobs','film_budgets'];
-const SCOPED=[...SCOPED_0004,'folders','folder_items'];
+const SCOPED=[...SCOPED_0004,'folders','folder_items','library_items'];
 const RECORDED=['credit_holds','staff_access_log'];
 // The environment these tests run as: no VERCEL_ENV, not production.
 const ENV='development';
@@ -205,6 +205,7 @@ const ROW={
  staff_access_log:(id,org)=>[`insert into studio.staff_access_log(id,org_id,staff_user,at) values($1,$2,'x',1)`,[id,org]],
  folders:(id,org)=>[`insert into studio.folders(id,org_id,name,created_by,created_at,updated_at) values($1,$2,'Folder',$3,1,1)`,[id,org,'orgs/'+org+'/users/x/']],
  folder_items:(id,org)=>[`insert into studio.folder_items(org_id,item_kind,item_id,folder_id,updated_at) values($2,'visual',$1,'f',1)`,[id,org]],
+ library_items:(id,org)=>[`insert into studio.library_items(org_id,kind,id,owner,title,tool,status,created_at,updated_at) values($2,'visual',$1,$3,'Demo SUV','Key visual','ready',1,1)`,[id,org,'orgs/'+org+'/users/x/']],
 };
 const KEY={film_budgets:'payer',folder_items:'item_id'};
 // A row written as the superuser, in one environment (what the adapter's
@@ -504,5 +505,29 @@ test('folders: a member files work in their company’s folders; another company
   assert.equal((await a.prepare('UPDATE folders SET deleted_at=NULL WHERE org_id=? AND deleted_at=? AND (id=? OR parent_id=?)').bind(ORG_A,5,'folder-a1','folder-a1').run()).meta.changes,1);
   assert.deepEqual((await seen(a)).map(r=>r.item),['visual-1']);
   await assert.rejects(()=>a.prepare("INSERT INTO folder_items(org_id,item_kind,item_id,folder_id,updated_at) VALUES(?,'thing',?,?,1)").bind(ORG_A,'x-1','folder-a1').run(),/folder_items_kind_ck/,'only the four kinds of work');
+ }finally{await sql.end({timeout:5})}
+});
+
+// The library index (0007) as lib/library-index.ts writes it: the same upsert
+// for the same row, a company's own rows only, its environment only.
+test('library index: one row per piece of work, upserted; another company or environment sees nothing',{skip},async()=>{
+ await setup();
+ await admin.unsafe('delete from studio.library_items');
+ const sql=connect(appUrl);
+ const prod=new StudioDatabase(sql,null,'production'),prev=new StudioDatabase(sql,null,'preview');
+ const UPSERT=`INSERT INTO library_items(org_id,kind,id,owner,title,tool,car,status,thumb_key,asset_id,width,height,created_at,updated_at,deleted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  ON CONFLICT(environment,kind,id) DO UPDATE SET title=excluded.title,status=excluded.status,thumb_key=COALESCE(excluded.thumb_key,library_items.thumb_key),updated_at=excluded.updated_at`;
+ try{
+  const a=prod.forUser(USER_A),owner=ownerOf(ORG_A,USER_A);
+  await a.prepare(UPSERT).bind(ORG_A,'visual','lib-1',owner,'First','Key visual','Demo SUV','working','thumbs/lib-1.webp','lib-1',null,null,1,1,null).run();
+  await a.prepare(UPSERT).bind(ORG_A,'visual','lib-1',owner,'Second','Key visual','Demo SUV','ready',null,'lib-1',null,null,1,2,null).run();
+  const row=await a.prepare('SELECT title,status,thumb_key,created_at FROM library_items WHERE id=?').bind('lib-1').first();
+  assert.deepEqual({...row},{title:'Second',status:'ready',thumb_key:'thumbs/lib-1.webp',created_at:1},'updated in place; the thumbnail kept');
+  await assert.rejects(()=>a.prepare(UPSERT).bind(ORG_B,'visual','lib-b',owner,'Not mine','Key visual',null,'ready',null,null,null,null,1,1,null).run(),/row-level security/,'not into another company');
+  await assert.rejects(()=>a.prepare(UPSERT).bind(ORG_A,'thing','lib-2',owner,'X','Key visual',null,'ready',null,null,null,null,1,1,null).run(),/library_items_kind_ck/,'only the four kinds of work');
+  const page=db=>db.prepare("SELECT id FROM library_items li WHERE li.org_id=? AND li.deleted_at IS NULL AND LOWER(li.title) LIKE ? ESCAPE '\\' ORDER BY li.created_at DESC, li.id DESC LIMIT ? OFFSET ?").bind(ORG_A,'%sec%',40,0).all();
+  assert.deepEqual((await page(a)).results.map(r=>r.id),['lib-1'],'the library query runs as written');
+  assert.deepEqual((await page(prod.forUser(USER_B))).results,[],'another company sees none of it');
+  assert.deepEqual((await page(prev.forUser(USER_A))).results,[],'Preview sees none of Production’s index');
  }finally{await sql.end({timeout:5})}
 });
