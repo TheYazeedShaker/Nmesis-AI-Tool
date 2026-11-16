@@ -12,6 +12,8 @@ import "./studio-shell.css";
 import "./workspace.css";
 // Phase 3 group 2: the one editor (components/editor).
 import "./editor.css";
+import "./panels.css";
+import "./inputs.css";
 import {LinkLanding} from "@/components/link-landing";
 import {StudioProviders} from "@/components/studio-providers";
 // The Nmesis fonts. preload stays off until screens use them (Phase 2b), so no
