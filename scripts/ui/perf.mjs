@@ -94,6 +94,7 @@ export async function runPerf({ stack, contexts, browser }) {
       serverReads: log.filter((l) => !l.includes('(presigned)') && /^(GET|HEAD) /.test(l)).length,
       browserThumbReads: log.filter((l) => l.includes('(presigned)') && l.includes('/thumbs/')).length,
       browserFullReads: log.filter((l) => l.includes('(presigned)') && /\/images\//.test(l)).length,
+      serverReadKeys: log.filter((l) => !l.includes('(presigned)') && /^(GET|HEAD) /.test(l)).slice(0, 12).map((l) => l.replace(/orgs\/[^/]+\/users\/[^/]+\//, '…/')).join(' | '),
     };
     out.libraryScale.ok = (seen.fcpMs ?? 99999) < 1500 && out.libraryScale.serverReads === 0 && out.libraryScale.browserThumbReads <= seen.onScreen && out.libraryScale.browserFullReads === 0;
     await ctx.close();

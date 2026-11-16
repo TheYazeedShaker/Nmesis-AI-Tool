@@ -174,12 +174,14 @@ const SCENES = ['Desert dusk', 'City night', 'Studio white', 'Coast road', 'Moun
 const VEHICLES = ['Demo SUV', 'Demo Saloon', 'Demo Hatch'];
 
 /** n visuals for one person: ready, a few failed, a few in progress, a few in the trash. Returns their ids. */
-export function seedVisuals(s3, org, person, n, start = 0) {
+// `spread`: in-progress work keeps its place in time (a real library at scale)
+// instead of being the newest (the audit's 300, where it is checked first).
+export function seedVisuals(s3, org, person, n, start = 0, { spread = false } = {}) {
   const prefix = prefixOf(org, person), ids = [];
   for (let k = 0; k < n; k++) {
     const i = start + k, id = uuid(10_000 + i);
-    const failed = i % 29 === 7, pending = i % 31 === 11;
-    const created = new Date(Date.now() - (pending ? 30_000 : i * 3_600_000));
+    const failed = i % 29 === 7, pending = spread ? i % 211 === 11 : i % 31 === 11;
+    const created = new Date(Date.now() - (pending && !spread ? 30_000 : (spread ? k : i) * 3_600_000));
     const title = i === 3 ? `${ORGS.enterprise.name} launch visual for the regional autumn campaign, desert at dusk, wide` : `${VEHICLES[i % 3]} · ${SCENES[i % SCENES.length]}`;
     const visual = {
       id, title, src: '/api/assets/' + id, status: failed ? 'failed' : pending ? 'pending' : 'ready', createdAt: created.toISOString(),
@@ -202,7 +204,7 @@ export async function seedStudio({ s3, adminUrl, request }) {
   const entIds = seedVisuals(s3, 'enterprise', 'enterprise', 12, 400).filter((_, i) => i % 29 !== 7 && i % 31 !== 11);
   seedVisuals(s3, 'starter', 'starter', 3, 500);
   seedVisuals(s3, 'ended', 'ended', 6, 600);
-  seedVisuals(s3, 'scale', 'scale', SCALE_ITEMS, 1000);
+  seedVisuals(s3, 'scale', 'scale', SCALE_ITEMS, 1000, { spread: true });
   const api = request.enterprise;
   const ok = async (r, what) => { if (!r.ok()) throw new Error(`${what} -> ${r.status()} ${await r.text()}`); return r.json(); };
   // Films: drafts through the route, then other states as the provider would leave them.

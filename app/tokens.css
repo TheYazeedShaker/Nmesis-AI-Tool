@@ -186,10 +186,15 @@
   --ds-measure: 68ch;
 }
 
-@media (pointer: coarse) {
+/* Touch sizes come from these two tokens, never from a fixed width on a
+   component: on a touch screen, and at phone width (768px and below), every
+   control is at least 44px, and grows with its content (min-height and
+   min-width only). Phase 3 group 2: a fixed width meant for icon buttons had
+   squeezed text buttons ("Your car / Result") on phones. */
+@media (pointer: coarse), (max-width: 768px) {
   :root {
     --ds-control-h: 44px;
-    --ds-control-h-sm: 36px;
+    --ds-control-h-sm: 44px;
   }
 }
 

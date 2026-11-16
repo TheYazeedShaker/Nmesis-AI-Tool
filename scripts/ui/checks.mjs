@@ -54,7 +54,7 @@ export function layoutChecks({ phone }) {
     return false;
   };
   const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.01 && !hiddenOnPurpose(el); };
-  const out = { overflowX: document.documentElement.scrollWidth - window.innerWidth, under24: [], under44: [], overlapped: [], clippedNoEllipsis: [], ellipsisNoTitle: [], interactive: 0 };
+  const out = { overflowX: document.documentElement.scrollWidth - window.innerWidth, under24: [], under44: [], overlapped: [], clippedNoEllipsis: [], ellipsisNoTitle: [], spilling: [], interactive: 0 };
   // With a dialog open, only what is in it can be reached; the page behind is
   // meant to be covered.
   const dialogs = [...document.querySelectorAll('dialog[open], [role=dialog], [role=alertdialog]')].filter(visible);
@@ -71,6 +71,15 @@ export function layoutChecks({ phone }) {
     const small = Math.min(target.width, target.height);
     if (!inline && small < 24) out.under24.push({ el: describe(el), w: Math.round(target.width), h: Math.round(target.height) });
     else if (phone && !inline && small < 44) out.under44.push({ el: describe(el), w: Math.round(target.width), h: Math.round(target.height) });
+    // Its own words spill out of its box, or wrap where the control does not
+    // allow it (Phase 3 group 2: a fixed width squeezed "Your car / Result"
+    // on phones). Text fields and the scrolling regions are not controls of words.
+    if (!/^(INPUT|TEXTAREA|SELECT|IFRAME)$/.test(el.tagName) && (el.textContent || '').trim() && r.width > 0) {
+      const cs = getComputedStyle(el);
+      const spills = cs.overflowX === 'visible' && el.scrollWidth > el.clientWidth + 1;
+      const wraps = cs.whiteSpace === 'nowrap' && el.scrollWidth > el.clientWidth + 1;
+      if (spills || wraps) out.spilling.push({ el: describe(el), w: Math.round(r.width), needs: el.scrollWidth });
+    }
     // Pointing at it: is it what the pointer reaches? (Only what is on screen now.)
     if (r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth) {
       const x = r.left + r.width / 2, y = r.top + r.height / 2, hit = document.elementFromPoint(x, y);
@@ -91,7 +100,7 @@ export function layoutChecks({ phone }) {
     if (cs.textOverflow === 'ellipsis') { if (!el.getAttribute('title') && !el.closest('[title]') && !el.getAttribute('aria-label')) out.ellipsisNoTitle.push({ el: describe(el), text: full.slice(0, 80) }); }
     else out.clippedNoEllipsis.push({ el: describe(el), text: full.slice(0, 80) });
   }
-  for (const k of ['under24', 'under44', 'overlapped', 'clippedNoEllipsis', 'ellipsisNoTitle']) out[k] = dedupe(out[k]);
+  for (const k of ['under24', 'under44', 'overlapped', 'clippedNoEllipsis', 'ellipsisNoTitle', 'spilling']) out[k] = dedupe(out[k]);
   return out;
   function dedupe(list) { const seen = new Map(); for (const x of list) { const key = JSON.stringify(x); seen.set(key, x); } return [...seen.values()].slice(0, 40); }
 }
