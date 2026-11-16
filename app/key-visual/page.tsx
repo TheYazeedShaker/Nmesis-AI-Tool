@@ -227,7 +227,9 @@ export default function Studio(){
  async function imageAction(visual:Visual,action:string){if(working.current)return;working.current=true;setBusy(true);setError('');try{const data=await responseJson(await studioFetch(`/api/image-jobs/${visual.id}/${action}`,{method:'POST'}));putImage(data.visual)}catch(e){setError((e as Error).message)}finally{working.current=false;setBusy(false)}}
  const refreshHiggsConnection=useCallback(async()=>{try{setHiggsConnection(await responseJson(await studioFetch('/api/video-connection')))}catch{setHiggsConnection(null)}},[]);
  useEffect(()=>{void refreshHiggsConnection();const onFocus=()=>void refreshHiggsConnection();window.addEventListener('focus',onFocus);return()=>window.removeEventListener('focus',onFocus)},[refreshHiggsConnection]);
- const imageWaiting=(v:Visual)=>v.provider==='higgsfield'&&higgsRunning(v);
+ // Only the person who started a job checks on it, and only while they may change work: a viewer, staff viewing a client or an ended plan would be refused (check:ui).
+ const mayChange=!!account&&account.workspace.open&&account.role!=='viewer'&&!account.viewingAs;
+ const imageWaiting=(v:Visual)=>v.provider==='higgsfield'&&higgsRunning(v)&&v.mine!==false&&mayChange;
  useBackoffPoll(async()=>{if(working.current)return 'same';const pending=results.filter(imageWaiting);if(!pending.length)return 'idle';const visual=pending[imagePollIndex.current++%pending.length];working.current=true;try{const d=await responseJson(await studioFetch(`/api/image-jobs/${visual.id}/refresh`,{method:'POST'}));putImage(d.visual);return d.visual.jobStatus!==visual.jobStatus?'changed':'same'}catch(e){setHistoryError((e as Error).message);return 'same'}finally{working.current=false}},{base:8000,max:48000,enabled:results.some(imageWaiting)});
  // Read saved status even after the original request/tab disconnects. Never resubmit.
  useEffect(()=>{

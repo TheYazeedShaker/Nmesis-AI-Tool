@@ -120,3 +120,10 @@
 /* What is shown sits at the top of the stage: when the history loads under it,
    nothing above moves (check:ui layout shift on Film). */
 .editor-stage-main { place-items: start center; }
+/* Phones have no bottom navigation since group 1: the editor fills the screen
+   under the top bar, so the sticky Generate bar starts at the bottom and does
+   not jump down when the history loads (check:ui layout shift on Film). */
+@media (max-width: 768px) {
+  .workspace .ds-editor { min-height: calc(100dvh - var(--ds-topbar-h)); }
+  .workspace .ds-main.bleed { padding-bottom: 0; }
+}
