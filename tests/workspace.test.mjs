@@ -76,5 +76,5 @@ test('touch sizes never squeeze words: no fixed width from a size token on a con
   assert.match(read('app/editor.css'), /\.workspace > \.ds-main\.bleed > \.ds-editor \{ flex: 1 1 auto; height: auto; min-height: 0; \}/);
   // And check:ui counts controls whose words spill out of their box (ratcheted).
   assert.match(read('scripts/ui/checks.mjs'), /out\.spilling\.push/);
-  assert.match(read('scripts/check-ui.mjs'), /const RATCHETED = \['controlsSpilling',/);
+  assert.match(read('scripts/check-ui.mjs'), /const RATCHETED = \['fixedOverSettings', 'controlsSpilling',/);
 });

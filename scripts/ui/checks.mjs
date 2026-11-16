@@ -108,7 +108,23 @@ export function layoutChecks({ phone }) {
     if (cs.textOverflow === 'ellipsis') { if (!el.getAttribute('title') && !el.closest('[title]') && !el.getAttribute('aria-label')) out.ellipsisNoTitle.push({ el: describe(el), text: full.slice(0, 80) }); }
     else out.clippedNoEllipsis.push({ el: describe(el), text: full.slice(0, 80) });
   }
-  for (const k of ['under24', 'under44', 'overlapped', 'clippedNoEllipsis', 'ellipsisNoTitle', 'spilling']) out[k] = dedupe(out[k]);
+  // A fixed-position control over the editor's settings panel (Phase 3 polish:
+  // a round button floated over it). Toasts come and go and the skip link is
+  // off screen until focused; an open dialog is meant to cover the page.
+  out.fixedOverSettings = [];
+  const panel = document.querySelector('.ds-editor-settings');
+  if (panel && visible(panel)) {
+    const p = panel.getBoundingClientRect();
+    const CONTROL = 'a[href], button, input, select, textarea, summary, [role=button], [tabindex]:not([tabindex="-1"])';
+    for (const el of document.querySelectorAll('body *')) {
+      if (getComputedStyle(el).position !== 'fixed' || !visible(el) || panel.contains(el) || el.contains(panel)) continue;
+      if (el.closest('dialog[open], .ds-toasts, .ds-skip')) continue;
+      if (!el.matches(CONTROL) && !el.querySelector(CONTROL)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.left < p.right && r.right > p.left && r.top < p.bottom && r.bottom > p.top) out.fixedOverSettings.push(describe(el));
+    }
+  }
+  for (const k of ['under24', 'under44', 'overlapped', 'clippedNoEllipsis', 'ellipsisNoTitle', 'spilling', 'fixedOverSettings']) out[k] = dedupe(out[k]);
   return out;
   function sideScroller(el) {
     for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) if (/auto|scroll/.test(getComputedStyle(n).overflowX)) return true;

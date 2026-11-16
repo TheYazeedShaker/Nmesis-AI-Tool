@@ -11,8 +11,8 @@
       "raw-size": 237
     },
     "app/globals.css": {
-      "raw-colour": 322,
-      "raw-size": 557
+      "raw-colour": 254,
+      "raw-size": 457
     },
     "app/lineup/lineup.css": {
       "raw-colour": 59,
@@ -28,8 +28,8 @@
       "raw-size": 113
     },
     "app/studio-workspace.css": {
-      "raw-colour": 71,
-      "raw-size": 170
+      "raw-colour": 68,
+      "raw-size": 161
     },
     "app/swap/page.tsx": {
       "unstyled-control": 1
@@ -38,22 +38,10 @@
       "raw-colour": 71,
       "raw-size": 101
     },
-    "components/area-editor.tsx": {
-      "unstyled-control": 11
-    },
-    "components/connection-settings.tsx": {
-      "unknown-class": 1
-    },
-    "components/refinement-references.tsx": {
-      "unknown-class": 1
-    },
     "components/smart-reference-lab.tsx": {
       "unstyled-control": 3
     },
     "components/smart-reference.tsx": {
-      "unstyled-control": 1
-    },
-    "components/topaz-upscale.tsx": {
       "unstyled-control": 1
     },
     "components/ui/bubble.tsx": {
@@ -92,9 +80,6 @@
     },
     "components/ui/tooltip.tsx": {
       "raw-size": 1
-    },
-    "components/upscale-panel.tsx": {
-      "unstyled-control": 1
     },
     "components/visual-comparison.tsx": {
       "unstyled-control": 2
