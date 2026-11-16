@@ -23,6 +23,8 @@ const asRole = (url, user, password) => { const u = new URL(url); u.username = u
 const ssl = (url) => (/[?&]sslmode=disable\b/.test(url) ? false : 'require');
 const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
+// Phase 3: the folders seeded for Demo Company (one with a sub-folder, one long name, one empty).
+export const FOLDER_ID = '00000000-0000-4000-8000-0000000f0001';
 export const ENV = 'preview'; // the harness's Studio runs with VERCEL_ENV=preview
 
 export const ORGS = {
@@ -191,7 +193,7 @@ export function seedVisuals(s3, org, person, n, start = 0) {
 
 /** Studio content: 300 visuals for Growth, and films, swaps and storyboards for Enterprise (through the Studio's own routes). */
 export async function seedStudio({ s3, adminUrl, request }) {
-  seedVisuals(s3, 'growth', 'owner', 200, 0);
+  const growthIds = seedVisuals(s3, 'growth', 'owner', 200, 0);
   seedVisuals(s3, 'growth', 'creator', 100, 200);
   const entIds = seedVisuals(s3, 'enterprise', 'enterprise', 12, 400).filter((_, i) => i % 29 !== 7 && i % 31 !== 11);
   seedVisuals(s3, 'starter', 'starter', 3, 500);
@@ -235,5 +237,13 @@ export async function seedStudio({ s3, adminUrl, request }) {
         await tx`insert into studio.image_jobs(id,org_id,owner,payer,status,data,created_at,updated_at) values (${id}, ${ORGS.growth.id}, ${owner}, ${owner}, 'queued', ${JSON.stringify(data)}, ${Date.now()}, ${Date.now()})`;
       });
     }
+    // Folders (0006): Launch campaign (with Social cut-downs), a long name, an empty one; work in them.
+    const folderOwner = prefixOf('growth', 'owner'), now = Date.now();
+    const folders = [[FOLDER_ID, null, 'Launch campaign'], ['00000000-0000-4000-8000-0000000f0002', FOLDER_ID, 'Social cut-downs'], ['00000000-0000-4000-8000-0000000f0003', null, ORGS.enterprise.name + ' showroom screens'], ['00000000-0000-4000-8000-0000000f0004', null, 'Winter offers']];
+    await admin.begin(async (tx) => {
+      await tx`select set_config('studio.env', ${ENV}, true)`;
+      for (const [id, parent, name] of folders) await tx`insert into studio.folders(id,org_id,parent_id,name,created_by,created_at,updated_at) values (${id}, ${ORGS.growth.id}, ${parent}, ${name}, ${folderOwner}, ${now}, ${now})`;
+      for (const [i, id] of growthIds.slice(0, 30).entries()) await tx`insert into studio.folder_items(org_id,item_kind,item_id,folder_id,updated_at) values (${ORGS.growth.id}, 'visual', ${id}, ${folders[i < 18 ? 0 : i < 24 ? 1 : 2][0]}, ${now})`;
+    });
   } finally { await admin.end({ timeout: 5 }); }
 }

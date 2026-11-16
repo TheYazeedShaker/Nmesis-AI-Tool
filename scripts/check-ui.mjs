@@ -23,7 +23,7 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 import { startStack } from './ui/stack.mjs';
-import { seedStudio, ORGS, PEOPLE, PASSWORD } from './ui/seed.mjs';
+import { seedStudio, ORGS, PEOPLE, PASSWORD, FOLDER_ID } from './ui/seed.mjs';
 import { initScript, quietFor, vitals, layoutChecks, focusState, providerNamesOnPage } from './ui/checks.mjs';
 import { PROVIDER_PATTERN } from '../lib/provider-words.ts';
 import { runPerf } from './ui/perf.mjs';
@@ -68,10 +68,14 @@ const SCREENS = [
   { id: 'forgot-password', path: '/signin/forgot', roles: ['anon'], full: ['anon'] },
   { id: 'choose-password', path: '/auth/password', roles: ['owner'] },
   { id: 'no-company', path: '/auth/no-company', roles: ['nocompany'] },
-  { id: 'workspace', path: '/', roles: CLIENT_ROLES, full: ['owner'] },
-  { id: 'library', path: '/', action: 'library', roles: ['owner', 'viewer', 'ended', 'staffViewing'], full: ['owner'] },
-  { id: 'viewer', path: '/', action: 'viewer', roles: ['owner', 'viewer'] },
-  { id: 'settings', path: '/', action: 'settings', roles: ['owner', 'enterprise', 'viewer'] },
+  // Phase 3 group 1: Home, the one library, projects and a folder; the key-visual tool moved to /key-visual.
+  { id: 'home', path: '/', roles: ['owner', 'creator', 'viewer', 'starter', 'ended', 'staffViewing'], full: ['owner'] },
+  { id: 'workspace', path: '/key-visual', roles: CLIENT_ROLES, full: ['owner'] },
+  { id: 'library', path: '/library', roles: ['owner', 'viewer', 'ended', 'staffViewing'], full: ['owner'] },
+  { id: 'viewer', path: '/library', action: 'viewer', roles: ['owner', 'viewer'] },
+  { id: 'projects', path: '/projects', roles: ['owner', 'viewer'], full: ['owner'] },
+  { id: 'folder', path: `/projects/${FOLDER_ID}`, roles: ['owner', 'viewer'], full: ['owner'] },
+  { id: 'settings', path: '/key-visual', action: 'settings', roles: ['owner', 'enterprise', 'viewer'] },
   { id: 'company-switcher', path: '/', action: 'switcher', roles: ['owner', 'staff'] },
   { id: 'lineup', path: '/lineup', roles: ['owner', 'starter', 'viewer'], full: ['owner'] },
   { id: 'films', path: '/films', roles: ['enterprise', 'owner'], full: ['enterprise'] },
@@ -83,10 +87,6 @@ const SCREENS = [
   { id: 'not-found', path: '/this-page-does-not-exist', roles: ['owner', 'anon'] },
   { id: 'design-system', path: '/design-system', roles: ['staff'] },
   { id: 'staff-refused', path: '/', roles: ['staffRefused'] },
-  // The target experience's screens (Phase 3). Listed so the report says they are missing.
-  { id: 'home', path: null, roles: ['owner'], pending: 'Phase 3: Home' },
-  { id: 'projects', path: null, roles: ['owner'], pending: 'Phase 3: projects' },
-  { id: 'folders', path: null, roles: ['owner'], pending: 'Phase 3: folders' },
 ].filter((s) => !ONLY || ONLY.has(s.id));
 
 // ── Run ───────────────────────────────────────────────────────────────────
@@ -186,11 +186,11 @@ async function ready(page) {
 
 async function act(page, action) {
   const click = async (sel) => { const el = page.locator(sel).first(); if (!(await el.count())) return false; await el.scrollIntoViewIfNeeded().catch(() => {}); await el.click({ timeout: 3000 }).catch(() => {}); return true; };
-  if (action === 'library') { const el = page.locator('#visual-library'); if (!(await el.count())) return false; await el.scrollIntoViewIfNeeded(); return true; }
-  if (action === 'viewer') return click('#visual-library .result-card img, #visual-library article img, #visual-library article button');
+  // The library's first picture, opened in the viewer.
+  if (action === 'viewer') return click('.ds-tile:has(img) .ds-tile-open');
   if (action === 'settings') return click('summary[aria-label="Studio settings"]');
   // The switcher in the top bar; below 768px the companies are in the menu (Phase 2b).
-  if (action === 'switcher') return (await page.locator('button[aria-label^="Company:"]:visible').count()) ? click('button[aria-label^="Company:"]:visible') : click('button[aria-label="Menu"]:visible');
+  if (action === 'switcher') return (await page.locator('button.studio-switcher:visible').count()) ? click('button.studio-switcher:visible') : click('button[aria-label="Menu"]:visible');
   return false;
 }
 

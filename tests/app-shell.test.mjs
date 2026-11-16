@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
-const SCREENS = ['app/page.tsx', 'app/films/page.tsx', 'app/lineup/page.tsx', 'app/storyboard/page.tsx', 'app/swap/page.tsx', 'app/usage/page.tsx', 'app/company/page.tsx', 'app/nano-lab/page.tsx', 'components/studio-account.tsx'];
+const SCREENS = ['app/key-visual/page.tsx', 'app/films/page.tsx', 'app/lineup/page.tsx', 'app/storyboard/page.tsx', 'app/swap/page.tsx', 'app/usage/page.tsx', 'app/company/page.tsx', 'app/nano-lab/page.tsx', 'components/studio-account.tsx'];
 
 test('every screen uses the one top bar, with one shared navigation (Phase 2b)', () => {
   for (const file of SCREENS) {
@@ -44,7 +44,7 @@ test('the shell is drawn from tokens; phone account controls are 44px', () => {
 });
 
 test('no browser dialogs: the design system asks before unsaved changes are lost', () => {
-  for (const file of ['app/films/page.tsx', 'app/swap/page.tsx', 'app/storyboard/page.tsx', 'app/page.tsx']) assert.doesNotMatch(read(file), /window\.confirm|\balert\(|\bprompt\(/, file);
+  for (const file of ['app/films/page.tsx', 'app/swap/page.tsx', 'app/storyboard/page.tsx', 'app/key-visual/page.tsx']) assert.doesNotMatch(read(file), /window\.confirm|\balert\(|\bprompt\(/, file);
   const films = read('app/films/page.tsx');
   assert.match(films, /ask=useConfirm\(\),discardChanges=\(\)=>ask\(\{title:'Discard your changes\?'/);
   assert.match(films, /if\(dirty&&!await discardChanges\(\)\)return;/);
@@ -87,7 +87,7 @@ test('job polling backs off while nothing changes, and no screen polls on a fixe
   const hook = read('lib/use-backoff-poll.ts');
   assert.match(hook, /if\(!live\|\|document\.hidden\)return;/);
   assert.match(hook, /document\.addEventListener\('visibilitychange',shown\)/);
-  for (const file of ['app/films/page.tsx', 'app/swap/page.tsx', 'app/storyboard/page.tsx', 'app/lineup/page.tsx', 'app/page.tsx']) {
+  for (const file of ['app/films/page.tsx', 'app/swap/page.tsx', 'app/storyboard/page.tsx', 'app/lineup/page.tsx', 'app/key-visual/page.tsx']) {
     const s = read(file);
     assert.match(s, /useBackoffPoll\(async\(\)=>/, file);
     assert.doesNotMatch(s, /setInterval\(\(\)=>\{if\((document\.hidden|working\.current|action\.current)/, file);

@@ -1,0 +1,68 @@
+/* ─── The rebuilt screens (Phase 3 group 1): Home, Projects and folders, Library ──
+   components/workspace/*. Built on the design system (app/design-system.css);
+   only what the wireframes need beyond it. Tokens only. */
+
+.workspace .ds-main { padding-top: var(--ds-space-24); }
+.workspace-list { margin: 0; padding: 0; list-style: none; }
+.workspace-hint { font-size: var(--ds-text-sm); }
+.workspace-link-icon { width: var(--ds-icon); height: var(--ds-icon); margin-left: var(--ds-space-4); }
+.workspace-home .ds-hero { padding-bottom: var(--ds-space-16); }
+.workspace-home .ds-tool-art { background: var(--ds-accent-soft); color: var(--ds-text-strong); }
+.workspace-home .ds-tool[data-locked="true"] .ds-tool-art { background: var(--ds-panel-2); color: var(--ds-muted); }
+
+/* Library. */
+.workspace-library-main { min-width: 0; }
+.workspace-place-phone { display: none; margin-bottom: var(--ds-space-16); }
+.workspace-filters { align-items: center; }
+.workspace-filters .ds-select { width: auto; min-width: calc(var(--ds-space-64) * 2); }
+.workspace-count { margin-left: auto; font-size: var(--ds-text-sm); }
+@media (max-width: 1024px) {
+  .workspace-place-phone { display: flex; flex-direction: column; gap: var(--ds-space-4); }
+}
+@media (max-width: 480px) {
+  .workspace-filters .ds-select { flex: 1 1 40%; }
+  .workspace-count { flex-basis: 100%; margin-left: 0; }
+}
+
+/* Projects: folder cards with covers. */
+.workspace-folders { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: var(--ds-space-16); }
+.workspace-folder { position: relative; min-width: 0; }
+.workspace-folder-link {
+  display: flex; flex-direction: column; gap: var(--ds-space-12); padding: var(--ds-space-12);
+  border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius); background: var(--ds-panel);
+  color: inherit; text-decoration: none; min-width: 0;
+}
+.workspace-folder-link:hover { box-shadow: var(--ds-shadow-2); }
+.workspace-folder-covers {
+  display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; gap: var(--ds-space-4);
+  aspect-ratio: 16 / 10; border-radius: var(--ds-radius-sm); overflow: hidden; background: var(--ds-media-bg); place-items: center; color: var(--ds-muted);
+}
+.workspace-folder-covers > img { width: 100%; height: 100%; object-fit: cover; }
+.workspace-folder-covers > img:first-child { grid-row: span 2; }
+.workspace-folder-covers > img:only-child { grid-column: span 2; }
+.workspace-folder-covers > svg { grid-column: span 2; grid-row: span 2; width: var(--ds-space-32); height: var(--ds-space-32); }
+.workspace-folder-meta { display: flex; flex-direction: column; gap: var(--ds-space-2); min-width: 0; padding-right: var(--ds-space-40); }
+.workspace-folder-menu { position: absolute; right: var(--ds-space-12); bottom: var(--ds-space-12); }
+
+/* One folder. */
+.workspace-crumbs ol { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ds-space-4); margin: 0 0 var(--ds-space-16); padding: 0; list-style: none; min-width: 0; }
+.workspace-crumbs li { display: inline-flex; align-items: center; gap: var(--ds-space-4); min-width: 0; color: var(--ds-muted); }
+.workspace-crumbs li[aria-current="page"] { color: var(--ds-text-strong); font-weight: var(--ds-weight-medium); }
+.workspace-crumbs svg { width: var(--ds-icon); height: var(--ds-icon); }
+.workspace-subfolders { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); margin-bottom: var(--ds-space-24); }
+.workspace-subfolders .ds-chip { text-decoration: none; }
+.workspace-folder-page { min-width: 0; }
+.workspace-move-list { display: flex; flex-direction: column; gap: var(--ds-space-2); }
+
+/* Status on a picture: the panel colour under the text colour, readable on any
+   picture and in both themes (the soft badge colours were under 4.5:1 on light tiles). */
+.workspace .ds-tile-status .ds-badge { background: var(--ds-panel); color: var(--ds-text-strong); box-shadow: var(--ds-shadow-1); }
+
+/* Phones: every control of the rebuilt screens is at least 44px (2.5.5). */
+@media (max-width: 768px) {
+  .workspace .ds-tile-actions .ds-btn, .workspace .ds-tile-select > input,
+  .workspace .ds-segmented > button, .workspace .workspace-folder-menu .ds-btn { width: var(--ds-tap-phone); height: var(--ds-tap-phone); min-height: var(--ds-tap-phone); }
+  .workspace .ds-main .ds-link, .workspace .ds-chip, .workspace .ds-skip, .workspace .ds-btn, .workspace .ds-select, .workspace .ds-input { min-height: var(--ds-tap-phone); }
+  .workspace .ds-meter { min-width: var(--ds-tap-phone); justify-content: center; }
+  .workspace .ds-check > input, .workspace .ds-tile-select { width: var(--ds-tap-phone); height: var(--ds-tap-phone); }
+}

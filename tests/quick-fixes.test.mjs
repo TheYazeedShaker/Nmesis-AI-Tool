@@ -45,7 +45,7 @@ test('cards say the tool and a plain quality, never the provider or model (F-050
   assert.equal(visualQualityLabel({}), 'Standard');
   // The card line itself names no provider; "Made with …" sits in the card's
   // details, only for staff and companies using their own keys.
-  const page = read('app/page.tsx');
+  const page = read('app/key-visual/page.tsx');
   assert.match(page, /<p className="visual-generator-label">\{visualToolLabel\(r\)\} · \{visualQualityLabel\(r\)\}/);
   assert.match(page, /\{r\.provider&&showProvider&&<p className="visual-generator-label">Made with /);
   assert.match(page, /const showProvider=providerNames\(account\)/);
@@ -73,7 +73,7 @@ test('an ended plan says it has ended and to ask Nmesis, never "Available on <th
 });
 
 test('a teammate\'s work in progress does not ask this person to keep the page open (F-034 as it really is)', () => {
-  const page = read('app/page.tsx');
+  const page = read('app/key-visual/page.tsx');
   assert.match(page, /r\.mine===false\?<>Someone in your company started this visual\.<br\/>It appears here when it is ready\.<\/>:<>Lighting, materials and atmosphere\.<br\/>Keep this page open while it renders\.<\/>/);
   assert.match(page, /Open the Studio within seven days so the finished image can be saved to your library\./);
   assert.doesNotMatch(page, /archive the finished image/);
@@ -87,7 +87,7 @@ test('the credit meter and banner link to Usage only for people who may open it 
   assert.match(usage, /if\(!canSeeUsage\(ctx\)\)throw new StudioError\(/);
   const credits = read('components/credits.tsx');
   assert.match(credits, /return o\.usage\n  \?<Link href="\/usage"/);
-  assert.match(credits, /\{o\.usage\?<> <Link href="\/usage">Usage<\/Link><\/>:null\}/);
+  assert.match(credits, /\{o\.usage\?<> <Link className=\{variant==='ds'\?'ds-link':undefined\} href="\/usage">Usage<\/Link><\/>:null\}/);
 });
 
 test('the configurator choice is a radio group, not tabs without panels (axe critical, F-025)', () => {
@@ -98,14 +98,14 @@ test('the configurator choice is a radio group, not tabs without panels (axe cri
   assert.match(markup, /aria-checked="true" tabindex="0"[^>]*data-state="active"[^>]*>Live configurator/);
   assert.match(markup, /aria-checked="false" tabindex="-1"[^>]*data-state="inactive"[^>]*>Captured view/);
   assert.doesNotMatch(markup, /aria-controls|role="tab"/);
-  assert.doesNotMatch(read('app/page.tsx'), /from '@\/components\/ui\/tabs'/);
+  assert.doesNotMatch(read('app/key-visual/page.tsx'), /from '@\/components\/ui\/tabs'/);
 });
 
 // F-006 (the account controls on phones): the 2a stopgap, app/topbar-phone.css,
 // gave way to the one top bar in Phase 2b; tests/app-shell.test.mjs holds it.
 
 test('internal links no longer say they open elsewhere, and the client never reads an operator\'s sentence (F-005, F-066)', () => {
-  const page = read('app/page.tsx');
+  const page = read('app/key-visual/page.tsx');
   assert.doesNotMatch(page, /Story studio ↗|Replace car in ad ↗/);
   assert.doesNotMatch(page + read('app/swap/page.tsx'), /connected on this Studio yet/);
   assert.match(page, /Image generation isn’t available in your Studio right now\. Ask Nmesis\./);
