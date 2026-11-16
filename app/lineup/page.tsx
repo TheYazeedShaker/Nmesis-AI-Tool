@@ -166,7 +166,7 @@ function LineupStudio(){
 
  const jobs=busy||error?<div className="ds-stack">
   {busy&&<article className="ds-job" data-state="running" aria-label={busy}><div className="ds-job-head"><Loader2 aria-hidden="true" className="ds-spin-icon"/><h3 className="ds-job-title">{busy}</h3></div><p className="ds-job-stage" role="status">Keep this tab open; saved results appear in your versions.</p></article>}
-  {error&&<Banner kind="bad" icon={<AlertTriangle/>}><span className="ds-row">{say(error)}<IconButton label="Dismiss error" size="sm" onClick={()=>setError('')}><X aria-hidden="true"/></IconButton></span></Banner>}
+  {error&&<Banner kind="bad" icon={<AlertTriangle/>}><span className="ds-row editor-message"><span>{say(error)}</span><IconButton label="Dismiss error" size="sm" onClick={()=>setError('')}><X aria-hidden="true"/></IconButton></span></Banner>}
  </div>:undefined;
  const note=issue?say(issue):!mood&&!pin.trim()?'Add an inspiration to generate.':[billing,'Creates one paid image. Original references and earlier versions stay saved.'].filter(Boolean).join(' ');
 
