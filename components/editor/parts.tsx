@@ -1,12 +1,15 @@
 'use client';
 import * as React from 'react';
-import {Camera,Check,Coins,FolderInput,Folder as FolderIcon,Image as ImageIcon,Inbox,Link2,RotateCw,Upload} from 'lucide-react';
+import {Camera,Check,Coins,FolderInput,Folder as FolderIcon,Image as ImageIcon,Inbox,RotateCw} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {Badge} from '@/components/ds/feedback';
 import {Dialog} from '@/components/ds/dialog';
+import {DropZone} from '@/components/ds/drop-zone';
 import {Field,Input,Radio,RadioGroup,Select,Slider,Textarea} from '@/components/ds/field';
 import {credits as creditWords} from '@/lib/ds/words';
 import type {ConfiguratorChoice,ConfiguratorOptions} from './configurator';
+import {useConfiguratorPresets} from '@/lib/configurator-presets';
+import {CarPicture} from '@/components/workspace/car-picture';
 
 // The pieces of the one editor (Phase 3 group 2): the settings panel's
 // sections, the version history, Save to project and the cost line.
@@ -31,6 +34,7 @@ export function CarSettings({cars,car,onCar,options,state,onColour,onTrim,onView
  cars:string[];car:string;onCar:(c:string)=>void;options:ConfiguratorOptions;state:{colour?:string;trim?:string;view?:string};
  onColour:(id:string)=>void;onTrim:(id:string)=>void;onView:(id:string)=>void;controlsInEditor:boolean;idPrefix?:string}){
  return <SettingsSection title="Car" id={`${idPrefix}-title`}>
+  <CarChoicePicture car={car}/>
   <Field label="Car" help="From your company’s configurators."><Select value={car} onChange={e=>onCar(e.target.value)}>{cars.map(c=><option key={c}>{c}</option>)}</Select></Field>
   {controlsInEditor&&options.colours.length>0&&<fieldset className="editor-swatches"><legend className="ds-label">Colour</legend>
    {options.colours.map(c=><label key={c.id} className="editor-swatch" title={c.name}><input className="editor-choice-input" type="radio" name={`${idPrefix}-colour`} checked={state.colour===c.id} onChange={()=>onColour(c.id)}/><span className="editor-swatch-chip" style={{background:c.swatch}} aria-hidden="true"/><span className="ds-sr-only">{c.name}</span></label>)}
@@ -48,11 +52,11 @@ export function ChoiceChips({legend,name,choices,value,onChange}:{legend:string;
  </fieldset>;
 }
 
-export function PromptSettings({label='Scene',value,onChange,placeholder,max=600,inspiration=true}:{label?:string;value:string;onChange:(v:string)=>void;placeholder?:string;max?:number;inspiration?:boolean}){
+export function PromptSettings({label='Scene',value,onChange,placeholder,max=600,inspiration=true,onInspiration}:{label?:string;value:string;onChange:(v:string)=>void;placeholder?:string;max?:number;inspiration?:boolean;onInspiration?:(file:File)=>unknown}){
  return <SettingsSection title="Prompt" id="prompt-title">
   <Field label={label} count={{value:value.length,max}}><Textarea value={value} onChange={e=>onChange(e.target.value.slice(0,max))} rows={4} placeholder={placeholder}/></Field>
-  {inspiration&&<div className="editor-inspiration"><span className="ds-label">Inspiration <span className="ds-muted">(optional)</span></span>
-   <div className="editor-row"><Button size="sm" icon={<Upload aria-hidden="true"/>}>Add a picture</Button><Button size="sm" kind="quiet" icon={<Link2 aria-hidden="true"/>}>Paste a link</Button></div></div>}
+  {/* The tools' own inspiration is components/editor/inspiration-card.tsx; this preview (the gallery) takes a picture only when given onInspiration. */}
+  {inspiration&&<DropZone name="reference picture" label="Drop, paste or upload a reference picture" hint="Optional" onFile={onInspiration} disabled={!onInspiration}/>}
  </SettingsSection>;
 }
 
@@ -123,4 +127,11 @@ export function ConfiguratorStage({frame,frames,onFrame,onCapture,capturing,chil
 
 export function NameField({value,onChange}:{value:string;onChange:(v:string)=>void}){
  return <label className="editor-name"><span className="ds-sr-only">Name</span><Input value={value} onChange={e=>onChange(e.target.value)} maxLength={100}/></label>;
+}
+
+/** The chosen car's real picture over the car picker: the same small thumbnail Home shows (the configurator's opening frame). */
+function CarChoicePicture({car}:{car:string}){
+ const presets=useConfiguratorPresets();
+ const picture=presets.find(c=>c.name===car)?.picture;
+ return <CarPicture src={picture} className="editor-car-picture"/>;
 }

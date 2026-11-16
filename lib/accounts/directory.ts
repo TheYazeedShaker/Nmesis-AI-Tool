@@ -6,6 +6,8 @@ import {MEMBER_ROLES,readEntitlements,type Entitlements,type Role} from './plan'
 export type Membership={orgId:string;orgName:string;orgKind:string;role:Role;status:'active'|'invited'};
 export type Organisation={id:string;name:string;kind:string};
 export type Car={brandId:string;modelId:string;brandName:string;modelName:string;path:string;template:string};
+/** A brand a company owns (accounts.organisation_brands): what its people work as. */
+export type Brand={id:string;name:string};
 export type Directory={
  memberships(userId:string):Promise<Membership[]>;
  staffRole(userId:string):Promise<string|null>;
@@ -13,6 +15,8 @@ export type Directory={
  organisations():Promise<Organisation[]>;
  entitlements(orgId:string):Promise<Entitlements|null>;
  cars(orgId:string|null):Promise<Car[]>;
+ // Each company's brands, by company id (accounts.studio_brands; before that view exists, the brands of the company's cars).
+ brands():Promise<Map<string,Brand[]>>;
  acceptInvitations(userId:string):Promise<number>;
  // The clients that grant Nmesis support access now: org id → until (epoch ms),
  // as the given member of staff may read them (studio.support_grants, RLS).
@@ -23,7 +27,7 @@ import {ttlCache} from './cache';
 export {ttlCache};
 const roleOf=(v:unknown):Role|null=>MEMBER_ROLES.includes(v as Role)?v as Role:null;
 export function postgresDirectory(db:StudioDatabase):Directory{
- const orgs=ttlCache<Organisation|null>(60_000),ents=ttlCache<Entitlements|null>(60_000),cars=ttlCache<Car[]>(10*60_000),all=ttlCache<Organisation[]>(60_000);
+ const brandMap=ttlCache<Map<string,Brand[]>>(60_000),orgs=ttlCache<Organisation|null>(60_000),ents=ttlCache<Entitlements|null>(60_000),cars=ttlCache<Car[]>(10*60_000),all=ttlCache<Organisation[]>(60_000);
  const org=(r:Record<string,unknown>):Organisation=>({id:String(r.id),name:String(r.name||'Unnamed company'),kind:String(r.kind||'client')});
  return {
   async memberships(userId){
@@ -39,6 +43,18 @@ export function postgresDirectory(db:StudioDatabase):Directory{
    const rows=orgId?await db.prepare('SELECT c.brand_id,c.model_id,c.brand_name,c.model_name,c.configurator_url,s.capture_template FROM accounts.studio_cars c LEFT JOIN studio.car_settings s ON s.brand_id=c.brand_id AND s.model_id=c.model_id WHERE c.org_id=?::uuid ORDER BY c.brand_name,c.model_name').bind(orgId).all<Record<string,unknown>>()
     :await db.prepare('SELECT c.brand_id,c.model_id,c.brand_name,c.model_name,c.configurator_url,s.capture_template FROM accounts.studio_live_cars c LEFT JOIN studio.car_settings s ON s.brand_id=c.brand_id AND s.model_id=c.model_id ORDER BY c.brand_name,c.model_name').all<Record<string,unknown>>();
    return rows.results.map(r=>({brandId:String(r.brand_id),modelId:String(r.model_id),brandName:String(r.brand_name||r.brand_id),modelName:String(r.model_name||r.model_id),path:String(r.configurator_url||''),template:String(r.capture_template||'capture')}));
+  }),
+  brands:()=>brandMap('all',async()=>{
+   let rows:Record<string,unknown>[];
+   try{rows=(await db.prepare('SELECT org_id::text AS org_id,brand_id,brand_name FROM accounts.studio_brands ORDER BY brand_name').all<Record<string,unknown>>()).results}
+   catch(e){
+    // The view comes with the setup SQL's section 5 (re-run by the owner); until then the brands of each company's cars.
+    console.warn('accounts.studio_brands is not readable yet; brands come from the cars',e instanceof Error?e.name:'UnknownError');
+    rows=(await db.prepare('SELECT DISTINCT org_id::text AS org_id,brand_id,brand_name FROM accounts.studio_cars ORDER BY brand_name').all<Record<string,unknown>>()).results;
+   }
+   const out=new Map<string,Brand[]>();
+   for(const r of rows){const org=String(r.org_id),id=String(r.brand_id||'');if(!UUID.test(org)||!id)continue;const list=out.get(org)||[];if(!list.some(b=>b.id===id))list.push({id,name:String(r.brand_name||id).slice(0,80)});out.set(org,list)}
+   return out;
   }),
   async supportGrants(userId){
    if(!UUID.test(userId))return new Map();

@@ -8,6 +8,7 @@ import {hasFeature,loadAccount,planEnded,PLAN_ENDED_CHIP,useAccount} from '@/com
 import {creditsLabel} from '@/lib/credits/words';
 import type {FeatureKey} from '@/lib/accounts/plan';
 import type {AccountSummary} from '@/lib/accounts/summary';
+import {initialsOf,staffLabel,workName} from '@/lib/accounts/names';
 import type {CreditOverview} from '@/lib/credits/usage';
 
 // The Studio's one top bar (Phase 2b): the brand, one shared navigation, the
@@ -55,18 +56,40 @@ function useShellData(preview?:ShellPreview){
  return {account,credits,ready:ready&&!!account};
 }
 
-async function switchCompany(orgId:string){
- const r=await fetch('/api/auth/org',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({orgId})});
+async function switchTo(place:Place){
+ const r=await fetch('/api/auth/org',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({orgId:place.orgId,brandId:place.brandId})});
  if(r.ok){location.reload();return ''}
- const d=await r.json().catch(()=>({}));return (d as {error?:string}).error||'The company could not be changed.';
+ const d=await r.json().catch(()=>({}));return (d as {error?:string}).error||'That could not be opened.';
 }
 function useSwitch(){
  const [busy,setBusy]=useState(false),[problem,setProblem]=useState('');
- const choose=async(account:AccountSummary,orgId:string)=>{if(orgId===account.org.id)return;setBusy(true);setProblem('');try{const p=await switchCompany(orgId);if(p)setProblem(p)}catch{setProblem('The connection was interrupted. Try again.')}setBusy(false)};
+ const choose=async(account:AccountSummary,place:Place)=>{if(isHere(account,place))return;setBusy(true);setProblem('');try{const p=await switchTo(place);if(p)setProblem(p)}catch{setProblem('The connection was interrupted. Try again.')}setBusy(false)};
  return {busy,problem,choose};
 }
-const sectionsOf=(account:AccountSummary)=>account.switcher?[{label:'Nmesis',orgs:account.switcher.nmesis},{label:'Clients',orgs:account.switcher.clients}].filter(s=>s.orgs.length):[{label:'',orgs:account.orgs}];
-const initials=(name:string)=>name.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();
+// Where a person can work: a company's brand (clients work as their brand), or
+// a company with no brand (Nmesis's own workspace). Clients see the brand's
+// name only; staff see "Brand · Company" so they know whose workspace it is.
+type Place={key:string;orgId:string;brandId?:string;label:string;brand:{id:string;name:string}|null};
+type Org={id:string;name:string;brands?:{id:string;name:string}[]};
+const placesOf=(orgs:Org[],staff:boolean):Place[]=>orgs.flatMap((o):Place[]=>o.brands?.length
+ ?o.brands.map(b=>({key:o.id+'/'+b.id,orgId:o.id,brandId:b.id,label:staff?staffLabel(b,o):b.name,brand:b}))
+ :[{key:o.id,orgId:o.id,label:o.name,brand:null}]);
+const isHere=(account:AccountSummary,p:Place)=>p.orgId===account.org.id&&(p.brandId??null)===(account.brand?.id??null);
+const sectionsOf=(account:AccountSummary)=>account.switcher
+ ?[{label:'Nmesis',places:placesOf(account.switcher.nmesis,true)},{label:'Clients',places:placesOf(account.switcher.clients,true)}].filter(s=>s.places.length)
+ :[{label:'',places:placesOf(account.orgs,false)}];
+const brandsOnly=(account:AccountSummary)=>!account.switcher&&account.orgs.every(o=>o.brands?.length);
+
+/** A brand's logo (from its configurator, cached by the Studio), or its initials while it loads or when it has none. */
+export function BrandMark({brand,name}:{brand:{id:string;name:string}|null|undefined;name:string}){
+ const [failed,setFailed]=useState(false);
+ return <span className="ds-avatar studio-brand-mark" aria-hidden="true">
+  {brand&&!failed
+   // eslint-disable-next-line @next/next/no-img-element -- a private logo on a signed link, sized by the avatar
+   ?<img src={'/api/brands/'+encodeURIComponent(brand.id)+'/logo'} alt="" onError={()=>setFailed(true)}/>
+   :initialsOf(name)}
+ </span>;
+}
 
 function NavLink({tool,account,current}:{tool:Tool;account:AccountSummary|null;current?:StudioPage}){
  const on=!tool.feature||hasFeature(account,tool.feature);
@@ -97,28 +120,30 @@ function Meter({credits}:{credits:ReturnType<typeof useCredits>}){
   :<span className="ds-meter studio-meter" data-level={level} role="img" aria-label={words} title={words}>{inner}</span>;
 }
 
-// The companies, as rows: staff see Nmesis and Clients (read-only); a search
-// from nine. The same list in the desktop switcher and the phone menu.
-function CompanyList({account,busy,onChoose}:{account:AccountSummary;busy:boolean;onChoose:(id:string)=>void}){
+// The places, as rows: staff see Nmesis and Clients (read-only); a search from
+// nine. The same list in the desktop switcher and the phone menu.
+function PlaceList({account,busy,onChoose}:{account:AccountSummary;busy:boolean;onChoose:(p:Place)=>void}){
  const [query,setQuery]=useState('');
- const sections=sectionsOf(account),total=sections.reduce((n,s)=>n+s.orgs.length,0),q=query.trim().toLowerCase();
- const shown=sections.map(s=>({...s,orgs:s.orgs.filter(o=>!q||o.name.toLowerCase().includes(q))})).filter(s=>s.orgs.length);
+ const sections=sectionsOf(account),total=sections.reduce((n,s)=>n+s.places.length,0),q=query.trim().toLowerCase();
+ const shown=sections.map(s=>({...s,places:s.places.filter(p=>!q||p.label.toLowerCase().includes(q))})).filter(s=>s.places.length);
+ const noun=brandsOnly(account)?'brand':'company';
  return <>
-  {total>=9&&<div className="ds-field"><label className="ds-label" htmlFor="studio-company-search">Search companies</label><input id="studio-company-search" className="ds-input" type="search" value={query} onChange={e=>setQuery(e.target.value)} autoComplete="off"/></div>}
-  {shown.length===0&&<p className="ds-muted">No company with that name.</p>}
-  {shown.map(s=><div key={s.label||'companies'} className="studio-menu-group" role="group" aria-label={s.label||'Companies'}>{s.label&&<p className="ds-muted">{s.label}</p>}{s.orgs.map(o=><button key={o.id} type="button" className="studio-menu-row" disabled={busy} aria-current={o.id===account.org.id||undefined} onClick={()=>onChoose(o.id)}><Building2 aria-hidden="true"/><span className="ds-truncate">{o.name}</span>{o.id===account.org.id?<Check aria-label="Current"/>:s.label==='Clients'?<Eye aria-label="Read-only"/>:null}</button>)}</div>)}
+  {total>=9&&<div className="ds-field"><label className="ds-label" htmlFor="studio-company-search">{brandsOnly(account)?'Search brands':'Search'}</label><input id="studio-company-search" className="ds-input" type="search" value={query} onChange={e=>setQuery(e.target.value)} autoComplete="off"/></div>}
+  {shown.length===0&&<p className="ds-muted">{'No '+noun+' with that name.'}</p>}
+  {shown.map(s=><div key={s.label||'places'} className="studio-menu-group" role="group" aria-label={s.label||(brandsOnly(account)?'Brands':'Companies')}>{s.label&&<p className="ds-muted">{s.label}</p>}{s.places.map(p=><button key={p.key} type="button" className="studio-menu-row" disabled={busy} aria-current={isHere(account,p)||undefined} onClick={()=>onChoose(p)}>{p.brand?<BrandMark brand={p.brand} name={p.brand.name}/>:<Building2 aria-hidden="true"/>}<span className="ds-truncate">{p.label}</span>{isHere(account,p)?<Check aria-label="Current"/>:s.label==='Clients'?<Eye aria-label="Read-only"/>:null}</button>)}</div>)}
  </>;
 }
 
 // The switcher: a modal, so focus stays in it and nothing on the page sits
-// under it while it is open.
-function Switcher({account,busy,onChoose}:{account:AccountSummary;busy:boolean;onChoose:(id:string)=>void}){
+// under it while it is open. Its face is the brand people work as.
+function Switcher({account,busy,onChoose}:{account:AccountSummary;busy:boolean;onChoose:(p:Place)=>void}){
  const [open,setOpen]=useState(false);
- const face=<><span className="ds-avatar" aria-hidden="true">{initials(account.org.name)}</span><span className="ds-switcher-name ds-truncate">{account.org.name}</span></>;
- if(account.orgs.length<=1&&!account.switcher)return <span className="ds-switcher studio-switcher" title={account.org.name}>{face}<span className="ds-sr-only">{'Company: '+account.org.name}</span></span>;
+ const name=workName(account),noun=brandsOnly(account)?'brand':'company';
+ const face=<><BrandMark brand={account.brand} name={name}/><span className="ds-switcher-name ds-truncate">{name}</span></>;
+ if(sectionsOf(account).reduce((n,s)=>n+s.places.length,0)<=1)return <span className="ds-switcher studio-switcher" title={name}>{face}<span className="ds-sr-only">{(account.brand?'Brand: ':'Company: ')+name}</span></span>;
  return <>
-  <button type="button" className="ds-switcher studio-switcher" aria-haspopup="dialog" title={account.org.name} disabled={busy} onClick={()=>setOpen(true)}>{face}<span className="ds-sr-only">, switch company</span><ChevronsUpDown aria-hidden="true"/></button>
-  <Dialog open={open} onClose={()=>setOpen(false)} title="Switch company" className="studio-menu"><CompanyList account={account} busy={busy} onChoose={id=>{setOpen(false);onChoose(id)}}/></Dialog>
+  <button type="button" className="ds-switcher studio-switcher" aria-haspopup="dialog" title={name} disabled={busy} onClick={()=>setOpen(true)}>{face}<span className="ds-sr-only">{', switch '+noun}</span><ChevronsUpDown aria-hidden="true"/></button>
+  <Dialog open={open} onClose={()=>setOpen(false)} title={'Switch '+noun} className="studio-menu"><PlaceList account={account} busy={busy} onChoose={p=>{setOpen(false);onChoose(p)}}/></Dialog>
  </>;
 }
 
@@ -127,9 +152,9 @@ function SignOut({account,withWord}:{account:AccountSummary;withWord?:boolean}){
 }
 
 // Below 768px: the tools, the page's own actions, the company and the account.
-function PhoneMenu({account,current,actions,busy,onChoose}:{account:AccountSummary;current?:StudioPage;actions?:BarAction[];busy:boolean;onChoose:(id:string)=>void}){
+function PhoneMenu({account,current,actions,busy,onChoose}:{account:AccountSummary;current?:StudioPage;actions?:BarAction[];busy:boolean;onChoose:(p:Place)=>void}){
  const [open,setOpen]=useState(false);
- const many=sectionsOf(account).reduce((n,s)=>n+s.orgs.length,0)>1;
+ const many=sectionsOf(account).reduce((n,s)=>n+s.places.length,0)>1;
  const settings=account.role==='owner'&&!account.internal||account.viewingAs;
  return <>
   <button type="button" className="ds-btn icon studio-menu-button" aria-haspopup="dialog" aria-label="Menu" onClick={()=>setOpen(true)}><Menu aria-hidden="true"/></button>
@@ -145,9 +170,9 @@ function PhoneMenu({account,current,actions,busy,onChoose}:{account:AccountSumma
    </nav>
    {!!actions?.length&&<div className="studio-menu-group">{actions.map(a=><button key={a.label} type="button" className="studio-menu-row" onClick={()=>{setOpen(false);a.onClick()}}><span aria-hidden="true">{a.icon}</span>{a.label}</button>)}</div>}
    <div className="studio-menu-group">
-    <p className="ds-label-caps">Company</p>
-    {many?<CompanyList account={account} busy={busy} onChoose={id=>{setOpen(false);onChoose(id)}}/>
-     :<span className="studio-menu-row"><Building2 aria-hidden="true"/><span className="ds-truncate">{account.org.name}</span></span>}
+    <p className="ds-label-caps">{account.brand&&!account.switcher?'Brand':'Company'}</p>
+    {many?<PlaceList account={account} busy={busy} onChoose={p=>{setOpen(false);onChoose(p)}}/>
+     :<span className="studio-menu-row"><BrandMark brand={account.brand} name={workName(account)}/><span className="ds-truncate">{workName(account)}</span></span>}
     <span className="studio-menu-row ds-muted">{account.viewingAs?'Staff':ROLE_LABEL[account.role]}</span>
    </div>
    <div className="studio-menu-group">
@@ -189,11 +214,11 @@ export function StudioTopBar({current,actions,theme='dark',preview}:{current?:St
    {ready&&account&&<>
     {problem&&<span className="studio-topbar-problem" role="alert">{problem}</span>}
     {account.workspace.open&&<Meter credits={credits}/>}
-    <span className="studio-wide"><Switcher account={account} busy={busy} onChoose={id=>void choose(account,id)}/></span>
+    <span className="studio-wide"><Switcher account={account} busy={busy} onChoose={p=>void choose(account,p)}/></span>
     <span className="studio-wide studio-role">{account.viewingAs?'Staff':ROLE_LABEL[account.role]}</span>
     {settings&&<Link className="ds-btn icon studio-wide" href="/company" aria-label="Company settings" title="Company settings" aria-current={current==='company'?'page':undefined}><Settings aria-hidden="true"/></Link>}
     <span className="studio-wide"><SignOut account={account}/></span>
-    <span className="studio-narrow"><PhoneMenu account={account} current={current} actions={actions} busy={busy} onChoose={id=>void choose(account,id)}/></span>
+    <span className="studio-narrow"><PhoneMenu account={account} current={current} actions={actions} busy={busy} onChoose={p=>void choose(account,p)}/></span>
    </>}
   </div>
  </header>;

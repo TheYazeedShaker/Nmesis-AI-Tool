@@ -1,16 +1,17 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import {ArrowRight,Car,Lock,Search,Sparkles} from 'lucide-react';
+import {ArrowRight,Lock,Search,Sparkles} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {Badge,SkeletonTile} from '@/components/ds/feedback';
 import {MediaTile} from '@/components/ds/media';
 import type {WorkItem} from './items';
+import {CarPicture} from './car-picture';
 
 // Home (Phase 3 group 1, the approved wireframe): what to make, the tools,
 // recent work, and the company's cars.
 export type HomeTool={key:string;name:string;line:string;href:string;icon:React.ReactNode;cost?:string;locked?:string};
-export type HomeCar={name:string;href:string};
+export type HomeCar={name:string;href:string;/** Its picture (/api/cars/<id>/picture); none: the neutral car. */picture?:string};
 
 export function HomeScreen({greeting,tools,recent,cars,onStart,libraryHref='/library'}:{greeting?:string;tools:HomeTool[];/** null while loading: the row keeps its height. */recent:WorkItem[]|null;cars:HomeCar[];onStart:(brief:string)=>void;libraryHref?:string}){
  const [brief,setBrief]=React.useState('');
@@ -57,7 +58,7 @@ export function HomeScreen({greeting,tools,recent,cars,onStart,libraryHref='/lib
   {cars.length>0&&<section aria-labelledby="home-cars">
    <div className="ds-block-head"><h2 className="ds-block-title" id="home-cars">Start from your cars</h2></div>
    <ul className="ds-scroller workspace-list" aria-labelledby="home-cars">
-    {cars.map(c=><li key={c.name}><Link className="ds-car" href={c.href}><span className="ds-car-art" aria-hidden="true"><Car/></span><span className="ds-tile-name ds-truncate" title={c.name}>{c.name}</span></Link></li>)}
+    {cars.map(c=><li key={c.name}><Link className="ds-car" href={c.href}><CarPicture src={c.picture}/><span className="ds-tile-name ds-truncate" title={c.name}>{c.name}</span></Link></li>)}
    </ul>
   </section>}
  </div>;

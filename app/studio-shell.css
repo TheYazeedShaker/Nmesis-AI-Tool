@@ -146,3 +146,10 @@ body .studio input[type="checkbox"], body .studio input[type="radio"] { min-widt
   background: var(--ds-panel); border: var(--ds-border-width) solid var(--ds-border);
   border-radius: var(--ds-radius); box-shadow: var(--ds-shadow-2);
 }
+
+/* The brand people work as (Phase 3 polish): its logo on a light plate in both
+   themes (brand logos are drawn for a light ground), its initials until then. */
+.studio-brand-mark { overflow: hidden; }
+.studio-brand-mark:has(img) { background: var(--ds-on-media); }
+.studio-brand-mark > img { width: 100%; height: 100%; object-fit: contain; padding: var(--ds-space-2); display: block; }
+.studio-menu-row .studio-brand-mark { flex: none; }

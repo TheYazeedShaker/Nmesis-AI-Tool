@@ -249,6 +249,11 @@ test('the accounts views give the studio role what it needs and nothing else',{s
  try{
   const [m]=await app`select count(*)::int as n from accounts.studio_memberships where user_id=${USER_A}`;assert.equal(m.n,1);
   const [e]=await app`select accounts.entitlements(${ORG_A}::uuid) as e`;assert.equal(e.e.legacy,true);
+  // Brands (Phase 3 polish): each company's brands with a name, read-only.
+  await admin.unsafe(`insert into accounts.organisation_brands(org_id,brand_id) values ('${ORG_A}','pgbrand') on conflict do nothing; insert into accounts.cars(brand_id,model_id,brand_name,model_name,configurator_url,live) values ('pgbrand','one','PG Brand','PG Brand One','/pgbrand/one/',true) on conflict do nothing`);
+  const brands=await app`select brand_id,brand_name from accounts.studio_brands where org_id=${ORG_A}::uuid and brand_id='pgbrand'`;
+  assert.deepEqual(brands.map(b=>[b.brand_id,b.brand_name]),[['pgbrand','PG Brand']]);
+  await assert.rejects(()=>app`delete from accounts.studio_brands`,/permission denied|cannot delete/);
   for(const t of ['members','staff','organisations','invitations','cars','configurator_access','organisation_brands'])
    await assert.rejects(()=>app.unsafe('select * from accounts.'+t),/permission denied/,'no direct access to accounts.'+t);
   await assert.rejects(()=>app`select * from auth.users`,/permission denied/);

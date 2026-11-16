@@ -71,10 +71,19 @@ test('Nano Banana lock replaces the generic preset only when enabled and keeps v
 test('configurators come from the company’s cars (paths joined to the deployment origin) with an explicit capture template',()=>{
  assert.ok(CONFIGURATORS.length>=1);
  const car=(path,template='capture',extra={})=>({brandId:'demo',modelId:'suv',brandName:'Demo',modelName:'SUV',path,template,...extra});
- assert.deepEqual(carConfigurators([car('/demo/suv/','choose-view')],'https://configurator.example.com'),[{id:'demo.suv',name:'Demo SUV',url:'https://configurator.example.com/demo/suv/',template:'choose-view'}]);
- assert.deepEqual(carConfigurators([car('https://configurator.example.com/x/','anything')],undefined),[{id:'demo.suv',name:'Demo SUV',url:'https://configurator.example.com/x/',template:'capture'}]);
+ assert.deepEqual(carConfigurators([car('/demo/suv/','choose-view')],'https://configurator.example.com'),[{id:'demo.suv',name:'Demo SUV',url:'https://configurator.example.com/demo/suv/',template:'choose-view',brandId:'demo',brandName:'Demo',picture:'/api/cars/demo.suv/picture'}]);
+ assert.deepEqual(carConfigurators([car('https://configurator.example.com/x/','anything')],undefined),[{id:'demo.suv',name:'Demo SUV',url:'https://configurator.example.com/x/',template:'capture',brandId:'demo',brandName:'Demo',picture:'/api/cars/demo.suv/picture'}]);
  // Unusable addresses are left out rather than shown.
  for(const path of ['','javascript:alert(1)','http://configurator.example.com/b/','/demo/suv/settings.json'])assert.deepEqual(carConfigurators([car(path)],'https://configurator.example.com'),[],path);
  assert.deepEqual(carConfigurators([car('/demo/suv/')],undefined),[],'a path with no origin is left out');
  assert.deepEqual(carConfigurators([car('/demo/suv/')],'http://configurator.example.com'),[],'never plain http');
+});
+
+test('a car is named as people say it: the brand is not doubled when the model already starts with it',async()=>{
+ const {carName,tidyCarText,carNameVariants}=await import('../lib/car-names.ts');
+ assert.equal(carName('IM','IM 6'),'IM 6');assert.equal(carName('Demo','SUV'),'Demo SUV');assert.equal(carName('Land Cruiser','Land Cruiser Prado'),'Land Cruiser Prado');assert.equal(carName('Demo','demo hatch'),'demo hatch');assert.equal(carName('','X'),'X');
+ assert.equal(carConfigurators([{brandId:'im',modelId:'6',brandName:'IM',modelName:'IM 6',path:'/im/6/',template:'capture'}],'https://configurator.example.com')[0].name,'IM 6');
+ // Work saved before the rule: shown and filtered without the doubled brand.
+ assert.equal(tidyCarText('IM IM 6 · Coast road'),'IM 6 · Coast road');assert.equal(tidyCarText('Demo SUV · Coast'),'Demo SUV · Coast');assert.equal(tidyCarText('Line-up · 3 cars'),'Line-up · 3 cars');
+ assert.deepEqual(carNameVariants('IM','IM 6'),['IM 6','IM IM 6']);
 });

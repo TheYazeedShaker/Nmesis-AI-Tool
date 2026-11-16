@@ -67,6 +67,9 @@ export const ROUTE_FEATURES:RouteRule[]=[
  {path:/^\/api\/company\/support$/,methods:['GET'],feature:null,library:true},
  {path:/^\/api\/company\/support$/,feature:null},
  {path:/^\/api\/configurators$/,feature:null,library:true},
+ // A car's picture and a brand's logo, from the configurator (cached by the Studio): read-only; the library may show them.
+ {path:/^\/api\/cars\/[A-Za-z0-9_.-]{1,129}\/picture$/,methods:['GET'],feature:null,library:true},
+ {path:/^\/api\/brands\/[A-Za-z0-9_-]{1,64}\/logo$/,methods:['GET'],feature:null,library:true},
  {path:/^\/api\/credits$/,methods:['GET'],feature:null,library:true},
  {path:/^\/api\/connection$/,methods:['GET'],feature:null},
  {path:/^\/api\/connection$/,feature:'studio.own_keys'},

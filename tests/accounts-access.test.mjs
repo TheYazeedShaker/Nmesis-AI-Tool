@@ -45,11 +45,13 @@ before(async()=>{
   members:[{userId:A1.id,orgId:ORG_A,role:'owner',status:'active'},{userId:A2.id,orgId:ORG_A,role:'creator',status:'invited'},{userId:A3.id,orgId:ORG_A,role:'viewer',status:'active'},{userId:B1.id,orgId:ORG_B,role:'owner',status:'active'},{userId:S1.id,orgId:ORG_S,role:'creator',status:'active'},{userId:E1.id,orgId:ORG_E,role:'owner',status:'active'}],
   staff:{[T.id]:'ops'},
   entitlements:{[ORG_A]:full,[ORG_B]:full,[ORG_S]:starter,[ORG_E]:ended,[ORG_N]:legacy},
-  cars:{[ORG_A]:[car('alpha','one'),car('alpha','two')],[ORG_B]:[car('beta','one')]},
+  cars:{[ORG_A]:[car('alpha','one'),car('alpha','two')],[ORG_B]:[car('beta','one'),car('gamma','one')]},
+  // Phase 3 polish: A works as one brand; B owns two and switches between them.
+  brands:{[ORG_A]:[{id:'alpha',name:'Alpha'}],[ORG_B]:[{id:'beta',name:'Beta'},{id:'gamma',name:'Gamma'}]},
   allCars:[car('alpha','one'),car('alpha','two'),car('beta','one'),car('gamma','one')],
  });
  const load=p=>import('@/'+p);
- for(const p of ['app/api/visuals/route.ts','app/api/visuals/[id]/route.ts','app/api/assets/[id]/route.ts','app/api/area-edits/[id]/route.ts','app/api/swap-source/[id]/route.ts','app/api/films/route.ts','app/api/films/[id]/route.ts','app/api/films/[id]/video/route.ts','app/api/films/[id]/[action]/route.ts','app/api/swaps/route.ts','app/api/swaps/[id]/route.ts','app/api/swaps/[id]/video/route.ts','app/api/swaps/[id]/diagnostic/route.ts','app/api/swaps/[id]/[action]/route.ts','app/api/storyboards/route.ts','app/api/storyboards/[id]/route.ts','app/api/storyboards/[id]/video/route.ts','app/api/storyboards/[id]/[action]/route.ts','app/api/image-jobs/route.ts','app/api/image-jobs/[id]/[action]/route.ts','app/api/topaz/jobs/route.ts','app/api/topaz/jobs/[id]/route.ts','app/api/upscale-import/route.ts','app/api/generate/route.ts','app/api/uploads/route.ts','app/api/configurators/route.ts','app/api/me/route.ts','app/api/status/route.ts','app/api/directions/route.ts','app/api/pinterest/route.ts','app/api/smart-prompts/route.ts','app/api/connection/route.ts'])routes[p]=await load(p);
+ for(const p of ['app/api/cars/[id]/picture/route.ts','app/api/brands/[id]/logo/route.ts','app/api/visuals/route.ts','app/api/visuals/[id]/route.ts','app/api/assets/[id]/route.ts','app/api/area-edits/[id]/route.ts','app/api/swap-source/[id]/route.ts','app/api/films/route.ts','app/api/films/[id]/route.ts','app/api/films/[id]/video/route.ts','app/api/films/[id]/[action]/route.ts','app/api/swaps/route.ts','app/api/swaps/[id]/route.ts','app/api/swaps/[id]/video/route.ts','app/api/swaps/[id]/diagnostic/route.ts','app/api/swaps/[id]/[action]/route.ts','app/api/storyboards/route.ts','app/api/storyboards/[id]/route.ts','app/api/storyboards/[id]/video/route.ts','app/api/storyboards/[id]/[action]/route.ts','app/api/image-jobs/route.ts','app/api/image-jobs/[id]/[action]/route.ts','app/api/topaz/jobs/route.ts','app/api/topaz/jobs/[id]/route.ts','app/api/upscale-import/route.ts','app/api/generate/route.ts','app/api/uploads/route.ts','app/api/configurators/route.ts','app/api/me/route.ts','app/api/status/route.ts','app/api/directions/route.ts','app/api/pinterest/route.ts','app/api/smart-prompts/route.ts','app/api/connection/route.ts'])routes[p]=await load(p);
  store=(await load('lib/portable/storage.ts')).getStorage();
  const png=Buffer.alloc(64);png.set([137,80,78,71,13,10,26,10]);png.writeUInt32BE(13,8);png.write('IHDR',12);png.writeUInt32BE(1920,16);png.writeUInt32BE(1080,20);
  const json=v=>JSON.stringify(v),meta={httpMetadata:{contentType:'application/json'}},img={httpMetadata:{contentType:'image/png'}},now=new Date().toISOString();
@@ -73,7 +75,7 @@ before(async()=>{
 });
 after(async()=>{globalThis.fetch=realFetch;s3?.server.closeAllConnections();s3?.server.close();console.log('\n'+['| Who | Route | Expected | Got |','|---|---|---|---|',...table.map(r=>`| ${r.who} | ${r.method} ${r.path} | ${r.expected} | ${r.got} |`)].join('\n')+'\n')});
 const B={};
-function as(user,chosenOrg=null){state.user=user;state.chosenOrg=chosenOrg}
+function as(user,chosenOrg=null,chosenBrand=null){state.user=user;state.chosenOrg=chosenOrg;state.chosenBrand=chosenBrand}
 async function call(method,path,file,{body,params,raw}={}){
  const headers={origin:ORIGIN};if(body!==undefined)headers['content-type']='application/json';
  const response=await routes[file][method](new Request(ORIGIN+path,{method,headers,redirect:'manual',...body!==undefined?{body:JSON.stringify(body)}:raw?{body:raw}:{}}),params?{params:Promise.resolve(params)}:undefined);
@@ -246,10 +248,10 @@ test('S2.1: staff with the code cannot write in a client workspace, and can in N
 });
 test('S2.1: the switcher has Nmesis and Clients sections for staff only',async()=>{
  as(T,ORG_N);
- await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,true);assert.deepEqual(r.body.switcher.nmesis,[{id:ORG_N,name:'Nmesis'}]);assert.deepEqual(r.body.switcher.clients.map(o=>o.name),['Company B'],'only clients that grant support access')},'200, two sections');
+ await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,true);assert.deepEqual(r.body.switcher.nmesis,[{id:ORG_N,name:'Nmesis',brands:[]}]);assert.deepEqual(r.body.switcher.clients.map(o=>o.name),['Company B'],'only clients that grant support access');assert.deepEqual(r.body.switcher.clients[0].brands.map(b=>b.name),['Beta','Gamma'],'staff see each client’s brands (Brand · Company)')},'200, two sections');
  for(const member of [A1,B1,S1]){
   as(member);
-  await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,false);assert.equal(r.body.switcher,null);assert.ok(r.body.orgs.every(o=>o.id!==ORG_N),'no Nmesis workspace');assert.ok(!r.text.includes('Nmesis'),'no staff section');assert.equal(r.body.orgs.length,1)},'200, own company only');
+  await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,false);assert.equal(r.body.switcher,null);assert.ok(r.body.orgs.every(o=>o.id!==ORG_N),'no Nmesis workspace');assert.ok(!r.text.includes('Nmesis'),'no staff section');assert.equal(r.body.orgs.length,1);if(member===B1){assert.equal(r.body.brand.name,'Beta');assert.deepEqual(r.body.brands.map(x=>x.id),['beta','gamma'])}if(member===A1){assert.equal(r.body.brand.name,'Alpha');assert.equal(r.body.brands.length,1)}if(member===S1)assert.equal(r.body.brand,null)},'200, own company only, as its brand');
  }
 });
 test('S2.1: the company deep link is checked on the server',async()=>{
@@ -303,4 +305,37 @@ test('S2.1: a malformed KEY_ENCRYPTION_SECRET answers 503 "Secure key storage is
   assert.ok(lines.every(l=>!l.includes(bad)),'the value is never logged');
   assert.deepEqual(providerCalls,[],'the key was not sent anywhere');
  }finally{console.error=error;process.env.KEY_ENCRYPTION_SECRET=good}
+});
+
+test('V7: clients work as their brand; a company with several brands sees the chosen brand\'s cars; pictures and logos only for one\'s own cars and brands',async()=>{
+ const names=r=>r.body.configurators.map(c=>c.name);
+ as(B1);await expect('GET','/api/configurators','app/api/configurators/route.ts',{},r=>{assert.deepEqual(names(r),['Demo beta Model one'])},'200, the first brand\'s cars');
+ as(B1,null,'gamma');await expect('GET','/api/configurators','app/api/configurators/route.ts',{},r=>{assert.deepEqual(names(r),['Demo gamma Model one']);assert.equal(r.body.configurators[0].picture,'/api/cars/gamma.one/picture')},'200, the chosen brand\'s cars');
+ as(B1,null,'alpha');await expect('GET','/api/configurators','app/api/configurators/route.ts',{},r=>{assert.deepEqual(names(r),['Demo beta Model one'])},'200, another company\'s brand is not honoured');
+ // The car picture: the configurator's opening frame, fetched once through the server and kept small in the company's storage.
+ const sharp=(await import('sharp')).default;
+ const frame=await sharp({create:{width:1600,height:900,channels:3,background:'#336699'}}).png().toBuffer();
+ const logo=await sharp({create:{width:300,height:120,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).png().toBuffer();
+ const CFG='https://configurator.test',CDN='https://cdn.configurator.test';
+ const config={grades:[{id:'g1',folder:'G1',colorIds:['c1'],_colorCdnLinks:{c1:{Indoor:CDN+'/Brand/G1/c1'}}}],colors:[{id:'c1',available:true,lightingFolders:{Indoor:'C1'}}],defaults_lighting:'Indoor',defaults:{gradeId:'g1',colorId:'c1',frameIndex:2},availableIcons:{brandName:CDN+'/Brand/logo.png'},assetSignaturesHost:'cdn.configurator.test',assetSignatures:{Brand:'Signature=abc'}};
+ const manifest={G1:{Indoor:{C1:['f1.png','f2.png','f3.png']}}};
+ const prev=process.env.CONFIGURATOR_API_ORIGIN;process.env.CONFIGURATOR_API_ORIGIN=CFG;
+ providerCalls.length=0;
+ providerAnswer=async u=>u.startsWith(CFG+'/api/config?')?Response.json(config):u.startsWith(CFG+'/api/exterior-manifest?')?Response.json(manifest)
+  :u===CDN+'/Brand/G1/c1/f2.png?Signature=abc'?new Response(frame,{headers:{'content-type':'image/png'}}):u===CDN+'/Brand/logo.png?Signature=abc'?new Response(logo,{headers:{'content-type':'image/png'}}):new Response('no',{status:404});
+ try{
+  as(A1);
+  const first=await expect('GET','/api/cars/alpha.one/picture','app/api/cars/[id]/picture/route.ts',{params:{id:'alpha.one'}},r=>{assert.equal(r.status,307);assert.ok(r.location)},'307, own car');
+  assert.ok(providerCalls.includes(CDN+'/Brand/G1/c1/f2.png?Signature=abc'),'the opening frame (frameIndex 2), signed as the configurator signs it');
+  const listed=await store.list({prefix:`orgs/${ORG_A}/cars/alpha/one/`});assert.equal(listed.objects.length,1,'one small picture kept');
+  const kept=await sharp(Buffer.from(await (await store.get(listed.objects[0].key)).arrayBuffer())).metadata();assert.equal(kept.format,'webp');assert.equal(kept.width,640);
+  providerCalls.length=0;
+  await expect('GET','/api/cars/alpha.one/picture','app/api/cars/[id]/picture/route.ts',{params:{id:'alpha.one'}},r=>{assert.equal(r.status,307)},'307, from storage');
+  assert.deepEqual(providerCalls,[],'the second time nothing is fetched');void first;
+  await expect('GET','/api/cars/beta.one/picture','app/api/cars/[id]/picture/route.ts',{params:{id:'beta.one'}},r=>{assert.equal(r.status,404);assert.equal(r.location,null)},'404, another company\'s car');
+  await expect('GET','/api/cars/..%2Fx/picture','app/api/cars/[id]/picture/route.ts',{params:{id:'../x'}},r=>{assert.equal(r.status,404)},'404, not a car id');
+  assert.deepEqual(providerCalls,[],'nothing fetched for a car that is not the company\'s');
+  await expect('GET','/api/brands/alpha/logo','app/api/brands/[id]/logo/route.ts',{params:{id:'alpha'}},r=>{assert.equal(r.status,307)},'307, own brand');
+  await expect('GET','/api/brands/beta/logo','app/api/brands/[id]/logo/route.ts',{params:{id:'beta'}},r=>{assert.equal(r.status,404)},'404, another company\'s brand');
+ }finally{providerAnswer=null;providerCalls.length=0;if(prev===undefined)delete process.env.CONFIGURATOR_API_ORIGIN;else process.env.CONFIGURATOR_API_ORIGIN=prev;(await import('@/lib/car-pictures.ts')).forgetConfigurators()}
 });

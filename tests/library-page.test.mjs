@@ -148,3 +148,25 @@ test('the hooks: every path that saves work keeps the index in step',()=>{
  assert.match(read('app/api/library/route.ts'),/libraryPage\(ctx,readQuery/);
  assert.match(read('components/ds/media.tsx'),/rootMargin: '200px'/);
 });
+
+test('a company with several brands sees the chosen brand’s work (and work with no car); a doubled brand in old names is mended',async()=>{
+ const h=await harness(30);
+ try{
+  const add=(id,car,title)=>h.index.indexItem({DB:h.ctx.DB,org:ORG},{kind:'visual',id,owner:h.ctx.prefix,title,tool:'Key visual',car,status:'ready',assetId:null,createdAt:1_800_000_000_000,deletedAt:null},1);
+  await add('brand-old-01','Sample Sample Pickup','Sample Sample Pickup · Dunes');  // saved before the naming rule
+  await add('brand-new-01','Sample Pickup','Sample Pickup · City');
+  await add('brand-none-1',null,'Mood board');
+  const p=await h.page.libraryPage(h.ctx,h.q({limit:100}),{brandCars:['Sample Pickup','Sample Sample Pickup']});
+  const ids=p.items.map(i=>i.id);
+  assert.ok(ids.includes('brand-old-01')&&ids.includes('brand-new-01')&&ids.includes('brand-none-1'));
+  assert.ok(p.items.every(i=>i.car===null||i.car==='Sample Pickup'),'only the brand’s cars, and work with no car');
+  assert.equal(p.items.find(i=>i.id==='brand-old-01').title,'Sample Pickup · Dunes','the doubled brand is mended when shown');
+  assert.deepEqual([...p.cars],['Sample Pickup'],'one name in the car filter');
+  assert.equal(p.counts.all,p.total,'the counts follow the brand');
+  // The car filter finds both spellings.
+  const one=await h.page.libraryPage(h.ctx,h.q({car:'Sample Pickup'}));
+  assert.deepEqual([...one.items.map(i=>i.id)].sort(),['brand-new-01','brand-old-01']);
+  // One brand, or none: everything, as before.
+  assert.ok((await h.page.libraryPage(h.ctx,h.q({limit:100}))).items.some(i=>i.car==='Demo SUV'));
+ }finally{h.close()}
+});

@@ -82,7 +82,7 @@ test('identity comes only from a Supabase session verified on the server; no ses
   '@/lib/accounts/context':{resolveContext:async a=>{seen.push(a);return a.user.id===user.id?{ok:true,ctx:{user:a.user}}:{ok:false,reason:'no_company'}}},
   '@/lib/accounts/cache':await import('../lib/accounts/cache.ts')};
  const m=await moduleAt('lib/studio-context.ts',imports),plain=v=>JSON.parse(JSON.stringify(v));// objects from the module's own context
- assert.equal((await m.getStudioContext()).ok,true);assert.deepEqual(plain(seen[0]),{user:{id:user.id,email:'person@example.test',aal:'aal1'},chosenOrg:'chosen-org',directory:{}});
+ assert.equal((await m.getStudioContext()).ok,true);assert.deepEqual(plain(seen[0]),{user:{id:user.id,email:'person@example.test',aal:'aal1'},chosenOrg:'chosen-org',chosenBrand:null,directory:{}});
  // The next requests of the same person, company and sign-in level reuse it for
  // a few seconds (F-060); the session is verified each time all the same.
  assert.equal((await m.getStudioContext()).ok,true);assert.equal(seen.length,1,'the resolved context is reused');

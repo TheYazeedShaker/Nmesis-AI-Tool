@@ -29,7 +29,7 @@ export function sqliteDatabase({clock}={}){
 // A directory (the accounts master list) held in memory. `grants`: the clients that
 // grant Nmesis support access (org id → until, epoch ms), as studio.support_grants;
 // tests change it in place.
-export function memoryDirectory({orgs,members,staff={},entitlements={},cars={},allCars=[],grants={}}){
+export function memoryDirectory({orgs,members,staff={},entitlements={},cars={},allCars=[],grants={},brands={}}){
  const accepted=[];
  return {
   accepted,grants,
@@ -40,6 +40,7 @@ export function memoryDirectory({orgs,members,staff={},entitlements={},cars={},a
   organisations:async()=>orgs.map(o=>({...o})),
   entitlements:async id=>entitlements[id]??null,
   cars:async id=>id?cars[id]||[]:allCars,
+  brands:async()=>new Map(Object.entries(brands)),
   acceptInvitations:async userId=>{let n=0;for(const m of members)if(m.userId===userId&&m.status==='invited'){m.status='active';n++}accepted.push(userId);return n},
  };
 }

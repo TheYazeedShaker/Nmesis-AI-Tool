@@ -8,6 +8,8 @@ import {ttlCache} from '@/lib/accounts/cache';
 // every call; the company from the master list (entitlements cached 60 s per org).
 // Nmesis staff also need the six-digit code in this session (Supabase AAL2).
 export const ORG_COOKIE='studio_org';
+// Which of the company's brands the person works as (only a wish, like the company: honoured when it is one of the company's brands).
+export const BRAND_COOKIE='studio_brand';
 export type ContextProblem='not_configured'|'signed_out'|'no_company'|'mfa_required';
 // The resolved context, reused for a few seconds per person, company choice and
 // sign-in level (F-060): a page's burst of requests (/api/me, /api/credits, the
@@ -27,8 +29,8 @@ export async function getStudioContext(deps:{user?:SessionUser|null;directory?:D
  if(!authConfigured()||!directory)return {ok:false,problem:'not_configured'};
  const user=deps.user!==undefined?deps.user:await sessionUser();
  if(!user)return {ok:false,problem:'signed_out'};
- const chosen=(await cookies()).get(ORG_COOKIE)?.value||null;
- const resolve=()=>resolveContext({user:{id:user.id,email:user.email,aal:user.aal},chosenOrg:chosen,directory});
- const resolved=deps.directory?await resolve():await recent(`${user.id}|${user.aal||''}|${chosen||''}`,resolve);
+ const jar=await cookies(),chosen=jar.get(ORG_COOKIE)?.value||null,brand=jar.get(BRAND_COOKIE)?.value?.slice(0,64)||null;
+ const resolve=()=>resolveContext({user:{id:user.id,email:user.email,aal:user.aal},chosenOrg:chosen,chosenBrand:brand,directory});
+ const resolved=deps.directory?await resolve():await recent(`${user.id}|${user.aal||''}|${chosen||''}|${brand||''}`,resolve);
  return resolved.ok?resolved:{ok:false,problem:resolved.reason};
 }

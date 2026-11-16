@@ -1,5 +1,6 @@
 'use client';
 import * as React from 'react';
+import {workName} from '@/lib/accounts/names';
 import Link from 'next/link';
 import {Clapperboard,Film,ImageIcon,Layers,Replace} from 'lucide-react';
 import {Button} from '@/components/ds/button';
@@ -41,9 +42,9 @@ export function HomePage(){
  const tools:HomeTool[]=TOOLS.map(t=>({...t,locked:hasFeature(account,t.feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[t.feature]}`}));
  return <WorkspaceFrame current="home" notices={<AccountNotices variant="ds"/>}>
   {lib.problem&&!lib.ready?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:null}
-  <HomeScreen tools={tools}
+  <HomeScreen tools={tools} greeting={account?workName(account):undefined}
    recent={lib.ready?lib.items.map(i=>({...i,href:i.kind==='image'?`/library?open=${encodeURIComponent(i.id)}`:i.href})):lib.problem?[]:null}
-   cars={presets.filter(c=>c.url.startsWith('https://')).map(c=>({name:c.name,href:`${KEY_VISUAL_HREF}?car=${encodeURIComponent(c.name)}`}))}
+   cars={presets.filter(c=>c.url.startsWith('https://')).map(c=>({name:c.name,href:`${KEY_VISUAL_HREF}?car=${encodeURIComponent(c.name)}`,picture:c.picture}))}
    onStart={brief=>location.assign(brief?`${KEY_VISUAL_HREF}?brief=${encodeURIComponent(brief)}`:KEY_VISUAL_HREF)}/>
  </WorkspaceFrame>;
 }
