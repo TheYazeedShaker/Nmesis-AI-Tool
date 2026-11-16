@@ -60,3 +60,11 @@ test('the five tools are the one editor, and reach the configurator only through
  // Settings are drawn once: in the side panel, or in the phone sheet while it is open.
  assert.match(read('components/ds/editor.tsx'),/\{sheet \? null : settings\}/);
 });
+
+test('the editor never draws one thing over another: flex boxes do not shrink below their content', () => {
+ // The settings list scrolls above Generate; the stage keeps its content and the canvas scrolls.
+ assert.match(read('app/design-system.css'),/\.ds-settings-body \{ flex: 1 1 auto; min-height: 0; overflow-y: auto;/);
+ const css=read('app/editor.css');
+ assert.match(css,/\.editor-stage \{ height: auto; min-height: 100%; \}/);
+ assert.match(css,/\.editor-stage-main \{ flex: 1 0 auto; \}/);
+});

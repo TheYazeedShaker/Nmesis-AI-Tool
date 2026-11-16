@@ -112,3 +112,8 @@
 /* The history strip scrolls inside the canvas; it never widens it. */
 .ds-canvas-stage:has(.editor-stage) { grid-template-columns: minmax(0, 1fr); }
 .editor-stage, .editor-stage-history { min-width: 0; }
+/* Flex boxes never shrink below what they hold (check:ui overlapped): the stage
+   keeps its content and the canvas scrolls, instead of the history sliding over
+   it; a picture that loads late grows the stage, never moves the history up. */
+.editor-stage { height: auto; min-height: 100%; }
+.editor-stage-main { flex: 1 0 auto; }
