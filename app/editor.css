@@ -133,3 +133,9 @@
 /* A message with its Dismiss button: the words take the room and wrap; the button stays beside them. */
 .editor-message { flex-wrap: nowrap; align-items: flex-start; }
 .editor-message > span { flex: 1 1 auto; min-width: 0; }
+/* On phones the name takes a row of its own, so the editor's bar always has
+   two rows: hold them from the start, and the canvas does not move down when
+   the work's name arrives (check:ui layout shift on Film at 768). */
+@media (max-width: 768px) {
+  .ds-editor-canvas:has(.editor-stage) .ds-canvas-bar { min-height: calc(var(--ds-control-h) * 2 + var(--ds-space-8) * 3); align-content: flex-start; }
+}
