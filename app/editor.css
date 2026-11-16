@@ -117,3 +117,6 @@
    it; a picture that loads late grows the stage, never moves the history up. */
 .editor-stage { height: auto; min-height: 100%; }
 .editor-stage-main { flex: 1 0 auto; }
+/* What is shown sits at the top of the stage: when the history loads under it,
+   nothing above moves (check:ui layout shift on Film). */
+.editor-stage-main { place-items: start center; }

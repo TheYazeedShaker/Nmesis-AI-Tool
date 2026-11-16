@@ -80,8 +80,13 @@ export function layoutChecks({ phone }) {
       const wraps = cs.whiteSpace === 'nowrap' && el.scrollWidth > el.clientWidth + 1;
       if (spills || wraps) out.spilling.push({ el: describe(el), w: Math.round(r.width), needs: el.scrollWidth });
     }
-    // Pointing at it: is it what the pointer reaches? (Only what is on screen now.)
-    if (r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth) {
+    // Pointing at it: is it what the pointer reaches? (Only what is on screen now:
+    // inside the window and inside every box that scrolls or clips it. A setting
+    // scrolled below its panel, or a card past the end of a strip that scrolls
+    // sideways, is reached by scrolling that box, as the page; Phase 3 group 2
+    // counted those as covered by whatever lies beyond the box.)
+    const c = shownArea(el);
+    if (r.top >= c.top && r.left >= c.left && r.bottom <= c.bottom && r.right <= c.right) {
       const x = r.left + r.width / 2, y = r.top + r.height / 2, hit = document.elementFromPoint(x, y);
       const lbl = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
       if (hit && hit !== el && !el.contains(hit) && !hit.contains(el) && !(lbl && (lbl === hit || lbl.contains(hit))) && !(el.closest('label') && el.closest('label').contains(hit))) {
@@ -102,6 +107,16 @@ export function layoutChecks({ phone }) {
   }
   for (const k of ['under24', 'under44', 'overlapped', 'clippedNoEllipsis', 'ellipsisNoTitle', 'spilling']) out[k] = dedupe(out[k]);
   return out;
+  function shownArea(el) {
+    const a = { top: 0, left: 0, bottom: innerHeight, right: innerWidth };
+    for (let n = el.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (!/auto|scroll|hidden|clip/.test(cs.overflowX + ' ' + cs.overflowY)) continue;
+      const q = n.getBoundingClientRect();
+      a.top = Math.max(a.top, q.top); a.left = Math.max(a.left, q.left); a.bottom = Math.min(a.bottom, q.bottom); a.right = Math.min(a.right, q.right);
+    }
+    return a;
+  }
   function dedupe(list) { const seen = new Map(); for (const x of list) { const key = JSON.stringify(x); seen.set(key, x); } return [...seen.values()].slice(0, 40); }
 }
 
