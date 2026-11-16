@@ -89,12 +89,18 @@ export async function runPerf({ stack, contexts, browser }) {
       return { listed: tiles.length, onScreen, fcpMs: fcp ? Math.round(fcp.startTime) : null, total: document.querySelector('.workspace-count')?.textContent || '' };
     });
     const log = stack.s3.log.slice(mark);
+    // Work lives under orgs/<org>/users/<user>/. The page also checks whether the
+    // company has its own provider keys (orgs/<org>/keys/…): that is the account,
+    // not the library, so it is reported apart and is not an item read.
+    const serverRead = (l) => !l.includes('(presigned)') && /^(GET|HEAD) /.test(l);
+    const work = (l) => /\/users\/[^/ ]+\//.test(l);
     out.libraryScale = {
       ...seen, firstTilesMs,
-      serverReads: log.filter((l) => !l.includes('(presigned)') && /^(GET|HEAD) /.test(l)).length,
+      serverReads: log.filter((l) => serverRead(l) && work(l)).length,
+      accountReads: log.filter((l) => serverRead(l) && !work(l)).length,
       browserThumbReads: log.filter((l) => l.includes('(presigned)') && l.includes('/thumbs/')).length,
       browserFullReads: log.filter((l) => l.includes('(presigned)') && /\/images\//.test(l)).length,
-      serverReadKeys: log.filter((l) => !l.includes('(presigned)') && /^(GET|HEAD) /.test(l)).slice(0, 12).map((l) => l.replace(/orgs\/[^/]+\/users\/[^/]+\//, '…/')).join(' | '),
+      serverReadKeys: log.filter((l) => serverRead(l) && work(l)).slice(0, 12).map((l) => l.replace(/orgs\/[^/]+\/users\/[^/]+\//, '…/')).join(' | '),
     };
     out.libraryScale.ok = (seen.fcpMs ?? 99999) < 1500 && out.libraryScale.serverReads === 0 && out.libraryScale.browserThumbReads <= seen.onScreen && out.libraryScale.browserFullReads === 0;
     await ctx.close();
