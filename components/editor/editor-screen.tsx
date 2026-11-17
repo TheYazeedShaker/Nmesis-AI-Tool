@@ -10,6 +10,7 @@ import {useCredits} from '@/components/credits';
 import type {AccountSummary} from '@/lib/accounts/summary';
 import type {CreditOverview} from '@/lib/credits/usage';
 import type {CreditProvider} from '@/lib/credits/pricing';
+import {dayDate} from '@/lib/ds/words';
 
 // The one editor for all five tools (Phase 3 group 2, the approved
 // wireframe): the tools on the rail, the canvas or preview in the middle with
@@ -41,7 +42,7 @@ export function generateBlocker(account:AccountSummary|null,credits:CreditOvervi
  }
  if(tool)return tool;
  const m=credits&&!credits.unlimited?credits.meter:null;
- if(m&&m.level===100&&cost!==0&&!(payer&&credits?.billing[payer]==='own key'))return {title:'No credits left this month',body:`${m.resetsOn?`They reset on ${m.resetsOn}. `:''}Ask Nmesis to add a pack.`};
+ if(m&&m.level===100&&cost!==0&&!(payer&&credits?.billing[payer]==='own key'))return {title:'No credits left this month',body:`${m.resetsOn?`They reset on ${dayDate(m.resetsOn)||m.resetsOn}. `:''}Ask Nmesis to add a pack.`};
  return null;
 }
 

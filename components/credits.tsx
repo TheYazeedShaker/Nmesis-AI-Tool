@@ -3,6 +3,7 @@ import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {Coins,Info} from 'lucide-react';
 import {Banner} from '@/components/ds/shell';
+import {dayDate} from '@/lib/ds/words';
 import {creditsLabel,CREDITS_USED} from '@/lib/credits/words';
 import type {CreditOverview} from '@/lib/credits/usage';
 import type {CostKey,CreditProvider} from '@/lib/credits/pricing';
@@ -84,7 +85,7 @@ export function CreditMeter(){
 export function CreditBanner({variant}:{variant?:'ds'}={}){
  const o=useCredits();
  if(!o||o.unlimited||!o.meter||!o.meter.level)return null;
- const m=o.meter,resets=m.resetsOn?` They reset on ${m.resetsOn}.`:'';
+ const m=o.meter,resets=m.resetsOn?` They reset on ${dayDate(m.resetsOn)||m.resetsOn}.`:'';
  const words=<>{m.level===100?CREDITS_USED+resets:`Your company has used ${m.percent}% of this month’s credits: ${creditsLabel(m.left)} left.${resets} Ask Nmesis to add a pack if you need more.`}{o.usage?<> <Link className={variant==='ds'?'ds-link':undefined} href="/usage">Usage</Link></>:null}</>;
  if(variant==='ds')return <Banner kind={m.level===100?'bad':'warn'} icon={<Info/>}>{words}</Banner>;
  return <div className={'credit-banner'+(m.level===100?' credit-out':'')} role="status"><Info size={16}/><span>{words}</span></div>;
