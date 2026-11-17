@@ -33,7 +33,10 @@ export async function resolveContext({user,chosenOrg,chosenBrand,directory}:{use
  // read here too because nearly every answer needs them.
  const brandsRead=directory.brands?directory.brands():Promise.resolve(new Map<string,Brand[]>());
  brandsRead.catch(()=>null); // awaited below; a failure there is the request's failure
- const [staffRole,firstMemberships]=await Promise.all([directory.staffRole(user.id),directory.memberships(user.id)]);
+ // One statement for the person (the staff role and the memberships), where the directory offers it.
+ const [staffRole,firstMemberships]=directory.person
+  ?await directory.person(user.id).then(p=>[p.staffRole,p.memberships] as const)
+  :await Promise.all([directory.staffRole(user.id),directory.memberships(user.id)]);
  const staff=staffRole?{role:staffRole}:null;
  if(staff&&user.aal!=='aal2')return {ok:false,reason:'mfa_required'};
  let memberships:Membership[]=firstMemberships;

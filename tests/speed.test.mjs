@@ -11,7 +11,7 @@ import {register} from 'node:module';
 register('../scripts/verify/hooks.mjs',import.meta.url);
 import {sqliteDatabase} from './support/state.mjs';
 const {creditOverview,keyPresence}=await import('../lib/credits/usage.ts');
-const {CreditStore,clearPriceBookCache}=await import('../lib/credits/store.ts');
+const {CreditStore,clearPriceBookCache,METER_SQL,METER_BALANCE_SQL}=await import('../lib/credits/store.ts');
 const {readNoticeSpace,rememberNoticeSpace,noticeSpace,NOTICE_SPACE_KEY}=await import('../lib/notice-space.ts');
 const {logoView,logoMissing,logoSrc,forgetLogoMisses,LOGO_MISSING_KEY}=await import('../lib/brand-logo.ts');
 const {serverTiming,timed}=await import('../lib/server-timing.ts');
@@ -76,26 +76,23 @@ test('saved keys that are late or unreadable read as none for this answer; a fai
  }finally{console.warn=warn}
 });
 
-test('the meter reads its two statements together once the period start is known; a moved period is read again',async()=>{
- const {db}=company();
- // Records when each statement starts and ends, to see what overlaps.
- const events=[];
- const watched={...db,prepare:text=>{const s=db.prepare(text),kind=/credits_balance/.test(text)?'balance':/studio_usage/.test(text)?'packs':'other';
-  const wrap=st=>({bind:(...v)=>wrap(st.bind(...v)),first:async c=>{events.push('start '+kind);await new Promise(r=>setTimeout(r,5));const out=await st.first(c);events.push('end '+kind);return out}});return wrap(s)}};
- const store=new CreditStore(watched);
+test('the meter is one statement, every value a parameter; if it fails, the balance alone',async()=>{
+ const balance=JSON.stringify({period_from:'2026-11-01',period_to:'2026-11-30',monthly:100,used:40,monthly_left:60,packs:0,total:60});
+ const db=(meterFails)=>{const sent=[];return {sent,prepare:text=>{const st=(values)=>({bind:(...v)=>st(v),first:async()=>{sent.push({text,values});
+  if(text===METER_SQL){if(meterFails)throw new Error('relation "accounts.studio_usage" does not exist');return {b:balance,held:5,packs:3}}
+  if(text===METER_BALANCE_SQL)return {b:balance,held:5};throw new Error('unexpected statement')}});return st([])}}};
  const now=Date.parse('2026-11-14T10:00:00Z');
- const first=await store.meter(ORG,now);
- assert.deepEqual(events,['start balance','end balance','start packs','end packs'],'the first time: the period start comes from the balance');
- events.length=0;
- const second=await store.meter(ORG,now);
- assert.deepEqual(events.slice(0,2).sort(),['start balance','start packs'],'then both start together (one round trip)');
- assert.equal(events.length,4,'and nothing more');
- assert.deepEqual(second,first);
- // The period moved (another billing day): the packs are read again for the new start.
- db.ledger.allowance(ORG,100,'2026-10-20');events.length=0;
- const moved=await store.meter(ORG,now);
- assert.equal(moved.periodFrom,'2026-10-20');
- assert.equal(events.filter(e=>e==='start packs').length,2,'read again with the new start');
+ const one=db(false),meter=await new CreditStore(one).meter(ORG,now);
+ assert.deepEqual(one.sent.map(s=>s.text),[METER_SQL],'one statement');
+ assert.deepEqual(one.sent[0].values,[ORG,ORG,now,ORG,new Date(now-31*86_400_000).toISOString()],'the values travel as parameters');
+ assert.ok(!METER_SQL.includes(ORG),'nothing is written into the text');
+ assert.equal(meter.used,43,'the period’s use plus what packs paid');assert.equal(meter.held,5);assert.equal(meter.periodFrom,'2026-11-01');
+ const warn=console.warn;console.warn=()=>{};
+ try{
+  const two=db(true),fallback=await new CreditStore(two).meter(ORG,now);
+  assert.deepEqual(two.sent.map(s=>s.text),[METER_SQL,METER_BALANCE_SQL],'the combined read failed: the balance alone');
+  assert.equal(fallback.used,40);assert.equal(fallback.held,5);
+ }finally{console.warn=warn}
 });
 
 test('the notices\' room: remembered per width, only as a number, and read back only for the same width',()=>{

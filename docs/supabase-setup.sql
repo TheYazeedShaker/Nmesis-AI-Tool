@@ -496,9 +496,14 @@ begin
   if who is null then
     return jsonb_build_object('result', 'no_account');
   end if;
-  insert into accounts.members (org_id, user_id, role, status)
-  values (p_org, who, p_role, 'invited')
-  on conflict (org_id, user_id) do update set role = excluded.role, status = 'invited', joined_at = null;
+  -- The members' columns (owner, 2026-11-17): org_id, user_id, role, status,
+  -- invited_by, invited_at, joined_at. invited_by takes the inviting owner's
+  -- user id (a uuid assigns to a uuid or a text column alike); joined_at is set
+  -- when they first sign in (accounts.studio_accept_membership).
+  insert into accounts.members (org_id, user_id, role, status, invited_by, invited_at, joined_at)
+  values (p_org, who, p_role, 'invited', p_actor, now(), null)
+  on conflict (org_id, user_id) do update
+    set role = excluded.role, status = 'invited', invited_by = excluded.invited_by, invited_at = excluded.invited_at, joined_at = null;
   insert into accounts.studio_team_log (org_id, actor, action, user_id, email, role_before, role_after)
   values (p_org, p_actor, 'invite', who, addr, null, p_role);
   return jsonb_build_object('result', 'invited', 'user_id', who, 'role', p_role);

@@ -26,54 +26,6 @@ function closing(sql:string,start:number,quote:string){
  for(let i=start+1;i<sql.length;i++){if(sql[i]===quote){if(sql[i+1]===quote){i++;continue}return i}}
  return sql.length-1;
 }
-// Round trips (speed, finish pass): with `prepare:false` (the transaction
-// pooler) the driver sends every statement that has parameters twice, once to
-// learn the parameter types and once to run it, and nothing else can travel on
-// that connection in between. A value that cannot change the statement's
-// meaning is written into the text instead, so the statement goes in one
-// message, in one round trip, and pipelines with others on the connection:
-// null, a boolean, a number, or a string with no quote, no backslash and no NUL
-// byte. Such a string wrapped in single quotes is one complete string constant
-// whatever standard_conforming_strings says, and it is an untyped constant,
-// exactly as the untyped parameter was. Any other value (quotes, backslashes,
-// dates, bytes, arrays) keeps the parameter path. A space before each value
-// keeps it a separate token (`e?` would otherwise read as E'…').
-export function literalFor(v:unknown):string|null{
- if(v===null||v===undefined)return 'NULL';
- if(v===true)return 'TRUE';if(v===false)return 'FALSE';
- if(typeof v==='number')return `'${String(v)}'`;
- if(typeof v==='string')return /['\\\0]/.test(v)?null:`'${v}'`;
- return null;
-}
-/** The statement with its values written in, or null when one of them must stay a parameter. */
-export function inlined(sql:string,args:readonly unknown[]):string|null{
- const values:string[]=[];
- for(const a of args){const v=literalFor(a);if(v===null)return null;values.push(v)}
- if(!values.length)return sql;
- let out='',n=0;
- for(let i=0;i<sql.length;i++){
-  const c=sql[i];
-  if(c==="'"||c==='"'){const end=closing(sql,i,c);out+=sql.slice(i,end+1);i=end;continue}
-  if(c==='-'&&sql[i+1]==='-'){const end=sql.indexOf('\n',i);const stop=end<0?sql.length-1:end;out+=sql.slice(i,stop+1);i=stop;continue}
-  if(c==='/'&&sql[i+1]==='*'){const end=sql.indexOf('*/',i+2);const stop=end<0?sql.length-1:end+1;out+=sql.slice(i,stop+1);i=stop;continue}
-  if(c==='?'){if(n>=values.length)return null;out+=' '+values[n++]+' ';continue}
-  out+=c;
- }
- // As many placeholders as values, or the parameter path decides (and reports) it.
- return n===values.length?out:null;
-}
-// The row level security settings for a bound statement, as text: the user id
-// and the environment are checked to be plain values first (literalFor).
-function settings(user:string,environment:string){
- const u=literalFor(user),e=literalFor(environment);
- return u&&e?`SET LOCAL studio.user_id = ${u}; SET LOCAL studio.env = ${e}; `:null;
-}
-// The message's answer: a list of results (one per statement with rows: the
-// settings, then the statement's own, last), or the statement's result alone
-// (an UPDATE after the settings: the driver keeps one result with its count).
-// Rows are objects, results are lists: the first element tells which.
-type Out=postgres.RowList<postgres.Row[]>;
-export function lastResult(r:Out|Out[]):Out{return r.length>0&&Array.isArray(r[0])?(r as Out[])[r.length-1]:r as Out}
 // Plain fields, not constructor parameter properties: tests import this file
 // under Node's strip-only TypeScript mode, which rejects parameter properties.
 // A database bound to a signed-in user (forUser) runs every statement in a short
@@ -90,7 +42,7 @@ export class StudioDatabase {
  forUser(userId:string) { return new StudioDatabase(this.sql, userId, this.environment); }
  prepare(text:string) { return new Statement(this.sql, text, [], this.user, this.environment); }
  // D1 batch: every statement in one transaction, in order; any error rolls back all.
- async batch(statements:Statement[]) { return this.sql.begin(async tx=>{if(this.user){const set=settings(this.user,this.environment);await (set?tx.unsafe(set):tx`select set_config('studio.user_id', ${this.user}, true), set_config('studio.env', ${this.environment}, true)`)}const out=[];for(const s of statements)out.push(await s.runIn(tx as unknown as Sql));return out}); }
+ async batch(statements:Statement[]) { return this.sql.begin(async tx=>{if(this.user)await tx`select set_config('studio.user_id', ${this.user}, true), set_config('studio.env', ${this.environment}, true)`;const out=[];for(const s of statements)out.push(await s.runIn(tx as unknown as Sql));return out}); }
 }
 class Statement {
  private sql:Sql;
@@ -101,14 +53,8 @@ class Statement {
  constructor(sql:Sql, text:string, args:Param[] = [], user:string|null=null, environment:StudioEnvironment='development') { this.sql=sql; this.text=text; this.args=args; this.user=user; this.environment=environment; }
  bind(...values: unknown[]) { return new Statement(this.sql,this.text,values.map(v=>v===undefined?null:v) as Param[],this.user,this.environment); }
  private execute(sql:Sql=this.sql):Promise<postgres.RowList<postgres.Row[]>> {
-  const written=inlined(this.text,this.args);
-  if(sql!==this.sql||!this.user)return written!==null?sql.unsafe(written):sql.unsafe(toPositional(this.text),this.args);
-  // Bound to a user, with plain values: the settings and the statement in one
-  // message, which Postgres runs as one implicit transaction (so SET LOCAL holds
-  // for the statement and ends with it): one round trip, no connection held.
-  const set=written!==null?settings(this.user,this.environment):null;
-  if(set)return this.sql.unsafe(set+written).then(r=>lastResult(r as unknown as Out|Out[]));
-  // Otherwise the settings and the statement travel together inside one transaction.
+  if(sql!==this.sql||!this.user)return sql.unsafe(toPositional(this.text),this.args);
+  // Pipelined: the setting and the statement travel together inside one transaction.
   const user=this.user,environment=this.environment,text=toPositional(this.text),args=this.args;
   return this.sql.begin(tx=>[tx`select set_config('studio.user_id', ${user}, true), set_config('studio.env', ${environment}, true)`,tx.unsafe(text,args)]).then(r=>(r as unknown as postgres.RowList<postgres.Row[]>[])[1]);
  }

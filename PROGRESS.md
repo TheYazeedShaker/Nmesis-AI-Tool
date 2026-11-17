@@ -12,7 +12,7 @@
   - Agents report once the fast gates pass.
 - **Pages draw at once:**
   - The notices no longer hide the page once their height is known for this width and look, and the credit meter has its own skeleton.
-  - Database round trips are cut. Plain values are written into the statement text, signed-in statements and their row-security settings go as one message, the context reads run in parallel, and the meter runs in one step. The saved-key check is one S3 listing, in parallel, capped at 1.5 s. The page gate checks the token locally where the Supabase project signs with asymmetric keys.
+  - Fewer database statements, every value a parameter (owner, 2026-11-17: never write values into SQL text). The staff role and the memberships come in one statement, the meter (balance, holds, packs) in one statement with CTEs, and the other context reads in parallel. The saved-key check is one S3 listing, in parallel, capped at 1.5 s. The page gate checks the token locally where the Supabase project signs with asymmetric keys.
   - `/api/me`, `/api/credits` and `/api/library` send `Server-Timing`.
 - **Brand logos:** read from the configurator's private asset bucket with a signed S3 read (`CONFIGURATOR_ASSET_BUCKET`, `CONFIGURATOR_ASSET_REGION`, optionally `CONFIGURATOR_ASSET_HOSTS`). A brand with no logo shows its name alone.
 - **Library:**
@@ -282,7 +282,6 @@ _Carried_
    - optionally switch Supabase Auth's JWT signing keys to asymmetric, so the page gate checks tokens locally;
    - for brand logos, per environment: give the Studio's IAM user read on the configurator asset bucket's icons, then set `CONFIGURATOR_ASSET_BUCKET` and `CONFIGURATOR_ASSET_REGION` (optionally `CONFIGURATOR_ASSET_HOSTS`). See `docs/s3-setup.md` section 6;
    - run section 7 of `docs/supabase-setup.sql` (team functions) and apply migration 0008 (`npm run db:migrate`);
-   - confirm with the admin the columns of `accounts.members` and the seat feature's name (`studio.seats`);
    - after this `ci.yml` reaches `main`, the nightly sweep starts.
 3. Owner (earlier):
    - re-run section 5 of `docs/supabase-setup.sql` (adds `accounts.studio_brands`);

@@ -11,6 +11,8 @@ export type Brand={id:string;name:string};
 export type Directory={
  memberships(userId:string):Promise<Membership[]>;
  staffRole(userId:string):Promise<string|null>;
+ /** Both of the above in one statement (a request's first read); optional, so test directories may leave it out. */
+ person?(userId:string):Promise<{staffRole:string|null;memberships:Membership[]}>;
  organisation(orgId:string):Promise<Organisation|null>;
  organisations():Promise<Organisation[]>;
  entitlements(orgId:string):Promise<Entitlements|null>;
@@ -22,6 +24,7 @@ export type Directory={
  // as the given member of staff may read them (studio.support_grants, RLS).
  supportGrants(userId:string):Promise<Map<string,number>>;
 };
+export const PERSON_SQL="SELECT (SELECT role FROM accounts.studio_staff WHERE user_id=?::uuid AND active LIMIT 1) AS staff_role, COALESCE((SELECT json_agg(json_build_object('org_id',m.org_id::text,'org_name',m.org_name,'org_kind',m.org_kind,'role',m.role,'status',m.status) ORDER BY m.org_name) FROM accounts.studio_memberships m WHERE m.user_id=?::uuid AND m.status IN ('active','invited')),'[]'::json) AS memberships";
 export const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 import {ttlCache} from './cache';
 export {ttlCache};
@@ -29,11 +32,20 @@ const roleOf=(v:unknown):Role|null=>MEMBER_ROLES.includes(v as Role)?v as Role:n
 export function postgresDirectory(db:StudioDatabase):Directory{
  const brandMap=ttlCache<Map<string,Brand[]>>(60_000),orgs=ttlCache<Organisation|null>(60_000),ents=ttlCache<Entitlements|null>(60_000),cars=ttlCache<Car[]>(10*60_000),all=ttlCache<Organisation[]>(60_000);
  const org=(r:Record<string,unknown>):Organisation=>({id:String(r.id),name:String(r.name||'Unnamed company'),kind:String(r.kind||'client')});
+ const member=(r:Record<string,unknown>):Membership[]=>{const role=roleOf(r.role);return role&&UUID.test(String(r.org_id))?[{orgId:String(r.org_id),orgName:String(r.org_name||'Unnamed company'),orgKind:String(r.org_kind||'client'),role,status:r.status==='active'?'active' as const:'invited' as const}]:[]};
  return {
   async memberships(userId){
    if(!UUID.test(userId))return [];
    const rows=await db.prepare("SELECT org_id::text AS org_id,org_name,org_kind,role,status FROM accounts.studio_memberships WHERE user_id=?::uuid AND status IN ('active','invited') ORDER BY org_name").bind(userId).all<Record<string,unknown>>();
-   return rows.results.flatMap(r=>{const role=roleOf(r.role);return role&&UUID.test(String(r.org_id))?[{orgId:String(r.org_id),orgName:String(r.org_name||'Unnamed company'),orgKind:String(r.org_kind||'client'),role,status:r.status==='active'?'active' as const:'invited' as const}]:[]});
+   return rows.results.flatMap(member);
+  },
+  // The staff role and the memberships in one statement, the user id a parameter.
+  async person(userId){
+   if(!UUID.test(userId))return {staffRole:null,memberships:[]};
+   const r=await db.prepare(PERSON_SQL).bind(userId,userId).first<{staff_role:unknown;memberships:unknown}>();
+   let list:unknown=r?.memberships;
+   if(typeof list==='string'){try{list=JSON.parse(list)}catch{list=[]}}
+   return {staffRole:r?.staff_role==null?null:String(r.staff_role),memberships:Array.isArray(list)?(list as Record<string,unknown>[]).flatMap(member):[]};
   },
   async staffRole(userId){if(!UUID.test(userId))return null;const r=await db.prepare('SELECT role FROM accounts.studio_staff WHERE user_id=?::uuid AND active').bind(userId).first<{role:string}>();return r?String(r.role):null},
   organisation:orgId=>UUID.test(orgId)?orgs(orgId,async()=>{const r=await db.prepare('SELECT id::text AS id,name,kind FROM accounts.studio_organisations WHERE id=?::uuid').bind(orgId).first<Record<string,unknown>>();return r?org(r):null}):Promise.resolve(null),

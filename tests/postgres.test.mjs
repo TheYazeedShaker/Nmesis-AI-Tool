@@ -377,6 +377,21 @@ test('the period the Studio meters: the allowance resets on the subscription\'s 
  try{const [r]=await app`select credits_balance(${org}) as b`;assert.equal(JSON.parse(r.b).monthly,30)}finally{await app.end({timeout:5})}
 });
 
+test('one statement each, every value a parameter: the meter (balance, holds, packs) and the person (staff role, memberships)',{skip},async()=>{
+ await setup();const org=await companyWith(30);const sql=connect(appUrl),db=new StudioDatabase(sql).forUser(USER_C);
+ const {METER_SQL}=await import('../lib/credits/store.ts');
+ const {postgresDirectory}=await import('../lib/accounts/directory.ts');
+ try{
+  // The combined meter runs as written (no fallback) and agrees with the balance.
+  const row=await db.prepare(METER_SQL).bind(org,org,Date.now(),org,new Date(Date.now()-31*86_400_000).toISOString()).first();
+  assert.equal(JSON.parse(row.b).monthly,30);assert.equal(Number(row.held),0);assert.equal(Number(row.packs),0);
+  const meter=await new CreditStore(db).meter(org);assert.equal(meter.periodFrom,JSON.parse(row.b).period_from.slice(0,10));
+  // The person read gives exactly what the two separate reads give.
+  const dir=postgresDirectory(db);
+  for(const who of [USER_C,STAFF])assert.deepEqual(await dir.person(who),{staffRole:await dir.staffRole(who),memberships:await dir.memberships(who)});
+ }finally{await sql.end({timeout:5})}
+});
+
 test('support access (RLS): the owner grants, a creator cannot, staff may read but never write, other companies see nothing',{skip},async()=>{
  await setup();const sql=connect(appUrl),base=new StudioDatabase(sql);
  const owner=base.forUser(USER_C),creator=base.forUser(USER_D),staff=base.forUser(STAFF),other=base.forUser(USER_A);
@@ -567,6 +582,9 @@ test('team functions: owners only, one owner stays, seats, logged; studio_app re
   // An existing sign-in joins as invited; a second time says so.
   const added=await invite(USER_C,'A@Example.test','viewer');assert.equal(added.result,'invited');assert.equal(added.user_id,USER_A);
   assert.deepEqual({...await member(USER_A)},{role:'viewer',status:'invited'});
+  // Who invited them and when are recorded on the member row; joined_at waits for their first sign-in.
+  const [row]=await admin`select invited_by::text as by, invited_at is not null as at, joined_at from accounts.members where org_id=${org}::uuid and user_id=${USER_A}::uuid`;
+  assert.deepEqual({...row},{by:USER_C,at:true,joined_at:null});
   assert.equal((await invite(USER_C,'a@example.test')).result,'already_member');
   // Roles: changed, unchanged; the only active owner stays an owner.
   assert.equal((await setRole(USER_C,USER_D,'viewer')).result,'changed');assert.equal((await member(USER_D)).role,'viewer');
