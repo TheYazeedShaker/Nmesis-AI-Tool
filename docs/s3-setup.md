@@ -69,6 +69,32 @@ For the matching environment (Production or Preview):
 
 Leave `S3_ENDPOINT` and `S3_FORCE_PATH_STYLE` unset on Vercel. Redeploy, then run `npm run check:setup` locally with the same values: it writes, conditionally rewrites, reads and deletes a probe object under `staging/`.
 
+## 6. Brand logos from the configurator's private asset bucket
+
+The top bar shows each brand's logo: the brand name icon its configurator shows. The configurator signs links only for the brand folders it has moved to its CDN, so for the other brands the Studio reads the icon from the configurator's asset bucket itself, signed with the Studio's own IAM user (S3 `GetObject`). Without this step those brands show their name alone. Per environment (Preview and Production each have their own IAM user):
+
+1. Give the Studio's IAM user read on that bucket's icons only. Add to the IAM user's policy (replace `CONFIGURATOR_ASSET_BUCKET`):
+
+   ```json
+   {
+     "Sid": "StudioReadsConfiguratorIcons",
+     "Effect": "Allow",
+     "Action": "s3:GetObject",
+     "Resource": "arn:aws:s3:::CONFIGURATOR_ASSET_BUCKET/*/Icons/*"
+   }
+   ```
+
+   If the bucket has a bucket policy that denies other principals, allow the Studio IAM user's ARN there too. If the bucket is encrypted with a customer-managed KMS key, the user also needs `kms:Decrypt` on that key.
+2. Vercel variables (server-only):
+
+   | Variable | Value |
+   | --- | --- |
+   | `CONFIGURATOR_ASSET_BUCKET` | the configurator's asset bucket name |
+   | `CONFIGURATOR_ASSET_REGION` | that bucket's region |
+   | `CONFIGURATOR_ASSET_HOSTS` | optional: the CDN host in front of the bucket (no `https://`), comma-separated if several |
+
+3. Redeploy. A brand whose configurator has no brand name icon at all keeps showing its name alone; that is expected, not an error (the logo route answers 204).
+
 ## Notes
 
 - Conditional writes: the studio creates lock and cache objects with `If-None-Match: *` and replaces them with `If-Match: <ETag>`. S3 answers `412 Precondition Failed` (or `409` for a concurrent conflicting write), which the studio treats as "not written", the same as before. `If-None-Match` with an ETag is not used (S3 accepts only `*`).

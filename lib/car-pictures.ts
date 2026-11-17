@@ -118,13 +118,78 @@ export async function readCar(brandId:string,modelId:string,{origin,fetchImpl=fe
 type Store={head(key:string):Promise<unknown>;put(key:string,value:Uint8Array|Buffer,options?:{httpMetadata?:{contentType?:string}}):Promise<unknown>};
 const IMAGE_TYPE=/^image\/(png|jpe?g|webp|avif|svg\+xml)(;|$)/i;
 
-/** Fetches a picture once, makes the small WebP and stores it under key (kept when it is already there). */
-export async function storeSmall(store:Store,key:string,url:string,{fetchImpl=fetch,box}:{fetchImpl?:Fetch;box:{width?:number;height?:number}}){
- if(await store.head(key))return key;
+// The configurator's asset bucket is private (finish pass). The configurator
+// signs links only for the brand folders it has switched to its CDN, so a brand
+// name icon may come back as a plain bucket address (or an unsigned CDN one)
+// that answers 403. The Studio then reads that object itself, signed with its
+// own AWS credentials (S3 GetObject, SigV4), when the owner has named the bucket
+// and granted the Studio's IAM user read on it:
+//   CONFIGURATOR_ASSET_BUCKET   the bucket's name
+//   CONFIGURATOR_ASSET_REGION   its region
+//   CONFIGURATOR_ASSET_HOSTS    optional: the CDN host(s) in front of it, comma-separated
+// Unset (or malformed): addresses are fetched as before. Nothing here names a
+// real bucket or host; they come from the environment only.
+export type AssetSource={bucket:string;region:string;hosts:string[]};
+const BUCKET=/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/,REGION=/^[a-z]{2}(-[a-z]+)+-\d$/,HOST=/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+export function configuratorAssets(env:Record<string,string|undefined>=process.env):AssetSource|null{
+ const bucket=(env.CONFIGURATOR_ASSET_BUCKET||'').trim(),region=(env.CONFIGURATOR_ASSET_REGION||'').trim();
+ if(!BUCKET.test(bucket)||bucket.includes('..')||!REGION.test(region))return null;
+ const hosts=(env.CONFIGURATOR_ASSET_HOSTS||'').split(',').map(h=>h.trim().toLowerCase().replace(/^https:\/\//,'').replace(/\/+$/,'')).filter(h=>HOST.test(h)).slice(0,5);
+ return {bucket,region,hosts};
+}
+const PICTURE_KEY=/\.(avif|png|jpe?g|webp|svg)$/i;
+const escaped=(v:string)=>v.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+/** The object an https address names in the asset bucket (path-style, virtual-host, or a CDN host in front of it), or null. Pictures only. */
+export function assetObjectKey(url:string,source:AssetSource):string|null{
+ let u:URL;try{u=new URL(url)}catch{return null}
+ if(u.protocol!=='https:'||u.username||u.password)return null;
+ const host=u.hostname.toLowerCase(),path=u.pathname.replace(/^\/+/,''),bucket=source.bucket.toLowerCase();
+ let raw:string|null=null;
+ if(/^s3([.-][a-z0-9-]+)*\.amazonaws\.com$/.test(host)){const [first,...rest]=path.split('/');if(first.toLowerCase()===bucket)raw=rest.join('/')}
+ else if(new RegExp('^'+escaped(bucket)+'\\.s3([.-][a-z0-9-]+)*\\.amazonaws\\.com$').test(host)||source.hosts.includes(host))raw=path;
+ if(!raw)return null;
+ let key:string;try{key=decodeURIComponent(raw)}catch{return null}
+ if(!key||key.length>1024||!PICTURE_KEY.test(key)||key.split('/').some(p=>p==='..'||p==='.'))return null;
+ return key;
+}
+type GetObject=(input:{Bucket:string;Key:string},abortSignal:AbortSignal)=>Promise<{Body?:{transformToByteArray():Promise<Uint8Array>};ContentType?:string;ContentLength?:number}>;
+export type AssetRead=(key:string)=>Promise<{bytes:Uint8Array;type:string}>;
+/** Reads one object of the asset bucket, signed with the Studio's AWS credentials; never longer than TIMEOUT.image, never larger than IMAGE_LIMIT. */
+export function s3AssetReader(source:AssetSource,{getObject,env=process.env}:{getObject?:GetObject;env?:Record<string,string|undefined>}={}):AssetRead{
+ let get=getObject;
+ return async key=>{
+  if(!get){
+   if(!env.S3_ACCESS_KEY_ID||!env.S3_SECRET_ACCESS_KEY)throw new Error('the Studio has no AWS credentials');
+   const {S3Client,GetObjectCommand}=await import('@aws-sdk/client-s3');
+   const client=new S3Client({region:source.region,credentials:{accessKeyId:env.S3_ACCESS_KEY_ID,secretAccessKey:env.S3_SECRET_ACCESS_KEY},requestChecksumCalculation:'WHEN_REQUIRED',responseChecksumValidation:'WHEN_REQUIRED',requestHandler:{requestTimeout:TIMEOUT.image,connectionTimeout:5000},maxAttempts:2});
+   get=(input,abortSignal)=>client.send(new GetObjectCommand(input),{abortSignal});
+  }
+  const r=await get({Bucket:source.bucket,Key:key},AbortSignal.timeout(TIMEOUT.image));
+  if(Number(r.ContentLength||0)>IMAGE_LIMIT)throw new Error('too large');
+  const type=r.ContentType||'';
+  if(!IMAGE_TYPE.test(type)&&!(type==='binary/octet-stream'||type==='application/octet-stream'))throw new Error('not a picture');
+  if(!r.Body)throw new Error('empty object');
+  const bytes=await r.Body.transformToByteArray();
+  if(bytes.byteLength>IMAGE_LIMIT)throw new Error('too large');
+  return {bytes,type};
+ };
+}
+export type Assets={source:AssetSource;read:AssetRead};
+// A link the configurator signed is fetched as it is; an address in the asset
+// bucket is read from the bucket when the owner set it up; anything else is fetched.
+async function pictureBytes(url:string,{fetchImpl,assets}:{fetchImpl:Fetch;assets?:Assets|null}):Promise<Uint8Array>{
+ const signedLink=/[?&]Signature=/.test(url),key=!signedLink&&assets?assetObjectKey(url,assets.source):null;
+ if(key)return (await assets!.read(key)).bytes;
  const r=await fetchImpl(url,{signal:AbortSignal.timeout(TIMEOUT.image),redirect:'error',cache:'no-store'});
  if(!r.ok)throw new Error('picture answered '+r.status);
  if(!IMAGE_TYPE.test(r.headers.get('content-type')||''))throw new Error('not a picture');
- const bytes=await readLimited(r,IMAGE_LIMIT);
+ return readLimited(r,IMAGE_LIMIT);
+}
+
+/** Fetches a picture once, makes the small WebP and stores it under key (kept when it is already there). */
+export async function storeSmall(store:Store,key:string,url:string,{fetchImpl=fetch,box,assets}:{fetchImpl?:Fetch;box:{width?:number;height?:number};assets?:Assets|null}){
+ if(await store.head(key))return key;
+ const bytes=await pictureBytes(url,{fetchImpl,assets});
  const sharp=(await import('sharp')).default;
  const out=await sharp(bytes,{failOn:'none',limitInputPixels:8000*8000}).rotate().resize({...box,fit:'inside',withoutEnlargement:true}).webp({quality:76,alphaQuality:90}).toBuffer();
  await store.put(key,out,{httpMetadata:{contentType:'image/webp'}});

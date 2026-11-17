@@ -43,6 +43,8 @@ let bookCache:{at:number;value:Promise<PriceBook>}|null=null;
 export const clearPriceBookCache=()=>{bookCache=null};
 export class CreditStore{
  private db:StudioDatabase;
+ // Each company's period start as last read (the meter's second statement needs it).
+ private periods=new Map<string,string|null>();
  constructor(db:StudioDatabase){this.db=db}
  // Reserve a hold. False when the balance does not cover it (or the job is no
  // longer quoted): nothing was written.
@@ -73,10 +75,18 @@ export class CreditStore{
  async meter(org:string,now=Date.now()):Promise<CreditMeter>{
   // The balance and the live holds in one statement, so a settlement between two
   // reads can never make the meter (or a refusal) show credits that are not there.
-  const row=await this.db.prepare("SELECT credits_balance(CAST(? AS TEXT)) AS b, CAST(COALESCE((SELECT SUM(h.credits) FROM credit_holds h WHERE h.org_id=? AND h.status='held' AND h.billing='credits' AND h.expires_at>CAST(? AS BIGINT)),0) AS BIGINT) AS held").bind(org,org,now).first<{b:unknown;held:unknown}>();
+  const balance=this.db.prepare("SELECT credits_balance(CAST(? AS TEXT)) AS b, CAST(COALESCE((SELECT SUM(h.credits) FROM credit_holds h WHERE h.org_id=? AND h.status='held' AND h.billing='credits' AND h.expires_at>CAST(? AS BIGINT)),0) AS BIGINT) AS held").bind(org,org,now).first<{b:unknown;held:unknown}>();
+  // What packs paid since the period started needs the period's start, which
+  // changes once a period: the one read last time starts alongside the balance
+  // (one round trip), and is read again only when the balance says it moved.
+  const sinceOf=(from:string|null)=>from?from+'T00:00:00Z':new Date(now-31*86_400_000).toISOString();
+  const packs=(since:string)=>this.db.prepare('SELECT COALESCE(-SUM(credits),0) AS n FROM accounts.studio_usage WHERE org_id=? AND pack_id IS NOT NULL AND at>=?').bind(org,since).first('n').catch(()=>0);
+  const guess=this.periods.has(org)?this.periods.get(org)??null:undefined,early=guess===undefined?null:packs(sinceOf(guess));
+  const row=await balance;
   const b=readBalance(row?.b),held=Number(row?.held)||0;
-  const since=b.periodFrom?b.periodFrom+'T00:00:00Z':new Date(now-31*86_400_000).toISOString();
-  const fromPacks=Number(await this.db.prepare('SELECT COALESCE(-SUM(credits),0) AS n FROM accounts.studio_usage WHERE org_id=? AND pack_id IS NOT NULL AND at>=?').bind(org,since).first('n').catch(()=>0))||0;
+  if(this.periods.size>1000)this.periods.clear();
+  this.periods.set(org,b.periodFrom);
+  const fromPacks=Number(early&&guess===b.periodFrom?await early:await packs(sinceOf(b.periodFrom)))||0;
   return creditMeter({spent:b.used+Math.max(0,fromPacks),total:b.total,held,periodFrom:b.periodFrom,periodTo:b.periodTo});
  }
  // The price book (credit_basis, studio_cost.*), cached 60 s per instance. If the

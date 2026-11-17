@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {configuratorApiOrigin,openingFrame,brandIcon,unsigned,pictureKey,storeSmall,readCar,forgetConfigurators} from '../lib/car-pictures.ts';
+import {configuratorApiOrigin,openingFrame,brandIcon,unsigned,pictureKey,storeSmall,readCar,forgetConfigurators,configuratorAssets,assetObjectKey,s3AssetReader} from '../lib/car-pictures.ts';
 
 // Car pictures and brand logos from the configurator (Phase 3 polish): which
 // address the server may call, the configurator's own frame rule, and what it
@@ -62,6 +62,48 @@ test('the routes check the car and brand are the company’s before anything is 
  const logo=readFileSync(new URL('../app/api/brands/[id]/logo/route.ts',import.meta.url),'utf8');
  assert.ok(logo.indexOf('if(!mine)')<logo.indexOf('readCar('),'ownership before the fetch');
  const lib=readFileSync(new URL('../lib/car-pictures.ts',import.meta.url),'utf8');
- assert.equal((lib.match(/AbortSignal\.timeout/g)||[]).length,2,'both fetches have a timeout');
+ assert.equal((lib.match(/AbortSignal\.timeout/g)||[]).length,3,'both fetches and the bucket read have a timeout');
  assert.match(lib,/redirect:'error'/);
+});
+
+// The configurator's asset bucket is private (finish pass): a brand icon the
+// configurator did not sign is read from the bucket with the Studio's own signed
+// access, configured from the environment only. No network: the read is injected.
+const SOURCE={bucket:'demo-assets.example',region:'eu-central-1',hosts:['cdn.assets.example']};
+test('the asset bucket comes from the environment only, checked; nothing is read without it',()=>{
+ assert.deepEqual(configuratorAssets({CONFIGURATOR_ASSET_BUCKET:'demo-assets.example',CONFIGURATOR_ASSET_REGION:'eu-central-1',CONFIGURATOR_ASSET_HOSTS:'https://CDN.assets.example/, not a host ,x'}),SOURCE);
+ assert.equal(configuratorAssets({}),null,'unset: links are fetched as before');
+ for(const bad of [{CONFIGURATOR_ASSET_BUCKET:'Bad_Bucket',CONFIGURATOR_ASSET_REGION:'eu-central-1'},{CONFIGURATOR_ASSET_BUCKET:'demo..assets',CONFIGURATOR_ASSET_REGION:'eu-central-1'},{CONFIGURATOR_ASSET_BUCKET:'demo-assets',CONFIGURATOR_ASSET_REGION:'europe'},{CONFIGURATOR_ASSET_BUCKET:'demo-assets'}])assert.equal(configuratorAssets(bad),null,JSON.stringify(bad));
+});
+test('an icon address is an object of the bucket only when it names that bucket (or its CDN), and only a picture',()=>{
+ const key='Demo/Demo_SUV/Icons/Brand.avif';
+ assert.equal(assetObjectKey('https://s3.eu-central-1.amazonaws.com/demo-assets.example/'+key,SOURCE),key,'path-style');
+ assert.equal(assetObjectKey('https://demo-assets.example.s3.eu-central-1.amazonaws.com/'+key,SOURCE),key,'virtual-host');
+ assert.equal(assetObjectKey('https://demo-assets.example.s3.amazonaws.com/'+key,SOURCE),key);
+ assert.equal(assetObjectKey('https://cdn.assets.example/'+key+'?x=1',SOURCE),key,'its CDN, query dropped');
+ assert.equal(assetObjectKey('https://cdn.assets.example/Demo/Icons/Brand%20Mark.png',SOURCE),'Demo/Icons/Brand Mark.png','decoded');
+ for(const other of ['https://s3.eu-central-1.amazonaws.com/another-bucket/'+key,'https://another-bucket.s3.eu-central-1.amazonaws.com/'+key,'https://demo-assets.example.s3.eu-central-1.amazonaws.com.evil.example/'+key,'http://cdn.assets.example/'+key,'https://cdn.assets.example/Demo/config.json','https://cdn.assets.example/Demo%2F..%2Fsecret.png','https://user:pw@cdn.assets.example/'+key,'not a url'])assert.equal(assetObjectKey(other,SOURCE),null,other);
+});
+test('a bucket icon is read signed, with a timeout and a size limit; a signed configurator link is fetched as it is; a failed read keeps nothing',async()=>{
+ const png=await (await import('sharp')).default({create:{width:200,height:80,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).png().toBuffer();
+ const reads=[];const getObject=async(input,signal)=>{reads.push({input,signal});return {ContentType:'image/png',ContentLength:png.length,Body:{transformToByteArray:async()=>new Uint8Array(png)}}};
+ const assets={source:SOURCE,read:s3AssetReader(SOURCE,{getObject})};
+ const kept=new Map(),store={head:async k=>kept.has(k)?{key:k}:null,put:async(k,v,o)=>{kept.set(k,{v,o})}};
+ const noFetch=async()=>{throw new Error('fetched')};
+ assert.equal(await storeSmall(store,'logo-1','https://s3.eu-central-1.amazonaws.com/demo-assets.example/Demo/Icons/Brand.png',{fetchImpl:noFetch,box:{height:96},assets}),'logo-1');
+ assert.deepEqual(reads[0].input,{Bucket:'demo-assets.example',Key:'Demo/Icons/Brand.png'});assert.ok(reads[0].signal instanceof AbortSignal,'the read has a timeout');
+ assert.equal(kept.get('logo-1').o.httpMetadata.contentType,'image/webp');
+ // A link the configurator signed (its CDN, its signature) is fetched, not read from the bucket.
+ let fetched=0;const fetchPng=async()=>{fetched++;return new Response(png,{headers:{'content-type':'image/png'}})};
+ await storeSmall(store,'logo-2','https://cdn.assets.example/Demo/Icons/Brand.png?Policy=p&Signature=s&Key-Pair-Id=k',{fetchImpl:fetchPng,box:{height:96},assets});assert.equal(fetched,1);assert.equal(reads.length,1);
+ // Elsewhere: fetched as before.
+ await storeSmall(store,'logo-3','https://other.example/Brand.png',{fetchImpl:fetchPng,box:{height:96},assets});assert.equal(fetched,2);
+ // Refused, too large, not a picture, no credentials: an error (the route answers 204), nothing kept.
+ const failing=(answer)=>({source:SOURCE,read:s3AssetReader(SOURCE,{getObject:async()=>answer()})});
+ const url='https://cdn.assets.example/Demo/Icons/Brand.png';
+ await assert.rejects(storeSmall(store,'x1',url,{fetchImpl:noFetch,box:{height:96},assets:failing(()=>{const e=new Error('Access Denied');e.name='AccessDenied';throw e})}),/Access Denied/);
+ await assert.rejects(storeSmall(store,'x2',url,{fetchImpl:noFetch,box:{height:96},assets:failing(()=>({ContentType:'image/png',ContentLength:50_000_000,Body:{transformToByteArray:async()=>new Uint8Array(1)}}))}),/too large/);
+ await assert.rejects(storeSmall(store,'x3',url,{fetchImpl:noFetch,box:{height:96},assets:failing(()=>({ContentType:'text/html',Body:{transformToByteArray:async()=>new Uint8Array(1)}}))}),/not a picture/);
+ await assert.rejects(s3AssetReader(SOURCE,{env:{}})('Demo/Icons/Brand.png'),/no AWS credentials/);
+ assert.equal(['x1','x2','x3'].some(k=>kept.has(k)),false);
 });

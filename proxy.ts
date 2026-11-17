@@ -24,8 +24,14 @@ export async function proxy(request:NextRequest){
   auth:{flowType:'pkce',detectSessionInUrl:false},
   cookies:{getAll:()=>request.cookies.getAll(),setAll:list=>{for(const c of list)request.cookies.set(c.name,c.value);response=NextResponse.next({request});for(const c of list)response.cookies.set(c.name,c.value,{...c.options,httpOnly:true,secure,sameSite:'lax',path:'/'})}},
  });
- const {data,error}=await supabase.auth.getUser();
- if(error||!data.user){const out=toSignIn();for(const c of response.cookies.getAll())out.cookies.set(c);return out}
+ // A page is only the Studio's frame: every API route verifies the session with
+ // Supabase itself. So the page gate checks the access token's signature here,
+ // against the project's published signing keys (fetched once and kept), with no
+ // call to Supabase per page (speed, finish pass); a project that still signs with
+ // a shared secret is checked by Supabase, as before. An expired token is
+ // refreshed first, and the new cookies are written below.
+ const {data,error}=await supabase.auth.getClaims();
+ if(error||!data?.claims?.sub){const out=toSignIn();for(const c of response.cookies.getAll())out.cookies.set(c);return out}
  if(request.cookies.get('studio_step')?.value==='password'){
   const to=request.nextUrl.clone();to.pathname='/auth/password';to.search=path!=='/'?'?next='+encodeURIComponent(path):'';
   const out=NextResponse.redirect(to,303);for(const c of response.cookies.getAll())out.cookies.set(c);return out;

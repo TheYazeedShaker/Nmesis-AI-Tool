@@ -54,7 +54,7 @@ test('job errors go through the per-request rewrite; outside a request they stay
 test('server errors, job errors and diagnostics pass through the client rewrite',()=>{
  const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
  // Entered before context()'s first await, so the route's catch and mappers share it.
- assert.match(read('lib/studio-server.ts'),/export async function context\(request:Request,write=false\)\{\n const scope=enterProviderScope\(\);\n const got=await/);
+ assert.match(read('lib/studio-server.ts'),/export async function context\(request:Request,write=false(,timing\?:Timing)?\)\{\n const scope=enterProviderScope\(\);\n const got=await/);
  assert.match(read('lib/studio-server.ts'),/scope\.names=providerNamesVisible\(got\.ctx\);/);
  assert.match(read('lib/studio-server.ts'),/error:forClient\(error\.message\)/);
  for(const file of ['lib/films.ts','lib/swaps.ts','lib/image-server.ts','lib/topaz-server.ts'])assert.match(read(file),/error:clientText\(/,file);
