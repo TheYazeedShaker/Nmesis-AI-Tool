@@ -69,7 +69,8 @@ test('an ended plan says it has ended and to ask Nmesis, never "Available on <th
   assert.match(html(h(UpsellChip, { feature: 'studio.lineups', account: missing })), /Available on Growth/);
   const src = read('components/studio-account.tsx');
   assert.match(src, /Your company’s Studio plan has ended, so new work is paused\. Ask your Nmesis contact to renew it\./);
-  assert.match(src, /<h1>Your Studio plan has ended<\/h1>/);
+  // The tool's own page (PlanGate → components/workspace/upgrade.tsx).
+  assert.match(read('components/workspace/upgrade.tsx'), /\{ended\?'Your Studio plan has ended':/);
 });
 
 test('a teammate\'s work in progress does not ask this person to keep the page open (F-034 as it really is)', () => {

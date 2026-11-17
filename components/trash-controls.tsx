@@ -1,5 +1,5 @@
 'use client';
-import {useState} from 'react';
+import {useState,type ReactNode} from 'react';
 import {ArchiveRestore,Trash2} from 'lucide-react';
 import {Dialog} from '@/components/ds/dialog';
 import {useToast} from '@/components/ds/toast';
@@ -22,7 +22,10 @@ async function call(url:string,method:string){
 const listOf=(d:Record<string,unknown>):Listed[]=>((d.films||d.swaps||d.boards||[]) as {id:string;title?:string;data?:{title?:string};createdAt?:number;updatedAt?:number}[])
  .map(x=>({id:x.id,title:x.data?.title||x.title||'Untitled',at:x.createdAt??x.updatedAt}));
 
-export function TrashControls({kind,item,onDeleted,onRestored}:{kind:TrashKind;/** The item open now; Delete acts on it. */item:Item|null;onDeleted:(id:string)=>void;onRestored:(id:string)=>void}){
+// `children`: draw the two actions yourself (for example as items of a "More
+// actions" menu); the Deleted drawer stays here, outside whatever holds them.
+export type TrashActions={remove:()=>void;show:()=>void;busy:boolean;words:typeof TRASH_WORDS[TrashKind]};
+export function TrashControls({kind,item,onDeleted,onRestored,children}:{kind:TrashKind;/** The item open now; Delete acts on it. */item:Item|null;onDeleted:(id:string)=>void;onRestored:(id:string)=>void;children?:(actions:TrashActions)=>ReactNode}){
  const words=TRASH_WORDS[kind],{undo,toast}=useToast();
  const [busy,setBusy]=useState(false),[open,setOpen]=useState(false),[deleted,setDeleted]=useState<Listed[]|null>(null),[problem,setProblem]=useState('');
  async function restore(id:string){
@@ -44,8 +47,10 @@ export function TrashControls({kind,item,onDeleted,onRestored}:{kind:TrashKind;/
   try{setDeleted(listOf(await call(`/api/${words.path}?deleted=1`,'GET')))}catch(e){setProblem(e instanceof Error?e.message:'Deleted items could not be loaded.');setDeleted([])}
  }
  return <div className="trash-controls">
+  {children?children({remove:()=>void remove(),show:()=>void show(),busy:busy||!!item?.busy,words}):<>
   {item&&<button type="button" className="ds-btn sm" disabled={busy||item.busy} title={item.busy?`Wait for this ${words.one} to finish before deleting it.`:undefined} onClick={()=>void remove()}><Trash2 aria-hidden="true"/>{`Delete ${words.one}`}</button>}
   <button type="button" className="ds-btn sm quiet" aria-haspopup="dialog" onClick={()=>void show()}><ArchiveRestore aria-hidden="true"/>Deleted</button>
+  </>}
   <Dialog open={open} onClose={()=>setOpen(false)} title={`Deleted ${words.many}`} variant="drawer" className="trash-drawer">
    <p className="ds-muted">{`Deleted ${words.many} keep everything they had. Restore brings one back to your ${words.many}.`}</p>
    {problem&&<p role="alert" className="trash-problem">{problem}</p>}

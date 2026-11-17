@@ -6,7 +6,8 @@ import {Clapperboard,Film,ImageIcon,Layers,Replace} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {SkeletonTile,State} from '@/components/ds/feedback';
 import {AccountNotices,hasFeature,planEnded,PLAN_ENDED_CHIP,useAccount} from '@/components/studio-account';
-import {useConfiguratorPresets} from '@/lib/configurator-presets';
+import {isDemoConfigurator,useConfiguratorPresets} from '@/lib/configurator-presets';
+import {FEATURE_TOOL,briefPlaceholder,toolSample} from '@/lib/tool-samples';
 import {KEY_VISUAL_HREF} from '@/components/studio-topbar';
 import type {AccountSummary} from '@/lib/accounts/summary';
 import type {FeatureKey} from '@/lib/accounts/plan';
@@ -15,6 +16,7 @@ import {HomeScreen,type HomeTool} from './home';
 import {LibraryView,type Place} from './library';
 import {FolderHeader,ProjectsScreen,folderHref} from './projects';
 import {useLibraryPage} from './data';
+import {asSamples} from './samples';
 
 // The rebuilt screens wired to the Studio (Phase 3): the library a page at a time.
 
@@ -38,11 +40,13 @@ const libraryHref=(p:Place)=>p==='all'?'/library':`/library?in=${encodeURICompon
 
 export function HomePage(){
  const account=useAccount(),lib=useLibraryPage('all',{limit:10});
- const presets=useConfiguratorPresets();
- const tools:HomeTool[]=TOOLS.map(t=>({...t,locked:hasFeature(account,t.feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[t.feature]}`}));
+ const presets=useConfiguratorPresets(),cars=presets.filter(c=>!isDemoConfigurator(c));
+ // Each tool's picture: its latest finished work in the feed Home loads, else one of the company's cars.
+ const work=lib.ready?asSamples(lib.items):[];
+ const tools:HomeTool[]=TOOLS.map((t,i)=>({...t,sample:toolSample(FEATURE_TOOL[t.feature],work,cars,i).src,locked:hasFeature(account,t.feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[t.feature]}`}));
  return <WorkspaceFrame current="home" notices={<AccountNotices variant="ds"/>}>
   {lib.problem&&!lib.ready?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:null}
-  <HomeScreen tools={tools} greeting={account?workName(account):undefined}
+  <HomeScreen tools={tools} greeting={account?workName(account):undefined} placeholder={briefPlaceholder(cars,account?.brand?.id)}
    recent={lib.ready?lib.items.map(i=>({...i,href:i.kind==='image'?`/library?open=${encodeURIComponent(i.id)}`:i.href})):lib.problem?[]:null}
    cars={presets.filter(c=>c.url.startsWith('https://')).map(c=>({name:c.name,href:`${KEY_VISUAL_HREF}?car=${encodeURIComponent(c.name)}`,picture:c.picture}))}
    onStart={brief=>location.assign(brief?`${KEY_VISUAL_HREF}?brief=${encodeURIComponent(brief)}`:KEY_VISUAL_HREF)}/>

@@ -1,7 +1,7 @@
 'use client';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
-import {Check,Download,Plus,Save,X} from 'lucide-react';
+import {ArchiveRestore,Check,Download,MoreHorizontal,Plus,Save,Trash2,X} from 'lucide-react';
 import {useBackoffPoll} from '@/lib/use-backoff-poll';
 import {TrashControls} from '@/components/trash-controls';
 import {AccountNotices,PlanGate,providerNames,useAccount} from '@/components/studio-account';
@@ -9,6 +9,7 @@ import {studioFetch} from '@/lib/studio-fetch';
 import {importPinterestReference} from '@/lib/pinterest-client';
 import {CONFIGURATORS,type Configurator} from '@/lib/configurators';
 import {useConfiguratorPresets,isDemoConfigurator} from '@/lib/configurator-presets';
+import {boardVehicle} from '@/lib/story-vehicle';
 import {VIDEO_MODEL,type Film} from '@/lib/films';
 import type {Storyboard,BoardShot,CarView} from '@/lib/storyboards';
 import {costLabel,refreshCredits,useCredits} from '@/components/credits';
@@ -18,6 +19,7 @@ import type {CreditProvider} from '@/lib/credits/pricing';
 import {plural} from '@/lib/ds/words';
 import {Button,IconButton} from '@/components/ds/button';
 import {Dialog} from '@/components/ds/dialog';
+import {Menu,MenuItem,MenuSeparator} from '@/components/ds/menu';
 import {Banner} from '@/components/ds/shell';
 import {useToast} from '@/components/ds/toast';
 import {WorkspaceFrame} from '@/components/workspace/frame';
@@ -34,6 +36,9 @@ import './editor-storyboard.css';
 // the version history under it, one settings panel, and Generate as the next
 // step with its credit cost: plan the shots, make the images, price the clips,
 // render them, assemble the film. Every paid step is approved first.
+// Generate is the one primary action; the canvas bar keeps the name, the stage
+// switch and Save to project, and the rest (Save changes, New story, Download,
+// Deleted) sits under "More actions" so the bar stays on one line at 1024–1440.
 
 type Saved={board:Storyboard;film?:Film};
 type Approval={kind:'plan'|'images'|'video';shotId?:string};
@@ -44,6 +49,8 @@ const blank=():Storyboard=>({id:'',revision:0,title:'A new perspective',vehicle:
 /** Credits before an action, as a number for Generate (0 on the company's own key; null when not known). */
 const priceOf=(o:CreditOverview|null,n:number|undefined,provider:CreditProvider)=>!o||typeof n!=='number'?null:o.billing[provider]==='own key'?0:n;
 const STEPS=['Car','Shots','Film'];
+/** The finished film, saved as a file (a signed link the server marks for download). */
+function downloadFilm(url:string){const a=document.createElement('a');a.href=url+'&download=1';a.download='';a.click()}
 const when=(ms:number)=>{if(!ms)return 'Not saved';const d=new Date(ms);return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString([], {day:'numeric',month:'short'})};
 
 export default function Page(){return <PlanGate feature="studio.storyboards"><StoryStudio/></PlanGate>}
@@ -60,7 +67,8 @@ function StoryStudio(){const showNames=providerNames(useAccount());
  const putFilm=(film:Film)=>setFilms(p=>[film,...p.filter(f=>f.id!==film.id)]);
  useEffect(()=>{let gone=false;void Promise.all([api<{boards:Storyboard[]}>('/api/storyboards'),api<{films:Film[]}>('/api/films'),api<{visuals?:(SavedVisual&{status:string})[]}>('/api/visuals')]).then(([s,f,v])=>{if(gone)return;setBoards(s.boards);setFilms(f.films);setLibrary((v.visuals||[]).filter(x=>x.status==='ready'));const id=new URLSearchParams(location.search).get('id'),saved=s.boards.find(x=>x.id===id);if(saved){put(saved);setStep(saved.shots.length?2:1)}}).catch((e:Error)=>setError(e.message));return()=>{gone=true}},[put]);
  async function run(label:string,fn:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(label);setError('');try{await fn()}catch(e){setError((e as Error).message);if(current.current.id){try{const d=await api('/api/storyboards/'+current.current.id);put(d.board)}catch(again){console.warn('The story could not be reloaded after an error.',again)}}}finally{setBusy('');lock.current=false}}
- async function save(value=current.current){const d=await api('/api/storyboards'+(value.id?'/'+value.id:''),value.id?'PATCH':'POST',value);put(d.board);return d.board}
+ // The chosen configurator car names the story (lib/story-vehicle.ts): the planner reads it from the saved story.
+ async function save(value=current.current){const body={...value,vehicle:boardVehicle(value,presets)};const d=await api('/api/storyboards'+(body.id?'/'+body.id:''),body.id?'PATCH':'POST',body);put(d.board);return d.board}
  function edit(patch:Partial<Storyboard>){setB(p=>({...p,...patch,finalUrl:undefined}))}
  function shotEdit(id:string,patch:Partial<BoardShot>){edit({shots:b.shots.map(s=>s.id===id?{...s,...patch}:s)})}
  async function action(name:string,shotId?:string,extra:Record<string,unknown>={}){const board=current.current;const d=await api(`/api/storyboards/${board.id}/${name}`,'POST',{revision:board.revision,shotId,...extra});put(d.board);if(d.film)putFilm(d.film);return d}
@@ -96,10 +104,16 @@ function StoryStudio(){const showNames=providerNames(useAccount());
   <div className="ds-segmented editor-stage-switch" role="group" aria-label="Show">{STEPS.map((t,i)=><button key={t} type="button" aria-pressed={step===i+1} disabled={tab(i)} onClick={()=>setStep(i+1)}>{t}</button>)}</div>
   <SaveToProject folders={project.folders} folderId={b.id?project.folderOf('story',b.id):null} disabled={!b.id||!project.ready||!!busy} onSave={f=>void project.save('story',b.id,f)}/>
   <span className="editor-bar-actions">
-   <Button size="sm" kind="quiet" icon={<Save aria-hidden="true"/>} disabled={!!busy||!b.id} onClick={()=>void run('Saving story…',async()=>{await save()})}>Save changes</Button>
-   <Button size="sm" kind="quiet" icon={<Plus aria-hidden="true"/>} disabled={!!busy} onClick={()=>void run('Opening new story…',async()=>{if(b.id)await save();fresh()})}>New story</Button>
-   {b.finalUrl&&<a className="ds-btn sm quiet icon" href={b.finalUrl+'&download=1'} download aria-label="Download the finished film" title="Download the finished film"><Download aria-hidden="true"/></a>}
-   <TrashControls kind="storyboards" item={b.id?{id:b.id,title:b.title,busy:!!busy}:null} onDeleted={id=>{setBoards(v=>v.filter(x=>x.id!==id));if(b.id===id)fresh()}} onRestored={()=>void api<{boards:Storyboard[]}>('/api/storyboards').then(d=>setBoards(d.boards),(e:Error)=>setError(e.message))}/>
+   <TrashControls kind="storyboards" item={b.id?{id:b.id,title:b.title,busy:!!busy}:null} onDeleted={id=>{setBoards(v=>v.filter(x=>x.id!==id));if(b.id===id)fresh()}} onRestored={()=>void api<{boards:Storyboard[]}>('/api/storyboards').then(d=>setBoards(d.boards),(e:Error)=>setError(e.message))}>
+    {trash=><Menu label="More actions" trigger={<MoreHorizontal aria-hidden="true"/>} size="sm">
+     <MenuItem icon={<Save/>} disabled={!!busy||!b.id} onSelect={()=>void run('Saving story…',async()=>{await save()})}>Save changes</MenuItem>
+     <MenuItem icon={<Plus/>} disabled={!!busy} onSelect={()=>void run('Opening new story…',async()=>{if(b.id)await save();fresh()})}>New story</MenuItem>
+     {b.finalUrl&&<MenuItem icon={<Download/>} onSelect={()=>downloadFilm(b.finalUrl!)}>Download the finished film</MenuItem>}
+     <MenuSeparator/>
+     <MenuItem icon={<ArchiveRestore/>} onSelect={trash.show}>Deleted stories</MenuItem>
+     {b.id&&<MenuItem icon={<Trash2/>} danger disabled={trash.busy} onSelect={trash.remove}>Delete story</MenuItem>}
+    </Menu>}
+   </TrashControls>
   </span>
  </>;
  const stage=<div className="ds-stack editor-storyboard-stage">
@@ -107,7 +121,7 @@ function StoryStudio(){const showNames=providerNames(useAccount());
   {step===1&&<StoryCar config={config} views={b.views} locked={!!b.shots.length} disabled={!!busy} library={library}
    onViews={(views:CarView[],label)=>void run(label,async()=>{await save({...current.current,views})})}
    onLabel={(id,label)=>edit({views:b.views.map(x=>x.id===id?{...x,label}:x)})}
-   onNext={()=>void run('Saving references…',async()=>{await save();setStep(2)})}/>}
+/>}
   {step===2&&(b.shots.length
    ?<ShotBoard shots={b.shots} views={b.views} films={films} expert={expert} disabled={!!busy} imageCost={imageCost(1)} onShot={shotEdit}
      onMove={i=>{const shots=[...b.shots];[shots[i-1],shots[i]]=[shots[i],shots[i-1]];edit({shots})}} onImage={id=>setApprove({kind:'images',shotId:id})}

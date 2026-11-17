@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
-const SCREENS = ['app/key-visual/page.tsx', 'app/films/page.tsx', 'app/lineup/page.tsx', 'app/storyboard/page.tsx', 'app/swap/page.tsx', 'app/usage/page.tsx', 'app/company/page.tsx', 'app/nano-lab/page.tsx', 'components/studio-account.tsx'];
+const SCREENS = ['app/key-visual/page.tsx', 'app/films/page.tsx', 'app/lineup/page.tsx', 'app/storyboard/page.tsx', 'app/swap/page.tsx', 'app/usage/page.tsx', 'app/company/page.tsx', 'app/nano-lab/page.tsx', 'components/workspace/upgrade.tsx'];
 
 test('every screen uses the one top bar, with one shared navigation (Phase 2b)', () => {
   for (const file of SCREENS) {
