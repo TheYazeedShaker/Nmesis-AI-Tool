@@ -27,12 +27,31 @@ test('placeholders become $1…$n once per statement, never inside literals, ide
  const credits=await import('../lib/credits/store.ts');
  for(const [sql,n] of [[credits.LOCK_CREDITS_SQL,2],[credits.RESERVE_CREDITS_SQL,17],[credits.RECORD_ONLY_SQL,13],[credits.SETTLE_SQL,8],[credits.SETTLED_SQL,4],[credits.RELEASE_SQL,3]]){const out=toPositional(sql);assert.equal(out.includes('?'),false);assert.ok(out.includes('$'+n)&&!out.includes('$'+(n+1)))}
 });
+test('values written into a statement are one plain constant each, or the statement keeps its parameters',async()=>{
+ const {literalFor,inlined,lastResult}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub,'./environment':{studioEnvironment:()=>'development'}});
+ assert.equal(literalFor(null),'NULL');assert.equal(literalFor(undefined),'NULL');assert.equal(literalFor(true),'TRUE');assert.equal(literalFor(false),'FALSE');
+ assert.equal(literalFor(42),"'42'");assert.equal(literalFor(-0.5),"'-0.5'");assert.equal(literalFor('Demo SUV — 2026'),"'Demo SUV — 2026'");assert.equal(literalFor(''),"''");
+ // Anything that could end the constant, escape it, or is not text stays a parameter.
+ for(const v of ["o'clock",'back\\slash','nul\0byte',new Date(0),10n,[1],{a:1},new Uint8Array(1)])assert.equal(literalFor(v),null,String(v));
+ assert.equal(inlined("SELECT * FROM t WHERE a=? AND b='?' AND c=\"?x\" -- ?\n AND d=?",['x',2]),"SELECT * FROM t WHERE a= 'x'  AND b='?' AND c=\"?x\" -- ?\n AND d= '2' ");
+ assert.equal(inlined('SELECT e?',['x']),"SELECT e 'x' ",'a separate token, never E\'…\'');
+ assert.equal(inlined('SELECT ?',["it's"]),null);assert.equal(inlined('SELECT ?,?',['a']),null,'too few values');assert.equal(inlined('SELECT ?',['a','b']),null,'too many values');
+ assert.equal(inlined('SELECT 1',[]),'SELECT 1');
+ // The driver answers a several-statement message with a list of results, or one result.
+ const rows=Object.assign([{id:1}],{command:'SELECT'}),set=Object.assign([],{command:'SET'}),update=Object.assign([],{command:'UPDATE',count:3});
+ assert.equal(lastResult([set,rows]),rows);assert.equal(lastResult(update),update);assert.equal(lastResult(rows),rows);
+});
 test('portable SQL adapter preserves rows, bind isolation, changes and transactional batches',async()=>{
  const sql=sqliteSql();try{
  const {StudioDatabase}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub,'./environment':{studioEnvironment:()=>'development'}});const db=new StudioDatabase(sql);
  sql.db.exec('CREATE TABLE jobs(id TEXT PRIMARY KEY, owner TEXT, status TEXT, note TEXT)');
  const insert=db.prepare('INSERT INTO jobs VALUES(?,?,?,?)');await insert.bind('job','owner','draft',undefined).run();
- assert.equal(sql.calls.at(-1).text,'INSERT INTO jobs VALUES($1,$2,$3,$4)');assert.deepEqual([...sql.calls.at(-1).args],['job','owner','draft',null]);
+ // Plain values are written into the statement (one round trip); a value with a quote stays a parameter.
+ assert.equal(sql.calls.at(-1).text,"INSERT INTO jobs VALUES( 'job' , 'owner' , 'draft' , NULL )");assert.deepEqual([...sql.calls.at(-1).args],[]);
+ await db.prepare("UPDATE jobs SET note=? WHERE id=?").bind("it's \\ fine",'job').run();
+ assert.equal(sql.calls.at(-1).text,'UPDATE jobs SET note=$1 WHERE id=$2');assert.deepEqual([...sql.calls.at(-1).args],["it's \\ fine",'job']);
+ assert.equal(await db.prepare('SELECT note FROM jobs WHERE id=?').bind('job').first('note'),"it's \\ fine");
+ await db.prepare('UPDATE jobs SET note=NULL WHERE id=?').bind('job').run();
  const lock=()=>db.prepare("UPDATE jobs SET status='submitted' WHERE id=? AND owner=? AND status='draft'").bind('job','owner').run();
  const first=await lock(),second=await lock();assert.equal(first.meta.changes,1);assert.equal(second.meta.changes,0);assert.equal(first.success,true);assert.equal(first.meta.last_row_id,0);
  assert.equal(await db.prepare('SELECT * FROM jobs WHERE owner=?').bind('other').first(),null);

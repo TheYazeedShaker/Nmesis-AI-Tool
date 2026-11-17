@@ -119,5 +119,5 @@ test('the folder routes and the library are in the route table; viewers cannot c
   assert.throws(()=>checkRoute(viewer,'/api/folders','POST'),/viewer/i);
   assert.doesNotThrow(()=>checkRoute(viewer,'/api/library','GET'));
  }
- for(const f of ['app/api/folders/route.ts','app/api/folders/[id]/route.ts','app/api/folders/move/route.ts','app/api/library/route.ts'])assert.match(read(f),/await context\(request(,true)?\)/,f);
+ for(const f of ['app/api/folders/route.ts','app/api/folders/[id]/route.ts','app/api/folders/move/route.ts','app/api/library/route.ts'])assert.match(read(f),/await context\(request(,true|,false,timing)?\)/,f);
 });

@@ -29,9 +29,14 @@ export const MFA_REQUIRED='Enter the six-digit code from your authenticator app 
 // `chosenOrg` comes from the company cookie (or a deep link) and is only a wish:
 // it is honoured when the user is an active member of that company, or is staff.
 export async function resolveContext({user,chosenOrg,chosenBrand,directory}:{user:{id:string;email:string;aal?:'aal1'|'aal2'};chosenOrg?:string|null;chosenBrand?:string|null;directory:Directory}):Promise<Resolved>{
- const staffRole=await directory.staffRole(user.id),staff=staffRole?{role:staffRole}:null;
+ // Independent reads start together (one round trip, not three); the brands are
+ // read here too because nearly every answer needs them.
+ const brandsRead=directory.brands?directory.brands():Promise.resolve(new Map<string,Brand[]>());
+ brandsRead.catch(()=>null); // awaited below; a failure there is the request's failure
+ const [staffRole,firstMemberships]=await Promise.all([directory.staffRole(user.id),directory.memberships(user.id)]);
+ const staff=staffRole?{role:staffRole}:null;
  if(staff&&user.aal!=='aal2')return {ok:false,reason:'mfa_required'};
- let memberships:Membership[]=await directory.memberships(user.id);
+ let memberships:Membership[]=firstMemberships;
  // First arrival after an invitation: the member row becomes active, so the
  // admin's People tab stops showing them as invited.
  if(memberships.some(m=>m.status==='invited')){await directory.acceptInvitations(user.id);memberships=await directory.memberships(user.id)}
@@ -49,8 +54,8 @@ export async function resolveContext({user,chosenOrg,chosenBrand,directory}:{use
  // a client's workspace read-only ("Viewing as"), while its grant lasts.
  const viewingAs=!member&&!!staff&&org.kind!=='internal';
  const role:Role=member?member.role:viewingAs?'viewer':'owner';
- const entitlements=studioEntitlements((await directory.entitlements(org.id))??readEntitlements(null),org.kind);
- const brandMap=directory.brands?await directory.brands():new Map<string,Brand[]>();
+ const [ents,brandMap]=await Promise.all([directory.entitlements(org.id),brandsRead]);
+ const entitlements=studioEntitlements(ents??readEntitlements(null),org.kind);
  const brandsOf=(o:{id:string;kind:string})=>o.kind==='internal'?[]:brandMap.get(o.id)||[];
  const orgs=staff?(await directory.organisations()).filter(o=>mayOpen(o)||active.some(m=>m.orgId===o.id)).map(o=>({id:o.id,name:o.name,kind:o.kind,brands:brandsOf(o)})):active.map(m=>({id:m.orgId,name:m.orgName,kind:m.orgKind,brands:brandsOf({id:m.orgId,kind:m.orgKind})}));
  const brands=brandsOf(org),brand=brands.find(b=>b.id===chosenBrand)||brands[0]||null;

@@ -8,6 +8,7 @@ import {NO_COMPANY} from '@/lib/auth/words';
 import {MFA_REQUIRED,type StudioContext} from '@/lib/accounts/context';
 import {keySecretState,KeyStorageMisconfigured} from '@/lib/secret-crypto';
 import {noCreditMessage,NO_CREDIT_STATUS,outOfCredit} from '@/lib/provider-credit';
+import type {Timing} from '@/lib/server-timing';
 // Nmesis's own provider keys (server variables, never sent to a browser): the
 // calls of every company without its own key (lib/org-keys.ts) use them.
 export type StudioEnv={DB?:StudioDatabase;BUCKET?:StudioBucket;OPENAI_API_KEY?:string;OPENAI_IMAGE_MODEL?:string;OPENAI_TEXT_MODEL?:string;GOOGLE_AI_API_KEY?:string;HIGGSFIELD_API_KEY?:string;TOPAZ_API_KEY?:string;KEY_ENCRYPTION_SECRET?:string};
@@ -25,10 +26,11 @@ export function requestContext(account:StudioContext,env:StudioEnv=bindings()):R
 }
 // Every API route starts here: sign-in, company, plan feature (from the single
 // ROUTE_FEATURES table), viewer read-only and an ended subscription are all
-// decided before the route reads its body.
-export async function context(request:Request,write=false){
+// decided before the route reads its body. `timing` (optional) records the
+// sign-in check and the company's context for the Server-Timing header.
+export async function context(request:Request,write=false,timing?:Timing){
  const scope=enterProviderScope();
- const got=await getStudioContext();
+ const got=await getStudioContext(timing?{timing}:{});
  if(!got.ok)throw got.problem==='signed_out'?new StudioError('Please sign in to use your studio.',401):got.problem==='mfa_required'?new StudioError(MFA_REQUIRED,401):got.problem==='no_company'?new StudioError(NO_COMPANY,403):new StudioError('Signing in is not set up on this Studio yet.',503);
  if(write||request.method!=='GET'){const origin=request.headers.get('origin');if(origin&&origin!==new URL(request.url).origin)throw new StudioError('This request must come from your studio.',403)}
  scope.names=providerNamesVisible(got.ctx);
