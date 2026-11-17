@@ -1,6 +1,6 @@
 export type CarView={id:string;label:string};
-export type BoardShot={id:string;title:string;visual:string;motion:string;viewId:string;selected:boolean;imageId?:string;versions:string[];filmId?:string;oldFilmIds:string[];status:'draft'|'generating'|'ready'|'interrupted';error?:string};
-export type Storyboard={id:string;revision:number;title:string;vehicle:string;configurator:string;views:CarView[];idea:string;direction:string;moodId:string;pin:string;shots:BoardShot[];model:string;brand:string;tagline:string;finalUrl?:string;updatedAt:number};
+export type BoardShot={id:string;title:string;visual:string;motion:string;viewId:string;selected:boolean;imageId?:string;versions:string[];filmId?:string;oldFilmIds:string[];status:'draft'|'generating'|'ready'|'interrupted';error?:string;credits?:number};
+export type Storyboard={id:string;revision:number;title:string;vehicle:string;configurator:string;views:CarView[];idea:string;direction:string;moodId:string;pin:string;shots:BoardShot[];model:string;brand:string;tagline:string;finalUrl?:string;updatedAt:number;credits?:number};
 const clean=(v:unknown,max=1500)=>typeof v==='string'?v.trim().slice(0,max):'';
 const id=(v:unknown):v is string=>typeof v==='string'&&/^[a-z0-9-]{8,80}$/.test(v);
 export function editBoard(old:Storyboard,d:any):Storyboard{

@@ -6,6 +6,8 @@ import ts from 'typescript';
 import * as plan from '../lib/accounts/plan.ts';
 import * as models from '../lib/image-models.ts';
 import * as studio from '../lib/studio.ts';
+import {freeCredits} from './support/free-credits.mjs';
+import * as creditWords from '../lib/credits/words.ts';
 import * as lineup from '../lib/lineup.ts';
 async function harness(){
  const objects=new Map(),calls=[];for(const id of ['car-12345','mood-1234','base-1234','extra-0001','extra-0002'])objects.set('owner/images/'+id,Buffer.from(id));
@@ -15,9 +17,11 @@ async function harness(){
  const png=Buffer.alloc(24);png[0]=137;png.writeUInt32BE(2048,16);png.writeUInt32BE(1152,20);
  const ctx=vm.createContext({Buffer,Blob,FormData,Request,Response,Date,AbortSignal,fetch:async(u,o)=>{calls.push([u,o]);return Response.json({data:[{b64_json:png.toString('base64')}]})}});
  const stub=v=>new vm.SyntheticModule(Object.keys(v),function(){for(const [k,x]of Object.entries(v))this.setExport(k,x)},{context:ctx});
+ const charge=freeCredits();
  const stubs={
+ '@/lib/credits/charge':charge.api,'@/lib/credits/words':{...creditWords},'@/lib/library-index':{fromVisual:()=>null,indexQuietly:async()=>{}},
  '@/lib/accounts/plan':plan,'@/lib/studio-server':{context:async()=>({prefix:'owner/',BUCKET:store,org:'nmesis',role:'owner',entitlements:{legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}}}),bucket:x=>x,imageKey:(p,id)=>p+'images/'+id,readJson:r=>r.json(),str:(s,n=2000)=>typeof s==='string'?s.trim().slice(0,n):'',validId:s=>typeof s==='string'&&/^[a-z0-9-]{8,80}$/.test(s),StudioError,fail:e=>Response.json({error:e.message},{status:e.status||500}),providerError:()=>new StudioError('Provider error',502)},
- '@/lib/credentials':{apiKey:async()=> 'synthetic-test-key'},'@/lib/lineup':lineup,'@/lib/image-models':models,'@/lib/studio':studio};
+ '@/lib/credentials':{apiKey:async()=> 'synthetic-test-key',openaiKey:async()=>({key:'synthetic-test-key',own:true})},'@/lib/lineup':lineup,'@/lib/image-models':models,'@/lib/studio':studio};
  const code=ts.transpileModule(readFileSync(new URL('../app/api/generate/route.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
  const m=new vm.SourceTextModule(code,{context:ctx});await m.link(s=>stub(stubs[s]));await m.evaluate();
  const submit=(extra={})=>m.namespace.POST(new Request('https://studio.test/api/generate',{method:'POST',body:JSON.stringify({id:'result-1234',sourceId:'car-12345',moodId:'mood-1234',parentId:'base-1234',brief:'An SUV in the desert',refinement:'Use Reference 2 for the light',refinementReferenceIds:['extra-0001','extra-0002'],...extra})}));

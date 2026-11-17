@@ -1,0 +1,42 @@
+/* ─── Story in the one editor (Phase 3 group 2): components/editor/storyboard-*.
+   Only what app/editor.css does not have: the shot frame, the car views, the
+   crop area and the saved-visual picker. Tokens only. */
+
+.editor-storyboard-stage, .editor-storyboard-car, .editor-storyboard-board { width: 100%; min-width: 0; align-self: start; }
+.editor-storyboard-grow { flex: 1 1 0; min-width: 0; }
+
+/* A 16:9 frame for a shot, a clip, a car view or a reference. */
+.editor-storyboard-frame { position: relative; display: grid; place-items: center; aspect-ratio: 16 / 9; overflow: hidden; border-radius: var(--ds-radius-md); border: var(--ds-border-width) solid var(--ds-border); background: var(--ds-media-bg); color: var(--ds-muted); }
+.editor-storyboard-frame > img, .editor-storyboard-frame > video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.editor-storyboard-empty { display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-8); padding: var(--ds-space-12); text-align: center; font-size: var(--ds-text-sm); }
+.editor-storyboard-empty svg { width: var(--ds-icon-lg); height: var(--ds-icon-lg); }
+
+/* A chosen shot is outlined. */
+.editor-storyboard-shot { padding: var(--ds-space-8); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius); background: var(--ds-panel); min-width: 0; }
+.editor-storyboard-shot[data-selected] { border-color: var(--ds-ring); box-shadow: 0 0 0 var(--ds-border-width) var(--ds-ring); }
+.editor-storyboard-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+
+/* The finished film above the clips. */
+.editor-storyboard-final > video { width: 100%; aspect-ratio: 16 / 9; max-height: 56dvh; border-radius: var(--ds-radius); border: var(--ds-border-width) solid var(--ds-border); background: var(--ds-media-bg); }
+
+/* The story's car views. */
+.editor-storyboard-views { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: var(--ds-space-12); margin: 0; padding: 0; list-style: none; }
+.editor-storyboard-view { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.editor-storyboard-view .ds-row { align-items: flex-end; flex-wrap: nowrap; }
+
+/* Framing a capture: drag a box over the picture. */
+.editor-storyboard-crop { position: relative; width: fit-content; max-width: 100%; margin-inline: auto; touch-action: none; cursor: crosshair; user-select: none; }
+.editor-storyboard-crop > img { display: block; max-width: 100%; max-height: 60dvh; border-radius: var(--ds-radius-sm); }
+.editor-storyboard-crop > span { position: absolute; border: var(--ds-focus-width) solid var(--ds-ring); background: var(--ds-accent-soft); pointer-events: none; }
+
+/* Saved key visuals and earlier images, to pick from. */
+.editor-storyboard-library { margin: 0; padding: 0; list-style: none; }
+.editor-storyboard-pick { display: flex; flex-direction: column; gap: var(--ds-space-4); width: 100%; padding: var(--ds-space-4); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel); color: inherit; font: inherit; font-size: var(--ds-text-sm); text-align: left; cursor: pointer; min-height: var(--ds-tap-min); min-width: 0; }
+.editor-storyboard-pick:hover { border-color: var(--ds-border-strong); }
+.editor-storyboard-pick:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.editor-storyboard-pick:disabled { opacity: 0.5; cursor: not-allowed; }
+.editor-storyboard-pick > img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: var(--ds-radius-sm); background: var(--ds-media-bg); }
+
+@media (max-width: 768px) {
+  .editor-storyboard-pick { min-height: var(--ds-tap-phone); }
+}

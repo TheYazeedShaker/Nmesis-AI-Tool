@@ -16,7 +16,7 @@ export function startAuthMock({port=0}={}){
  const publicUser=u=>({id:u.id,aud:'authenticated',role:'authenticated',email:u.email,email_confirmed_at:u.confirmed?new Date().toISOString():null,app_metadata:{provider:'email',providers:['email'],...u.app_metadata},user_metadata:u.user_metadata||{},created_at:u.created,updated_at:new Date().toISOString(),identities:[]});
  function session(u){
   const sid=randomUUID(),now=Math.floor(Date.now()/1000),exp=now+3600;
-  const access=b64({alg:'HS256',typ:'JWT'})+'.'+b64({sub:u.id,email:u.email,role:'authenticated',aud:'authenticated',session_id:sid,iat:now,exp,aal:'aal1'})+'.'+b64('mock-signature');
+  const access=b64({alg:'HS256',typ:'JWT'})+'.'+b64({sub:u.id,email:u.email,role:'authenticated',aud:'authenticated',session_id:sid,iat:now,exp,aal:u.aal==='aal2'?'aal2':'aal1'})+'.'+b64('mock-signature');
   const rt=randomUUID().replace(/-/g,'');sessions.set(sid,u.id);refresh.set(rt,sid);
   return {access_token:access,token_type:'bearer',expires_in:3600,expires_at:exp,refresh_token:rt,user:publicUser(u)};
  }
@@ -62,7 +62,9 @@ export function startAuthMock({port=0}={}){
   // The Nmesis admin's invitation: an account without a password, and a link with
   // the session after the # (Supabase's implicit flow for admin invitations).
   invite(email,landing){const u={id:randomUUID(),email:email.toLowerCase(),password:null,app_metadata:{},confirmed:true,created:new Date().toISOString()};users.set(u.id,u);const s=session(u);const link=landing+'#'+new URLSearchParams({access_token:s.access_token,expires_at:String(s.expires_at),expires_in:'3600',refresh_token:s.refresh_token,token_type:'bearer',type:'invite'});outbox.push({to:u.email,kind:'invite',link});return {user:u,link,session:s}},
-  addUser(email,password,app_metadata={}){const u={id:randomUUID(),email:email.toLowerCase(),password,app_metadata,confirmed:true,created:new Date().toISOString()};users.set(u.id,u);return u},
+  // {id, aal}: a fixed id (to match seeded memberships) and, for Nmesis staff in the
+  // UI harness, sessions that have already passed the six-digit code ('aal2').
+  addUser(email,password,app_metadata={},{id,aal}={}){const u={id:id||randomUUID(),aal:aal||'aal1',email:email.toLowerCase(),password,app_metadata,confirmed:true,created:new Date().toISOString()};users.set(u.id,u);return u},
   lastLink(email,kind){return [...outbox].reverse().find(m=>m.to===email.toLowerCase()&&(!kind||m.kind===kind))?.link},
  };
  return new Promise(r=>server.listen(port,'127.0.0.1',()=>r({...api,server,url:'http://127.0.0.1:'+server.address().port})));

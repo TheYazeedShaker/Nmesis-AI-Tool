@@ -1,0 +1,88 @@
+{
+  "note": "What is wrong today, so nothing can get worse tomorrow. npm run check:design -- --list shows each one. Lower these by fixing screens; never raise one to make the check pass.",
+  "measured": "2026-11-16",
+  "counts": {
+    "app/auth.css": {
+      "raw-colour": 3,
+      "raw-size": 49
+    },
+    "app/films/films.css": {
+      "raw-colour": 150,
+      "raw-size": 237
+    },
+    "app/globals.css": {
+      "raw-colour": 254,
+      "raw-size": 457
+    },
+    "app/lineup/lineup.css": {
+      "raw-colour": 59,
+      "raw-size": 91
+    },
+    "app/nano-lab/page.tsx": {
+      "raw-colour": 5,
+      "raw-size": 8,
+      "unstyled-control": 3
+    },
+    "app/storyboard/storyboard.css": {
+      "raw-colour": 60,
+      "raw-size": 113
+    },
+    "app/studio-workspace.css": {
+      "raw-colour": 68,
+      "raw-size": 161
+    },
+    "app/swap/page.tsx": {
+      "unstyled-control": 1
+    },
+    "app/swap/swap.css": {
+      "raw-colour": 71,
+      "raw-size": 101
+    },
+    "components/smart-reference-lab.tsx": {
+      "unstyled-control": 3
+    },
+    "components/smart-reference.tsx": {
+      "unstyled-control": 1
+    },
+    "components/ui/bubble.tsx": {
+      "raw-colour": 4
+    },
+    "components/ui/button.tsx": {
+      "unknown-class": 3
+    },
+    "components/ui/calendar.tsx": {
+      "raw-size": 2
+    },
+    "components/ui/chart.tsx": {
+      "raw-size": 2
+    },
+    "components/ui/checkbox.tsx": {
+      "raw-size": 1
+    },
+    "components/ui/input-group.tsx": {
+      "unknown-class": 6,
+      "raw-size": 7
+    },
+    "components/ui/navigation-menu.tsx": {
+      "unknown-class": 1
+    },
+    "components/ui/pagination.tsx": {
+      "unknown-class": 1
+    },
+    "components/ui/sidebar.tsx": {
+      "unknown-class": 21
+    },
+    "components/ui/sonner.tsx": {
+      "unknown-class": 1
+    },
+    "components/ui/tabs.tsx": {
+      "raw-size": 1
+    },
+    "components/ui/tooltip.tsx": {
+      "raw-size": 1
+    },
+    "components/visual-comparison.tsx": {
+      "unstyled-control": 2
+    }
+  }
+}

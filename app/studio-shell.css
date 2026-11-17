@@ -1,0 +1,167 @@
+/* ─── The Studio's top bar (Phase 2b) ──────────────────────────────────────
+   components/studio-topbar.tsx, on every screen: the .ds- top bar with the
+   shared navigation, the credit meter, the company switcher and the account.
+   Below 768px the navigation and the account move into one menu, and every
+   account control is at least 44px (--ds-tap-phone). Tokens only.
+   ───────────────────────────────────────────────────────────────────────── */
+
+.studio-topbar {
+  /* It scrolls with the page, as the old bar did: nothing sticky can cover a
+     focused control (2.4.11), and no screen's own offsets change. */
+  position: relative;
+  height: var(--ds-topbar-h);
+  flex-wrap: nowrap;
+  background: var(--ds-panel);
+  color: var(--ds-text);
+  font-family: var(--ds-font-sans);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-leading-sm);
+
+}
+.studio-topbar *, .studio-topbar *::before, .studio-topbar *::after { box-sizing: border-box; }
+.studio-topbar a { color: inherit; }
+.studio-topbar :focus-visible, .studio-menu :focus-visible {
+  outline: var(--ds-focus-width) solid var(--ds-ring);
+  outline-offset: var(--ds-space-2);
+}
+.studio-topbar .ds-brand { color: var(--ds-text-strong); flex: none; }
+.studio-nav { flex: 1 1 auto; }
+.studio-nav .ds-nav-link svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; }
+.studio-nav .ds-nav-link > span[aria-hidden="true"] { display: inline-flex; }
+.studio-nav-off { color: var(--ds-muted); cursor: default; }
+.studio-nav-off:hover { background: transparent; color: var(--ds-muted); }
+.studio-topbar-end { gap: var(--ds-space-8); }
+.studio-topbar-actions { display: flex; align-items: center; gap: var(--ds-space-8); }
+
+.studio-topbar-problem { color: var(--ds-danger); font-size: var(--ds-text-xs); max-width: var(--ds-settings-w); }
+.studio-role { color: var(--ds-muted); font-size: var(--ds-text-xs); }
+.studio-wide { display: inline-flex; align-items: center; }
+.studio-narrow { display: none; }
+.studio-switcher { color: var(--ds-text); }
+.studio-switcher:disabled { cursor: progress; }
+.studio-signout { display: inline-flex; margin: 0; }
+.studio-topbar .ds-btn svg, .studio-menu .ds-btn svg { width: var(--ds-icon); height: var(--ds-icon); }
+
+/* The menu (phones): one column of 44px rows. */
+.studio-menu .ds-dialog-body { gap: var(--ds-space-20); }
+.studio-menu-group { display: flex; flex-direction: column; gap: var(--ds-space-4); min-width: 0; }
+.studio-menu-row {
+  display: flex; align-items: center; gap: var(--ds-space-12); width: 100%;
+  min-height: var(--ds-tap-phone); padding: 0 var(--ds-space-12);
+  border: 0; border-radius: var(--ds-radius-md); background: transparent;
+  color: var(--ds-text); text-decoration: none; text-align: left; font: inherit; cursor: pointer;
+}
+.studio-menu-row svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; color: var(--ds-muted); }
+.studio-menu-row > span[aria-hidden="true"] { display: inline-flex; }
+.studio-menu-row:hover { background: var(--ds-panel-2); }
+.studio-menu-row[aria-current="page"], .studio-menu-row[aria-current="true"] { background: var(--ds-panel-hover); color: var(--ds-text-strong); }
+.studio-menu-row .ds-badge { margin-left: auto; }
+.studio-menu-row.ds-btn { justify-content: flex-start; border: var(--ds-border-width) solid var(--ds-border); }
+
+.studio-menu .studio-signout { display: flex; }
+
+@media (max-width: 1024px) {
+  .studio-role { display: none; }
+}
+@media (max-width: 768px) {
+  .studio-topbar { padding: 0 var(--ds-space-16); gap: var(--ds-space-8); }
+  .studio-topbar .studio-nav, .studio-topbar .studio-topbar-actions, .studio-wide { display: none; }
+  .studio-narrow { display: inline-flex; }
+  .studio-topbar .ds-brand { min-height: var(--ds-tap-phone); }
+  .studio-meter, .studio-menu-button { min-height: var(--ds-tap-phone); }
+  .studio-menu-button { min-width: var(--ds-tap-phone); }
+}
+
+/* Delete / Deleted on films, swaps and stories (components/trash-controls.tsx). */
+.trash-controls { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--ds-space-8); font-family: var(--ds-font-sans); }
+.trash-controls .ds-btn { color: var(--ds-text); }
+.trash-controls .ds-btn svg { width: var(--ds-icon); height: var(--ds-icon); }
+.trash-drawer { color: var(--ds-text); font-family: var(--ds-font-sans); }
+.trash-list { display: flex; flex-direction: column; gap: var(--ds-space-4); margin: 0; padding: 0; list-style: none; }
+.trash-row {
+  display: flex; align-items: center; gap: var(--ds-space-12); min-height: var(--ds-tap-phone);
+  padding: var(--ds-space-4) 0; border-bottom: var(--ds-border-width) solid var(--ds-border);
+}
+.trash-title { flex: 1 1 auto; }
+.trash-when { flex: none; font-size: var(--ds-text-xs); }
+.trash-problem { color: var(--ds-danger); }
+.trash-drawer .ds-btn.sm { min-height: var(--ds-control-h); }
+@media (max-width: 768px) {
+  .trash-controls .ds-btn, .trash-drawer .ds-btn { min-height: var(--ds-tap-phone); }
+}
+
+/* The bar is full (useFit in studio-topbar.tsx): the navigation shows its icons. */
+.studio-topbar[data-compact] .ds-nav-word { display: none; }
+
+/* ─── Every screen (Phase 2b), until Phase 3 moves the screens onto the tokens ── */
+
+/* Visible focus everywhere (2.4.7, F-017, F-018, F-031): text boxes, choices,
+   disclosure rows and the live configurator frame showed focus by a faint
+   border at most. The brand lime on the dark screens. */
+body :is(input:not([type="hidden"]), select, textarea, summary):focus-visible,
+body iframe:focus {
+  outline: var(--ds-focus-width) solid var(--nm-lime);
+  outline-offset: var(--ds-space-2);
+}
+
+/* Card actions on touch (F-069): the "…" menu is a target of its own size, and
+   the picture's open-larger mark shows without hover. */
+.studio-makeover .card-actions-menu > summary { min-width: var(--ds-tap-min); min-height: var(--ds-tap-min); }
+@media (hover: none) {
+  .studio-makeover .result-image > span { opacity: 1; }
+}
+@media (pointer: coarse) {
+  .studio-makeover .card-actions-menu > summary { width: var(--ds-tap-phone); height: var(--ds-tap-phone); }
+}
+
+/* 24px targets everywhere (2.5.8, F-022): the small text buttons, disclosure
+   rows and corner buttons that were 15–21px tall. Sizes only; nothing moves
+   to another place. */
+body :is(button.text-button, button.film-text-button, .lineup-car-head button) { min-height: var(--ds-tap-min); min-width: var(--ds-tap-min); }
+body :is(a.text-button, .configurator-address a) { display: inline-flex; align-items: center; min-height: var(--ds-tap-min); }
+body .studio details > summary { min-height: var(--ds-tap-min); }
+body .studio input[type="checkbox"], body .studio input[type="radio"] { min-width: var(--ds-tap-min); min-height: var(--ds-tap-min); }
+
+/* No layout shift while a screen loads (CLS, F-036). The account notices hold
+   the page below them hidden until they know what to show (studio-account.tsx);
+   Films and Line-up keep a screen's height while their work loads, so what is
+   below them starts off-screen instead of jumping. */
+.notices-pending ~ * { visibility: hidden; }
+/* Speed (finish pass): the notices sit in one box, so the room they take can be
+   measured and, on the next page at this width, held empty while they load
+   (the page below is then drawn at once); flow-root keeps their margins inside. */
+.studio-notices { display: flow-root; }
+/* The credit meter's skeleton: the meter's own box, so nothing moves when the
+   numbers arrive. "300 left" on wide bars, "300" where the word is hidden. */
+.studio-meter-loading { pointer-events: none; }
+.studio-meter-skel { width: 8ch; }
+@media (max-width: 768px) { .studio-meter-skel { width: 3ch; } }
+.film-loading, .lineup-loading { min-height: 100dvh; }
+.studio-topbar[data-tight] .studio-action-word { display: none; }
+.studio-topbar-actions .ds-btn { color: var(--ds-text); }
+.studio-topbar-actions .ds-btn svg, .studio-menu-row > span[aria-hidden="true"] svg { width: var(--ds-icon); height: var(--ds-icon); }
+
+/* Phase 3: the tool screens keep a dark bar; the rebuilt screens follow the system. */
+.studio-topbar[data-theme="dark"] { color-scheme: dark; }
+/* The Tools menu in the navigation. */
+.studio-nav { overflow: visible; }
+.studio-tools { position: relative; }
+.studio-tools .ds-nav-link { border: 0; background: transparent; cursor: pointer; font: inherit; color: inherit; }
+.studio-tools .ds-nav-link[data-current], .studio-tools .ds-nav-link[aria-expanded="true"] { background: var(--ds-panel-hover); color: var(--ds-text-strong); }
+.studio-tools-caret { width: var(--ds-space-12); height: var(--ds-space-12); }
+.studio-tools-list {
+  position: absolute; top: calc(100% + var(--ds-space-4)); left: 0; z-index: var(--ds-z-dropdown);
+  min-width: var(--ds-settings-w); margin: 0; padding: var(--ds-space-4); list-style: none;
+  background: var(--ds-panel); border: var(--ds-border-width) solid var(--ds-border);
+  border-radius: var(--ds-radius); box-shadow: var(--ds-shadow-2);
+}
+
+/* The brand people work as (Phase 3 polish): its logo on a light plate in both
+   themes (brand logos are drawn for a light ground); with no logo, its name alone. */
+.studio-brand-mark { overflow: hidden; }
+/* A logo is usually a wordmark: a small rounded plate as wide as the logo needs (up to 64px), not a circle. */
+.studio-brand-mark:has(img) { background: var(--ds-on-media); width: auto; min-width: var(--ds-space-24); max-width: var(--ds-space-64); border-radius: var(--ds-radius-sm); padding: var(--ds-space-2) var(--ds-space-4); }
+.studio-brand-mark > img { height: 100%; width: auto; max-width: 100%; object-fit: contain; display: block; }
+.studio-menu-row .studio-brand-mark { flex: none; }
+/* No logo: the name stands alone; in a list, an empty space of the mark's size keeps the names in line. */
+.studio-brand-blank { background: transparent; }

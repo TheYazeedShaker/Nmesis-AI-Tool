@@ -33,7 +33,7 @@ git switch -c development
 git push -u origin development
 ```
 
-Future development belongs on **`development`** (and the `moaz-playground` sandbox). Keep `main` as the Vercel Production branch. Every other branch gets a Vercel Preview deployment; use separate test resources there. Promote `development` to `main` only through a reviewed pull request.
+Future development belongs on **`development`** (and the `moaz-playground` sandbox). Keep `main` as the Vercel Production branch. Every other branch gets a Vercel Preview deployment. Preview shares the main Supabase project with Production; its S3 bucket, keys and provider budgets are its own. Promote `development` to `main` only through a reviewed pull request.
 
 ## 2. Set up the three hosting connections
 
@@ -70,7 +70,9 @@ Exactly 64 hex characters (32 bytes): generate it with `openssl rand -hex 32`. K
 
 ### Database: Supabase Postgres
 
-The studio keeps its job records in its own schema, `studio`, inside a Supabase Postgres project, reached with its own login role `studio_app` that can touch nothing else. Production uses the main project; Preview uses a separate staging project with the same schema (the staging project's users, data and keys never mix with real clients').
+The studio keeps its job records in its own schema, `studio`, inside a Supabase Postgres project, reached with its own login role `studio_app` that can touch nothing else. Production and Preview both use the main project, so the setup SQL and the migrations run once.
+
+Each environment sees only its own client work. Every row of it (films, swaps, storyboards, image jobs, upscales) carries an `environment` (`production`, `preview` or `development`), taken from Vercel's `VERCEL_ENV` (`development` under `next dev`). The database layer sends it with every statement and row level security filters on it (migration `0004_environment.sql`). A production server without `VERCEL_ENV` refuses to start a query rather than guess, so keep Vercel's **Automatically expose System Environment Variables** on. Credit holds and the staff-access log are shared and record their environment, because both environments spend the one company balance. Saved provider keys and media are in each environment's own S3 bucket, encrypted with each environment's own `KEY_ENCRYPTION_SECRET`.
 
 In each project, once:
 
@@ -116,13 +118,15 @@ In Vercel, choose **Add New → Project → your GitHub repository**:
 
 Use Vercel Pro for this commercial studio and the longer image-generation requests. This code sets 300-second generation route limits. Enable Fluid compute if required by your project settings; availability and platform limits depend on your plan. Add all values from `.env.local` to Vercel's **Production environment variables**, not to GitHub. Add your final HTTPS domain to Supabase Auth's redirect URLs and to the S3 CORS origins, and set `CONFIGURATOR_ORIGIN` (server-only, see `.env.example`). If you configure variables after the first deployment, redeploy.
 
-For Preview/testing, use the staging Supabase project and a separate S3 bucket and IAM user, separate secrets and a stable preview domain with matching OAuth/CORS configuration. Do not reuse production keys merely to make previews run.
+For Preview/testing, use the main Supabase project (shared with Production) with a separate S3 bucket and IAM user, separate provider keys with their own billing limits, separate secrets, and a stable preview domain with matching Auth/CORS configuration. Do not reuse production keys merely to make previews run.
 
-## 4. Connect generators and start fresh
+## 4. Provider accounts and credits
 
-Open the deployed studio, sign in, and connect OpenAI, Google AI Studio, Higgsfield and/or Topaz through the existing connection controls. These provider keys are not included in the archive. Stored keys are encrypted server-side. At least one usable image generator is needed; OpenAI is also used by smart prompt planning.
+Nmesis pays the AI providers with its own accounts: set `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `HIGGSFIELD_API_KEY` and `TOPAZ_API_KEY` as server-only Vercel variables (Production and Preview separately, each with its own billing limit at the provider). Companies spend credits: their plan's monthly allowance (`studio.credits_monthly`, reset on the subscription's billing day) and then packs, which expire on their own date. An action costs `ceil(provider cost ÷ credit_basis)` credits; `credit_basis` and per-action costs (`studio_cost.<action>`) come from the admin's price book, with the Studio's own table as the default. Every paid action shows its cost before it starts, reserves its credits atomically, and settles into the admin's usage ledger (`accounts.record_usage`, setup SQL section 6) or releases them if the provider fails. Company owners see their Usage page; at 80% and 100% they get one email each per period (`EMAIL_API_URL`, `EMAIL_API_KEY`, `EMAIL_FROM`).
 
-Provider keys belong to the company: an owner of a company whose plan includes its own keys (`studio.own_keys`) connects them, and everyone in that company uses them. The new database starts with the code's default daily budget; a company owner sets it in Film Studio.
+A company whose plan includes its own keys (`studio.own_keys`, Enterprise) may connect its own OpenAI, Google, Higgsfield or Topaz key; actions on it are recorded with 0 credits. Without the feature, the Connections panels show "Nmesis provides the AI for your plan" and no key fields; a key saved earlier is kept but not used. A client with no active subscription has no Studio ("Your Studio isn't part of your plan yet. Ask Nmesis."); Nmesis's own workspace is exempt.
+
+Nmesis staff open a client's workspace only while that client's owner allows support access (Company settings, 7 days, renewable); it is read-only and every opening is listed for the owner.
 
 Select one of your company's configurators, capture a car view, paste a Pinterest link or upload an inspiration, and generate. Screen sharing still requires the browser's permission. An iframe may be blocked by the configurator owner's embedding policy. Managed configurators can use `public/integration/nmesis-capture.js` for direct capture (install it from your new studio domain and set `data-studio-origin` to that domain); otherwise use tab capture or an uploaded screenshot. Pinterest must expose a publicly retrievable image; a local inspiration upload remains available if it does not.
 

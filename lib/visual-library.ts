@@ -1,3 +1,4 @@
+import {clientText} from './client-text';
 import {bucket,imageKey,validId,StudioError} from './studio-server';
 import {database,type FilmContext} from './film-server';
 import {publicImage,type ImageRow} from './image-server';
@@ -7,6 +8,7 @@ import {isUserPrefix,orgOf} from './portable/tenancy';
 import {locate,memberPrefixes,requireDeleteRight} from './org-library';
 import type {StudioBucket,StoredObject} from './portable/storage';
 import {stalledGeneration,interruptedGenerationMessage} from './generation-status';
+import {markDeleted,removeFromIndex} from './library-index';
 type Context=FilmContext;
 export async function allVisualObjects(store:StudioBucket,prefix:string){
   const objects:StoredObject[]=[];let cursor:string|undefined;
@@ -37,12 +39,13 @@ export async function deleteVisual(ctx:Context,id:string){
  if(record){const visual=await record.json<Visual>();if(visual.status==='pending'&&!stalledGeneration(visual))throw new StudioError('Wait for this generation to finish before deleting it.',409)}
  // A library tombstone preserves source assets, dependent edits and billing rows.
  await store.put(owner+'deleted-visuals/'+id+'.json',JSON.stringify({id,deletedAt:new Date().toISOString()}),{httpMetadata:{contentType:'application/json'}});
+ await markDeleted(ctx,'visual',id,Date.now());
  return {deleted:true,id};
 }
 export async function restoreVisual(ctx:Context,id:string){
  if(!validId(id))throw new StudioError('Image not found.',404);
  const owner=await locate(ctx,'deleted-visuals/'+id+'.json');if(!owner)throw new StudioError('Deleted image not found.',404);
- requireDeleteRight(ctx,owner);await bucket(ctx.BUCKET).delete(owner+'deleted-visuals/'+id+'.json');return {restored:true,id};
+ requireDeleteRight(ctx,owner);await bucket(ctx.BUCKET).delete(owner+'deleted-visuals/'+id+'.json');await markDeleted(ctx,'visual',id,null);return {restored:true,id};
 }
 export async function resolveVisual(ctx:Context,visual:Visual):Promise<Visual>{
  const store=bucket(ctx.BUCKET);
@@ -54,7 +57,8 @@ export async function resolveVisual(ctx:Context,visual:Visual):Promise<Visual>{
  return visual;
 }
 // The whole company's library: every member's saved visuals and image jobs.
-export async function visualLibrary(ctx:Context,deleted=false){
+// `both`: the live and the deleted together, each marked (the one library feed, lib/library.ts).
+export async function visualLibrary(ctx:Context,deleted:boolean|'both'=false){
   const store=bucket(ctx.BUCKET),warnings:string[]=[],deletedIds=new Set<string>(),items:{owner:string;visual:Visual}[]=[];
   for(const owner of await memberPrefixes(ctx)){
    await deletedIn(store,owner,deletedIds);
@@ -62,8 +66,15 @@ export async function visualLibrary(ctx:Context,deleted=false){
    for(const visual of saved)if(visual)items.push({owner,visual});
   }
   const jobs=await database(ctx).prepare("SELECT * FROM image_jobs WHERE org_id=? AND status<>'archived' ORDER BY created_at DESC").bind(ctx.org).all<ImageRow>();
-  for(const row of jobs.results)if(isUserPrefix(row.owner)&&orgOf(row.owner)===ctx.org)items.push({owner:row.owner,visual:publicImage(row)});
-  const visuals=await eachBatch(items.filter(x=>deletedIds.has(x.visual.id)===deleted),x=>resolveVisual({...ctx,prefix:x.owner},x.visual));
+  // One job row the server cannot read (an unknown model, broken data) is
+  // skipped and logged, like an unreadable stored record; the rest of the
+  // library still shows (F-065).
+  for(const row of jobs.results){
+   if(!isUserPrefix(row.owner)||orgOf(row.owner)!==ctx.org)continue;
+   try{items.push({owner:row.owner,visual:publicImage(row)})}
+   catch(e){warnings.push('An image job could not be read.');console.warn('Library: skipped an unreadable image job',JSON.stringify({id:row.id,status:row.status,reason:e instanceof Error?e.message.slice(0,120):'unknown'}))}
+  }
+  const visuals=await eachBatch(items.filter(x=>deleted==='both'||deletedIds.has(x.visual.id)===deleted),async x=>{const v=await resolveVisual({...ctx,prefix:x.owner},x.visual);return {...v,error:clientText(v.error),mine:x.owner===ctx.prefix,deleted:deletedIds.has(x.visual.id)}});
   return {visuals:visuals.sort((a,b)=>b.createdAt.localeCompare(a.createdAt)),warning:warnings.length?'Some image records could not be read. Refresh to try again.':undefined};
 }
 export async function cleanEmptyVisuals(ctx:Context){
@@ -75,14 +86,14 @@ export async function cleanEmptyVisuals(ctx:Context){
     // toward the daily budget; uncertain/active submissions are never archived.
     let archived:string;try{archived=JSON.stringify({...JSON.parse(row.data),archivedStatus:row.status})}catch{continue}
     // Unchanged data and status (compare-and-swap) keep this as atomic as the former json_set.
-    const result=await db.prepare("UPDATE image_jobs SET data=?,status='archived',updated_at=? WHERE id=? AND owner=? AND status=? AND lock_until<? AND data=?").bind(archived,Date.now(),row.id,ctx.prefix,row.status,Date.now(),row.data).run();removed+=result.meta.changes;
+    const result=await db.prepare("UPDATE image_jobs SET data=?,status='archived',updated_at=? WHERE id=? AND owner=? AND status=? AND lock_until<? AND data=?").bind(archived,Date.now(),row.id,ctx.prefix,row.status,Date.now(),row.data).run();removed+=result.meta.changes;if(result.meta.changes)await removeFromIndex(ctx,'visual',row.id);
   }
   const objects=await allVisualObjects(store,ctx.prefix);
   for(const item of objects){const record=await store.get(item.key);if(!record)continue;let visual:Visual;try{visual=await record.json<Visual>()}catch{continue}
     const stale=visual.status==='pending'&&Date.parse(visual.createdAt)<Date.now()-30*60_000;
     if(visual.status!=='failed'&&!stale)continue;if(await store.head(imageKey(ctx.prefix,visual.id)))continue;
     await store.put(ctx.prefix+'archived-visuals/'+visual.id+'.json',JSON.stringify(visual),{httpMetadata:{contentType:'application/json'}});
-    await store.delete(item.key);removed++;
+    await store.delete(item.key);removed++;await removeFromIndex(ctx,'visual',visual.id);
   }
   return {removed};
 }

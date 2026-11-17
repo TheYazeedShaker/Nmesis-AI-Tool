@@ -5,6 +5,7 @@ import {posix} from 'node:path';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {encode,decode} from 'fast-png';
+import {freeCredits} from './support/free-credits.mjs';
 import jpeg from 'jpeg-js';
 const png=encode({width:16,height:16,data:new Uint8Array(16*16*4).fill(255),channels:4});
 const analysis={carDetails:['Dark gray body','Five double-spoke wheels'],sceneDetails:['Concrete wall','Light from left'],conflicts:['Different camera heights'],captureAdvice:'Lower the inspiration camera or capture the car from above.',viewCompatibility:'different',detailRegions:[{label:'Wheel',x:.1,y:.1,width:.4,height:.4}],renderInstructions:'Place the supplied car by the concrete wall. Use the light from the left. Replace the original vehicle and its reflection. Preserve the source grille, lights and wheel design.'};
@@ -14,10 +15,12 @@ async function harness(){
  const ctx={prefix:'owner/',BUCKET:store,org:'nmesis',role:'owner',entitlements:{legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}}};class StudioError extends Error{constructor(m,status=400){super(m);this.status=status}}
  const scope=vm.createContext({Buffer,crypto,TextEncoder,TextDecoder,Uint8Array,DataView,Date,AbortSignal,Response,Request,URL,Blob,FormData,console,fetch:async(...args)=>{calls.push(args);return handler(...args)}});
  const stub=v=>new vm.SyntheticModule(Object.keys(v),function(){for(const[k,x]of Object.entries(v))this.setExport(k,x)},{context:scope});
+ const charge=freeCredits();
  const stubs={
+  'lib/credits/charge':charge.api,
   'lib/studio-server':{context:async()=>ctx,bucket:x=>x,imageKey:(p,id)=>p+'images/'+id,readJson:r=>r.json(),str:(v,n=2000)=>typeof v==='string'?v.trim().slice(0,n):'',validId:id=>typeof id==='string'&&/^[a-z0-9-]{8,80}$/.test(id),StudioError,fail:e=>Response.json({error:e.message},{status:e.status||500}),providerError:()=>new StudioError('Provider rejected',502)},
-  'lib/credentials':{apiKey:async()=> 'synthetic-only'},'fast-png':{encode,decode},'jpeg-js':{default:jpeg},
-  'lib/gemini-server':{googleKey:async()=> 'synthetic-google',renderGoogleImage:async(key,model,size,prompt,images)=>{calls.push(['google-image',{model,size,prompt,images}]);return {bytes:png,type:'image/png',width:16,height:16}}}
+  'lib/credentials':{apiKey:async()=> 'synthetic-only',openaiKey:async()=>({key:'synthetic-only',own:true})},'fast-png':{encode,decode},'jpeg-js':{default:jpeg},
+  'lib/gemini-server':{googleKey:async()=> 'synthetic-google',googleCredential:async()=>({key:'synthetic-google',own:true}),renderGoogleImage:async(key,model,size,prompt,images)=>{calls.push(['google-image',{model,size,prompt,images}]);return {bytes:png,type:'image/png',width:16,height:16}}}
  };
  const modules=new Map();async function load(path){if(modules.has(path))return modules.get(path);const promise=(async()=>{if(stubs[path])return stub(stubs[path]);const source=readFileSync(new URL('../'+path+'.ts',import.meta.url),'utf8');const resolve=s=>s.startsWith('@/')?s.slice(2):s.startsWith('.')?posix.normalize(posix.join(posix.dirname(path),s)):s;
  const m=new vm.SourceTextModule(ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText,{context:scope,importModuleDynamically:async s=>{const child=await load(resolve(s));if(child.status==='linked')await child.evaluate();return child}});await m.link(s=>load(resolve(s)));return m})();modules.set(path,promise);return promise}

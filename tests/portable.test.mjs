@@ -7,6 +7,9 @@ import ts from 'typescript';
 import {DatabaseSync} from 'node:sqlite';
 import * as s3 from '@aws-sdk/client-s3';
 import * as signing from '@aws-sdk/s3-request-presigner';
+import {register} from 'node:module';
+// The credit statements are read from lib/credits/store.ts, whose own imports are extensionless.
+register('../scripts/verify/hooks.mjs',import.meta.url);
 async function moduleAt(path,imports={},extra={}){
  const scope=vm.createContext({Buffer,Response,Request,Headers,Blob,File,FormData,ReadableStream,TextEncoder,TextDecoder,Uint8Array,ArrayBuffer,URL,Date,Math,Number,Error,JSON,console,crypto,process:{env:{KEY_ENCRYPTION_SECRET:'ab'.repeat(32)}},...extra});
  const code=ts.transpileModule(readFileSync(new URL('../'+path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
@@ -17,16 +20,16 @@ class StudioError extends Error{constructor(message,status=400){super(message);t
 function sqliteSql(){const db=new DatabaseSync(':memory:');const calls=[];const sql={db,calls,unsafe:async(text,args=[])=>{calls.push({text,args});const st=db.prepare(text.replace(/\$(\d+)/g,'?$1'));if(st.columns().length){const rows=st.all(...args);rows.count=rows.length;return rows}const rows=[];rows.count=Number(st.run(...args).changes);return rows},begin:async fn=>{calls.push({text:'BEGIN'});db.exec('BEGIN');try{const out=await fn(sql);db.exec('COMMIT');return out}catch(e){db.exec('ROLLBACK');throw e}}};return sql}
 const postgresStub={default:()=>{throw new Error('No network in tests')}};
 test('placeholders become $1…$n once per statement, never inside literals, identifiers or comments',async()=>{
- const {toPositional}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub});
+ const {toPositional}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub,'./environment':{studioEnvironment:()=>'development'}});
  assert.equal(toPositional("SELECT * FROM t WHERE a=? AND b='?' AND c=\"?x\" AND d=?"),"SELECT * FROM t WHERE a=$1 AND b='?' AND c=\"?x\" AND d=$2");
  assert.equal(toPositional("SELECT 'it''s ?' AS x, ? -- why?\n, ? /* ? */ , ?"),"SELECT 'it''s ?' AS x, $1 -- why?\n, $2 /* ? */ , $3");
  assert.equal(toPositional('SELECT 1'),'SELECT 1');
- const {RESERVE_FILM_SQL,RESERVE_SWAP_SQL,RESERVE_IMAGE_SQL}=await import('../lib/film-policy.ts');
- for(const [sql,n] of [[RESERVE_FILM_SQL,8],[RESERVE_SWAP_SQL,8],[RESERVE_IMAGE_SQL,7]]){const out=toPositional(sql);assert.equal(out.includes('?'),false);assert.ok(out.includes('$'+n)&&!out.includes('$'+(n+1)))}
+ const credits=await import('../lib/credits/store.ts');
+ for(const [sql,n] of [[credits.LOCK_CREDITS_SQL,2],[credits.RESERVE_CREDITS_SQL,17],[credits.RECORD_ONLY_SQL,13],[credits.SETTLE_SQL,8],[credits.SETTLED_SQL,4],[credits.RELEASE_SQL,3]]){const out=toPositional(sql);assert.equal(out.includes('?'),false);assert.ok(out.includes('$'+n)&&!out.includes('$'+(n+1)))}
 });
 test('portable SQL adapter preserves rows, bind isolation, changes and transactional batches',async()=>{
  const sql=sqliteSql();try{
- const {StudioDatabase}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub});const db=new StudioDatabase(sql);
+ const {StudioDatabase}=await moduleAt('lib/portable/database.ts',{'postgres':postgresStub,'./environment':{studioEnvironment:()=>'development'}});const db=new StudioDatabase(sql);
  sql.db.exec('CREATE TABLE jobs(id TEXT PRIMARY KEY, owner TEXT, status TEXT, note TEXT)');
  const insert=db.prepare('INSERT INTO jobs VALUES(?,?,?,?)');await insert.bind('job','owner','draft',undefined).run();
  assert.equal(sql.calls.at(-1).text,'INSERT INTO jobs VALUES($1,$2,$3,$4)');assert.deepEqual([...sql.calls.at(-1).args],['job','owner','draft',null]);
@@ -76,9 +79,13 @@ test('identity comes only from a Supabase session verified on the server; no ses
  const imports={'next/headers':{cookies:async()=>({get:n=>n==='studio_org'?{value:'chosen-org'}:undefined})},
   '@/lib/auth/supabase':{authConfigured:()=>configured,verifiedUser:async()=>answer.error||!answer.data.user?null:{id:answer.data.user.id,email:answer.data.user.email.toLowerCase(),appMetadata:answer.data.user.app_metadata,aal:'aal1',totp:false}},
   '@/lib/accounts/directory':{getDirectory:()=>({})},
-  '@/lib/accounts/context':{resolveContext:async a=>{seen.push(a);return a.user.id===user.id?{ok:true,ctx:{user:a.user}}:{ok:false,reason:'no_company'}}}};
+  '@/lib/accounts/context':{resolveContext:async a=>{seen.push(a);return a.user.id===user.id?{ok:true,ctx:{user:a.user}}:{ok:false,reason:'no_company'}}},
+  '@/lib/accounts/cache':await import('../lib/accounts/cache.ts')};
  const m=await moduleAt('lib/studio-context.ts',imports),plain=v=>JSON.parse(JSON.stringify(v));// objects from the module's own context
- assert.equal((await m.getStudioContext()).ok,true);assert.deepEqual(plain(seen[0]),{user:{id:user.id,email:'person@example.test',aal:'aal1'},chosenOrg:'chosen-org',directory:{}});
+ assert.equal((await m.getStudioContext()).ok,true);assert.deepEqual(plain(seen[0]),{user:{id:user.id,email:'person@example.test',aal:'aal1'},chosenOrg:'chosen-org',chosenBrand:null,directory:{}});
+ // The next requests of the same person, company and sign-in level reuse it for
+ // a few seconds (F-060); the session is verified each time all the same.
+ assert.equal((await m.getStudioContext()).ok,true);assert.equal(seen.length,1,'the resolved context is reused');
  // A revoked session still carries a well-formed token; Supabase says so and access ends.
  answer={data:{user:null},error:{code:'session_not_found',message:'Session from session_id claim in JWT does not exist'}};assert.deepEqual(plain(await m.getStudioContext()),{ok:false,problem:'signed_out'});
  answer={data:{user:{...user,id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'}},error:null};assert.deepEqual(plain(await m.getStudioContext()),{ok:false,problem:'no_company'});

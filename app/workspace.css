@@ -1,0 +1,104 @@
+/* ─── The rebuilt screens (Phase 3 group 1): Home, Projects and folders, Library ──
+   components/workspace/*. Built on the design system (app/design-system.css);
+   only what the wireframes need beyond it. Tokens only. */
+
+.workspace .ds-main { padding-top: var(--ds-space-24); }
+.workspace-list { margin: 0; padding: 0; list-style: none; }
+.workspace-hint { font-size: var(--ds-text-sm); }
+.workspace-link-icon { width: var(--ds-icon); height: var(--ds-icon); margin-left: var(--ds-space-4); }
+.workspace-home .ds-hero { padding-bottom: var(--ds-space-16); }
+/* A tool's picture (lib/tool-samples.ts): the company's own work or car in the
+   card's fixed 16:10 box (it loads lazily and never moves the card), with the
+   tool's mark on it; without one, the neutral placeholder and the mark. */
+.workspace-tool-art { position: relative; display: block; }
+.workspace-home .ds-tool-art { background: var(--ds-media-bg); color: var(--ds-muted); }
+.ds-tool-art > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.workspace-tool-mark {
+  position: absolute; left: var(--ds-space-8); top: var(--ds-space-8); display: grid; place-items: center;
+  width: var(--ds-space-32); height: var(--ds-space-32); border-radius: var(--ds-radius-round);
+  background: var(--ds-media-shade); color: var(--ds-on-media);
+}
+.workspace-tool-mark svg { width: var(--ds-icon); height: var(--ds-icon); }
+.workspace-home .ds-tool[data-locked="true"] .workspace-tool-mark { opacity: 0.55; }
+
+/* "Needs a plan upgrade" (components/workspace/upgrade.tsx): the picture and the words side by side, stacked on phones. */
+.workspace-upgrade {
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: var(--ds-space-40);
+  max-width: calc(var(--ds-measure) * 2); margin: 0 auto; padding: var(--ds-space-40) 0;
+}
+.workspace-upgrade-art { margin: 0; border: var(--ds-border-width) solid var(--ds-border); }
+.workspace-upgrade .ds-hero-title { text-wrap: balance; }
+.workspace-upgrade-text > p { max-width: var(--ds-measure); }
+@media (max-width: 768px) {
+  .workspace-upgrade { grid-template-columns: minmax(0, 1fr); gap: var(--ds-space-24); padding: var(--ds-space-16) 0; }
+}
+
+/* Library. */
+.workspace-library-main { min-width: 0; }
+.workspace-place-phone { display: none; margin-bottom: var(--ds-space-16); }
+.workspace-filters { align-items: center; }
+.workspace-filters .ds-select { width: auto; min-width: calc(var(--ds-space-64) * 2); }
+.workspace-count { margin-left: auto; font-size: var(--ds-text-sm); }
+@media (max-width: 1024px) {
+  .workspace-place-phone { display: flex; flex-direction: column; gap: var(--ds-space-4); }
+}
+@media (max-width: 480px) {
+  .workspace-filters .ds-select { flex: 1 1 40%; }
+  .workspace-count { flex-basis: 100%; margin-left: 0; }
+}
+
+/* Projects: folder cards with covers. */
+.workspace-folders { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: var(--ds-space-16); }
+.workspace-folder { position: relative; min-width: 0; }
+.workspace-folder-link {
+  display: flex; flex-direction: column; gap: var(--ds-space-12); padding: var(--ds-space-12);
+  border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius); background: var(--ds-panel);
+  color: inherit; text-decoration: none; min-width: 0;
+}
+.workspace-folder-link:hover { box-shadow: var(--ds-shadow-2); }
+.workspace-folder-covers {
+  display: grid; grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; gap: var(--ds-space-4);
+  aspect-ratio: 16 / 10; border-radius: var(--ds-radius-sm); overflow: hidden; background: var(--ds-media-bg); place-items: center; color: var(--ds-muted);
+}
+.workspace-folder-covers > img { width: 100%; height: 100%; object-fit: cover; }
+.workspace-folder-covers > img:first-child { grid-row: span 2; }
+.workspace-folder-covers > img:only-child { grid-column: span 2; }
+.workspace-folder-covers > svg { grid-column: span 2; grid-row: span 2; width: var(--ds-space-32); height: var(--ds-space-32); }
+.workspace-folder-meta { display: flex; flex-direction: column; gap: var(--ds-space-2); min-width: 0; padding-right: var(--ds-space-40); }
+.workspace-folder-menu { position: absolute; right: var(--ds-space-12); bottom: var(--ds-space-12); }
+
+/* One folder. */
+.workspace-crumbs ol { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ds-space-4); margin: 0 0 var(--ds-space-16); padding: 0; list-style: none; min-width: 0; }
+.workspace-crumbs li { display: inline-flex; align-items: center; gap: var(--ds-space-4); min-width: 0; color: var(--ds-muted); }
+.workspace-crumbs li[aria-current="page"] { color: var(--ds-text-strong); font-weight: var(--ds-weight-medium); }
+.workspace-crumbs svg { width: var(--ds-icon); height: var(--ds-icon); }
+.workspace-subfolders { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); margin-bottom: var(--ds-space-24); }
+.workspace-subfolders .ds-chip { text-decoration: none; }
+.workspace-folder-page { min-width: 0; }
+.workspace-move-list { display: flex; flex-direction: column; gap: var(--ds-space-2); }
+
+/* Status on a picture: the panel colour under the text colour, readable on any
+   picture and in both themes (the soft badge colours were under 4.5:1 on light tiles). */
+.workspace .ds-tile-status .ds-badge { background: var(--ds-panel); color: var(--ds-text-strong); box-shadow: var(--ds-shadow-1); }
+
+/* Phones: every control is at least 44px through the control tokens
+   (app/tokens.css); only what is not a design-system control is sized here,
+   always with min-height / min-width, never a fixed width. */
+@media (max-width: 768px) {
+  .workspace .ds-main .ds-link, .workspace .ds-skip { min-height: var(--ds-tap-phone); }
+  .workspace .ds-meter { min-width: var(--ds-tap-phone); justify-content: center; }
+  .workspace .ds-check > input { min-width: var(--ds-tap-phone); min-height: var(--ds-tap-phone); }
+}
+
+/* Home's tool cards: one width and one height for all, whatever each says
+   (a cost, a plan, a longer line); the footer sits at the bottom. */
+.workspace-home .ds-tools { grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); grid-auto-rows: 1fr; align-items: stretch; }
+.workspace-home .ds-tools > li { display: flex; min-width: 0; }
+.workspace-home .ds-tools .ds-tool { flex: 1 1 auto; width: 100%; height: 100%; }
+.workspace-home .ds-tool-foot { margin-top: auto; }
+
+/* The next page of the library: skeletons while it comes, then how many are shown. */
+.workspace-more { display: flex; flex-direction: column; gap: var(--ds-space-16); margin-top: var(--ds-space-16); }
+/* A car's real picture fills its 16:9 box (Phase 3 polish). */
+.ds-car-art { overflow: hidden; }
+.ds-car-art > img { width: 100%; height: 100%; object-fit: cover; display: block; }

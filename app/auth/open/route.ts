@@ -6,8 +6,9 @@ import {openCompany} from '@/lib/accounts/context';
 import {cookieOptions} from '@/lib/auth/supabase';
 import {redirect} from '@/lib/auth/respond';
 // A deep link to one company's workspace: the admin links to /?org=<id>, the
-// proxy sends it here. The server decides: staff open any company (a client's
-// read-only, "Viewing as", logged on the page load); a member opens it only when
+// proxy sends it here. The server decides: staff open Nmesis's own workspace, and
+// a client's only while it grants support access (read-only, "Viewing as", logged
+// on the page load); a member opens it only when
 // they belong to it. Anything else lands on their own workspace with a notice.
 export async function GET(request:Request){
  const org=new URL(request.url).searchParams.get('org')||'';
@@ -20,6 +21,7 @@ export async function GET(request:Request){
   if(!opened.ok){
    if(opened.reason==='mfa_required')return redirect(request,'/auth/code?next='+encodeURIComponent(back));
    if(opened.reason==='no_company')return redirect(request,'/auth/no-company');
+   if(opened.reason==='no_support')return redirect(request,'/?opened=support');
    return redirect(request,'/?opened=refused');
   }
   (await cookies()).set(ORG_COOKIE,opened.ctx.org.id,{...cookieOptions(),maxAge:60*60*24*90});

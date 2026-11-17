@@ -1,0 +1,165 @@
+/* ─── The one editor (Phase 3 group 2): components/editor/* ──────────────────
+   On the design system's editor layout (.ds-editor). Tokens only. */
+
+/* The editor fills what the top bar and the notices leave (flex), never a
+   fixed "screen minus top bar" height: a banner above it would push its
+   bottom (the history, Generate) off the screen. */
+.workspace:has(> .ds-main.bleed) { height: 100dvh; min-height: 0; }
+.workspace > .ds-main.bleed { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.workspace > .ds-main.bleed > .ds-editor { flex: 1 1 auto; height: auto; min-height: 0; }
+.editor-stage { display: flex; flex-direction: column; gap: var(--ds-space-16); width: 100%; height: 100%; min-height: 0; }
+.editor-stage-main { flex: 1 1 auto; display: grid; place-items: center; min-height: 0; }
+.editor-stage-history { flex: none; }
+.ds-canvas-stage:has(.editor-stage) { place-items: stretch; }
+
+/* Canvas bar: name, what is shown, the project, the result's own actions. */
+.editor-name .ds-input { min-width: 0; width: clamp(calc(var(--ds-space-64) * 2.5), 22vw, var(--ds-settings-w)); border-color: transparent; background: transparent; font-weight: var(--ds-weight-semibold); }
+.editor-name .ds-input:hover, .editor-name .ds-input:focus-visible { border-color: var(--ds-border); background: var(--ds-panel); }
+.editor-bar-actions { display: inline-flex; align-items: center; gap: var(--ds-space-4); margin-left: auto; }
+.editor-stage-switch { flex: none; }
+.editor-stage-switch > button { width: auto; padding: 0 var(--ds-space-12); font-size: var(--ds-text-sm); }
+
+/* The result, with what it used. */
+.editor-result { margin: 0; display: flex; flex-direction: column; gap: var(--ds-space-8); width: min(100%, 1040px); }
+.editor-result > img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--ds-radius); border: var(--ds-border-width) solid var(--ds-border); background: var(--ds-media-bg); }
+.editor-result figcaption { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-8); color: var(--ds-muted); font-size: var(--ds-text-sm); }
+
+/* The configurator in the canvas. */
+.editor-configurator { display: flex; flex-direction: column; gap: var(--ds-space-12); width: min(100%, 1040px); }
+.editor-configurator-frame { position: relative; aspect-ratio: 16 / 9; border-radius: var(--ds-radius); overflow: hidden; border: var(--ds-border-width) solid var(--ds-border); background: var(--ds-media-bg); }
+.editor-configurator-frame > img, .editor-configurator-frame > iframe { width: 100%; height: 100%; object-fit: cover; border: 0; display: block; }
+.editor-live { position: absolute; left: var(--ds-space-12); top: var(--ds-space-12); display: inline-flex; align-items: center; gap: var(--ds-space-8); padding: 0 var(--ds-space-8); min-height: var(--ds-space-24); border-radius: var(--ds-radius-pill); background: var(--ds-media-shade); color: var(--ds-on-media); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold); }
+.editor-live > span { width: var(--ds-space-8); height: var(--ds-space-8); border-radius: var(--ds-radius-round); background: var(--nm-lime); }
+.editor-configurator-bar { display: flex; align-items: center; gap: var(--ds-space-16); flex-wrap: wrap; }
+.editor-turn { flex: 1 1 240px; display: flex; align-items: center; gap: var(--ds-space-12); min-width: 0; }
+.editor-turn .ds-slider { flex: 1 1 auto; }
+
+/* Version history, under the canvas. */
+.editor-history { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 240px); gap: var(--ds-space-12); overflow-x: auto; padding-bottom: var(--ds-space-4); }
+.editor-history-empty { font-size: var(--ds-text-sm); }
+.editor-version { display: flex; flex-direction: column; gap: var(--ds-space-8); padding: var(--ds-space-8); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius); background: var(--ds-panel); min-width: 0; }
+.editor-version[data-current] { border-color: var(--ds-ring); box-shadow: 0 0 0 var(--ds-border-width) var(--ds-ring); }
+.editor-version .ds-badge { align-self: flex-start; }
+.editor-version-pick { display: flex; align-items: center; gap: var(--ds-space-8); border: 0; padding: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; min-width: 0; font: inherit; min-height: var(--ds-tap-min); }
+.editor-version-thumb { flex: none; display: grid; place-items: center; width: var(--ds-space-64); aspect-ratio: 16 / 10; border-radius: var(--ds-radius-sm); overflow: hidden; background: var(--ds-media-bg); color: var(--ds-muted); }
+.editor-version-thumb > img { width: 100%; height: 100%; object-fit: cover; }
+.editor-version-thumb svg { width: var(--ds-icon); height: var(--ds-icon); }
+.editor-version-meta { display: flex; flex-direction: column; min-width: 0; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+
+/* Settings panel sections. */
+.editor-section { display: flex; flex-direction: column; gap: var(--ds-space-12); padding-bottom: var(--ds-space-16); border-bottom: var(--ds-border-width) solid var(--ds-border); }
+.editor-section:last-child { border-bottom: 0; padding-bottom: 0; }
+.editor-section-title { font-family: var(--ds-font-display); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-label); text-transform: uppercase; color: var(--ds-muted); }
+.editor-swatches, .editor-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); margin: 0; padding: 0; border: 0; min-width: 0; }
+.editor-swatches > legend, .editor-chips > legend { margin-bottom: var(--ds-space-8); }
+.editor-swatch { position: relative; display: inline-grid; place-items: center; width: var(--ds-control-h); height: var(--ds-control-h); cursor: pointer; }
+.editor-swatch > input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.editor-swatch-chip { width: var(--ds-space-24); height: var(--ds-space-24); border-radius: var(--ds-radius-round); border: var(--ds-border-width) solid var(--ds-border-strong); }
+.editor-swatch > input:checked + .editor-swatch-chip { box-shadow: 0 0 0 var(--ds-space-2) var(--ds-panel), 0 0 0 var(--ds-space-4) var(--ds-text-strong); }
+.editor-swatch > input:focus-visible + .editor-swatch-chip { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-4); }
+.editor-swatch-name { flex-basis: 100%; }
+.editor-chip { position: relative; display: inline-flex; }
+.editor-chip > input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.editor-chip > span { display: inline-flex; align-items: center; min-height: var(--ds-control-h-sm); padding: 0 var(--ds-space-12); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-pill); font-size: var(--ds-text-sm); }
+.editor-chip > input:checked + span { background: var(--ds-text); color: var(--ds-bg); border-color: var(--ds-text); }
+.editor-chip > input:focus-visible + span { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.editor-inspiration { display: flex; flex-direction: column; gap: var(--ds-space-8); }
+.editor-row { display: flex; flex-wrap: wrap; gap: var(--ds-space-8); }
+.editor-quality .ds-radio { padding: var(--ds-space-8) var(--ds-space-12); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); }
+.editor-quality .ds-radio:has(input:checked) { border-color: var(--ds-ring); background: var(--ds-accent-soft); }
+.editor-quality-label { display: inline-flex; gap: var(--ds-space-8); align-items: baseline; justify-content: space-between; width: 100%; }
+.editor-upload { display: flex; align-items: center; gap: var(--ds-space-12); padding: var(--ds-space-8); border: var(--ds-border-width) dashed var(--ds-border-strong); border-radius: var(--ds-radius-md); min-width: 0; }
+.editor-upload > svg { width: var(--ds-icon-lg); height: var(--ds-icon-lg); color: var(--ds-muted); flex: none; }
+.editor-upload > span:not(.editor-lineup-thumb) { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; font-size: var(--ds-text-sm); }
+.editor-lineup { display: flex; flex-direction: column; gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; }
+.editor-lineup-car { display: flex; align-items: center; gap: var(--ds-space-12); font-size: var(--ds-text-sm); }
+.editor-lineup-car > span:not(.editor-lineup-thumb):not(.ds-badge) { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.editor-lineup-thumb { flex: none; width: var(--ds-space-64); aspect-ratio: 16 / 10; border-radius: var(--ds-radius-sm); overflow: hidden; background: var(--ds-media-bg); }
+.editor-lineup-thumb > img { width: 100%; height: 100%; object-fit: cover; }
+
+/* A story: its shots as a board. */
+.editor-story { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: var(--ds-space-12); width: 100%; margin: 0; padding: 0; list-style: none; align-self: start; }
+.editor-shot { display: flex; flex-direction: column; gap: var(--ds-space-8); font-size: var(--ds-text-sm); }
+.editor-shot > img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--ds-radius-md); background: var(--ds-media-bg); }
+.editor-shot > span { display: flex; flex-direction: column; }
+
+@media (max-width: 768px) {
+  .editor-bar-actions { margin-left: 0; }
+  .ds-canvas-bar { flex-wrap: wrap; }
+  .editor-history { grid-auto-columns: minmax(180px, 70vw); }
+  .editor-swatch, .editor-chip > span, .editor-version-pick { min-height: var(--ds-tap-phone); min-width: var(--ds-tap-phone); }
+}
+.editor-choice-input { cursor: pointer; }
+
+/* Fit: the stage never grows past the canvas; the car view keeps to the screen. */
+.editor-stage-main { grid-template-columns: minmax(0, 1fr); width: 100%; }
+.editor-configurator, .editor-result { width: 100%; max-width: 1040px; justify-self: center; min-width: 0; }
+.editor-configurator-frame { max-height: 56dvh; }
+.editor-result > img { max-height: 56dvh; }
+.workspace .ds-main.bleed { padding-top: 0; }
+.editor-stage-switch > button { white-space: nowrap; }
+/* The version being made: progress, credits held, Cancel. */
+.editor-version-progress { display: flex; flex-direction: column; gap: var(--ds-space-4); font-size: var(--ds-text-xs); color: var(--ds-muted); }
+.editor-version-progress .ds-progress { width: 100%; }
+@media (max-width: 768px) {
+  .workspace .ds-phone-generate { bottom: 0; }
+  .editor-name { flex: 1 1 100%; }
+  .editor-name .ds-input { width: 100%; }
+  .editor-configurator-frame, .editor-result > img { max-height: 40dvh; }
+}
+/* The history strip scrolls inside the canvas; it never widens it. */
+.ds-canvas-stage:has(.editor-stage) { grid-template-columns: minmax(0, 1fr); }
+.editor-stage, .editor-stage-history { min-width: 0; }
+/* Flex boxes never shrink below what they hold (check:ui overlapped): the stage
+   keeps its content and the canvas scrolls, instead of the history sliding over
+   it; a picture that loads late grows the stage, never moves the history up. */
+.editor-stage-main { flex: 1 0 auto; }
+/* The stage fills the canvas to the bottom at every size, with the history
+   last: the canvas is a column and the stage grows into it (flex), never a
+   percentage height, which browsers resolve differently and which left an
+   empty band under the history (owner, 1440). check:ui counts that band. */
+.ds-canvas-stage:has(.editor-stage) { display: flex; flex-direction: column; }
+.ds-canvas-stage > .editor-stage { flex: 1 0 auto; height: auto; min-height: 0; }
+/* What is shown sits at the top of the stage: when the history loads under it,
+   nothing above moves (check:ui layout shift on Film). */
+.editor-stage-main { place-items: start center; }
+/* Phones: the editor fills the screen under the top bar as on desktop, as a
+   column: the tools, the canvas (which scrolls inside itself) and Generate in a
+   row of its own. Nothing is ever under the Generate bar, at rest or while
+   scrolling (Story at 768), and it never moves when the history loads. */
+@media (max-width: 768px) {
+  .workspace .ds-main.bleed { padding-bottom: 0; }
+  .workspace > .ds-main.bleed > .ds-editor { min-height: 0; }
+  .workspace .ds-phone-generate { position: static; }
+}
+/* In the editor the work in progress and errors sit in the flow under the
+   canvas, never floating over the version history (as on phones). */
+.ds-editor-canvas:has(.editor-stage) .ds-canvas-jobs { position: static; width: auto; margin: 0 var(--ds-space-24) var(--ds-space-16); }
+/* A message with its Dismiss button: the words take the room and wrap; the button stays beside them. */
+.editor-message { flex-wrap: nowrap; align-items: flex-start; }
+.editor-message > span { flex: 1 1 auto; min-width: 0; }
+/* On phones the name takes a row of its own, so the editor's bar always has
+   two rows: hold them from the start, and the canvas does not move down when
+   the work's name arrives (check:ui layout shift on Film at 768). */
+@media (max-width: 768px) {
+  .ds-editor-canvas:has(.editor-stage) .ds-canvas-bar { min-height: calc(var(--ds-control-h) * 2 + var(--ds-space-8) * 3); align-content: flex-start; }
+}
+/* The chosen car's picture over the car picker (Phase 3 polish). */
+.editor-car-picture { display: grid; place-items: center; aspect-ratio: 16 / 9; max-height: calc(var(--ds-space-64) * 2); width: 100%; border-radius: var(--ds-radius); overflow: hidden; background: var(--ds-panel-2); border: var(--ds-border-width) solid var(--ds-border); color: var(--ds-muted); }
+.editor-car-picture > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.editor-car-picture > svg { width: var(--ds-space-32); height: var(--ds-space-32); }
+/* The canvas bar never shrinks below its rows (Story on phones has three): the
+   canvas gives way, never the bar's buttons (check:ui overlapped). */
+.ds-editor-canvas > .ds-canvas-bar { flex: none; }
+/* Advanced (staff and companies with their own keys): the engine and model,
+   folded under the choice clients make, Quality (design/editor-cleanup). */
+.editor-advanced { margin-top: var(--ds-space-4); }
+/* The bar's own actions wrap inside the bar, never past the screen's edge: on
+   a 360 phone Story's four actions pushed "Deleted" out, the phone zoomed the
+   page out and a band showed under the editor (check:ui zoomedOut, editorBand). */
+.editor-bar-actions { flex-wrap: wrap; row-gap: var(--ds-space-4); min-width: 0; max-width: 100%; }
+/* The tool's first data is loading: the frame (rail, bars, panels, Generate)
+   shows at once; what fills them waits, hidden, so nothing moves when it
+   arrives (check:ui layout shift on Film once pages stopped waiting for the
+   account; finish pass). */
+.ds-editor[data-loading] .ds-canvas-bar > *, .ds-editor[data-loading] .ds-canvas-stage, .ds-editor[data-loading] .ds-settings-body, .ds-editor[data-loading] .ds-generate > * { visibility: hidden; }

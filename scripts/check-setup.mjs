@@ -10,6 +10,12 @@ const required=['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY','SUPABASE_SECRET_KEY',
 const missing=required.filter(k=>!env[k]?.trim());
 for(const key of required)console.log(key+': '+(missing.includes(key)?'MISSING':'set'));
 const issues=[],notes=[];
+// Which environment's rows this server would read and write (Production and
+// Preview share the database; migration 0004).
+{const v=(env.VERCEL_ENV||'').trim();
+ if(v&&!['production','preview','development'].includes(v))issues.push('VERCEL_ENV must be production, preview or development (found '+v+').');
+ else if(!v&&env.NODE_ENV==='production')issues.push('VERCEL_ENV is not set on a production server: the Studio refuses to guess between Production and Preview. Turn on Vercel\'s system environment variables.');
+ console.log('Environment: '+(v||'development'));}
 // Same rule as lib/secret-crypto.ts (an AES-256 key written as hex). Never print the value.
 if(env.KEY_ENCRYPTION_SECRET?.trim()&&!/^[a-f0-9]{64}$/i.test(env.KEY_ENCRYPTION_SECRET.trim()))issues.push('KEY_ENCRYPTION_SECRET must be exactly 64 hex characters (32 bytes), e.g. the output of openssl rand -hex 32. Never change it once keys are saved.');
 // Optional: the address sign-in links return to (https, no path; lib/auth/origin.ts).
@@ -22,6 +28,12 @@ if(env.SUPABASE_SECRET_KEY&&env.SUPABASE_SECRET_KEY===env.SUPABASE_PUBLISHABLE_K
 for(const old of ['NEXTAUTH_URL','NEXTAUTH_SECRET','GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','STUDIO_ALLOWED_EMAILS','SHARED_OPENAI_OWNER_EMAIL','SHARED_OPENAI_GUEST_EMAILS','CONFIGURATOR_PRESETS','NEXT_PUBLIC_CONFIGURATOR_PRESETS'])if(env[old])notes.push(old+' is no longer used (Supabase sign-in, company accounts and configurators replace it); remove it.');
 const dbUrl=(key,port)=>{if(!env[key])return;try{const u=new URL(env[key]);if(!/^postgres(ql)?:$/.test(u.protocol))issues.push(key+' must be a postgres:// connection string.');else if(u.port&&u.port!==port)notes.push(key+' normally uses port '+port+' (found '+u.port+').')}catch{issues.push(key+' must be a valid connection string.')}};
 dbUrl('DATABASE_URL','6543');dbUrl('DATABASE_URL_DIRECT','5432');
+// S3: Nmesis's own provider keys (server-only). Without one, that provider works only
+// for companies that connected their own key (studio.own_keys). Never print a value.
+for(const key of ['OPENAI_API_KEY','GOOGLE_AI_API_KEY','HIGGSFIELD_API_KEY','TOPAZ_API_KEY'])if(!env[key]?.trim())notes.push(key+' is not set: companies without their own key cannot use that provider here.');
+if(!(env.EMAIL_API_URL?.trim()&&env.EMAIL_API_KEY?.trim()&&env.EMAIL_FROM?.trim()))notes.push('EMAIL_API_URL, EMAIL_API_KEY and EMAIL_FROM are not all set: the 80% / 100% credit emails and the Nmesis provider alerts are logged, not sent.');
+else{try{if(new URL(env.EMAIL_API_URL).protocol!=='https:')issues.push('EMAIL_API_URL must be an https address.')}catch{issues.push('EMAIL_API_URL is not a valid address.')}}
+if(!env.NMESIS_ALERT_EMAIL?.trim())notes.push('NMESIS_ALERT_EMAIL is not set: a Nmesis provider account with no credit is only logged.');
 const ssl=url=>/[?&]sslmode=disable\b/.test(url)?false:'require';
 
 async function checkDatabase(){
@@ -37,6 +49,12 @@ async function checkDatabase(){
    where n.nspname='public' and c.relkind in ('r','v','m','p','f') and has_table_privilege(c.oid,'SELECT')`;
   if(pub.readable)issues.push('Database: the studio role can read '+pub.readable+' relation(s) in schema public; it must reach only schema studio.');
   else console.log('Database: studio role cannot read schema public');
+  // S3: the balance and the ledger function from setup SQL section 6.
+  const [credits]=await sql`select
+    case when to_regprocedure('accounts.credits_balance(uuid)') is null then false else has_function_privilege(to_regprocedure('accounts.credits_balance(uuid)'),'execute') end as balance,
+    case when to_regprocedure('accounts.record_usage(uuid,text,text,numeric,text,numeric,text,jsonb)') is null then false else has_function_privilege(to_regprocedure('accounts.record_usage(uuid,text,text,numeric,text,numeric,text,jsonb)'),'execute') end as record`;
+  if(!credits.balance||!credits.record)issues.push('Database: accounts.credits_balance or accounts.record_usage is not available to the studio role, so every paid action is refused. Run section 6 of docs/supabase-setup.sql.');
+  else console.log('Database: credits balance and ledger function available');
   const [ledger]=await sql`select to_regclass('studio.__studio_migrations') is not null as present`;
   const applied=new Map(ledger.present?(await sql`select name,sha256 from studio.__studio_migrations`).map(r=>[r.name,r.sha256]):[]);
   const folder=new URL('../supabase/migrations/',import.meta.url);const pending=[];

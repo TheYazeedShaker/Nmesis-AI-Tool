@@ -2,24 +2,72 @@ name: CI
 
 # Merge wall for every branch. Vercel builds and deploys separately through its
 # Git integration (main -> Production, everything else -> Preview).
+#
+# Pull requests (into anything but main) and pushes to development and the
+# playground: the fast gates (lint, typecheck, check:design | tests with
+# Postgres | build) and check:ui for the screens the change can affect
+# (scripts/ui/affected.mjs), cut into parallel shards. The full sweep (every
+# screen, --perf --shots) runs nightly on development, on pull requests into
+# main, on pushes to main, and on demand. docs/design-audit/harness.md.
+# `verify` and `ui` are the summary jobs branch protection can require.
 on:
   push:
     branches: [main, development, moaz-playground]
   pull_request:
+  # Nightly at 02:30 UTC: the full sweep of development. GitHub schedules the
+  # copy of this file on the default branch, so this starts once it is on main.
+  schedule:
+    - cron: '30 2 * * *'
   workflow_dispatch:
+    inputs:
+      full:
+        description: The full check:ui sweep (every screen, --perf --shots)
+        type: boolean
+        default: false
+      update_baseline:
+        description: The full check:ui sweep with --update; uploads scripts/ui-baseline.json as the ui-baseline artifact
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # The nightly run checks development (a scheduled run starts on the default branch).
+  CHECKOUT_REF: ${{ github.event_name == 'schedule' && 'development' || '' }}
+
 jobs:
-  verify:
-    name: verify
+  # ── Fast gates ──────────────────────────────────────────────────────────
+  static:
+    name: lint, typecheck, design
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install (frozen lockfile)
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Design guard (counts may only go down; scripts/design-baseline.json)
+        run: npm run check:design
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     # A disposable Postgres for tests/postgres.test.mjs (migrations, the owner's
     # setup SQL, forced row level security). Without TEST_DATABASE_URL those skip.
     services:
@@ -38,6 +86,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ env.CHECKOUT_REF }}
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -45,16 +94,315 @@ jobs:
           cache: npm
       - name: Install (frozen lockfile)
         run: npm ci
-      - name: Lint
-        run: npm run lint
-      - name: Typecheck
-        run: npm run typecheck
       - name: Test
         run: npm test
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/studio_test?sslmode=disable
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install (frozen lockfile)
+        run: npm ci
+      - name: Restore the Next.js build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'components/**', 'lib/**', 'hooks/**', 'public/**', 'proxy.ts', 'next.config.ts', 'postcss.config.mjs', 'tsconfig.json') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
       - name: Build
         run: npm run build
+
+  # The required check: every fast gate passed.
+  verify:
+    name: verify
+    needs: [static, test, build]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Lint, typecheck, design, tests and build
+        env:
+          STATIC: ${{ needs.static.result }}
+          TEST: ${{ needs.test.result }}
+          BUILD: ${{ needs.build.result }}
+        run: |
+          echo "lint, typecheck, design: $STATIC · test: $TEST · build: $BUILD"
+          [ "$STATIC" = success ] && [ "$TEST" = success ] && [ "$BUILD" = success ]
+
+  # ── check:ui ────────────────────────────────────────────────────────────
+  # Every screen in a real browser (npm run check:ui): the production build
+  # against a Postgres service, a mocked Supabase Auth and an S3 stand-in; the
+  # Studio server cannot reach the network, and no provider key is set. Fails
+  # when a count in scripts/ui-baseline.json goes up. Reports and screenshots
+  # (synthetic data only) are uploaded as the "ui-report" artifact.
+  plan:
+    name: ui plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      only: ${{ steps.plan.outputs.only }}
+      shards: ${{ steps.plan.outputs.shards }}
+      total: ${{ steps.plan.outputs.total }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          # A pull request is its merge commit (base and head are its parents); a push compares with the commit before it.
+          fetch-depth: ${{ github.event_name == 'push' && '0' || '2' }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - name: Which screens this change can affect
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+          FULL_INPUT: ${{ inputs.full }}
+          UPDATE_INPUT: ${{ inputs.update_baseline }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "$EVENT" = schedule ] || [ "$FULL_INPUT" = true ] || [ "$UPDATE_INPUT" = true ] \
+             || { [ "$EVENT" = pull_request ] && [ "$BASE_REF" = main ]; } \
+             || { [ "$EVENT" = push ] && [ "$REF_NAME" = main ]; }; then
+            args=(--sweep)
+          elif [ "$EVENT" = pull_request ]; then
+            args=(--diff=HEAD^1..HEAD)
+          elif [ "$EVENT" = push ] && [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ]; then
+            args=(--diff="$BEFORE..$SHA")
+          else
+            args=(--all)
+          fi
+          node scripts/ui/affected.mjs --github "${args[@]}" >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+  ui-shard:
+    name: ui shard ${{ matrix.shard }}/${{ needs.plan.outputs.total }}
+    needs: plan
+    if: needs.plan.outputs.mode == 'subset'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: studio_ui
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install (frozen lockfile)
+        run: npm ci
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Restore the Playwright browser
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-headless-shell
+      - name: Install Chromium for Playwright
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps --only-shell chromium
+      - name: Chromium's system libraries
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: Restore the Next.js build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'components/**', 'lib/**', 'hooks/**', 'public/**', 'proxy.ts', 'next.config.ts', 'postcss.config.mjs', 'tsconfig.json') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+      - name: Build
+        run: npm run build
+      - name: UI harness, this shard of the affected screens
+        run: npm run check:ui -- --only="$ONLY" --shard="$SHARD/$TOTAL" --shots
+        env:
+          ONLY: ${{ needs.plan.outputs.only }}
+          SHARD: ${{ matrix.shard }}
+          TOTAL: ${{ needs.plan.outputs.total }}
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/studio_ui?sslmode=disable
+      - name: Upload this shard's report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-report-shard-${{ matrix.shard }}
+          path: ui-report/
+          retention-days: 1
+          if-no-files-found: warn
+
+  ui-full:
+    name: ui full sweep
+    needs: plan
+    if: needs.plan.outputs.mode == 'full'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: studio_ui
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install (frozen lockfile)
+        run: npm ci
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      - name: Restore the Playwright browser
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-headless-shell
+      - name: Install Chromium for Playwright
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps --only-shell chromium
+      - name: Chromium's system libraries
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - name: Restore the Next.js build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'components/**', 'lib/**', 'hooks/**', 'public/**', 'proxy.ts', 'next.config.ts', 'postcss.config.mjs', 'tsconfig.json') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+      - name: Build
+        run: npm run build
+      - name: UI harness, every screen, and the performance baseline
+        if: ${{ !inputs.update_baseline }}
+        run: npm run check:ui -- --perf --shots
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/studio_ui?sslmode=disable
+      - name: UI harness, every screen, writing the baseline (totals and per screen)
+        if: ${{ inputs.update_baseline }}
+        run: npm run check:ui -- --shots --update
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/studio_ui?sslmode=disable
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-report
+          path: ui-report/
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Upload the new baseline (commit it as scripts/ui-baseline.json)
+        if: ${{ inputs.update_baseline }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-baseline
+          path: scripts/ui-baseline.json
+          retention-days: 7
+          if-no-files-found: error
+
+  # The required check: the shards merged and compared with the baseline, or
+  # the full sweep passed, or no screen was affected.
+  ui:
+    name: ui
+    needs: [plan, ui-shard, ui-full]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: What ran
+        env:
+          PLAN: ${{ needs.plan.result }}
+          MODE: ${{ needs.plan.outputs.mode }}
+          SHARDS: ${{ needs.ui-shard.result }}
+          FULL: ${{ needs.ui-full.result }}
+        run: |
+          echo "plan: $PLAN ($MODE) · shards: $SHARDS · full sweep: $FULL"
+          [ "$PLAN" = success ] || exit 1
+          case "$MODE" in
+            none) echo "No screen is affected by this change: check:ui did not run." ;;
+            full) [ "$FULL" = success ] ;;
+            subset) [ "$SHARDS" != cancelled ] && [ "$SHARDS" != skipped ] ;;
+            *) exit 1 ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.plan.outputs.mode == 'subset'
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: needs.plan.outputs.mode == 'subset'
+        with:
+          node-version-file: .nvmrc
+      - name: Download the shards' reports
+        if: needs.plan.outputs.mode == 'subset'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: ui-report-shard-*
+          path: ui-shards/
+      - name: Merge the shards and compare with the baseline
+        if: needs.plan.outputs.mode == 'subset'
+        env:
+          TOTAL: ${{ needs.plan.outputs.total }}
+          SHARDS: ${{ needs.ui-shard.result }}
+        run: |
+          node scripts/ui/merge.mjs ui-shards --out=ui-report --expect="$TOTAL"
+          [ "$SHARDS" = success ] || { echo "✗ A shard failed (see its log)."; exit 1; }
+      - name: Upload the merged report and every screenshot
+        if: always() && needs.plan.outputs.mode == 'subset'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-report
+          path: ui-report/
+          retention-days: 7
+          if-no-files-found: warn
 
   secrets:
     name: secrets
@@ -66,6 +414,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
           persist-credentials: false
       - name: Install gitleaks (pinned + checksummed)

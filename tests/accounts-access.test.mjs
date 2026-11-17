@@ -28,6 +28,8 @@ const prefix=(org,user)=>`orgs/${org}/users/${user.id}/`;
 const legacy={legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}};
 const starterFeatures={'studio.enabled':true,'studio.max_output':'2k','studio.key_visuals':true,'studio.lineups':false,'studio.area_edit':false,'studio.object_select':false,'studio.pinterest':false,'studio.smart_reference':false,'studio.upscale':false,'studio.film':false,'studio.swap':false,'studio.storyboards':false,'studio.own_keys':false};
 const starter={legacy:false,status:'active',planId:'starter',planName:'Starter',endsOn:null,features:starterFeatures};
+// S3: a client with no plan has no Studio, so the companies these checks use are on a full plan.
+const full={legacy:false,status:'active',planId:'enterprise',planName:'Enterprise',endsOn:null,features:Object.fromEntries(Object.keys(starterFeatures).map(k=>[k,k==='studio.max_output'?'8k':true]))};
 const recentEnd=new Date(Date.now()-5*86_400_000).toISOString().slice(0,10);
 const ended={legacy:false,status:'ended',planId:'growth',planName:'Growth',endsOn:recentEnd,features:Object.fromEntries(Object.keys(starterFeatures).map(k=>[k,k==='studio.max_output'?null:false]))};
 const car=(brand,model)=>({brandId:brand,modelId:model,brandName:'Demo '+brand,modelName:'Model '+model,path:`/${brand}/${model}/`,template:'capture'});
@@ -37,17 +39,19 @@ before(async()=>{
  s3=await startS3();
  Object.assign(process.env,{S3_REGION:'eu-central-1',S3_BUCKET:'studio-test',S3_ENDPOINT:s3.url,S3_FORCE_PATH_STYLE:'true',S3_ACCESS_KEY_ID:'local',S3_SECRET_ACCESS_KEY:'local-secret',KEY_ENCRYPTION_SECRET:'5e'.repeat(32),OPENAI_API_KEY:'not-a-real-key',CONFIGURATOR_ORIGIN:'https://configurator.example.com'});
  globalThis.fetch=async(url,init)=>{const u=String(url instanceof Request?url.url:url);if(u.startsWith(s3.url))return realFetch(url,init);providerCalls.push(u);if(providerAnswer)return providerAnswer(u,init);throw new Error('Provider calls are not allowed in this test.')};
- state.db=sqliteDatabase();
+ state.db=sqliteDatabase();for(const org of [ORG_A,ORG_B,ORG_S])state.db.ledger.allowance(org,1000,new Date().toISOString().slice(0,10));
  state.directory=memoryDirectory({
   orgs:[{id:ORG_A,name:'Company A',kind:'client'},{id:ORG_B,name:'Company B',kind:'client'},{id:ORG_S,name:'Starter Co',kind:'client'},{id:ORG_E,name:'Ended Co',kind:'client'},{id:ORG_N,name:'Nmesis',kind:'internal'}],
   members:[{userId:A1.id,orgId:ORG_A,role:'owner',status:'active'},{userId:A2.id,orgId:ORG_A,role:'creator',status:'invited'},{userId:A3.id,orgId:ORG_A,role:'viewer',status:'active'},{userId:B1.id,orgId:ORG_B,role:'owner',status:'active'},{userId:S1.id,orgId:ORG_S,role:'creator',status:'active'},{userId:E1.id,orgId:ORG_E,role:'owner',status:'active'}],
   staff:{[T.id]:'ops'},
-  entitlements:{[ORG_A]:legacy,[ORG_B]:legacy,[ORG_S]:starter,[ORG_E]:ended,[ORG_N]:legacy},
-  cars:{[ORG_A]:[car('alpha','one'),car('alpha','two')],[ORG_B]:[car('beta','one')]},
+  entitlements:{[ORG_A]:full,[ORG_B]:full,[ORG_S]:starter,[ORG_E]:ended,[ORG_N]:legacy},
+  cars:{[ORG_A]:[car('alpha','one'),car('alpha','two')],[ORG_B]:[car('beta','one'),car('gamma','one')]},
+  // Phase 3 polish: A works as one brand; B owns two and switches between them.
+  brands:{[ORG_A]:[{id:'alpha',name:'Alpha'}],[ORG_B]:[{id:'beta',name:'Beta'},{id:'gamma',name:'Gamma'}]},
   allCars:[car('alpha','one'),car('alpha','two'),car('beta','one'),car('gamma','one')],
  });
  const load=p=>import('@/'+p);
- for(const p of ['app/api/visuals/route.ts','app/api/visuals/[id]/route.ts','app/api/assets/[id]/route.ts','app/api/area-edits/[id]/route.ts','app/api/swap-source/[id]/route.ts','app/api/films/route.ts','app/api/films/[id]/route.ts','app/api/films/[id]/video/route.ts','app/api/films/[id]/[action]/route.ts','app/api/swaps/route.ts','app/api/swaps/[id]/route.ts','app/api/swaps/[id]/video/route.ts','app/api/swaps/[id]/diagnostic/route.ts','app/api/swaps/[id]/[action]/route.ts','app/api/storyboards/route.ts','app/api/storyboards/[id]/route.ts','app/api/storyboards/[id]/video/route.ts','app/api/storyboards/[id]/[action]/route.ts','app/api/image-jobs/route.ts','app/api/image-jobs/[id]/[action]/route.ts','app/api/topaz/jobs/route.ts','app/api/topaz/jobs/[id]/route.ts','app/api/upscale-import/route.ts','app/api/generate/route.ts','app/api/uploads/route.ts','app/api/configurators/route.ts','app/api/me/route.ts','app/api/status/route.ts','app/api/directions/route.ts','app/api/pinterest/route.ts','app/api/smart-prompts/route.ts','app/api/connection/route.ts'])routes[p]=await load(p);
+ for(const p of ['app/api/cars/[id]/picture/route.ts','app/api/brands/[id]/logo/route.ts','app/api/visuals/route.ts','app/api/visuals/[id]/route.ts','app/api/assets/[id]/route.ts','app/api/area-edits/[id]/route.ts','app/api/swap-source/[id]/route.ts','app/api/films/route.ts','app/api/films/[id]/route.ts','app/api/films/[id]/video/route.ts','app/api/films/[id]/[action]/route.ts','app/api/swaps/route.ts','app/api/swaps/[id]/route.ts','app/api/swaps/[id]/video/route.ts','app/api/swaps/[id]/diagnostic/route.ts','app/api/swaps/[id]/[action]/route.ts','app/api/storyboards/route.ts','app/api/storyboards/[id]/route.ts','app/api/storyboards/[id]/video/route.ts','app/api/storyboards/[id]/[action]/route.ts','app/api/image-jobs/route.ts','app/api/image-jobs/[id]/[action]/route.ts','app/api/topaz/jobs/route.ts','app/api/topaz/jobs/[id]/route.ts','app/api/upscale-import/route.ts','app/api/generate/route.ts','app/api/uploads/route.ts','app/api/configurators/route.ts','app/api/me/route.ts','app/api/status/route.ts','app/api/directions/route.ts','app/api/pinterest/route.ts','app/api/smart-prompts/route.ts','app/api/connection/route.ts'])routes[p]=await load(p);
  store=(await load('lib/portable/storage.ts')).getStorage();
  const png=Buffer.alloc(64);png.set([137,80,78,71,13,10,26,10]);png.writeUInt32BE(13,8);png.write('IHDR',12);png.writeUInt32BE(1920,16);png.writeUInt32BE(1080,20);
  const json=v=>JSON.stringify(v),meta={httpMetadata:{contentType:'application/json'}},img={httpMetadata:{contentType:'image/png'}},now=new Date().toISOString();
@@ -71,7 +75,7 @@ before(async()=>{
 });
 after(async()=>{globalThis.fetch=realFetch;s3?.server.closeAllConnections();s3?.server.close();console.log('\n'+['| Who | Route | Expected | Got |','|---|---|---|---|',...table.map(r=>`| ${r.who} | ${r.method} ${r.path} | ${r.expected} | ${r.got} |`)].join('\n')+'\n')});
 const B={};
-function as(user,chosenOrg=null){state.user=user;state.chosenOrg=chosenOrg}
+function as(user,chosenOrg=null,chosenBrand=null){state.user=user;state.chosenOrg=chosenOrg;state.chosenBrand=chosenBrand}
 async function call(method,path,file,{body,params,raw}={}){
  const headers={origin:ORIGIN};if(body!==undefined)headers['content-type']='application/json';
  const response=await routes[file][method](new Request(ORIGIN+path,{method,headers,redirect:'manual',...body!==undefined?{body:JSON.stringify(body)}:raw?{body:raw}:{}}),params?{params:Promise.resolve(params)}:undefined);
@@ -176,10 +180,13 @@ test('V3: a viewer can look but not generate, upload or change anything',async()
  await expect('GET','/api/visuals','app/api/visuals/route.ts',{},r=>{assert.equal(r.status,200);assert.ok(r.text.includes('avisual-001'))},'200 (can look)');
  assert.deepEqual(providerCalls,[]);
 });
-test('V4: staff can open any company, read-only with "Viewing as", and it is logged',async()=>{
+test('V4: staff open a client only while it grants support access, read-only with "Viewing as", and it is logged',async()=>{
+ // S3: no grant, no client: the cookie's wish falls back to Nmesis's own workspace.
  as(T,ORG_B);
- const me=await expect('GET','/api/me?page=/','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.viewingAs,true);assert.equal(r.body.org.id,ORG_B);assert.equal(r.body.org.name,'Company B');assert.equal(r.body.role,'viewer');assert.equal(r.body.staff,true)},'200 viewingAs Company B');
- assert.ok(me.body.orgs.length>=5,'staff can switch to any company');
+ await expect('GET','/api/me?page=/','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.org.id,ORG_N);assert.equal(r.body.viewingAs,false);assert.ok(r.body.orgs.every(o=>o.id!==ORG_B),'not listed')},'200 Nmesis (no grant)');
+ state.directory.grants[ORG_B]=Date.now()+7*86_400_000;
+ const me=await expect('GET','/api/me?page=/','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.viewingAs,true);assert.equal(r.body.org.id,ORG_B);assert.equal(r.body.org.name,'Company B');assert.equal(r.body.role,'viewer');assert.equal(r.body.staff,true);assert.ok(r.body.supportUntil)},'200 viewingAs Company B');
+ assert.deepEqual(me.body.orgs.map(o=>o.id).sort(),[ORG_B,ORG_N].sort(),'staff switch to Nmesis and to clients that grant access, nothing else');
  const log=state.db.raw.prepare('SELECT org_id,staff_user,path FROM staff_access_log').all().map(r=>({...r}));
  assert.deepEqual(log,[{org_id:ORG_B,staff_user:T.id,path:'/'}]);
  await expect('GET','/api/visuals','app/api/visuals/route.ts',{},r=>{assert.equal(r.status,200);assert.ok(r.text.includes('bvisual-001'))},'200 (sees B)');
@@ -241,10 +248,10 @@ test('S2.1: staff with the code cannot write in a client workspace, and can in N
 });
 test('S2.1: the switcher has Nmesis and Clients sections for staff only',async()=>{
  as(T,ORG_N);
- await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,true);assert.deepEqual(r.body.switcher.nmesis,[{id:ORG_N,name:'Nmesis'}]);assert.deepEqual(r.body.switcher.clients.map(o=>o.name).sort(),['Company A','Company B','Ended Co','Starter Co'])},'200, two sections');
+ await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,true);assert.deepEqual(r.body.switcher.nmesis,[{id:ORG_N,name:'Nmesis',brands:[]}]);assert.deepEqual(r.body.switcher.clients.map(o=>o.name),['Company B'],'only clients that grant support access');assert.deepEqual(r.body.switcher.clients[0].brands.map(b=>b.name),['Beta','Gamma'],'staff see each client’s brands (Brand · Company)')},'200, two sections');
  for(const member of [A1,B1,S1]){
   as(member);
-  await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,false);assert.equal(r.body.switcher,null);assert.ok(r.body.orgs.every(o=>o.id!==ORG_N),'no Nmesis workspace');assert.ok(!r.text.includes('Nmesis'),'no staff section');assert.equal(r.body.orgs.length,1)},'200, own company only');
+  await expect('GET','/api/me','app/api/me/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.staff,false);assert.equal(r.body.switcher,null);assert.ok(r.body.orgs.every(o=>o.id!==ORG_N),'no Nmesis workspace');assert.ok(!r.text.includes('Nmesis'),'no staff section');assert.equal(r.body.orgs.length,1);if(member===B1){assert.equal(r.body.brand.name,'Beta');assert.deepEqual(r.body.brands.map(x=>x.id),['beta','gamma'])}if(member===A1){assert.equal(r.body.brand.name,'Alpha');assert.equal(r.body.brands.length,1)}if(member===S1)assert.equal(r.body.brand,null)},'200, own company only, as its brand');
  }
 });
 test('S2.1: the company deep link is checked on the server',async()=>{
@@ -259,6 +266,9 @@ test('S2.1: the company deep link is checked on the server',async()=>{
  assert.equal(r.location,ORIGIN+'/');assert.equal(r.cookie,ORG_A);
  as(T);r=await open(ORG_B);table.push({who:who(),method:'GET',path:'/?org=<B>',expected:'viewing as',got:r.location});
  assert.equal(r.location,ORIGIN+'/');assert.equal(r.cookie,ORG_B);
+ // S3: a client that has not granted support access answers "Support access not granted".
+ r=await open(ORG_S);table.push({who:who(),method:'GET',path:'/?org=<S>',expected:'support access not granted',got:r.location});
+ assert.equal(r.location,ORIGIN+'/?opened=support');assert.equal(r.cookie,undefined);
  as(T0);r=await open(ORG_B);table.push({who:who(),method:'GET',path:'/?org=<B>',expected:'code first',got:r.location});
  assert.equal(r.location,ORIGIN+'/auth/code?next='+encodeURIComponent('/?org='+ORG_B));assert.equal(r.cookie,undefined);
  as(null);r=await open(ORG_B);assert.equal(r.location,ORIGIN+'/signin?next='+encodeURIComponent('/?org='+ORG_B));
@@ -268,18 +278,20 @@ test('S2.1: the company deep link is checked on the server',async()=>{
  await expect('POST','/api/auth/org','app/api/auth/org/route.ts',{body:{orgId:ORG_B}},r=>{assert.equal(r.status,403);assert.equal(state.cookies.get('studio_org'),undefined)},'403');
 });
 // ── S2.1: hosted-run fixes at the route level ────────────────────────────────
-test('S2.1: OpenAI with no credit: the generation fails at once with a plain sentence and reserves nothing',async()=>{
+test('S2.1/S3: Nmesis’s OpenAI account with no credit: the generation fails at once, Nmesis is told, and nothing is charged or held',async()=>{
  as(A1);providerCalls.length=0;
  providerAnswer=async u=>{assert.match(u,/^https:\/\/api\.openai\.com\/v1\/images\/edits$/);return Response.json({error:{message:'You exceeded your current quota, please check your plan and billing details.',type:'insufficient_quota',code:'insufficient_quota'}},{status:429})};
- const budgets=()=>state.db.raw.prepare("SELECT (SELECT count(*) FROM film_budgets) + (SELECT count(*) FROM image_jobs WHERE reserved_day IS NOT NULL) + (SELECT count(*) FROM films WHERE reserved_day IS NOT NULL) + (SELECT count(*) FROM swap_jobs WHERE reserved_day IS NOT NULL) AS n").get().n;
+ const budgets=()=>state.db.raw.prepare("SELECT (SELECT count(*) FROM credit_holds WHERE status<>'released') + (SELECT count(*) FROM accounts.usage_ledger) AS n").get().n;
  const before=budgets();
  try{
-  const said='Your OpenAI account has no credit left. Add credit at OpenAI, then try again. Nothing was charged here.';
-  await expect('POST','/api/generate','app/api/generate/route.ts',{body:{id:'nocredit-0001',sourceId:'avisual-001',moodId:'avisual-001',brief:'A premium key visual of the car'}},r=>{assert.equal(r.status,402);assert.equal(r.body.error,said)},'402 no credit');
+  // Company A has no key of its own, so Nmesis's key made the call: the client hears
+  // that the provider is unavailable (not "your account"), and Nmesis is alerted.
+  const said='OpenAI is unavailable for the Studio right now. Nmesis has been told and is on it. Nothing was charged.';
+  await expect('POST','/api/generate','app/api/generate/route.ts',{body:{id:'nocredit-0001',sourceId:'avisual-001',moodId:'avisual-001',brief:'A premium key visual of the car'}},r=>{assert.equal(r.status,503);assert.equal(r.body.error,said)},'503 provider unavailable');
   const record=await (await store.get(prefix(ORG_A,A1)+'visuals/nocredit-0001.json')).json();
   assert.equal(record.status,'failed','nothing stays running');assert.equal(record.error,said);
   await expect('GET','/api/visuals/nocredit-0001','app/api/visuals/[id]/route.ts',{params:{id:'nocredit-0001'}},r=>{assert.equal(r.status,200);assert.equal(r.body.visual.status,'failed')},'200 failed');
-  assert.equal(providerCalls.length,1,'one request, no retry');assert.equal(budgets(),before,'no budget row or reservation');
+  assert.equal(providerCalls.length,1,'one request, no retry');assert.equal(budgets(),before,'the hold was released and nothing reached the ledger');
  }finally{providerAnswer=null;providerCalls.length=0}
 });
 test('S2.1: a malformed KEY_ENCRYPTION_SECRET answers 503 "Secure key storage is misconfigured." and logs the rule once, never the value',async()=>{
@@ -293,4 +305,48 @@ test('S2.1: a malformed KEY_ENCRYPTION_SECRET answers 503 "Secure key storage is
   assert.ok(lines.every(l=>!l.includes(bad)),'the value is never logged');
   assert.deepEqual(providerCalls,[],'the key was not sent anywhere');
  }finally{console.error=error;process.env.KEY_ENCRYPTION_SECRET=good}
+});
+
+test('V7: clients work as their brand; a company with several brands sees the chosen brand\'s cars; pictures and logos only for one\'s own cars and brands',async()=>{
+ const names=r=>r.body.configurators.map(c=>c.name);
+ as(B1);await expect('GET','/api/configurators','app/api/configurators/route.ts',{},r=>{assert.deepEqual(names(r),['Demo beta Model one'])},'200, the first brand\'s cars');
+ as(B1,null,'gamma');await expect('GET','/api/configurators','app/api/configurators/route.ts',{},r=>{assert.deepEqual(names(r),['Demo gamma Model one']);assert.equal(r.body.configurators[0].picture,'/api/cars/gamma.one/picture')},'200, the chosen brand\'s cars');
+ as(B1,null,'alpha');await expect('GET','/api/configurators','app/api/configurators/route.ts',{},r=>{assert.deepEqual(names(r),['Demo beta Model one'])},'200, another company\'s brand is not honoured');
+ // The car picture: the configurator's opening frame, fetched once through the server and kept small in the company's storage.
+ const sharp=(await import('sharp')).default;
+ const frame=await sharp({create:{width:1600,height:900,channels:3,background:'#336699'}}).png().toBuffer();
+ const logo=await sharp({create:{width:300,height:120,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).png().toBuffer();
+ const CFG='https://configurator.test',CDN='https://cdn.configurator.test';
+ const config={grades:[{id:'g1',folder:'G1',colorIds:['c1'],_colorCdnLinks:{c1:{Indoor:CDN+'/Brand/G1/c1'}}}],colors:[{id:'c1',available:true,lightingFolders:{Indoor:'C1'}}],defaults_lighting:'Indoor',defaults:{gradeId:'g1',colorId:'c1',frameIndex:2},availableIcons:{brandName:CDN+'/Brand/logo.png'},assetSignaturesHost:'cdn.configurator.test',assetSignatures:{Brand:'Signature=abc'}};
+ const manifest={G1:{Indoor:{C1:['f1.png','f2.png','f3.png']}}};
+ const prev=process.env.CONFIGURATOR_API_ORIGIN;process.env.CONFIGURATOR_API_ORIGIN=CFG;
+ providerCalls.length=0;
+ providerAnswer=async u=>u.startsWith(CFG+'/api/config?')?Response.json(config):u.startsWith(CFG+'/api/exterior-manifest?')?Response.json(manifest)
+  :u===CDN+'/Brand/G1/c1/f2.png?Signature=abc'?new Response(frame,{headers:{'content-type':'image/png'}}):u===CDN+'/Brand/logo.png?Signature=abc'?new Response(logo,{headers:{'content-type':'image/png'}}):new Response('no',{status:404});
+ try{
+  as(A1);
+  const first=await expect('GET','/api/cars/alpha.one/picture','app/api/cars/[id]/picture/route.ts',{params:{id:'alpha.one'}},r=>{assert.equal(r.status,307);assert.ok(r.location)},'307, own car');
+  assert.ok(providerCalls.includes(CDN+'/Brand/G1/c1/f2.png?Signature=abc'),'the opening frame (frameIndex 2), signed as the configurator signs it');
+  const listed=await store.list({prefix:`orgs/${ORG_A}/cars/alpha/one/`});assert.equal(listed.objects.length,1,'one small picture kept');
+  const kept=await sharp(Buffer.from(await (await store.get(listed.objects[0].key)).arrayBuffer())).metadata();assert.equal(kept.format,'webp');assert.equal(kept.width,640);
+  providerCalls.length=0;
+  await expect('GET','/api/cars/alpha.one/picture','app/api/cars/[id]/picture/route.ts',{params:{id:'alpha.one'}},r=>{assert.equal(r.status,307)},'307, from storage');
+  assert.deepEqual(providerCalls,[],'the second time nothing is fetched');void first;
+  await expect('GET','/api/cars/beta.one/picture','app/api/cars/[id]/picture/route.ts',{params:{id:'beta.one'}},r=>{assert.equal(r.status,404);assert.equal(r.location,null)},'404, another company\'s car');
+  await expect('GET','/api/cars/..%2Fx/picture','app/api/cars/[id]/picture/route.ts',{params:{id:'../x'}},r=>{assert.equal(r.status,404)},'404, not a car id');
+  assert.deepEqual(providerCalls,[],'nothing fetched for a car that is not the company\'s');
+  await expect('GET','/api/brands/alpha/logo','app/api/brands/[id]/logo/route.ts',{params:{id:'alpha'}},r=>{assert.equal(r.status,307)},'307, own brand');
+  await expect('GET','/api/brands/beta/logo','app/api/brands/[id]/logo/route.ts',{params:{id:'beta'}},r=>{assert.equal(r.status,404)},'404, another company\'s brand');
+ }finally{providerAnswer=null;providerCalls.length=0;if(prev===undefined)delete process.env.CONFIGURATOR_API_ORIGIN;else process.env.CONFIGURATOR_API_ORIGIN=prev;(await import('@/lib/car-pictures.ts')).forgetConfigurators()}
+});
+
+test('V8: the library\'s car filter lists the company\'s cars (the chosen brand\'s), with work or without',async()=>{
+ const cars=r=>r.body.cars.filter(c=>c.startsWith('Demo '));
+ // A has two cars; neither needs any work to be a choice.
+ as(A1);await expect('GET','/api/library','app/api/library/route.ts',{},r=>{assert.equal(r.status,200,r.text);assert.deepEqual(cars(r),['Demo alpha Model one','Demo alpha Model two'])},'200, A\'s two cars');
+ // B owns two brands: only the chosen brand's car, never another company's.
+ as(B1,null,'gamma');await expect('GET','/api/library','app/api/library/route.ts',{},r=>{assert.equal(r.status,200,r.text);assert.deepEqual(cars(r),['Demo gamma Model one'])},'200, the chosen brand\'s car');
+ as(B1,null,'beta');await expect('GET','/api/library','app/api/library/route.ts',{},r=>{assert.deepEqual(cars(r),['Demo beta Model one'])},'200, the other brand\'s car');
+ // A car with no work filters to nothing (the empty state says so), not to an error.
+ as(A1);await expect('GET','/api/library?car='+encodeURIComponent('Demo alpha Model two'),'app/api/library/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.total,0);assert.deepEqual(r.body.items,[])},'200, nothing for that car');
 });

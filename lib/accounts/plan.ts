@@ -6,7 +6,16 @@ export type Role=typeof MEMBER_ROLES[number];
 export const FEATURES=['studio.key_visuals','studio.lineups','studio.area_edit','studio.object_select','studio.pinterest','studio.smart_reference','studio.upscale','studio.film','studio.swap','studio.storyboards','studio.own_keys'] as const;
 export type FeatureKey=typeof FEATURES[number];
 // The answer of accounts.entitlements(org), as the Studio reads it.
-export type Entitlements={legacy:boolean;status:string|null;planId:string|null;planName:string|null;endsOn:string|null;features:Record<string,unknown>};
+// `noPlan`: a client company with no active subscription (the admin's "legacy"
+// answer). The admin's "legacy = allow everything" applies to configurators,
+// never to the paid Studio: such a client's Studio is off (S3).
+export type Entitlements={legacy:boolean;status:string|null;planId:string|null;planName:string|null;endsOn:string|null;features:Record<string,unknown>;noPlan?:boolean};
+// A client's "legacy" answer, as the Studio applies it: everything off, Studio
+// not enabled. Nmesis's own workspace (kind internal) keeps "legacy" as is.
+export function studioEntitlements(e:Entitlements,orgKind:string):Entitlements{
+ if(orgKind==='internal'||!e.legacy)return e;
+ return {legacy:false,status:'none',planId:null,planName:null,endsOn:null,features:{'studio.enabled':false},noPlan:true};
+}
 export const FEATURE_LABELS:Record<FeatureKey,string>={'studio.key_visuals':'Key visuals','studio.lineups':'Line-ups','studio.area_edit':'Area edit','studio.object_select':'Object select','studio.pinterest':'Pinterest','studio.smart_reference':'Smart references','studio.upscale':'Upscale','studio.film':'Film Studio','studio.swap':'Car swap','studio.storyboards':'Storyboards','studio.own_keys':'Your own provider keys'};
 // The smallest plan that includes each feature, for the upsell chip.
 export const UPSELL_PLAN:Record<FeatureKey,'Growth'|'Enterprise'>={'studio.key_visuals':'Growth','studio.lineups':'Growth','studio.area_edit':'Growth','studio.object_select':'Growth','studio.pinterest':'Growth','studio.smart_reference':'Growth','studio.upscale':'Growth','studio.film':'Enterprise','studio.swap':'Enterprise','studio.storyboards':'Enterprise','studio.own_keys':'Enterprise'};
@@ -33,8 +42,9 @@ export function maxEdge(e:Entitlements):number{
 export const LIBRARY_GRACE_DAYS=30;
 // Open: work as usual. Closed: a plain notice; the library stays viewable for 30
 // days after the subscription's end date (or while no end date is known).
-export function workspaceState(e:Entitlements,now=Date.now()):{open:boolean;libraryOpen:boolean;libraryUntil:string|null}{
+export function workspaceState(e:Entitlements,now=Date.now()):{open:boolean;libraryOpen:boolean;libraryUntil:string|null;noPlan?:boolean}{
  if(e.legacy)return {open:true,libraryOpen:true,libraryUntil:null};
+ if(e.noPlan)return {open:false,libraryOpen:true,libraryUntil:null,noPlan:true};
  const ended=!!e.status&&ENDED.has(e.status),enabled=e.features['studio.enabled']===true;
  if(enabled&&!ended)return {open:true,libraryOpen:true,libraryUntil:null};
  const end=e.endsOn?Date.parse(e.endsOn+'T23:59:59Z'):NaN;
@@ -54,17 +64,29 @@ export const ROUTE_FEATURES:RouteRule[]=[
  {path:/^\/api\/assets$/,feature:null},
  {path:new RegExp(`^/api/assets/${ID}$`),methods:['GET'],feature:null,library:true},
  {path:new RegExp(`^/api/assets/${ID}/original$`),feature:null},
+ {path:/^\/api\/company\/support$/,methods:['GET'],feature:null,library:true},
+ {path:/^\/api\/company\/support$/,feature:null},
+ // Company settings: everyone in the company reads; owners change (each route checks the owner).
+ {path:/^\/api\/company(\/team|\/notifications)?$/,methods:['GET'],feature:null,library:true},
+ {path:/^\/api\/company\/(team|notifications|ask)$/,feature:null},
+ {path:/^\/api\/company\/team\/[A-Za-z0-9-]{1,80}$/,feature:null},
  {path:/^\/api\/configurators$/,feature:null,library:true},
+ // A car's picture and a brand's logo, from the configurator (cached by the Studio): read-only; the library may show them.
+ {path:/^\/api\/cars\/[A-Za-z0-9_.-]{1,129}\/picture$/,methods:['GET'],feature:null,library:true},
+ {path:/^\/api\/brands\/[A-Za-z0-9_-]{1,64}\/logo$/,methods:['GET'],feature:null,library:true},
+ {path:/^\/api\/credits$/,methods:['GET'],feature:null,library:true},
  {path:/^\/api\/connection$/,methods:['GET'],feature:null},
  {path:/^\/api\/connection$/,feature:'studio.own_keys'},
  {path:/^\/api\/directions$/,feature:'studio.key_visuals'},
  {path:/^\/api\/films(\/.*)?$/,feature:'studio.film'},
+ {path:/^\/api\/folders(\/.*)?$/,feature:null},
  {path:/^\/api\/generate$/,feature:'studio.key_visuals'},
  {path:/^\/api\/google\/analyze$/,feature:'studio.smart_reference'},
  {path:/^\/api\/google\/connection$/,methods:['GET'],feature:null},
  {path:/^\/api\/google\/connection$/,feature:'studio.own_keys'},
  {path:/^\/api\/google\/generate$/,feature:'studio.key_visuals'},
  {path:/^\/api\/image-jobs(\/.*)?$/,feature:'studio.key_visuals'},
+ {path:/^\/api\/library$/,methods:['GET'],feature:null,library:true},
  {path:/^\/api\/pinterest$/,feature:'studio.pinterest'},
  {path:/^\/api\/smart-prompts$/,feature:'studio.smart_reference'},
  {path:/^\/api\/smart-review$/,feature:'studio.smart_reference'},
@@ -76,8 +98,9 @@ export const ROUTE_FEATURES:RouteRule[]=[
  {path:/^\/api\/topaz\/connection$/,feature:'studio.own_keys'},
  {path:/^\/api\/topaz\/jobs(\/.*)?$/,feature:'studio.upscale'},
  {path:/^\/api\/uploads$/,feature:null},
+ {path:/^\/api\/usage$/,methods:['GET'],feature:null,library:true},
  {path:/^\/api\/upscale-import$/,feature:'studio.upscale'},
- {path:/^\/api\/video-connection$/,methods:['GET','PATCH'],feature:null},
+ {path:/^\/api\/video-connection$/,methods:['GET'],feature:null},
  {path:/^\/api\/video-connection$/,feature:'studio.own_keys'},
  {path:/^\/api\/visuals$/,methods:['GET'],feature:null,library:true},
  {path:new RegExp(`^/api/visuals/${ID}$`),methods:['GET'],feature:null,library:true},
@@ -90,6 +113,7 @@ export function routeRule(pathname:string,method:string):RouteRule|null{
 // Plain fields: tests load this file under Node's strip-only TypeScript mode.
 export class PlanError extends Error{status:number;constructor(message:string,status=403){super(message);this.status=status}}
 export const notOnPlan=(key:FeatureKey)=>`${FEATURE_LABELS[key]} is not on your company's plan. It is available on ${UPSELL_PLAN[key]}; ask Nmesis to add it.`;
+export const NO_PLAN_MESSAGE='Your Studio isn’t part of your plan yet. Ask Nmesis.';
 export const CLOSED_MESSAGE='Your company\'s Studio subscription is not active, so new work is paused. Your library stays viewable. Ask Nmesis to reopen it.';
 export const LIBRARY_CLOSED_MESSAGE='Your company\'s Studio subscription has ended and its library is no longer available here. Ask Nmesis.';
 export const VIEWER_MESSAGE='Your role is viewer, so you can look at your company\'s work but not create or change it. Ask your company\'s owner for creator access.';
@@ -98,7 +122,7 @@ export function requireFeature(ctx:{entitlements:Entitlements},key:FeatureKey){i
 export function checkRoute(ctx:{entitlements:Entitlements;role:Role},pathname:string,method:string){
  const rule=routeRule(pathname,method),write=method.toUpperCase()!=='GET',state=workspaceState(ctx.entitlements);
  if(!rule)throw new PlanError('That address is not part of the Studio.',404);
- if(!state.open&&!(rule.library&&!write&&state.libraryOpen))throw new PlanError(state.libraryOpen?CLOSED_MESSAGE:LIBRARY_CLOSED_MESSAGE);
+ if(!state.open&&!(rule.library&&!write&&state.libraryOpen))throw new PlanError(state.noPlan?NO_PLAN_MESSAGE:state.libraryOpen?CLOSED_MESSAGE:LIBRARY_CLOSED_MESSAGE);
  if(write&&ctx.role==='viewer')throw new PlanError(VIEWER_MESSAGE);
  if(rule.feature)requireFeature(ctx,rule.feature);
  return rule;

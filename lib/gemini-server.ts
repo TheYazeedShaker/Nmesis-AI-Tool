@@ -11,16 +11,19 @@ export async function googleStatus(ctx:Context){
   const owner=await credentialContext(ctx),sponsored=!keyAccess(ctx).manage;
   const record=owner?await owner.BUCKET?.get(credentialPath(owner)):null;
   const saved=record?await record.json<GoogleSecret>():null;
-  return {connected:!!saved,keySetup:!sponsored&&!!ctx.BUCKET&&!!ctx.KEY_ENCRYPTION_SECRET,sponsored,models:saved?.models||[],checkedAt:saved?.verifiedAt};
+  return {connected:!!saved,keySetup:!sponsored&&!!ctx.BUCKET&&!!ctx.KEY_ENCRYPTION_SECRET,sponsored,models:saved?.models||[],checkedAt:saved?.verifiedAt,nmesis:!saved,ownKeys:keyAccess(ctx).own,available:!!saved||!!ctx.GOOGLE_AI_API_KEY};
 }
-export async function googleKey(ctx:Context){
-  const owner=await credentialContext(ctx);if(!owner)throw new StudioError('Google generation needs your company’s own Google key, which is not on your plan yet. Ask Nmesis.',503);ctx=owner;
-  const record=await bucket(ctx.BUCKET).get(credentialPath(ctx));
-  if(!record)throw new StudioError('Connect Google AI Studio before generating with Nano Banana.',503);
-  requireKeySecret(ctx.KEY_ENCRYPTION_SECRET);if(!ctx.KEY_ENCRYPTION_SECRET)throw new StudioError('Secure Google key storage is unavailable.',503);
-  try{return await unsealKey(await record.json<GoogleSecret>(),ctx.KEY_ENCRYPTION_SECRET,ctx.prefix+'google')}
+// The key for one Google call: the company's own (studio.own_keys and saved), or
+// Nmesis's (GOOGLE_AI_API_KEY), in which case the company spends credits.
+export async function googleCredential(ctx:Context):Promise<{key:string;own:boolean}>{
+  const owner=await credentialContext(ctx);
+  const record=owner?await bucket(owner.BUCKET).get(credentialPath(owner)):null;
+  if(!record){if(!ctx.GOOGLE_AI_API_KEY)throw new StudioError('Nano Banana is not connected on this Studio yet. Nothing was charged.',503);return {key:ctx.GOOGLE_AI_API_KEY,own:false}}
+  requireKeySecret(owner!.KEY_ENCRYPTION_SECRET);if(!owner!.KEY_ENCRYPTION_SECRET)throw new StudioError('Secure Google key storage is unavailable.',503);
+  try{return {key:await unsealKey(await record.json<GoogleSecret>(),owner!.KEY_ENCRYPTION_SECRET,owner!.prefix+'google'),own:true}}
   catch{throw new StudioError('Reconnect your Google AI Studio key.',503)}
 }
+export async function googleKey(ctx:Context){return (await googleCredential(ctx)).key}
 async function managedKeys(ctx:Context){const access=keyAccess(ctx);if(!access.own)throw new StudioError(KEYS_NOT_ON_PLAN,403);if(!access.manage)throw new StudioError(keysManagedBy('Google'),403);return (await credentialContext(ctx))!}
 export async function saveGoogleKey(ctx:Context,key:string){
   ctx=await managedKeys(ctx);

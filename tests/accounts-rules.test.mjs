@@ -5,7 +5,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {register} from 'node:module';
 register('../scripts/verify/hooks.mjs',import.meta.url);
 import {readdirSync,statSync,readFileSync} from 'node:fs';
-const plan=await import('../lib/accounts/plan.ts'),{resolveContext}=await import('../lib/accounts/context.ts'),words=await import('../lib/auth/words.ts');
+const plan=await import('../lib/accounts/plan.ts'),{resolveContext,openCompany}=await import('../lib/accounts/context.ts'),words=await import('../lib/auth/words.ts');
 import {memoryDirectory} from './support/state.mjs';
 const legacy={legacy:true,status:null,planId:null,planName:null,endsOn:null,features:{}};
 const managed=(features,extra={})=>({legacy:false,status:'active',planId:'p',planName:'P',endsOn:null,features:{'studio.enabled':true,...features},...extra});
@@ -92,10 +92,18 @@ test('context: an invitation becomes an active membership on first arrival',asyn
  assert.equal(r.ok,true);assert.equal(r.ctx.org.id,ORG_A);assert.equal(r.ctx.role,'owner');assert.deepEqual(d.accepted,[U(2).id]);
  await resolveContext({user:U(2),chosenOrg:null,directory:d});assert.deepEqual(d.accepted,[U(2).id],'accepted once');
 });
-test('context: staff open any company; a client read-only as "Viewing as", Nmesis\'s own as owner',async()=>{
+test('context: staff open Nmesis\'s own workspace as owner, and a client only while it grants support access, read-only',async()=>{
  const d=dir();
  for(const aal of [undefined,'aal1'])assert.deepEqual(await resolveContext({user:{...U(9),aal},chosenOrg:ORG_B,directory:d}),{ok:false,reason:'mfa_required'},'staff need the code first');
- let r=await resolveContext({user:STAFF,chosenOrg:ORG_B,directory:d});assert.equal(r.ctx.org.id,ORG_B);assert.equal(r.ctx.viewingAs,true);assert.equal(r.ctx.role,'viewer');assert.equal(r.ctx.orgs.length,3);
+ // No grant: the client is neither listed nor opened.
+ let r=await resolveContext({user:STAFF,chosenOrg:ORG_B,directory:d});assert.equal(r.ctx.org.id,ORG_N,'no grant: Nmesis instead');assert.deepEqual(r.ctx.orgs.map(o=>o.id),[ORG_N]);
+ assert.deepEqual(await openCompany({user:STAFF,orgId:ORG_B,directory:d}),{ok:false,reason:'no_support'});
+ // An ended grant is refused the same way.
+ d.grants[ORG_B]=Date.now()-1;r=await resolveContext({user:STAFF,chosenOrg:ORG_B,directory:d});assert.equal(r.ctx.org.id,ORG_N,'expired grant: refused');
+ // A live grant: listed, opened read-only, with the grant's end.
+ const until=Date.now()+7*86_400_000;d.grants[ORG_B]=until;
+ r=await resolveContext({user:STAFF,chosenOrg:ORG_B,directory:d});assert.equal(r.ctx.org.id,ORG_B);assert.equal(r.ctx.viewingAs,true);assert.equal(r.ctx.role,'viewer');assert.equal(r.ctx.supportUntil,until);assert.deepEqual(r.ctx.orgs.map(o=>o.id).sort(),[ORG_B,ORG_N].sort());
+ assert.equal((await openCompany({user:STAFF,orgId:ORG_B,directory:d})).ok,true);
  r=await resolveContext({user:STAFF,chosenOrg:null,directory:d});assert.equal(r.ctx.org.id,ORG_N);assert.equal(r.ctx.viewingAs,false);assert.equal(r.ctx.role,'owner');
  r=await resolveContext({user:STAFF,chosenOrg:'00000000-0000-4000-8000-0000000000ff',directory:d});assert.equal(r.ctx.org.id,ORG_N,'an unknown company falls back');
 });

@@ -2,13 +2,16 @@ export const runtime='nodejs';
 export const maxDuration=300;
 import {context,bucket,fail,imageKey,readJson,str,validId,StudioError} from '@/lib/studio-server';
 import {requireEdge,requireFeature,longEdgeOf} from '@/lib/accounts/plan';
-import {googleKey,renderGoogleImage,type GoogleImageInput} from '@/lib/gemini-server';
+import {googleCredential,renderGoogleImage,type GoogleImageInput} from '@/lib/gemini-server';
+import {releaseCredits,reserveCredits,settleCredits} from '@/lib/credits/charge';
+import {googleImageCost} from '@/lib/credits/words';
 import {geminiImageModel,geminiSize} from '@/lib/image-models';
 import {refinementReferences} from '@/lib/image-models';
 import {generationPrompt,referenceMode,safePinterest,type Visual} from '@/lib/studio';
 import type {StudioBucket} from '@/lib/portable/storage';
 import {nanoDetailInputs} from '@/lib/nano-detail-inputs';
 import {nanoStrategy,nanoReferencePrompt,type NanoAnalysis} from '@/lib/nano-reference';
+import {fromVisual,indexQuietly} from '@/lib/library-index';
 export async function POST(request:Request){
   let record:Visual|undefined,store:StudioBucket|undefined,recordKey='',reserved=false;
   try{
@@ -19,7 +22,7 @@ export async function POST(request:Request){
     try{model=geminiImageModel(d.model).id;geminiSize(d.size);size=d.size;mode=referenceMode(d.referenceMode);extraIds=refinementReferences(d.refinementReferenceIds,!!d.parentId,'google',model)}catch(e){throw new StudioError((e as Error).message)}
     requireEdge(ctx,longEdgeOf(size));if(d.smartPlanId!==undefined)requireFeature(ctx,'studio.smart_reference');
     const brief=str(d.brief);if(brief.length<8)throw new StudioError('Describe the campaign in a little more detail.');
-    const key=await googleKey(ctx),inputs:GoogleImageInput[]=[];let totalBytes=0;
+    const cred=await googleCredential(ctx),key=cred.key,inputs:GoogleImageInput[]=[];let totalBytes=0;
     for(const id of [d.sourceId,d.moodId,...d.parentId?[d.parentId]:[],...extraIds]){
       const asset=await store.get(imageKey(ctx.prefix,id));if(!asset)throw new StudioError('A reference is missing. Please select it again.',404);
       totalBytes+=asset.size;if(totalBytes>80_000_000)throw new StudioError('Use fewer references; these exceed the studio processing limit.');
@@ -38,12 +41,15 @@ export async function POST(request:Request){
     let smart:Awaited<ReturnType<typeof import('@/lib/smart-reference-server').loadSmartPlan>>|undefined;if(d.smartPlanId!==undefined){smart=await (await import('@/lib/smart-reference-server')).loadSmartPlan(ctx,d);prompt=smart.plan.prompt;inputs.push(...smart.details)}
     recordKey=ctx.prefix+'visuals/'+d.id+'.json';
     record={smartPlanId:smart?.plan.id,smartPriority:smart?.plan.priority,smartTest:d.smartTest===true,nanoStrategy:strategy,analysisId:strategy?d.analysisId:undefined,id:d.id,title:str(d.title,100)||'Campaign visual',src:'/api/assets/'+d.id,status:'pending',createdAt:new Date().toISOString(),provider:'google',model,size,sourceId:d.sourceId,moodId:d.moodId,parentId:d.parentId||null,refinementReferenceIds:extraIds,prompt,brief,referenceMode:mode,vehicle:str(d.vehicle,100),configurator:str(d.configurator,2000),finish:str(d.finish,120),angle:str(d.angle,120),pin:safePinterest(str(d.pin,600))||''};
-    const reservation=await store.put(recordKey,JSON.stringify(record),{onlyIf:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'application/json'}});
-    if(!reservation)throw new StudioError('This request was already submitted. Check your saved visuals.',409);reserved=true;
-    const image=await renderGoogleImage(key,model,size,prompt,inputs);
+    // Credits first: a refusal leaves no pending visual behind.
+    const hold=await reserveCredits(ctx,{tool:'studio.key_visuals',action:'Key visual',provider:'google',own:cred.own,cost:googleImageCost(model,size)});
+    const reservation=await store.put(recordKey,JSON.stringify(record),{onlyIf:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'application/json'}}).catch(e=>{void releaseCredits(ctx,hold);throw e});
+    if(!reservation){await releaseCredits(ctx,hold);throw new StudioError('This request was already submitted. Check your saved visuals.',409)}reserved=true;
+    let image;try{image=await renderGoogleImage(key,model,size,prompt,inputs)}catch(e){throw await releaseCredits(ctx,hold,e)}
+    const credits=await settleCredits(ctx,hold);
     await store.put(imageKey(ctx.prefix,d.id),image.bytes,{httpMetadata:{contentType:image.type}});
-    record={...record,status:'ready',width:image.width,height:image.height};
-    await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});
+    record={...record,status:'ready',width:image.width,height:image.height,credits};
+    await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});await indexQuietly(ctx,fromVisual(ctx.prefix,record));
     return Response.json({visual:record});
   }catch(e){
     if(reserved&&record&&store){record.status='failed';record.error=e instanceof StudioError?e.message:'Generation was interrupted. Check saved visuals before trying again.';try{await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}})}catch{}}

@@ -4,10 +4,12 @@ export const maxDuration=300;
 import {validId as referenceIdValid} from '@/lib/studio-server';
 import {requireFeature} from '@/lib/accounts/plan';
 import {bucket,context,fail,imageKey,StudioError,validId,str,providerError} from '@/lib/studio-server';
-import {googleKey,renderGoogleImage} from '@/lib/gemini-server';
+import {googleCredential,renderGoogleImage} from '@/lib/gemini-server';
+import {releaseCredits,reserveCredits,settleCredits} from '@/lib/credits/charge';
+import {googleImageCost,openaiImageCost} from '@/lib/credits/words';
 import {geminiImageModel,openaiImageModel,supportsDrawnRegion} from '@/lib/image-models';
 import {googleAreaInputs,googleAreaPrompt,normalizeGoogleArea} from '@/lib/google-area-edit';
-import {apiKey} from '@/lib/credentials';
+import {openaiKey} from '@/lib/credentials';
 import {database} from '@/lib/film-server';
 import {publicImage,type ImageRow} from '@/lib/image-server';
 import {imageDimensions} from '@/lib/image-dimensions';
@@ -17,6 +19,7 @@ import {textureFill} from '@/lib/texture-fill';
 import {placementBounds,objectLayerPrompt,compositeObjectLayer} from '@/lib/object-layer';
 import type {Visual} from '@/lib/studio';
 import type {StudioBucket} from '@/lib/portable/storage';
+import {fromVisual,indexQuietly} from '@/lib/library-index';
 export async function POST(request:Request){let record:Visual|undefined,store:StudioBucket|undefined,recordKey='',reserved=false;
  try{
   const ctx=await context(request,true);store=bucket(ctx.BUCKET);
@@ -47,14 +50,16 @@ export async function POST(request:Request){let record:Visual|undefined,store:St
   let editMask=mask,maskWidth=dimensions.width,maskHeight=dimensions.height;
   if(region){work=areaRenderSize(region.width,region.height);working=cropWorkingImage(base,region,work);editMask=cropSelection(generationMatte,dimensions.width,region);maskWidth=region.width;maskHeight=region.height}
   else if(work.width*work.height<1024*1024){work=areaRenderSize(dimensions.width,dimensions.height);working=cropWorkingImage(base,{x:0,y:0,width:dimensions.width,height:dimensions.height},work)}
-  const key=provider==='google'?await googleKey(ctx):await apiKey(ctx);if(!key)throw new StudioError('Connect OpenAI to use area editing.',503);
+  const cred=provider==='google'?await googleCredential(ctx):await openaiKey(ctx),key=cred.key;if(!key)throw new StudioError('Connect OpenAI to use area editing.',503);
   const googleInput=provider==='google'?googleAreaInputs(working,editMask,maskWidth,maskHeight,work):undefined;
   const prompt=provider==='google'?googleAreaPrompt(instruction,!!referenceBytes,intent,contentAware):addObject?objectLayerPrompt(instruction,placementBounds(mask,dimensions.width,dimensions.height,region!),!!referenceBytes):(guidance==='markup'?markupAreaPrompt:areaPrompt)(instruction,!!referenceBytes,intent,contentAware),maskId=crypto.randomUUID(),referenceId=referenceBytes?(typeof savedReferenceId==='string'?savedReferenceId:crypto.randomUUID()):undefined;
-  record={...parent,id,title:parent.title+' · area edit',src:'/api/assets/'+id,status:'pending',createdAt:new Date().toISOString(),provider,model,prompt,smartReview:undefined,smartPlanId:undefined,smartPriority:undefined,smartTest:undefined,error:undefined,upscale:undefined,estimate:undefined,jobStatus:undefined,revision:undefined,pricingDescription:undefined,areaEdit:{guidance:addObject?undefined:guidance as 'mask'|'markup',parentId,parentSrc:parent.src,maskId,referenceId,instruction,contentAware,intent,method:addObject?'object-layer':contentAware?'scene-fill':'masked-edit',region,edgeBlending:blending,renderWidth:work.width,renderHeight:work.height}};
-  recordKey=ctx.prefix+'visuals/'+id+'.json';reserved=!!await store.put(recordKey,JSON.stringify(record),{onlyIf:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'application/json'}});if(!reserved)throw new StudioError('This edit has already been submitted. Refresh saved visuals before retrying.',409);
+  record={...parent,id,title:parent.title+' · area edit',src:'/api/assets/'+id,status:'pending',createdAt:new Date().toISOString(),provider,model,prompt,smartReview:undefined,smartPlanId:undefined,smartPriority:undefined,smartTest:undefined,error:undefined,upscale:undefined,credits:undefined,jobStatus:undefined,revision:undefined,pricingDescription:undefined,areaEdit:{guidance:addObject?undefined:guidance as 'mask'|'markup',parentId,parentSrc:parent.src,maskId,referenceId,instruction,contentAware,intent,method:addObject?'object-layer':contentAware?'scene-fill':'masked-edit',region,edgeBlending:blending,renderWidth:work.width,renderHeight:work.height}};
+  // Credits first: a refusal leaves no pending visual behind.
+  const hold=await reserveCredits(ctx,{tool:intent==='add'?'studio.object_select':'studio.area_edit',action:intent==='add'?'Add object':'Area edit',provider:provider as 'openai'|'google',own:cred.own,cost:provider==='google'?googleImageCost(model,'2048x1152'):openaiImageCost('2048x1152')});
+  recordKey=ctx.prefix+'visuals/'+id+'.json';reserved=!!await store.put(recordKey,JSON.stringify(record),{onlyIf:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'application/json'}}).catch(e=>{void releaseCredits(ctx,hold);throw e});if(!reserved){await releaseCredits(ctx,hold);throw new StudioError('This edit has already been submitted. Refresh saved visuals before retrying.',409)}
   await store.put(imageKey(ctx.prefix,maskId),maskBytes,{httpMetadata:{contentType:'image/png'}});if(referenceBytes&&referenceId&&!savedReferenceId)await store.put(imageKey(ctx.prefix,referenceId),referenceBytes,{httpMetadata:{contentType:referenceType}});
   let candidate:Uint8Array;
-  if(googleInput){
+  try{if(googleInput){
    const inputs=[...googleInput.images];if(referenceBytes)inputs.push({bytes:referenceBytes,type:referenceType});
    const rendered=await renderGoogleImage(key,model,'2048x1152',prompt,inputs,googleInput.aspectRatio);
    try{candidate=normalizeGoogleArea(rendered.bytes,googleInput.frame,googleInput.region,work)}catch(e){throw new StudioError((e as Error).message,502)}
@@ -63,14 +68,15 @@ export async function POST(request:Request){let record:Visual|undefined,store:St
   const response=await fetch('https://api.openai.com/v1/images/edits',{method:'POST',headers:{Authorization:'Bearer '+key},body:payload,signal:AbortSignal.timeout(240000)});if(!response.ok)throw await providerError(response);
   const result:any=await response.json(),encoded=result.data?.[0]?.b64_json;if(typeof encoded!=='string'||encoded.length>35_000_000)throw new StudioError('The image service returned no usable edit.',502);
   candidate=Buffer.from(encoded,'base64');result.data=undefined;
-  }
+  }}catch(e){throw await releaseCredits(ctx,hold,e)}
+  const credits=await settleCredits(ctx,hold);
   let composite;try{
    if(contentAware&&(intent==='remove'||intent==='repair')){
     const proposal=readPng(candidate,2048*2048);if(proposal.width!==work.width||proposal.height!==work.height)throw new Error('The image service changed the frame size. Your original is preserved.');
     const fill=textureFill(readPng(base),proposal,mask,matte);if(fill){candidate=encode(fill);record.areaEdit!.method='texture-fill'}
    }
    composite=addObject?compositeObjectLayer(base,candidate,matte,work,region!):compositeArea(base,candidate,matte,work,region,contentAware&&blending>0,contentAware&&blending>0?mask:undefined)}catch(e){throw new StudioError((e as Error).message,502)}
-  await store.put(imageKey(ctx.prefix,id),composite,{httpMetadata:{contentType:'image/png'}});record={...record,status:'ready',width:dimensions.width,height:dimensions.height,size:dimensions.width+'x'+dimensions.height};await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});
+  await store.put(imageKey(ctx.prefix,id),composite,{httpMetadata:{contentType:'image/png'}});record={...record,status:'ready',width:dimensions.width,height:dimensions.height,size:dimensions.width+'x'+dimensions.height,credits};await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}});await indexQuietly(ctx,fromVisual(ctx.prefix,record));
   return Response.json({visual:record},{headers:{'Cache-Control':'private, no-store'}});
  }catch(e){if(reserved&&record&&store){record.status='failed';record.error=e instanceof StudioError?e.message:'The area edit was interrupted. Check saved visuals before retrying.';await store.put(recordKey,JSON.stringify(record),{httpMetadata:{contentType:'application/json'}}).catch(()=>{})}const response=fail(e);if(!record)response.headers.set('X-Area-Edit-Not-Started','true');return response}
 }

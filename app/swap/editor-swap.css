@@ -1,0 +1,42 @@
+/* ─── Swap in the one editor (Phase 3 group 2): app/swap/page.tsx and
+   components/editor/swap-parts.tsx. On app/editor.css. Tokens only. */
+
+/* The canvas: an alert above, then one of the three panes (the others stay
+   mounted and hidden, so the configurator keeps the colour and angle chosen). */
+.editor-swap-stage { display: flex; flex-direction: column; gap: var(--ds-space-12); width: 100%; height: 100%; min-height: 0; min-width: 0; }
+.editor-swap-pane { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; width: 100%; min-height: 0; min-width: 0; }
+.editor-swap-pane[hidden] { display: none; }
+.editor-swap-alert { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ds-space-8); }
+.editor-swap-car, .editor-swap-result { display: flex; flex-direction: column; gap: var(--ds-space-12); width: 100%; min-width: 0; align-items: center; }
+.editor-swap-car > *, .editor-swap-result > * { width: 100%; }
+.editor-swap-video { display: block; width: 100%; aspect-ratio: 16 / 9; max-height: 56dvh; object-fit: contain; border-radius: var(--ds-radius); border: var(--ds-border-width) solid var(--ds-border); background: var(--ds-media-bg); }
+.editor-swap-fallback { display: flex; flex-direction: column; gap: var(--ds-space-8); padding: var(--ds-space-12); border: var(--ds-border-width) solid var(--ds-warn); border-radius: var(--ds-radius-md); background: var(--ds-warn-soft); font-size: var(--ds-text-sm); }
+
+/* Canvas bar: the swap's title. */
+.editor-swap-title { flex: 0 1 auto; max-width: var(--ds-settings-w); font-weight: var(--ds-weight-semibold); }
+
+/* Settings: car views, notes, the estimate. */
+.editor-swap-views-head { justify-content: space-between; }
+.editor-swap-refs { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--ds-space-64) * 1.5), 1fr)); gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; }
+.editor-swap-ref { position: relative; display: flex; flex-direction: column; gap: var(--ds-space-4); min-width: 0; font-size: var(--ds-text-xs); color: var(--ds-muted); }
+.editor-swap-ref > img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: var(--ds-radius-sm); background: var(--ds-media-bg); }
+.editor-swap-ref > .ds-btn { position: absolute; top: var(--ds-space-4); right: var(--ds-space-4); }
+.editor-swap-open { display: inline-flex; align-items: center; gap: var(--ds-space-4); font-size: var(--ds-text-sm); }
+.editor-swap-open svg { width: var(--ds-space-12); height: var(--ds-space-12); }
+.editor-swap-note { display: flex; align-items: flex-start; gap: var(--ds-space-12); padding: var(--ds-space-12); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel-2); font-size: var(--ds-text-sm); }
+.editor-swap-note > svg { flex: none; width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-muted); }
+.editor-swap-note > span { display: flex; flex-direction: column; gap: var(--ds-space-4); min-width: 0; }
+.editor-swap-connected { display: flex; align-items: center; gap: var(--ds-space-8); }
+.editor-swap-connected svg { flex: none; width: var(--ds-icon); height: var(--ds-icon); }
+.editor-swap-estimate { display: flex; flex-direction: column; gap: var(--ds-space-4); margin: 0; }
+.editor-swap-estimate > b { font-family: var(--ds-font-display); font-size: var(--ds-text-xl); font-weight: var(--ds-weight-semibold); font-variant-numeric: var(--ds-numeric); }
+
+/* Frame the car: drag a box over the capture. */
+.editor-swap-crop { position: relative; width: fit-content; max-width: 100%; margin: 0 auto; overflow: hidden; cursor: crosshair; touch-action: none; line-height: 0; border-radius: var(--ds-radius-sm); background: var(--ds-media-bg); }
+.editor-swap-crop > img { display: block; max-width: 100%; max-height: 60dvh; user-select: none; }
+.editor-swap-crop-box { position: absolute; pointer-events: none; border: var(--ds-focus-width) solid var(--ds-ring); box-shadow: 0 0 0 100vmax var(--ds-media-shade); }
+
+@media (max-width: 768px) {
+  .editor-swap-video { max-height: 40dvh; }
+  .editor-swap-title { flex-basis: 100%; max-width: none; }
+}

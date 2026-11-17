@@ -5,6 +5,7 @@ import {provider,videoCredential} from '@/lib/film-server';
 import {providerUrl} from '@/lib/film-policy';
 import {providerFailureMessage} from '@/lib/provider-failure';
 import {swapRow} from '@/lib/swap-server';
+import {forClient} from '@/lib/provider-scope';
 
 export async function GET(request:Request,{params}:{params:Promise<{id:string}>}){try{
  const ctx=await context(request),row=await swapRow(ctx,(await params).id,true);
@@ -12,5 +13,5 @@ export async function GET(request:Request,{params}:{params:Promise<{id:string}>}
  const credential=await videoCredential(ctx);if(credential.prefix!==row.payer)throw new StudioError('The video connection owner changed.',409);
  const result=await provider(credential.key,providerUrl(row.status_url,'status',row.provider_id));
  if(result.request_id!==row.provider_id)throw new StudioError('The video service returned another request.',502);
- return Response.json({status:result.status,reason:providerFailureMessage(result.error||result.detail,'Higgsfield did not provide a specific failure reason.')},{headers:{'Cache-Control':'no-store'}});
+ return Response.json({status:result.status,reason:forClient(providerFailureMessage(result.error||result.detail,'Higgsfield did not provide a specific failure reason.'))},{headers:{'Cache-Control':'no-store'}});
 }catch(e){return fail(e)}}
