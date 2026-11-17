@@ -134,10 +134,11 @@ export function layoutChecks({ phone }) {
   if (phone && window.innerWidth > screen.width + 1) {
     for (const el of document.querySelectorAll('body *')) {
       const b = el.getBoundingClientRect();
-      if (b.width && b.right > screen.width + 1 && ![...el.children].some((c) => c.getBoundingClientRect().right > screen.width + 1)) out.zoomedOut.push({ el: describe(el), right: Math.round(b.right), screen: screen.width });
+      if (b.width && b.right > screen.width + 1 && !sideScroller(el) && ![...el.children].some((c) => c.getBoundingClientRect().right > screen.width + 1)) out.zoomedOut.push({ el: describe(el), right: Math.round(b.right), screen: screen.width });
     }
+    // Content inside a sideways scroller (the version history) is not the cause; see sideScroller above.
     out.zoomedOut = out.zoomedOut.slice(0, 8);
-    out.overflowX = Math.max(out.overflowX, window.innerWidth - screen.width);
+    out.zoomedBy = Math.round(window.innerWidth - screen.width);
   }
   out.editorBand = [];
   const editor = document.querySelector('.ds-editor');

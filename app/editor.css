@@ -154,3 +154,7 @@
 /* Advanced (staff and companies with their own keys): the engine and model,
    folded under the choice clients make, Quality (design/editor-cleanup). */
 .editor-advanced { margin-top: var(--ds-space-4); }
+/* The bar's own actions wrap inside the bar, never past the screen's edge: on
+   a 360 phone Story's four actions pushed "Deleted" out, the phone zoomed the
+   page out and a band showed under the editor (check:ui zoomedOut, editorBand). */
+.editor-bar-actions { flex-wrap: wrap; row-gap: var(--ds-space-4); min-width: 0; max-width: 100%; }

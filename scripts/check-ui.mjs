@@ -42,7 +42,7 @@ const WORKERS = Number(opt('workers')) || 3;
 // Run-to-run noise allowed before a count fails CI (owner, 2026-11-15): the
 // keyboard walk lands on slightly different stops from one run to the next.
 const TOLERANCE = { focusWithoutIndicator: 5 };
-const RATCHETED = ['editorBand', 'fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
+const RATCHETED = ['pagesZoomedOutOnPhones', 'editorBand', 'fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
 
 const VIEWPORTS = QUICK ? [[1440, 900], [390, 844]] : [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
 const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
@@ -298,6 +298,7 @@ function summarise(report) {
     clippedWithoutEllipsis: sum((r) => r.clippedNoEllipsis?.length),
     fixedOverSettings: sum((r) => r.fixedOverSettings?.length),
     editorBand: sum((r) => r.editorBand?.length),
+    pagesZoomedOutOnPhones: pages.filter((r) => (r.zoomedBy || 0) > 1).length,
     controlsSpilling: sum((r) => r.spilling?.length),
     ellipsisWithoutFullText: sum((r) => r.ellipsisNoTitle?.length),
     pagesOverCls01: pages.filter((r) => (r.vitals?.cls || 0) > 0.1).length,
