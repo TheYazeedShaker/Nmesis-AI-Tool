@@ -124,6 +124,22 @@ export function layoutChecks({ phone }) {
       if (r.left < p.right && r.right > p.left && r.top < p.bottom && r.bottom > p.top) out.fixedOverSettings.push(describe(el));
     }
   }
+  // The editor fills the window under the top bar, with nothing left below it
+  // or under its version history (owner, design/editor-cleanup: an empty band
+  // under "Your versions appear here"). Measured with the page at the top.
+  out.editorBand = [];
+  const editor = document.querySelector('.ds-editor');
+  if (editor && visible(editor) && window.scrollY === 0) {
+    const e = editor.getBoundingClientRect();
+    const docBottom = document.documentElement.scrollHeight;
+    if (e.bottom < window.innerHeight - 2 && docBottom <= window.innerHeight + 2) out.editorBand.push({ el: 'below .ds-editor', gap: Math.round(window.innerHeight - e.bottom) });
+    const canvas = document.querySelector('.ds-canvas-stage'), history = document.querySelector('.editor-stage-history');
+    if (canvas && history && visible(history) && canvas.scrollHeight <= canvas.clientHeight + 1) {
+      const c = canvas.getBoundingClientRect(), h = history.getBoundingClientRect();
+      const pad = parseFloat(getComputedStyle(canvas).paddingBottom) || 0;
+      if (c.bottom - pad - h.bottom > 8) out.editorBand.push({ el: 'under .editor-stage-history', gap: Math.round(c.bottom - pad - h.bottom) });
+    }
+  }
   for (const k of ['under24', 'under44', 'overlapped', 'clippedNoEllipsis', 'ellipsisNoTitle', 'spilling', 'fixedOverSettings']) out[k] = dedupe(out[k]);
   return out;
   function sideScroller(el) {

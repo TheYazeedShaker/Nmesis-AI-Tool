@@ -61,11 +61,12 @@ export function PromptSettings({label='Scene',value,onChange,placeholder,max=600
 }
 
 /** costs: the price of each choice when it is known before an estimate (null: priced by the estimate). */
-export function QualitySettings({value,onChange,costs}:{value:Quality;onChange:(q:Quality)=>void;costs?:Record<Quality,number|null>}){
+export function QualitySettings({value,onChange,costs,children}:{value:Quality;onChange:(q:Quality)=>void;costs?:Record<Quality,number|null>;/** What else belongs with quality: how many, the Advanced fold. */children?:React.ReactNode}){
  return <SettingsSection title="Quality" id="quality-title">
   <RadioGroup legend="Quality" className="editor-quality">
    {(['standard','high'] as Quality[]).map(q=><Radio key={q} name="quality" checked={value===q} onChange={()=>onChange(q)} label={<span className="editor-quality-label">{QUALITY_LABEL[q]}{typeof costs?.[q]==='number'&&<span className="ds-muted">{creditWords(costs[q] as number)}</span>}</span>} help={q==='standard'?'Quicker; good for trying ideas.':'Sharper details for the final.'}/>)}
   </RadioGroup>
+  {children}
  </SettingsSection>;
 }
 

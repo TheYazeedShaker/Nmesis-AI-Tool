@@ -27,7 +27,7 @@ import {State} from '@/components/ds/feedback';
 import {Menu,MenuItem} from '@/components/ds/menu';
 import {useToast} from '@/components/ds/toast';
 import {WorkspaceFrame} from '@/components/workspace/frame';
-import {EDITOR_TOOLS,EditorScreen} from '@/components/editor/editor-screen';
+import {Advanced,EDITOR_TOOLS,EditorScreen,type GenerateBlocker} from '@/components/editor/editor-screen';
 import {CostBadge,PromptSettings,SaveToProject,VersionHistory,type Version} from '@/components/editor/parts';
 import {useProject} from '@/components/editor/use-project';
 import {InspirationCard} from '@/components/editor/inspiration-card';
@@ -41,7 +41,7 @@ import './editor-lineup.css';
 // engine; Refine a car, Area edit and Download act on the version shown.
 
 const DEFAULT_BRIEF='A premium automotive lineup. Follow the inspiration lighting and environment, with natural shared reflections, believable relative vehicle sizes and grounded contact shadows.';
-type Reply={visual:Visual;visuals:Visual[];warning?:string;generation?:unknown};
+type Reply={visual:Visual;visuals:Visual[];warning?:string;generation?:unknown;ownKeys?:boolean};
 async function api(url:string,body?:unknown):Promise<Reply>{const r=await studioFetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:undefined);const d=await r.json().catch(()=>({error:'The connection was interrupted. Refresh saved lineups before trying again.'})) as Partial<Reply>&{error?:string};if(!r.ok)throw new Error(d.error||'Request failed.');return d as Reply}
 function newCar(config=CONFIGURATORS[0]):LineupCar{return{id:crypto.randomUUID(),name:config.name,configurator:config.url,finish:'',views:[],x:50,y:72,scale:35}}
 const lineupWaiting=(v:Visual)=>!!v.lineup&&v.provider==='higgsfield'&&['queued','in_progress','archiving'].includes(v.jobStatus||'');
@@ -57,7 +57,7 @@ function LineupStudio(){
  // Cars still on the placeholder (no views yet) move to the deployment's presets once they load.
  const presets=useConfiguratorPresets(list=>{if(!isDemoConfigurator(list[0]))setCars(p=>p.map((c,i)=>!c.views.length&&isDemoConfigurator({url:c.configurator})?{...c,name:(list[i<2?i:0]||list[0]).name,configurator:(list[i<2?i:0]||list[0]).url}:c))});
  const [pin,setPin]=useState(''),[mood,setMood]=useState<{id:string;name:string;pin:string}|null>(null),[brief,setBrief]=useState(''),[provider,setProvider]=useState<ImageProvider>('openai'),[model,setModel]=useState<string>(OPENAI_IMAGE_MODEL),[size,setSize]=useState('2048x1152');
- const [visuals,setVisuals]=useState<Visual[]>([]),[currentId,setCurrentId]=useState<string|null>(null),[view,setView]=useState<'setup'|'result'>('setup'),[refineCar,setRefineCar]=useState(''),[refinement,setRefinement]=useState(''),[refineOpen,setRefineOpen]=useState(false),[areaOpen,setAreaOpen]=useState(false),[connected,setConnected]=useState(false),[ready,setReady]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState(''),[downloading,setDownloading]=useState(false);
+ const [visuals,setVisuals]=useState<Visual[]>([]),[currentId,setCurrentId]=useState<string|null>(null),[view,setView]=useState<'setup'|'result'>('setup'),[refineCar,setRefineCar]=useState(''),[refinement,setRefinement]=useState(''),[refineOpen,setRefineOpen]=useState(false),[areaOpen,setAreaOpen]=useState(false),[connected,setConnected]=useState(false),[status,setStatus]=useState<{known:boolean;ownKeys:boolean}>({known:false,ownKeys:false}),[ready,setReady]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState(''),[downloading,setDownloading]=useState(false);
  const [moodError,setMoodError]=useState(''),[pinError,setPinError]=useState('');
  const working=useRef(false),pollIndex=useRef(0),download=useRef<AbortController|null>(null);
  const tell=useCallback((message:string)=>toast.toast({message:names?message:plainProviderText(message),kind:'ok'}),[toast,names]);
@@ -68,7 +68,7 @@ function LineupStudio(){
  useEffect(()=>{try{const d=JSON.parse(localStorage.getItem('nmesis-lineup-v1')||'null');if(d?.cars?.length>=2&&d.cars.length<=MAX_LINEUP_CARS&&d.cars.every((c:LineupCar)=>c.id&&Array.isArray(c.views))){setCars(d.cars);setLayout(d.layout||'inspiration');setStrictReference(d.strictReference===true);setHeroId(d.heroId||d.cars[0].id);setPin(d.pin||'');setMood(d.mood||null);setBrief(d.brief||'')}else{const initial=[newCar(),newCar(CONFIGURATORS[1])];setCars(arrangeCars(initial,'inspiration',initial[0].id));setHeroId(initial[0].id)}}catch{const initial=[newCar(),newCar(CONFIGURATORS[1])];setCars(arrangeCars(initial,'inspiration',initial[0].id));setHeroId(initial[0].id)}setReady(true);
   // A link to one line-up (/lineup?visual=…) opens it once the versions load.
   void refresh().then(list=>{const id=new URLSearchParams(location.search).get('visual');const v=id?list.find(x=>x.id===id&&x.lineup):undefined;if(v){pick(v);window.history.replaceState(null,'','/lineup')}},e=>setError((e as Error).message));
-  void api('/api/status').then(d=>setConnected(!!d.generation),()=>setConnected(false));},[refresh,pick]);
+  void api('/api/status').then(d=>{setConnected(!!d.generation);setStatus({known:true,ownKeys:!!d.ownKeys})},()=>{setConnected(false);setStatus({known:true,ownKeys:false})});},[refresh,pick]);
  useEffect(()=>{if(ready)try{localStorage.setItem('nmesis-lineup-v1',JSON.stringify({cars,layout,heroId,pin,mood,brief,strictReference}))}catch{/* storage full or blocked: the draft stays in this tab only */}},[cars,layout,heroId,pin,mood,brief,strictReference,ready]);
  useEffect(()=>{if(!busy)return;const warn=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue=''};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[busy]);
  useEffect(()=>()=>download.current?.abort(),[]);
@@ -157,22 +157,25 @@ function LineupStudio(){
   </InspirationCard>
   </div>
   <PromptSettings label="Anything else? (optional)" value={brief} onChange={setBrief} max={2000} inspiration={false} placeholder="A mountain overlook at sunset. Keep every car visible, with warm light from the right…"/>
-  <LineupQuality o={o} provider={provider} model={model} size={size} onSize={setSize} names={names}/>
-  <LineupEngine names={names} provider={provider} model={model} size={size}
-   onProvider={p=>{setProvider(p);setModel(p==='openai'?OPENAI_IMAGE_MODEL:HIGGSFIELD_IMAGE_MODELS[0].id);setSize('2048x1152')}}
-   onModel={m=>{setModel(m);if(provider==='higgsfield'&&!higgsImageModel(m).max4k&&size==='3840x2160')setSize('2048x1152')}} onSize={setSize}/>
+  <LineupQuality o={o} provider={provider} model={model} size={size} onSize={setSize} names={names}>
+   <Advanced name="lineup"><LineupEngine names={names} provider={provider} model={model} size={size}
+    onProvider={p=>{setProvider(p);setModel(p==='openai'?OPENAI_IMAGE_MODEL:HIGGSFIELD_IMAGE_MODELS[0].id);setSize('2048x1152')}}
+    onModel={m=>{setModel(m);if(provider==='higgsfield'&&!higgsImageModel(m).max4k&&size==='3840x2160')setSize('2048x1152')}} onSize={setSize}/></Advanced>
+  </LineupQuality>
  </fieldset>;
 
  const jobs=busy||error?<div className="ds-stack">
   {busy&&<article className="ds-job" data-state="running" aria-label={busy}><div className="ds-job-head"><Loader2 aria-hidden="true" className="ds-spin-icon"/><h3 className="ds-job-title">{busy}</h3></div><p className="ds-job-stage" role="status">Keep this tab open; saved results appear in your versions.</p></article>}
   {error&&<Banner kind="bad" icon={<AlertTriangle/>}><span className="ds-row editor-message"><span>{say(error)}</span><IconButton label="Dismiss error" size="sm" onClick={()=>setError('')}><X aria-hidden="true"/></IconButton></span></Banner>}
  </div>:undefined;
+ // Why Generate cannot run here (the account and credits are checked by the editor).
+ const blocked:GenerateBlocker|null=status.known&&provider==='openai'&&!connected?(status.ownKeys?{title:say('Connect your OpenAI key to generate'),body:'Your company uses its own keys. Connect it in Key visual, under More actions.'}:{title:'AI generation isn’t set up for your Studio yet',body:'Ask Nmesis to set it up.'}):null;
  const note=issue?say(issue):!mood&&!pin.trim()?'Add an inspiration to generate.':[billing,'Creates one paid image. Original references and earlier versions stay saved.'].filter(Boolean).join(' ');
 
  return <WorkspaceFrame current="lineup" bleed notices={<AccountNotices variant="ds"/>}>
   <EditorScreen tool="lineup" onTool={t=>{if(t!=='lineup')router.push(EDITOR_TOOLS.find(x=>x.id===t)?.href||'/')}}
    bar={bar} stage={stage} history={<VersionHistory versions={versions} current={showResult?currentId:null} onPick={id=>{const v=visuals.find(x=>x.id===id);if(v)pick(v)}}/>}
-   jobs={jobs} settings={settings} cost={cost} busy={!!busy} disabled={!ready||!!issue||(!mood&&!pin.trim())} onGenerate={()=>void generate()} note={note}/>
+   jobs={jobs} settings={settings} cost={cost} busy={!!busy} blocked={blocked} payer={provider} disabled={!ready||!status.known||!!issue||(!mood&&!pin.trim())} onGenerate={()=>void generate()} note={note}/>
   {editCar&&editConfig&&<LineupCarDialog key={editCar.id} car={editCar} index={cars.indexOf(editCar)} config={editConfig} onPatch={patch=>update(editCar.id,patch)} onClose={()=>setCaptureId('')}/>}
   {libraryId&&<LineupSavedDialog saved={Array.from(savedMap.values())} cars={cars} targetId={libraryId} onClose={()=>setLibraryId('')} onPick={c=>{update(libraryId,{name:c.name,configurator:c.configurator,finish:c.finish,views:c.views.slice(0,2)});setLibraryId('')}}/>}
   {refineOpen&&selected?.lineup&&<LineupRefineDialog visual={selected} strict={refineStrict} onStrict={setRefineStrict} carId={refineCar} onCar={setRefineCar} text={refinement} onText={setRefinement} cost={cost} note={billing} onClose={()=>setRefineOpen(false)} onRefine={()=>{setRefineOpen(false);void generate(selected)}}/>}

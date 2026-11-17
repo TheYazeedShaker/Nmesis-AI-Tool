@@ -108,5 +108,6 @@ test('internal links no longer say they open elsewhere, and the client never rea
   const page = read('app/key-visual/page.tsx');
   assert.doesNotMatch(page, /Story studio ↗|Replace car in ad ↗/);
   assert.doesNotMatch(page + read('app/swap/page.tsx'), /connected on this Studio yet/);
-  assert.match(page, /Image generation isn’t available in your Studio right now\. Ask Nmesis\./);
+  // Generation that cannot run says so once, at the top of the settings, in plain words (design/editor-cleanup).
+  assert.match(page, /title:'AI generation isn’t set up for your Studio yet',body:'Ask Nmesis to set it up\.'/);
 });
