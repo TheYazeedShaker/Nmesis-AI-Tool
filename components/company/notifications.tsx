@@ -2,6 +2,7 @@
 import * as React from 'react';
 import {Button} from '@/components/ds/button';
 import {Checkbox} from '@/components/ds/field';
+import {Pager,usePaged} from '@/components/ds/list';
 import {Section} from '@/components/ds/layout';
 import {plural} from '@/lib/ds/words';
 import type {NotificationsState} from '@/lib/company';
@@ -21,15 +22,17 @@ export function NotificationsSection({state,onState}:{state:NotificationsState;o
   catch(e){setSaid({text:e instanceof Error?e.message:'That couldn’t be saved.',bad:true})}
   finally{setBusy(false)}
  }
+ const people=usePaged(state.people);
  const toggle=(id:string,on:boolean)=>setPicked(s=>{const n=new Set(s);if(on)n.add(id);else n.delete(id);return n});
  return <Section title="Credit emails" count={plural(state.count,'person','people')}>
   <p className="settings-line">One email when 80% of this period’s credits are used, and one when they run out.{state.fallback?' Nobody is chosen yet, so your company’s owners get them.':''}</p>
   {state.people.length?<>
    <fieldset className="settings-choices" disabled={!state.canEdit||busy}>
     <legend className="ds-sr-only">Who gets the credit emails</legend>
-    {state.people.map(p=><Checkbox key={p.userId} checked={picked.has(p.userId)} onChange={e=>toggle(p.userId,e.target.checked)}
+    {people.shown.map(p=><Checkbox key={p.userId} checked={picked.has(p.userId)} onChange={e=>toggle(p.userId,e.target.checked)}
      label={<span className="settings-email">{p.email}{p.you&&<span className="settings-you"> (you)</span>}</span>} help={p.role==='owner'?'Owner':p.role==='creator'?'Creator':'Viewer'}/>)}
    </fieldset>
+   <Pager {...people} label="Who gets the credit emails"/>
    {state.canEdit?<span className="settings-actions"><Button kind="primary" busy={busy} disabled={!changed||!picked.size} onClick={()=>void save()}>Save</Button>{!picked.size&&<span className="settings-line">Choose at least one person.</span>}</span>
     :<p className="settings-line">Only your company’s owners change this.</p>}
   </>:<p className="settings-line">{state.you?'You get these emails. ':'You don’t get these emails. '}Your company’s owners choose who does.</p>}

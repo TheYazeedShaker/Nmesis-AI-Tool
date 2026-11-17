@@ -1,4 +1,5 @@
 'use client';
+import {LiveFrame} from '@/components/editor/live-frame';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {Check,Download,Film,Plus,RefreshCw,Upload} from 'lucide-react';
@@ -125,8 +126,7 @@ function CarSwap(){
   <div className="editor-swap-pane" hidden={stage!=='car'}>
    <div className="editor-swap-car">
     <ConfiguratorStage frame={0} frames={0} onFrame={()=>undefined} onCapture={()=>void capture()} capturing={busy==='capture'}>
-     <iframe ref={frame} key={config.url} title={config.name+' configurator'} src={config.url} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation" referrerPolicy="no-referrer" allow="fullscreen" allowFullScreen/>
-     <span className="editor-live"><span aria-hidden="true"/>Live configurator</span>
+     <LiveFrame frameRef={frame} url={config.url} name={config.name} visible={stage==='car'}/>
     </ConfiguratorStage>
     <p className="ds-help">Set the colour, trim and angle in the configurator, then press Use this view. {refs.length} / 8 car views.</p>
     {captureOpen&&<div className="editor-swap-fallback" role="status"><p>This configurator does not expose a direct image. Capture its tab or upload a screenshot.</p>

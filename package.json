@@ -17,8 +17,7 @@
     "check:design": "node scripts/check-design.mjs",
     "design:inventory": "node scripts/design-inventory.mjs",
     "check:ui": "node scripts/check-ui.mjs",
-    "ui:affected": "node scripts/ui/affected.mjs",
-    "library:backfill": "node scripts/backfill-library.mjs"
+    "ui:affected": "node scripts/ui/affected.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1166.0",

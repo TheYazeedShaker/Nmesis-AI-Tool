@@ -41,6 +41,9 @@ export function useLibraryPage(place:Place,{limit=40}:{limit?:number}={}){
  const [items,setItems]=React.useState<WorkItem[]>([]),[total,setTotal]=React.useState(0),[next,setNext]=React.useState<number|null>(null);
  const [meta,setMeta]=React.useState<{counts:Counts;folders:Folder[];cars:string[];foldersReady:boolean}|null>(null);
  const [loading,setLoading]=React.useState(true),[problem,setProblem]=React.useState('');
+ // The place follows the address (a folder clicked, Back, Forward): a new place asks the server again, without a reload.
+ const [placeAsked,setPlaceAsked]=React.useState(place);
+ if(placeAsked!==place){setPlaceAsked(place);setLoading(true);setQuery(q=>({...q,place}))}
  const asked=React.useRef(0);
  // Applies an answer (only the latest one asked for).
  const apply=React.useCallback((ticket:number,offset:number,page:LibraryPage)=>{

@@ -3,6 +3,10 @@ import {providerNames,useAccount} from '@/components/studio-account';
 import {imageModelLabel,plainProviderText} from '@/lib/provider-words';
 
 import {CreditCost} from '@/components/credits';
+import {Button,buttonClass} from '@/components/ds/button';
+import {Field,Select,Textarea} from '@/components/ds/field';
+import {Section} from '@/components/ds/layout';
+import {Banner} from '@/components/ds/shell';
 import {studioFetch} from '@/lib/studio-fetch';
 import {useEffect,useRef,useState} from 'react';
 import {GEMINI_IMAGE_MODELS,OPENAI_IMAGE_MODELS,OPENAI_IMAGE_MODEL} from '@/lib/image-models';
@@ -29,5 +33,31 @@ export function SmartReferenceLab({pair,initialResults,onBusy,disabled=false}:{p
  }}catch(e){setError((e as Error).message+' No automatic retry was made.')}finally{running.current=false;setBusy('');onBusy(false)}}
  async function checkDetails(id:string){if(running.current||disabled)return;running.current=true;onBusy(true);setBusy('Checking saved image details…');setError('');try{const d=await json(await studioFetch('/api/smart-review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}));setResults(v=>v.map(x=>x.id===id?d.visual:x))}catch(e){setError((e as Error).message)}finally{running.current=false;onBusy(false);setBusy('')}}
  const matches=results.filter(v=>v.sourceId===pair?.sourceId&&v.moodId===pair?.moodId);
- return <section aria-label="Smart reference lab"><h2>Let the references write the prompt</h2><p>{w('Choose one direction. OpenAI prepares a specific prompt from the two images, then your chosen model renders it.')}</p><SmartControls value={priority} onChange={setPriority} disabled={disabled||!!busy}/>{priority&&<><div className="area-repair-options"><label>Image model<select aria-label="Smart image model" disabled={disabled||!!busy} value={model} onChange={e=>setModel(e.target.value)}>{OPENAI_IMAGE_MODELS.map(m=><option key={m.id} value={m.id}>{showNames?m.label:imageModelLabel(m.id)}</option>)}{GEMINI_IMAGE_MODELS.map(m=><option key={m.id} value={m.id}>{showNames?m.label:imageModelLabel(m.id)}</option>)}</select></label><label>Size<select aria-label="Smart output size" disabled={disabled||!!busy} value={size} onChange={e=>setSize(e.target.value)}><option value="2048x1152">2K</option><option value="3840x2160">4K</option></select></label></div><label className="field-label" htmlFor="smart-lab-brief">Your idea</label><textarea id="smart-lab-brief" value={brief} maxLength={2000} disabled={disabled||!!busy} onChange={e=>setBrief(e.target.value)}/><div className="visual-actions"><button className="secondary" disabled={disabled||!pair||!!busy} onClick={()=>void run()}>Prepare & preview prompt</button><button className="generate" disabled={disabled||!pair||!!busy} onClick={()=>void run(true)}>Generate smart visual · 1 paid image</button><button className="secondary" disabled={disabled||!pair||!!busy} onClick={()=>void run(true,true)}>Compare 3 priorities · 3 paid images</button></div><p className="helper">{w('Planning and checks also use paid OpenAI requests.')} Comparisons use the same originals, idea, model and size. Keep this page open; no automatic image retries.</p></>}{busy&&<p role="status">{busy}</p>}{error&&<p role="alert" className="field-error">{error}</p>}{plan&&<SmartPlanView plan={plan}/>}<div className="smart-lab-grid">{matches.map(v=><article className="area-editor" key={v.id}><h3>{v.title}</h3><p>{v.width?`${v.width} × ${v.height}`:v.size} · {v.status}</p>{v.status==='ready'?<><img crossOrigin="anonymous" src={v.src} alt={v.title} style={{width:'100%'}}/><ImageDownload src={v.src} name={v.title}/><SmartReviewView review={v.smartReview}/>{!v.smartReview&&<button className="secondary" disabled={disabled||!!busy} onClick={()=>void checkDetails(v.id)}>Check details · <CreditCost cost="openai.text" provider="openai"/></button>}<details><summary>Exact generation prompt</summary><pre style={{whiteSpace:'pre-wrap'}}>{v.prompt}</pre></details></>:<p>{v.error||'Generating…'}</p>}</article>)}</div></section>
+ return <Section title="Let the references write the prompt" className="lab-smart">
+  <p className="ds-help">{w('Choose one direction. OpenAI prepares a specific prompt from the two images, then your chosen model renders it.')}</p>
+  <SmartControls value={priority} onChange={setPriority} disabled={disabled||!!busy}/>
+  {priority&&<>
+   <div className="lab-row">
+    <Field label="Image model"><Select disabled={disabled||!!busy} value={model} onChange={e=>setModel(e.target.value)}>{OPENAI_IMAGE_MODELS.map(m=><option key={m.id} value={m.id}>{showNames?m.label:imageModelLabel(m.id)}</option>)}{GEMINI_IMAGE_MODELS.map(m=><option key={m.id} value={m.id}>{showNames?m.label:imageModelLabel(m.id)}</option>)}</Select></Field>
+    <Field label="Size"><Select disabled={disabled||!!busy} value={size} onChange={e=>setSize(e.target.value)}><option value="2048x1152">2K</option><option value="3840x2160">4K</option></Select></Field>
+   </div>
+   <Field label="Your idea" id="smart-lab-brief"><Textarea value={brief} maxLength={2000} rows={4} disabled={disabled||!!busy} onChange={e=>setBrief(e.target.value)}/></Field>
+   <div className="lab-actions">
+    <Button disabled={disabled||!pair||!!busy} onClick={()=>void run()}>Prepare & preview prompt</Button>
+    <Button kind="primary" disabled={disabled||!pair||!!busy} onClick={()=>void run(true)}>Generate smart visual · 1 paid image</Button>
+    <Button disabled={disabled||!pair||!!busy} onClick={()=>void run(true,true)}>Compare 3 priorities · 3 paid images</Button>
+   </div>
+   <p className="ds-help">{w('Planning and checks also use paid OpenAI requests.')} Comparisons use the same originals, idea, model and size. Keep this page open; no automatic image retries.</p>
+  </>}
+  {busy&&<p className="ds-help" role="status">{busy}</p>}
+  {error&&<Banner kind="bad">{error}</Banner>}
+  {plan&&<SmartPlanView plan={plan}/>}
+  {matches.length>0&&<div className="lab-grid">{matches.map(v=><article className="lab-card" key={v.id}><h3 className="ds-label">{v.title}</h3><p className="ds-help">{v.width?`${v.width} × ${v.height}`:v.size} · {v.status}</p>
+   {v.status==='ready'?<>
+    {/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
+    <img crossOrigin="anonymous" src={v.src} alt={v.title}/><ImageDownload src={v.src} name={v.title} label="Download" className={buttonClass({kind:'quiet',size:'sm'})}/><SmartReviewView review={v.smartReview}/>
+    {!v.smartReview&&<Button size="sm" disabled={disabled||!!busy} onClick={()=>void checkDetails(v.id)}>Check details · <CreditCost cost="openai.text" provider="openai"/></Button>}
+    <details className="lab-details"><summary>Exact generation prompt</summary><pre>{v.prompt}</pre></details></>
+   :<p className="ds-help">{v.error||'Generating…'}</p>}</article>)}</div>}
+ </Section>;
 }

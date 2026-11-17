@@ -78,6 +78,7 @@ test('every scroll area in the design system is known, and none sits in a dialog
     ['.ds-frames', 'the design-system gallery’s frames, sideways'],
     ['.editor-history', 'the versions strip under the canvas, sideways'],
     ['.editor-match-prompt', 'the fixed prompt in the editor’s settings (not shown when refining in a dialog)'],
+    ['.lab-details pre', 'a long prompt shown on the Smart reference lab page (no dialog)'],
     ['.tp-viewport', 'the area editor’s drawing surface: it pans a zoomed picture (2×, 3×)'],
   ]);
   const found = [];

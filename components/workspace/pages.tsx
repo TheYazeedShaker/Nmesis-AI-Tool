@@ -2,6 +2,7 @@
 import * as React from 'react';
 import {workName} from '@/lib/accounts/names';
 import Link from 'next/link';
+import {useSearchParams} from 'next/navigation';
 import {Clapperboard,Film,ImageIcon,Layers,Replace} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {SkeletonTile,State} from '@/components/ds/feedback';
@@ -49,7 +50,6 @@ function Loading(){
 function Problem({text,onRetry}:{text:string;onRetry:()=>void}){
  return <State kind="error" title="The library didn’t load" actions={<Button onClick={onRetry}>Try again</Button>}>{text}</State>;
 }
-const query=(name:string)=>typeof window==='undefined'?null:new URLSearchParams(window.location.search).get(name);
 const libraryHref=(p:Place)=>p==='all'?'/library':`/library?in=${encodeURIComponent(p)}`;
 
 export function HomePage(){
@@ -67,9 +67,14 @@ export function HomePage(){
  </WorkspaceFrame>;
 }
 
+// The library follows its address: ?in= (the folder) and ?open= (the viewer) are read on every
+// navigation (a click, Back, Forward, a shared link), not once. useSearchParams needs a Suspense boundary.
 export function LibraryPage(){
- const account=useAccount();
- const [place]=React.useState<Place>(()=>query('in')||'all'),[openId]=React.useState(()=>query('open'));
+ return <React.Suspense fallback={<WorkspaceFrame current="library" notices={<AccountNotices variant="ds"/>}><Loading/></WorkspaceFrame>}><LibraryAtAddress/></React.Suspense>;
+}
+function LibraryAtAddress(){
+ const account=useAccount(),params=useSearchParams();
+ const place:Place=params.get('in')||'all',openId=params.get('open');
  const lib=useLibraryPage(place);
  return <WorkspaceFrame current="library" notices={<AccountNotices variant="ds"/>}>
   {!lib.ready?(lib.problem?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:<Loading/>)

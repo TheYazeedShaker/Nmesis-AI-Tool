@@ -1,6 +1,8 @@
-// npm run library:backfill -- --env <production|preview> --staff <Nmesis staff user id> [--dry]
+// node scripts/backfill-library.mjs --env <production|preview> --staff <Nmesis staff user id> [--dry]
 //
-// One-off, after migration 0007: fills the library index (studio.library_items)
+// Not an owner step any more: the Studio fills each company's index itself the
+// first time its library is opened (lib/library-backfill.ts, migration 0009).
+// This script stays for check:ui's seeded world and for a manual repair: fills the library index (studio.library_items)
 // and makes the small thumbnails for the work saved before it: key visuals and
 // their edits (saved records), image jobs, films, car swaps and stories. Safe to
 // run again: every row is an upsert and a thumbnail that exists is kept.
@@ -35,7 +37,9 @@ if (!store) throw new Error('Set the S3_* variables for this environment\'s buck
 const counts = {records: 0, jobs: 0, films: 0, swaps: 0, stories: 0, thumbs: 0, problems: 0};
 const orgOf = (owner) => owner.split('/')[1];
 
+const orgs = new Set();
 async function put(entry, org) {
+  orgs.add(org);
   if (dry) return;
   try {
     await indexItem({DB: db, BUCKET: store, org}, entry);
@@ -70,6 +74,11 @@ try {
   // 3. Films, swaps and stories.
   for (const [table, from, n] of [['films', fromFilm, 'films'], ['swap_jobs', fromSwap, 'swaps'], ['storyboards', fromStory, 'stories']]) {
     for (const row of (await db.prepare(`SELECT * FROM ${table}`).bind().all()).results) { counts[n]++; await put(from(row), row.org_id); }
+  }
+  // Mark these companies as filled, so the Studio does not fill them again (after 0009).
+  if (!dry) {
+    try { for (const org of orgs) await db.prepare('INSERT INTO library_backfills(org_id,started_at,done_at) VALUES(?,?,?) ON CONFLICT(environment,org_id) DO UPDATE SET done_at=excluded.done_at').bind(org, Date.now(), Date.now()).run(); }
+    catch (e) { if (!/library_backfills/i.test(e instanceof Error ? e.message : String(e))) throw e; console.info('Migration 0009 has not run: the companies are not marked as filled.'); }
   }
   console.log(JSON.stringify({environment: env, dry, ...counts}));
 } finally { await sql.end({timeout: 5}); }

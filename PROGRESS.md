@@ -2,9 +2,18 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-17 (Design Phase 3 finish pass: faster CI and pages, the old screens in the new design)
+**Last updated:** 2026-11-17 (lists and leftovers: paged lists, sign-in on the design system, live configurator load, library fills itself, library follows its address)
 
-**Latest (2026-11-17, design programme Phase 3 finish pass, `design/finish-pass`):**
+**Latest (2026-11-17, `fix/lists-and-leftovers`):**
+- Every list and log (Company settings: support openings, team, team changes, credit emails; every Usage table) shows 10 rows, then "1–10 of 47" with Previous / Next: one design-system component, `components/ds/list.tsx` (`DataTable`, `PagedList`, `Pager`).
+- Key visual → Smart reference prompt: a design-system card (title, one line of help, a switch; the three priorities as radios). The plan and check cards use tokens.
+- Live configurator (key visual, swap, line-up, story): one `LiveFrame`. Causes found: the iframe was server-drawn (its load could fire before React listened) and was loaded inside a hidden pane (0 × 0, stayed black). It is now created after mount and only once shown; after 10 s without a load it says "Couldn’t load the configurator" with Try again, and logs the cause (host only).
+- Sign-in, forgot password, choose password, six-digit code and no-company screens: the design system in the Nmesis theme, light and dark, one centred card.
+- The library index fills itself: migration `0009_library_backfills.sql`; the first open of a company’s library after 0007 indexes its older work with thumbnails, once, after the response (`lib/library-backfill.ts`); until it is done the library shows the older feed. The `library:backfill` owner step is gone (the script stays for check:ui and repairs).
+- Library follows its address: `?in=` and `?open=` are read with `useSearchParams` on every navigation (clicks, Back, Forward, shared links); a folder page follows its id. Tools keep reading their `?id=` / `?car=` / `?visual=` once: they only use `replaceState` and are always entered from another route.
+- Owner step: run `npm run db:migrate` (0009) on each environment.
+
+**Earlier (2026-11-17, design programme Phase 3 finish pass, `design/finish-pass`):**
 - **CI:**
   - PRs run the fast gates in parallel, plus `check:ui` for only the screens the change can reach (`scripts/ui/affected.mjs` follows imports; a shell or design-system change means every screen), split over up to 4 shards.
   - The full sweep with `--perf` runs nightly on `development` (once this `ci.yml` is on `main`), on PRs into `main`, and on demand (`full`, `update_baseline`).
@@ -67,7 +76,7 @@
 **Earlier (2026-11-16, design programme Phase 3 group 2):**
 - The library at scale:
   - migration `0007_library_index.sql`: `studio.library_items`, one row per piece of work, kept up to date on every save, delete and restore, with the environment rule and row level security as 0004;
-  - small WebP thumbnails are made when work is saved; `npm run library:backfill -- --env <production|preview> --staff <uuid>` indexes existing work and makes its thumbnails (once per environment, after 0007);
+  - small WebP thumbnails are made when work is saved; existing work is indexed with its thumbnails automatically, per company, on the first library open (0009; this replaced the manual `library:backfill` step);
   - `/api/library` lists from the database only, 40 at a time with infinite scroll ("Load more" too), and signs thumbnail links; full images load only in the viewer through short-lived signed links. Until 0007 runs, the group 1 feed is used (`indexReady`);
   - `check:ui` seeds 1,000 items: on the phone profile (4x CPU, throttled network) first paint 332 ms, thumbnails only for the tiles on screen, no full image and no storage read for work.
 - The one editor for key visual, line-up, film, swap and story, built from the approved editor screens, inside the 2b shell, light and dark: the canvas or preview, the history of versions under it, one settings panel (car, view, prompt, quality as Standard / High detail), Generate with its credit cost, the credits used on every result, Save to project. Each screen keeps its old behaviour.
