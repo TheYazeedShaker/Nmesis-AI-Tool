@@ -85,7 +85,8 @@ export function ProposalScreen({screen}:{screen:Proposal}){
  const current:StudioPage=screen==='home'?'home':screen==='library'?'library':'projects';
  return <WorkspaceFrame current={current} preview={PREVIEW} notices={<Notices/>}>
   {screen==="home"&&<HomeScreen tools={HOME_TOOLS} recent={all.filter(i=>!i.deleted).slice(0,10)} cars={CARS.map(c=>({name:c,href:'#key-visual?car='+encodeURIComponent(c)}))} onStart={()=>toast.toast({message:'Opens a key visual with your words.'})} libraryHref="/design-system/proposals/library"/>}
-  {screen==='library'&&<LibraryScreen items={all} folders={folders} place={place} hrefFor={p=>`#${p}`} actions={actions} createHref="/design-system/proposals/home"/>}
+  {screen==='library'&&<LibraryScreen items={all} folders={folders} place={place} hrefFor={p=>`#${p}`} actions={actions} cars={CARS}
+   create={{tools:[['kv','New key visual'],['lineup','New line-up'],['film','New film'],['swap','New swap'],['story','New story']].map(([key,label])=>{const t=HOME_TOOLS.find(h=>h.key===key)!;return {key,label,href:t.href,icon:t.icon,locked:t.locked}}),onNewFolder:name=>folderActions.onCreate(name,null)}}/>}
   {screen==='projects'&&<ProjectsScreen folders={folders} canEdit actions={folderActions}/>}
   {screen==='folder'&&<FolderScreen folder={folders[0]} folders={folders} items={all} canEdit folderActions={folderActions} libraryActions={actions}/>}
  </WorkspaceFrame>;

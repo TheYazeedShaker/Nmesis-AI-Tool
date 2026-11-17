@@ -339,3 +339,14 @@ test('V7: clients work as their brand; a company with several brands sees the ch
   await expect('GET','/api/brands/beta/logo','app/api/brands/[id]/logo/route.ts',{params:{id:'beta'}},r=>{assert.equal(r.status,404)},'404, another company\'s brand');
  }finally{providerAnswer=null;providerCalls.length=0;if(prev===undefined)delete process.env.CONFIGURATOR_API_ORIGIN;else process.env.CONFIGURATOR_API_ORIGIN=prev;(await import('@/lib/car-pictures.ts')).forgetConfigurators()}
 });
+
+test('V8: the library\'s car filter lists the company\'s cars (the chosen brand\'s), with work or without',async()=>{
+ const cars=r=>r.body.cars.filter(c=>c.startsWith('Demo '));
+ // A has two cars; neither needs any work to be a choice.
+ as(A1);await expect('GET','/api/library','app/api/library/route.ts',{},r=>{assert.equal(r.status,200,r.text);assert.deepEqual(cars(r),['Demo alpha Model one','Demo alpha Model two'])},'200, A\'s two cars');
+ // B owns two brands: only the chosen brand's car, never another company's.
+ as(B1,null,'gamma');await expect('GET','/api/library','app/api/library/route.ts',{},r=>{assert.equal(r.status,200,r.text);assert.deepEqual(cars(r),['Demo gamma Model one'])},'200, the chosen brand\'s car');
+ as(B1,null,'beta');await expect('GET','/api/library','app/api/library/route.ts',{},r=>{assert.deepEqual(cars(r),['Demo beta Model one'])},'200, the other brand\'s car');
+ // A car with no work filters to nothing (the empty state says so), not to an error.
+ as(A1);await expect('GET','/api/library?car='+encodeURIComponent('Demo alpha Model two'),'app/api/library/route.ts',{},r=>{assert.equal(r.status,200);assert.equal(r.body.total,0);assert.deepEqual(r.body.items,[])},'200, nothing for that car');
+});

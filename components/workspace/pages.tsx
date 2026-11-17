@@ -12,7 +12,7 @@ import type {AccountSummary} from '@/lib/accounts/summary';
 import type {FeatureKey} from '@/lib/accounts/plan';
 import {WorkspaceFrame} from './frame';
 import {HomeScreen,type HomeTool} from './home';
-import {LibraryView,type Place} from './library';
+import {LibraryView,type CreateOptions,type Place} from './library';
 import {FolderHeader,ProjectsScreen,folderHref} from './projects';
 import {useLibraryPage} from './data';
 
@@ -26,6 +26,20 @@ const TOOLS:(Omit<HomeTool,'locked'>&{feature:FeatureKey})[]=[
  {key:'film',name:'Film',line:'A short film from your key visual.',href:'/films',icon:<Film/>,feature:'studio.film'},
  {key:'swap',name:'Replace car',line:'Put your car into an existing ad.',href:'/swap',icon:<Replace/>,feature:'studio.swap'},
 ];
+
+// The library's Create menu: the five tools, in the editor's order and to the
+// editor's pages (EDITOR_TOOLS), each with its plan chip when the plan lacks it.
+const CREATE:{key:string;label:string;href:string;icon:React.ReactNode;feature:FeatureKey}[]=[
+ {key:'kv',label:'New key visual',href:KEY_VISUAL_HREF,icon:<ImageIcon/>,feature:'studio.key_visuals'},
+ {key:'lineup',label:'New line-up',href:'/lineup',icon:<Layers/>,feature:'studio.lineups'},
+ {key:'film',label:'New film',href:'/films',icon:<Film/>,feature:'studio.film'},
+ {key:'swap',label:'New swap',href:'/swap',icon:<Replace/>,feature:'studio.swap'},
+ {key:'story',label:'New story',href:'/storyboard',icon:<Clapperboard/>,feature:'studio.storyboards'},
+];
+const planChip=(account:AccountSummary|null,feature:FeatureKey)=>hasFeature(account,feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[feature]}`;
+function createOptions(account:AccountSummary|null,onNewFolder:(name:string)=>void,folderIn?:string):CreateOptions{
+ return {tools:CREATE.map(({feature,...t})=>({...t,locked:planChip(account,feature)})),onNewFolder,folderIn};
+}
 
 function Loading(){
  return <div className="ds-grid" aria-busy="true" aria-label="Loading the library">{Array.from({length:8},(_,i)=><SkeletonTile key={i}/>)}</div>;
@@ -55,7 +69,7 @@ export function LibraryPage(){
  const lib=useLibraryPage(place);
  return <WorkspaceFrame current="library" notices={<AccountNotices variant="ds"/>}>
   {!lib.ready?(lib.problem?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:<Loading/>)
-   :<LibraryView {...lib} hrefFor={libraryHref} readOnly={!canChange(account)} openId={openId}/>}
+   :<LibraryView {...lib} hrefFor={libraryHref} readOnly={!canChange(account)} openId={openId} create={createOptions(account,name=>lib.folderActions.onCreate(name,null))}/>}
  </WorkspaceFrame>;
 }
 
@@ -71,10 +85,13 @@ export function ProjectsPage(){
 export function FolderPage({id}:{id:string}){
  const account=useAccount(),lib=useLibraryPage(id);
  const folder=lib.folders.find(f=>f.id===id),canEdit=canChange(account);
+ // Folders go one level deep: in a top folder New folder makes a sub-folder; in a sub-folder, one beside it.
+ const home=folder&&(folder.parentId?lib.folders.find(f=>f.id===folder.parentId)||null:folder);
  return <WorkspaceFrame current="projects" notices={<AccountNotices variant="ds"/>}>
   {!lib.ready&&!lib.problem?<Loading/>
    :!folder?<State kind="empty" title="This folder isn’t here" actions={<Link className="ds-btn" href="/projects">All folders</Link>}>It may have been deleted, or belong to another company.</State>
    :<div className="workspace-folder-page"><LibraryView {...lib} hrefFor={folderHref} readOnly={!canEdit}
+     create={createOptions(account,name=>lib.folderActions.onCreate(name,home?.id??null),home?.name)}
      above={<FolderHeader folder={folder} folders={lib.folders} canEdit={canEdit} folderActions={lib.folderActions}/>}/></div>}
  </WorkspaceFrame>;
 }
