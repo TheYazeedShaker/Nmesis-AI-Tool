@@ -170,3 +170,27 @@ test('a company with several brands sees the chosen brand’s work (and work wit
   assert.ok((await h.page.libraryPage(h.ctx,h.q({limit:100}))).items.some(i=>i.car==='Demo SUV'));
  }finally{h.close()}
 });
+
+test('the car filter lists every car of the company (the chosen brand’s), with work or without, each named once',async()=>{
+ const h=await harness(30);
+ try{
+  // The company's cars, as the route names them (lib/car-names.ts): "Sample 6", never "Sample Sample 6".
+  const add=(id,car)=>h.index.indexItem({DB:h.ctx.DB,org:ORG},{kind:'visual',id,owner:h.ctx.prefix,title:`${car} · Coast`,tool:'Key visual',car,status:'ready',assetId:null,createdAt:1_800_000_000_000,deletedAt:null},1);
+  await add('sample-5-01','Sample Sample 5');  // old work with the doubled brand
+  const choices=['Sample 5','Sample 6','Sample 10'];
+  const p=await h.page.libraryPage(h.ctx,h.q(),{carChoices:choices});
+  assert.deepEqual([...p.cars],['Demo Hatch','Demo Saloon','Demo SUV','Sample 5','Sample 6','Sample 10'],'the company’s cars without work, the cars with work, A–Z, numbers in order');
+  assert.ok(!p.cars.some(c=>/Sample Sample/.test(c)),'no doubled brand');
+  // A company with several brands: the chosen brand's cars only, with or without work.
+  const brand=await h.page.libraryPage(h.ctx,h.q(),{brandCars:['Sample 5','Sample Sample 5','Sample 6','Sample Sample 6'],carChoices:['Sample 5','Sample 6']});
+  assert.deepEqual([...brand.cars],['Sample 5','Sample 6']);
+  // Choosing a car with no work answers nothing, not an error.
+  const none=await h.page.libraryPage(h.ctx,h.q({car:'Sample 6'}),{carChoices:choices});
+  assert.equal(none.total,0);assert.deepEqual([...none.items],[]);
+  // Without the company's cars (no directory): the cars with work, as before.
+  assert.deepEqual([...(await h.page.libraryPage(h.ctx,h.q())).cars],['Demo Hatch','Demo Saloon','Demo SUV','Sample 5']);
+  // carList on its own.
+  assert.deepEqual([...h.page.carList(['IM 6',' IM 5 ',''],['IM IM 6','IM 5'])],['IM 5','IM 6']);
+  assert.deepEqual([...h.page.carList(null,[])],[]);
+ }finally{h.close()}
+});

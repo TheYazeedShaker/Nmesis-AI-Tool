@@ -1,13 +1,15 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import {ArchiveRestore,Download,Folder as FolderIcon,FolderInput,Grid2x2,Inbox,LayoutList,Plus,Search,Trash2} from 'lucide-react';
+import {ArchiveRestore,Download,Folder as FolderIcon,FolderInput,FolderPlus,Grid2x2,Inbox,LayoutList,Lock,Plus,Search,Trash2} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {Dialog} from '@/components/ds/dialog';
 import {SkeletonTile,State} from '@/components/ds/feedback';
-import {Select} from '@/components/ds/field';
+import {Field,Input,Select} from '@/components/ds/field';
 import {PageHeader} from '@/components/ds/layout';
 import {BulkBar,MediaGrid,MediaTile,Viewer} from '@/components/ds/media';
+import {Menu,MenuItem,MenuSeparator} from '@/components/ds/menu';
+import {emptyWords} from '@/lib/library-words';
 import type {Folder,WorkItem} from './items';
 
 // The one shared library (Phase 3, the approved wireframe): everything the
@@ -49,6 +51,28 @@ export function MoveDialog({open,folders,count,onClose,onMove}:{open:boolean;fol
  </Dialog>;
 }
 
+// Create: the tools (each to its own page; one not on the plan shows its plan
+// chip and does nothing) and New folder (off until folders are switched on by
+// migration 0006). Viewers and read-only views get no Create at all.
+export type CreateTool={key:string;label:string;href:string;icon:React.ReactNode;/** The plan chip ("On Growth") when the plan lacks the tool. */locked?:string};
+export type CreateOptions={tools:CreateTool[];/** Makes a folder (at the top, or in the folder shown). */onNewFolder?:(name:string)=>void;/** The folder a new one goes into, for the dialog's title. */folderIn?:string};
+export const FOLDERS_OFF='Folders turn on after the next update';
+
+export function CreateMenu({tools,foldersReady,onNewFolder}:{tools:CreateTool[];foldersReady:boolean;onNewFolder?:()=>void}){
+ return <Menu label="Create" text="Create" kind="primary" trigger={<Plus aria-hidden="true"/>} listClassName="create">
+  {tools.map(t=><MenuItem key={t.key} icon={t.icon} disabled={!!t.locked} aside={t.locked&&<span className="ds-badge"><Lock aria-hidden="true"/>{t.locked}</span>} onSelect={()=>location.assign(t.href)}>{t.label}</MenuItem>)}
+  {onNewFolder&&<><MenuSeparator/><MenuItem icon={<FolderPlus/>} disabled={!foldersReady} detail={foldersReady?undefined:FOLDERS_OFF} onSelect={onNewFolder}>New folder</MenuItem></>}
+ </Menu>;
+}
+
+function NewFolderDialog({open,folderIn,onClose,onSave}:{open:boolean;folderIn?:string;onClose:()=>void;onSave:(name:string)=>void}){
+ const [name,setName]=React.useState('');
+ const clean=name.trim();
+ return <Dialog open={open} onClose={onClose} title={folderIn?`New folder in ${folderIn}`:'New folder'} footer={<><Button onClick={onClose}>Cancel</Button><Button kind="primary" disabled={!clean} onClick={()=>onSave(clean)}>Create folder</Button></>}>
+  <form onSubmit={e=>{e.preventDefault();if(clean)onSave(clean)}}><Field label="Name" count={{value:name.length,max:80}}><Input value={name} onChange={e=>setName(e.target.value)} maxLength={80} autoComplete="off"/></Field></form>
+ </Dialog>;
+}
+
 /** Asks for the next page when the end of the list comes near; a button does the same. */
 function More({hasMore,loading,onMore,shown,total}:{hasMore:boolean;loading:boolean;onMore:()=>void;shown:number;total:number}){
  const ref=React.useRef<HTMLDivElement>(null),latest=React.useRef(onMore);
@@ -64,12 +88,12 @@ function More({hasMore,loading,onMore,shown,total}:{hasMore:boolean;loading:bool
  </div>;
 }
 
-export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMore,loading,onMore,hrefFor,actions,createHref='/',above,readOnly,openId,foldersReady=true}:{
+export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMore,loading,onMore,hrefFor,actions,createHref='/',create,above,readOnly,openId,foldersReady=true}:{
  items:WorkItem[];total:number;counts:Counts;folders:Folder[];cars:string[];query:LibraryQuery;onQuery:(q:Partial<LibraryQuery>)=>void;
- hasMore:boolean;loading:boolean;onMore:()=>void;hrefFor:(p:Place)=>string;actions:LibraryActions;createHref?:string;
+ hasMore:boolean;loading:boolean;onMore:()=>void;hrefFor:(p:Place)=>string;actions:LibraryActions;/** Without create: a plain Create link to here. */createHref?:string;/** The Create menu. */create?:CreateOptions;
  /** A folder's path and sub-folders, above its title. */above?:React.ReactNode;/** Viewers and staff viewing a client: look, open, download. */readOnly?:boolean;/** Open this item in the viewer (?open=). */openId?:string|null;/** Before migration 0006 there are no folders to move to. */foldersReady?:boolean}){
  const [view,setView]=React.useState<'grid'|'list'>('grid'),[typed,setTyped]=React.useState(query.q);
- const [chosen,setChosen]=React.useState<Set<string>>(new Set()),[openItem,setOpenItem]=React.useState<string|null>(openId||null),[moving,setMoving]=React.useState<string[]|null>(null);
+ const [chosen,setChosen]=React.useState<Set<string>>(new Set()),[openItem,setOpenItem]=React.useState<string|null>(openId||null),[moving,setMoving]=React.useState<string[]|null>(null),[naming,setNaming]=React.useState(false);
  // Search asks the server a moment after typing stops.
  React.useEffect(()=>{if(typed===query.q)return;const t=setTimeout(()=>onQuery({q:typed}),300);return()=>clearTimeout(t)},[typed,query.q,onQuery]);
  const place=query.place,canMove=!readOnly&&foldersReady&&folders.length>0;
@@ -81,12 +105,16 @@ export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMo
  const openTile=(m:WorkItem)=>{if(m.kind==='image'||!m.href||deletedView)setOpenItem(m.id);else location.assign(m.href)};
  const folder=folders.find(f=>f.id===place);
  const title=deletedView?'Deleted':place==='all'?'Library':place==='unsorted'?'Not in a folder':folder?.name||'Library';
+ const nothing=emptyWords(query,{folderName:folder?.name,readOnly,anything:counts.all>0});
+ const createButton=create
+  ?<CreateMenu tools={create.tools} foldersReady={foldersReady} onNewFolder={create.onNewFolder&&(()=>setNaming(true))}/>
+  :<Link className="ds-btn primary" href={createHref}><Plus aria-hidden="true"/>Create</Link>;
  return <div className="ds-library">
   <FolderNav folders={folders} place={place} counts={counts} hrefFor={hrefFor}/>
   <div className="workspace-library-main">
    {above}
    <PageHeader title={title} lede={deletedView?'Deleted work keeps everything it had. Restore brings it back where it was.':place==='all'?'Everything your company has made, in one place.':`${(folder?.count??total).toLocaleString('en-US')} items`}
-    actions={!deletedView&&!readOnly&&<Link className="ds-btn primary" href={createHref}><Plus aria-hidden="true"/>Create</Link>}/>
+    actions={!deletedView&&!readOnly&&createButton}/>
    <div className="workspace-place-phone"><label className="ds-label" htmlFor="library-place">Folder</label>
     <Select id="library-place" value={place} onChange={e=>{location.href=hrefFor(e.target.value)}}>
      <option value="all">Everything ({counts.all})</option>
@@ -109,9 +137,7 @@ export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMo
     <span className="ds-muted workspace-count" role="status">{total.toLocaleString('en-US')} {total===1?'item':'items'}</span>
    </div>
    {items.length===0&&!loading
-    ?(filtered?<State kind="no-results" title="Nothing matches" actions={<Button onClick={clear}>Clear filters</Button>}>Try another word, or fewer filters.</State>
-      :deletedView?<State kind="empty" title="Nothing deleted">What you delete waits here, with Restore.</State>
-      :<State kind="empty" title="Nothing here yet" actions={<Link className="ds-btn primary" href={createHref}><Plus aria-hidden="true"/>Create</Link>}>Move work here from the library with Move to…</State>)
+    ?<State kind={nothing.kind} title={nothing.title} actions={nothing.clear&&<Button onClick={clear}>{nothing.clear}</Button>}>{nothing.body}</State>
     :view==='grid'
      ?<MediaGrid label={title} selecting={chosen.size>0}>{items.map(m=><MediaTile key={m.id} item={m} selected={chosen.has(m.id)} onSelect={readOnly?undefined:on=>toggle(m.id,on)} onOpen={()=>openTile(m)}
         onMove={deletedView||!canMove?undefined:()=>setMoving([m.id])} onDownload={actions.onDownload&&m.full?()=>actions.onDownload!(m):undefined} onDelete={deletedView||readOnly?undefined:()=>actions.onDelete([m.id])}/>)}</MediaGrid>
@@ -132,6 +158,7 @@ export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMo
        {actions.onDownload&&<Button size="sm" icon={<Download aria-hidden="true"/>} onClick={()=>items.filter(m=>chosen.has(m.id)&&m.full).forEach(m=>actions.onDownload!(m))}>Download</Button>}
        <Button size="sm" icon={<Trash2 aria-hidden="true"/>} onClick={()=>{actions.onDelete(ids);setChosen(new Set())}}>Delete</Button></>}
    </BulkBar>
+   {create?.onNewFolder&&<NewFolderDialog key={naming?'open':'shut'} open={naming} folderIn={create.folderIn} onClose={()=>setNaming(false)} onSave={n=>{create.onNewFolder?.(n);setNaming(false)}}/>}
    <MoveDialog open={!!moving} folders={folders} count={moving?.length||0} onClose={()=>setMoving(null)} onMove={f=>{actions.onMove(moving||[],f);setMoving(null);setChosen(new Set())}}/>
    <Viewer items={items} index={open>=0?open:null} onIndex={i=>setOpenItem(items[i]?.id??null)} onClose={()=>setOpenItem(null)} onDownload={actions.onDownload?m=>actions.onDownload!(m as WorkItem):undefined}
     onMove={deletedView||!canMove?undefined:m=>setMoving([m.id])} onDelete={deletedView||readOnly?undefined:m=>{setOpenItem(null);actions.onDelete([m.id])}}/>
@@ -141,7 +168,7 @@ export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMo
 
 // The same screen over a list held in the page (the design-system previews):
 // the filtering the server does, done here.
-export function LibraryScreen({items,folders,place,hrefFor,actions,createHref,above,readOnly,openId,foldersReady}:{items:WorkItem[];folders:Folder[];place:Place;hrefFor:(p:Place)=>string;actions:LibraryActions;createHref?:string;above?:React.ReactNode;readOnly?:boolean;openId?:string|null;foldersReady?:boolean}){
+export function LibraryScreen({items,folders,place,hrefFor,actions,createHref,create,cars,above,readOnly,openId,foldersReady}:{items:WorkItem[];folders:Folder[];place:Place;hrefFor:(p:Place)=>string;actions:LibraryActions;createHref?:string;create?:CreateOptions;/** The company's cars; with or without work. */cars?:string[];above?:React.ReactNode;readOnly?:boolean;openId?:string|null;foldersReady?:boolean}){
  const [q,setQ]=React.useState<LibraryQuery>({...EMPTY_QUERY,place});
  const [shownCount,setShownCount]=React.useState(40);
  const onQuery=React.useCallback((p:Partial<LibraryQuery>)=>{setQ(x=>({...x,...p}));setShownCount(40)},[]);
@@ -151,6 +178,6 @@ export function LibraryScreen({items,folders,place,hrefFor,actions,createHref,ab
  const word=q.q.trim().toLowerCase();
  const all=inPlace.filter(i=>(!word||i.name.toLowerCase().includes(word))&&(!q.tool||i.tool===q.tool)&&(!q.car||i.car===q.car)&&(!q.who||(q.who==='you')===(i.person==='You')))
   .sort((a,b)=>q.sort==='name'?a.name.localeCompare(b.name):q.sort==='old'?a.at.localeCompare(b.at):b.at.localeCompare(a.at));
- return <LibraryView items={all.slice(0,shownCount)} total={all.length} counts={counts} folders={folders} cars={[...new Set(items.map(i=>i.car).filter((c):c is string=>!!c))].sort()} query={{...q,place}} onQuery={onQuery}
-  hasMore={shownCount<all.length} loading={false} onMore={()=>setShownCount(n=>n+40)} hrefFor={hrefFor} actions={actions} createHref={createHref} above={above} readOnly={readOnly} openId={openId} foldersReady={foldersReady}/>;
+ return <LibraryView items={all.slice(0,shownCount)} total={all.length} counts={counts} folders={folders} cars={[...new Set([...(cars||[]),...items.map(i=>i.car).filter((c):c is string=>!!c)])].sort()} query={{...q,place}} onQuery={onQuery}
+  hasMore={shownCount<all.length} loading={false} onMore={()=>setShownCount(n=>n+40)} hrefFor={hrefFor} actions={actions} createHref={createHref} create={create} above={above} readOnly={readOnly} openId={openId} foldersReady={foldersReady}/>;
 }

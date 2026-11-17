@@ -35,10 +35,12 @@ const like=(q:string)=>'%'+q.toLowerCase().replace(/[\\%_]/g,m=>'\\'+m)+'%';
 const hrefFor=(kind:PageItem['kind'],id:string,tool:string)=>kind==='film'?`/films?id=${id}`:kind==='swap'?`/swap?id=${id}`:kind==='story'?`/storyboard?id=${id}`:tool==='Line-up'?`/lineup?visual=${id}`:`/library?open=visual:${id}`;
 type Row={kind:PageItem['kind'];id:string;owner:string;title:string;tool:string;car:string|null;status:PageItem['status'];thumb_key:string|null;asset_id:string|null;width:number|null;height:number|null;created_at:number;deleted_at:number|null;folder_id?:string|null};
 
-/** brandCars: a company with several brands sees only the chosen brand's work (its cars' names) and work with no car. */
-export async function libraryPage(ctx:FilmContext,query:PageQuery,{brandCars}:{brandCars?:string[]|null}={}):Promise<LibraryPage>{
+/** brandCars: a company with several brands sees only the chosen brand's work (its cars' names) and work with no car.
+ *  carChoices: the company's cars (the chosen brand's), named as people say them; the car filter lists them all,
+ *  with work or without, and any other car that has work here. */
+export async function libraryPage(ctx:FilmContext,query:PageQuery,{brandCars,carChoices}:{brandCars?:string[]|null;carChoices?:string[]|null}={}):Promise<LibraryPage>{
  const db=database(ctx);
- if(!await indexReady(db))return fromFeed(ctx,query,brandCars||null);
+ if(!await indexReady(db))return fromFeed(ctx,query,brandCars||null,carChoices||null);
  const store=bucket(ctx.BUCKET),withFolders=await foldersReady(db);
  const folderRows=withFolders?(await db.prepare('SELECT id,name,parent_id,created_by FROM folders WHERE org_id=? AND deleted_at IS NULL ORDER BY name').bind(ctx.org).all<{id:string;name:string;parent_id:string|null;created_by:string}>()).results:[];
  const live=folderRows.map(f=>f.id),known=new Set(live);
@@ -86,11 +88,16 @@ export async function libraryPage(ctx:FilmContext,query:PageQuery,{brandCars}:{b
  const n=Number(total?.n)||0;
  return {items,total:n,next:query.offset+items.length<n?query.offset+items.length:null,
   counts:{all:Number(counts?.live_n)||0,unsorted:Number(counts?.unsorted_n)||0,deleted:Number(counts?.deleted_n)||0},
-  folders,cars:[...new Set((inBrand||stored).map(c=>tidyCarText(c)||c))].sort().slice(0,200),foldersReady:withFolders,indexed:true};
+  folders,cars:carList(carChoices,(inBrand||stored).map(c=>tidyCarText(c)||c)),foldersReady:withFolders,indexed:true};
+}
+
+/** The car filter's choices: the company's cars and the cars with work, each once, A–Z (at most 200). */
+export function carList(choices:string[]|null|undefined,withWork:string[]){
+ return [...new Set([...(choices||[]),...withWork].map(c=>(tidyCarText(c)||c).trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'en',{numeric:true,sensitivity:'base'})).slice(0,200);
 }
 
 // Before 0007: the group 1 feed, filtered and paged here.
-async function fromFeed(ctx:FilmContext,query:PageQuery,brandCars:string[]|null):Promise<LibraryPage>{
+async function fromFeed(ctx:FilmContext,query:PageQuery,brandCars:string[]|null,carChoices:string[]|null):Promise<LibraryPage>{
  const all=await companyLibrary(ctx),brand=brandCars?new Set(brandCars.map(c=>tidyCarText(c)||c)):null;
  const lib={...all,items:all.items.map(i=>({...i,title:tidyCarText(i.title)||i.title,car:tidyCarText(i.car)})).filter(i=>!brand||!i.car||brand.has(i.car))},known=new Set(lib.folders.map(f=>f.id));
  const filed=(i:LibraryItem)=>i.folderId&&known.has(i.folderId)?i.folderId:null;
@@ -105,5 +112,5 @@ async function fromFeed(ctx:FilmContext,query:PageQuery,brandCars:string[]|null)
   total:shown.length,next:query.offset+page.length<shown.length?query.offset+page.length:null,
   counts:{all:live.length,unsorted:live.filter(i=>!filed(i)).length,deleted:lib.items.length-live.length},
   folders:lib.folders.map(f=>{const mine=live.filter(i=>inFolder(i,f.id));return {id:f.id,name:f.name,parentId:f.parentId,count:mine.length,covers:mine.filter(i=>i.thumb).slice(0,3).map(i=>`${i.thumb}?thumb=1`),mine:f.mine}}),
-  cars:[...new Set(lib.items.map(i=>i.car).filter((c):c is string=>!!c))].sort(),foldersReady:lib.foldersReady,indexed:false};
+  cars:carList(carChoices,lib.items.map(i=>i.car).filter((c):c is string=>!!c)),foldersReady:lib.foldersReady,indexed:false};
 }
