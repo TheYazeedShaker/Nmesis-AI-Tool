@@ -14,7 +14,7 @@ import type {FeatureKey} from '@/lib/accounts/plan';
 import {WorkspaceFrame} from './frame';
 import {HomeScreen,type HomeTool} from './home';
 import {LibraryView,type CreateOptions,type Place} from './library';
-import {FolderHeader,ProjectsScreen,folderHref} from './projects';
+import {FolderHeader,ProjectsHeader,ProjectsScreen,ProjectsUnavailable,folderHref} from './projects';
 import {useLibraryPage} from './data';
 import {asSamples} from './samples';
 
@@ -77,11 +77,14 @@ export function LibraryPage(){
  </WorkspaceFrame>;
 }
 
+// Projects keeps its header in every state: loading, a failed load, folders not
+// switched on yet, and the folders themselves.
 export function ProjectsPage(){
  const account=useAccount(),lib=useLibraryPage('all',{limit:1});
  return <WorkspaceFrame current="projects" notices={<AccountNotices variant="ds"/>}>
-  {!lib.ready?(lib.problem?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:<Loading/>)
-   :!lib.foldersReady?<State kind="empty" title="Folders are on their way">Folders aren’t available yet. Your work is all in the library.</State>
+  {!lib.ready?<><ProjectsHeader/>{lib.problem?<State kind="error" title="Your folders didn’t load" actions={<Button onClick={()=>void lib.reload()}>Try again</Button>}>{lib.problem}</State>
+    :<div className="workspace-folders" role="status" aria-busy="true" aria-label="Loading your folders">{Array.from({length:6},(_,i)=><SkeletonTile key={i}/>)}</div>}</>
+   :!lib.foldersReady?<ProjectsUnavailable/>
    :<ProjectsScreen folders={lib.folders} canEdit={canChange(account)} actions={lib.folderActions}/>}
  </WorkspaceFrame>;
 }

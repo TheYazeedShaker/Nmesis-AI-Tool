@@ -142,7 +142,7 @@ test('V8: support access: no grant → staff cannot list or open the client; an 
  assert.equal((await call('POST','/api/company/support','app/api/company/support/route.ts',{body:{}})).status,403,'staff cannot extend their own access');
  // The owner sees "Nmesis opened your workspace at …".
  as(G1);const log=await call('GET','/api/company/support','app/api/company/support/route.ts');
- assert.equal(log.body.log.length,1);assert.equal(log.body.log[0].page,'/usage');assert.ok(Date.parse(log.body.log[0].at)>Date.now()-60_000);
+ assert.equal(log.body.log.length,1);assert.equal(log.body.log[0].page,'Usage','the page’s name, not its address');assert.equal(log.body.log[0].path,'/usage');assert.ok(Date.parse(log.body.log[0].at)>Date.now()-60_000);
  // Expired: refused again.
  state.directory.grants[ORG_G]=Date.now()-1;
  as(T,ORG_G);me=await call('GET','/api/me','app/api/me/route.ts');assert.equal(me.body.org.id,ORG_N,'an expired grant is refused');

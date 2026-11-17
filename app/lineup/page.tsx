@@ -169,7 +169,7 @@ function LineupStudio(){
   {error&&<Banner kind="bad" icon={<AlertTriangle/>}><span className="ds-row editor-message"><span>{say(error)}</span><IconButton label="Dismiss error" size="sm" onClick={()=>setError('')}><X aria-hidden="true"/></IconButton></span></Banner>}
  </div>:undefined;
  // Why Generate cannot run here (the account and credits are checked by the editor).
- const blocked:GenerateBlocker|null=status.known&&provider==='openai'&&!connected?(status.ownKeys?{title:say('Connect your OpenAI key to generate'),body:'Your company uses its own keys. Connect it in Key visual, under More actions.'}:{title:'AI generation isn’t set up for your Studio yet',body:'Ask Nmesis to set it up.'}):null;
+ const blocked:GenerateBlocker|null=status.known&&provider==='openai'&&!connected?(status.ownKeys?{title:say('Connect your OpenAI key to generate'),body:'Your company uses its own keys. An owner connects it in Company settings, under Own keys.'}:{title:'AI generation isn’t set up for your Studio yet',body:'Ask Nmesis to set it up.'}):null;
  const note=issue?say(issue):!mood&&!pin.trim()?'Add an inspiration to generate.':[billing,'Creates one paid image. Original references and earlier versions stay saved.'].filter(Boolean).join(' ');
 
  return <WorkspaceFrame current="lineup" bleed notices={<AccountNotices variant="ds"/>}>

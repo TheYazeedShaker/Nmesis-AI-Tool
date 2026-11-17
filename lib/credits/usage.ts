@@ -26,7 +26,24 @@ export async function creditOverview(ctx:Ctx):Promise<CreditOverview>{
 }
 export const canSeeUsage=(ctx:Pick<Ctx,'role'|'account'>)=>ctx.role==='owner'||!!ctx.account.viewingAs;
 const toolLabel=(tool:string)=>tool in FEATURE_LABELS?FEATURE_LABELS[tool as FeatureKey]:tool.replace(/^studio\./,'');
-export type UsagePage={company:string;unlimited:boolean;meter:CreditMeter|null;byPerson:{who:string;credits:number;actions:number}[];byTool:{tool:string;credits:number;actions:number}[];recent:{at:string;who:string;tool:string;action:string;credits:number;ownKey:boolean}[];packs:{credits:number;left:number;boughtOn:string|null;expiresOn:string|null;expired:boolean}[]};
+// `over`: the credits used in the period, a bar per day (per month when the
+// period is longer than two months), from the period's first day to today.
+// `canAsk`: the company's own owners may ask Nmesis for a pack from the page.
+export type UsageBucket={day:string;credits:number;actions:number};
+export type UsagePage={company:string;unlimited:boolean;meter:CreditMeter|null;byPerson:{who:string;credits:number;actions:number}[];byTool:{tool:string;credits:number;actions:number}[];recent:{at:string;who:string;tool:string;action:string;credits:number;ownKey:boolean}[];packs:{credits:number;left:number;boughtOn:string|null;expiresOn:string|null;expired:boolean}[];over:{unit:'day'|'month';buckets:UsageBucket[]};canAsk:boolean};
+const DAY_MS=86_400_000;
+// Buckets from `from` (a calendar day) to `to`, every one present (zero when nothing was used).
+export function usageOver(rows:{at:string;credits:number}[],from:string,to:string):UsagePage['over']{
+ const start=Date.parse(from+'T00:00:00Z'),end=Date.parse(to+'T00:00:00Z');
+ if(!Number.isFinite(start)||!Number.isFinite(end)||end<start)return {unit:'day',buckets:[]};
+ const unit:'day'|'month'=(end-start)/DAY_MS>62?'month':'day';
+ const keyOf=(iso:string)=>unit==='day'?iso.slice(0,10):iso.slice(0,7)+'-01';
+ const buckets=new Map<string,UsageBucket>();
+ if(unit==='day')for(let t=start;t<=end;t+=DAY_MS){const d=new Date(t).toISOString().slice(0,10);buckets.set(d,{day:d,credits:0,actions:0})}
+ else{const s=new Date(start);for(let y=s.getUTCFullYear(),m=s.getUTCMonth();Date.UTC(y,m,1)<=end;m++){const d=new Date(Date.UTC(y,m,1)).toISOString().slice(0,10);buckets.set(d,{day:d,credits:0,actions:0})}}
+ for(const r of rows){const b=buckets.get(keyOf(r.at));if(b){b.credits+=r.credits;b.actions++}}
+ return {unit,buckets:[...buckets.values()]};
+}
 // The Usage page: for the company's owners, and Nmesis staff with support access.
 export async function usagePage(ctx:Ctx,now=Date.now()):Promise<UsagePage>{
  if(!canSeeUsage(ctx))throw new StudioError('Usage is shown to your company’s owners. Ask one of them.',403);
@@ -40,8 +57,12 @@ export async function usagePage(ctx:Ctx,now=Date.now()):Promise<UsagePage>{
  const actions=(rows:UsageRow[])=>{const by=new Map<string,UsageRow>();for(const r of rows){const seen=by.get(r.ref);by.set(r.ref,seen?{...seen,credits:seen.credits+r.credits}:r)}return [...by.values()]};
  const sum=(rows:UsageRow[],key:(r:UsageRow)=>string)=>{const m=new Map<string,{credits:number;actions:number}>();for(const r of rows){const k=key(r),v=m.get(k)||{credits:0,actions:0};v.credits+=r.credits;v.actions++;m.set(k,v)}return [...m.entries()].sort((a,b)=>b[1].credits-a[1].credits)};
  const inPeriod=actions(period);
+ const today=new Date(now).toISOString().slice(0,10),first=since.slice(0,10);
+ const last=meter?.periodTo&&meter.periodTo<today?meter.periodTo:today;
  return {
   company:ctx.account.org.name,unlimited:internal,meter,
+  over:usageOver(inPeriod,first,last),
+  canAsk:ctx.role==='owner'&&!ctx.account.viewingAs&&!internal,
   byPerson:sum(inPeriod,r=>who(r.actor)).map(([w,v])=>({who:w,...v})),
   byTool:sum(inPeriod,r=>toolLabel(r.tool)).map(([t,v])=>({tool:t,...v})),
   recent:actions(recent).slice(0,50).map(r=>({at:r.at,who:who(r.actor),tool:toolLabel(r.tool),action:r.action||toolLabel(r.tool),credits:r.credits,ownKey:r.ownKey})),

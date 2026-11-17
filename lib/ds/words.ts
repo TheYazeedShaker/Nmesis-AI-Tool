@@ -86,3 +86,38 @@ export function meterWords(m: Meter): { level: 'ok' | 'warn' | 'out'; percent: n
 
 /** "Available on Growth" — the smallest plan with the feature. */
 export const upsellWords = (plan: string) => `Available on ${plan}`;
+
+// ── Dates ───────────────────────────────────────────────────────────────
+// One way to write a moment everywhere: "14 Nov 2026, 20:42", in the viewer's
+// own time zone (the browser's), 24-hour clock. Month names are our own, so
+// every browser writes the same (some write "Sept"). A calendar day without a
+// time ("2026-11-14", a pack's expiry) is written as that day: "14 Nov 2026".
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+type Moment = string | number | Date | null | undefined;
+const epoch = (v: Moment) => (v instanceof Date ? v.getTime() : typeof v === 'number' ? v : typeof v === 'string' && v ? Date.parse(v) : NaN);
+function partsOf(t: number, timeZone?: string) {
+  const format = (zone?: string) => new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(t);
+  let parts: Intl.DateTimeFormatPart[];
+  // An unknown zone name (RangeError) falls back to UTC rather than failing the page.
+  try { parts = format(timeZone); } catch { parts = format('UTC'); }
+  const get = (type: string) => parts.find((p) => p.type === type)?.value || '';
+  return { day: Number(get('day')), month: Number(get('month')), year: get('year'), hour: get('hour'), minute: get('minute') };
+}
+/** "14 Nov 2026, 20:42" in the viewer's time zone (or `timeZone`); '' when unreadable. */
+export function dateTime(value: Moment, timeZone?: string): string {
+  const t = epoch(value);
+  if (!Number.isFinite(t)) return '';
+  const p = partsOf(t, timeZone);
+  return `${p.day} ${MONTHS[p.month - 1]} ${p.year}, ${p.hour}:${p.minute}`;
+}
+/** "14 Nov 2026" for a calendar day ("2026-11-14…"), with no time-zone shift; '' when unreadable. */
+export function dayDate(value: string | null | undefined): string {
+  const m = typeof value === 'string' ? /^(\d{4})-(\d{2})-(\d{2})/.exec(value) : null;
+  if (!m || Number(m[2]) < 1 || Number(m[2]) > 12) return '';
+  return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`;
+}
+/** "14 Nov" for a chart's axis (a calendar day); '' when unreadable. */
+export function shortDay(value: string): string {
+  const full = dayDate(value);
+  return full ? full.split(' ').slice(0, 2).join(' ') : '';
+}
