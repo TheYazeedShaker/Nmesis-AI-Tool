@@ -1,6 +1,8 @@
 export const runtime='nodejs';
 export const maxDuration=60;
+import {after} from 'next/server.js';
 import {context,fail} from '@/lib/studio-server';
+import {backfillOnce} from '@/lib/library-backfill';
 import {libraryPage,readQuery} from '@/lib/library-page';
 import {getDirectory,type Car} from '@/lib/accounts/directory';
 import {brandCarNames,brandCars,inBrand} from '@/lib/brand-scope';
@@ -14,6 +16,9 @@ import {serverTiming,timed} from '@/lib/server-timing';
 // Server-Timing: the sign-in check (auth), the context (account), the brand's cars, the page.
 export async function GET(request:Request){const timing=serverTiming();try{
  const ctx=await context(request,false,timing),directory=getDirectory();
+ // The first open after 0007 fills this company's index, once, after the response (lib/library-backfill.ts).
+ // Outside a Next.js request (the route tests) there is no after(): the next real open does it.
+ try{after(()=>backfillOnce({DB:ctx.DB,BUCKET:ctx.BUCKET,org:ctx.org}))}catch(e){console.info('library: backfill not scheduled',e instanceof Error?e.message.slice(0,80):'unknown')}
  const scoped=!!inBrand(ctx.account);
  let cars:Car[]|null=null;
  if(directory){

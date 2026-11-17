@@ -5,7 +5,7 @@ import type {StudioDatabase} from './portable/database';
 // the library lists, filters and pages from the database alone. Each row knows
 // its small thumbnail (made once, when the work is saved) and its full picture
 // (opened only in the viewer). Indexing never fails the action that saved the
-// work: a problem is logged and scripts/backfill-library.mjs mends it.
+// work: a problem is logged, and lib/library-backfill.ts fills the work saved before 0007.
 
 export type IndexKind='visual'|'film'|'swap'|'story';
 export type IndexTool='Key visual'|'Line-up'|'Film'|'Car swap'|'Story';

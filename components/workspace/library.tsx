@@ -1,6 +1,7 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
+import {useRouter} from 'next/navigation';
 import {ArchiveRestore,Download,Folder as FolderIcon,FolderInput,FolderPlus,Grid2x2,Inbox,LayoutList,Lock,Plus,Search,Trash2} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {Dialog} from '@/components/ds/dialog';
@@ -93,7 +94,10 @@ export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMo
  hasMore:boolean;loading:boolean;onMore:()=>void;hrefFor:(p:Place)=>string;actions:LibraryActions;/** Without create: a plain Create link to here. */createHref?:string;/** The Create menu. */create?:CreateOptions;
  /** A folder's path and sub-folders, above its title. */above?:React.ReactNode;/** Viewers and staff viewing a client: look, open, download. */readOnly?:boolean;/** Open this item in the viewer (?open=). */openId?:string|null;/** Before migration 0006 there are no folders to move to. */foldersReady?:boolean}){
  const [view,setView]=React.useState<'grid'|'list'>('grid'),[typed,setTyped]=React.useState(query.q);
- const [chosen,setChosen]=React.useState<Set<string>>(new Set()),[openItem,setOpenItem]=React.useState<string|null>(openId||null),[moving,setMoving]=React.useState<string[]|null>(null),[naming,setNaming]=React.useState(false);
+ const router=useRouter();
+ const [chosen,setChosen]=React.useState<Set<string>>(new Set()),[openItem,setOpenItem]=React.useState<string|null>(openId||null),[openAsked,setOpenAsked]=React.useState(openId||null),[moving,setMoving]=React.useState<string[]|null>(null),[naming,setNaming]=React.useState(false);
+ // ?open= follows the address too (a shared link, Back, Forward).
+ if((openId||null)!==openAsked){setOpenAsked(openId||null);setOpenItem(openId||null)}
  // Search asks the server a moment after typing stops.
  React.useEffect(()=>{if(typed===query.q)return;const t=setTimeout(()=>onQuery({q:typed}),300);return()=>clearTimeout(t)},[typed,query.q,onQuery]);
  const place=query.place,canMove=!readOnly&&foldersReady&&folders.length>0;
@@ -116,7 +120,7 @@ export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMo
    <PageHeader title={title} lede={deletedView?'Deleted work keeps everything it had. Restore brings it back where it was.':place==='all'?'Everything your company has made, in one place.':`${(folder?.count??total).toLocaleString('en-US')} items`}
     actions={!deletedView&&!readOnly&&createButton}/>
    <div className="workspace-place-phone"><label className="ds-label" htmlFor="library-place">Folder</label>
-    <Select id="library-place" value={place} onChange={e=>{location.href=hrefFor(e.target.value)}}>
+    <Select id="library-place" value={place} onChange={e=>router.push(hrefFor(e.target.value))}>
      <option value="all">Everything ({counts.all})</option>
      {folders.map(f=><option key={f.id} value={f.id}>{f.parentId?'— ':''}{f.name} ({f.count})</option>)}
      <option value="unsorted">Not in a folder ({counts.unsorted})</option><option value="deleted">Deleted ({counts.deleted})</option>

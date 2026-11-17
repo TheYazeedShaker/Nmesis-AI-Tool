@@ -6,6 +6,7 @@ import {useConfirm} from '@/components/ds/dialog';
 import {Badge} from '@/components/ds/feedback';
 import {Field,Input,Select} from '@/components/ds/field';
 import {Fold,Section} from '@/components/ds/layout';
+import {PagedList} from '@/components/ds/list';
 import {initialsOf} from '@/lib/accounts/names';
 import {dateTime,plural} from '@/lib/ds/words';
 import type {TeamChange,TeamPage} from '@/lib/accounts/team';
@@ -49,8 +50,7 @@ export function TeamSection({team,owner,onTeam}:{team:TeamPage;/** The person is
  const seats=team.seats.limit!==null?`${team.seats.taken} of ${plural(team.seats.limit,'seat')} taken`:plural(team.seats.taken,'person','people');
  return <Section title="Team" count={seats}>
   {team.blocked&&<p className="settings-line" id={reasonId}>{team.blocked}</p>}
-  <ul className="team-list" aria-label="People in your company">
-   {team.people.map(p=><li key={p.userId} className="team-row">
+  <PagedList className="team-list" label="People in your company" items={team.people} itemKey={p=>p.userId} render={p=><li className="team-row">
     <span className="team-who"><span className="ds-avatar" aria-hidden="true">{initialsOf(p.email.split('@')[0].replace(/[._+-]+/g,' '))}</span>
      <span className="team-name"><span className="settings-email">{p.email}{p.you&&<span className="settings-you"> (you)</span>}</span>
       {p.status==='invited'&&<span className="settings-line">Invited, not signed in yet</span>}</span></span>
@@ -63,8 +63,7 @@ export function TeamSection({team,owner,onTeam}:{team:TeamPage;/** The person is
       <Button kind="danger-quiet" size="sm" icon={<UserMinus aria-hidden="true"/>} disabled={off} busy={busy==='remove:'+p.userId} aria-describedby={team.blocked?reasonId:undefined} onClick={()=>void remove(p.userId,p.email)}>Remove<span className="ds-sr-only"> {p.email}</span></Button>
      </>:<Badge kind={p.role==='owner'?'accent':'quiet'}>{roleWord(p.role)}</Badge>}
     </span>
-   </li>)}
-  </ul>
+   </li>}/>
   {team.others>0&&<p className="settings-line">And {plural(team.others,'more person','more people')}. Your company’s owners see the whole team.</p>}
   {owner&&<form className="team-invite" onSubmit={e=>void invite(e)} aria-label="Invite someone">
    <Field label="Invite by email">
@@ -77,7 +76,7 @@ export function TeamSection({team,owner,onTeam}:{team:TeamPage;/** The person is
   {owner&&team.seats.limit!==null&&<AskNmesisButton topic="seats" kind={full?'primary':'secondary'}>Ask Nmesis for more seats</AskNmesisButton>}
   <p className="settings-status" role="status" data-kind={said?.bad?'bad':undefined}>{said?.text}</p>
   {team.log.length>0&&<Fold name="team-log" title="Changes" summary={plural(team.log.length,'change')}>
-   <ul className="team-log">{team.log.map((c,i)=><li key={c.at+i}><span>{changeWords(c)}</span> · <time dateTime={c.at}>{dateTime(c.at)}</time></li>)}</ul>
+   <PagedList className="team-log" label="Team changes" items={team.log} itemKey={(c,i)=>c.at+i} render={c=><li><span>{changeWords(c)}</span> · <time dateTime={c.at}>{dateTime(c.at)}</time></li>}/>
   </Fold>}
  </Section>;
 }
