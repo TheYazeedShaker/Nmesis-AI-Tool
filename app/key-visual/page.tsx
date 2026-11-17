@@ -420,7 +420,7 @@ export default function Studio(){
  </>;
 
  return <WorkspaceFrame current="visuals" bleed notices={notices}>
-  <EditorScreen tool="visuals" onTool={t=>{const href=EDITOR_TOOLS.find(x=>x.id===t)?.href;if(href&&t!=='visuals')router.push(href)}}
+  <EditorScreen tool="visuals" loading={!status} onTool={t=>{const href=EDITOR_TOOLS.find(x=>x.id===t)?.href;if(href&&t!=='visuals')router.push(href)}}
    bar={bar}
    stage={<>{carStage}{resultStage}</>}
    history={<>{historyError&&<p className="ds-error" role="alert">{historyError}</p>}<VersionHistory versions={versions} current={stage==='result'?shown?.id||null:null} onPick={pickVersion}/></>}

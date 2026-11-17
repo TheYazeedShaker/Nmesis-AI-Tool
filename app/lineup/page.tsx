@@ -173,7 +173,7 @@ function LineupStudio(){
  const note=issue?say(issue):!mood&&!pin.trim()?'Add an inspiration to generate.':[billing,'Creates one paid image. Original references and earlier versions stay saved.'].filter(Boolean).join(' ');
 
  return <WorkspaceFrame current="lineup" bleed notices={<AccountNotices variant="ds"/>}>
-  <EditorScreen tool="lineup" onTool={t=>{if(t!=='lineup')router.push(EDITOR_TOOLS.find(x=>x.id===t)?.href||'/')}}
+  <EditorScreen tool="lineup" loading={!status.known} onTool={t=>{if(t!=='lineup')router.push(EDITOR_TOOLS.find(x=>x.id===t)?.href||'/')}}
    bar={bar} stage={stage} history={<VersionHistory versions={versions} current={showResult?currentId:null} onPick={id=>{const v=visuals.find(x=>x.id===id);if(v)pick(v)}}/>}
    jobs={jobs} settings={settings} cost={cost} busy={!!busy} blocked={blocked} payer={provider} disabled={!ready||!status.known||!!issue||(!mood&&!pin.trim())} onGenerate={()=>void generate()} note={note}/>
   {editCar&&editConfig&&<LineupCarDialog key={editCar.id} car={editCar} index={cars.indexOf(editCar)} config={editConfig} onPatch={patch=>update(editCar.id,patch)} onClose={()=>setCaptureId('')}/>}

@@ -165,7 +165,7 @@ function CarSwap(){
   :active&&!editable?'Starts a new version from these settings. You see the cost before it starts.':'You see the cost, and approve it, before the swap starts.';
 
  return <WorkspaceFrame current="swap" bleed notices={<AccountNotices variant="ds"/>}>
-  <EditorScreen tool="swap" onTool={t=>{if(t!=='swap')router.push(EDITOR_TOOLS.find(x=>x.id===t)?.href||'/swap')}} bar={bar} stage={stageNode}
+  <EditorScreen tool="swap" loading={!connection} onTool={t=>{if(t!=='swap')router.push(EDITOR_TOOLS.find(x=>x.id===t)?.href||'/swap')}} bar={bar} stage={stageNode}
    history={<VersionHistory versions={versions} current={selected||null} onPick={id=>{const s=swaps.find(x=>x.id===id);if(s)chooseJob(s)}} onCancel={cancellable?id=>void act('cancel',swaps.find(s=>s.id===id)||null):undefined}/>}
    settings={settings}
    cost={quote?quote.credits:null} verb={quoted?'Replace car in video':'Get cost estimate'} busy={busy==='quote'||busy==='render'}

@@ -72,8 +72,15 @@ export function AccountNotices({variant}:{variant?:'ds'}={}){
  // A deep link (/?org=…) the server refused, or could not open, lands here once.
  const [opened]=useState(()=>typeof window==='undefined'?null:new URLSearchParams(window.location.search).get('opened'));
  const box=useRef<HTMLDivElement>(null);
- // What the notices took, for the next page at this width.
- useLayoutEffect(()=>{if(settled&&account&&box.current)rememberNoticeSpace(window.innerWidth,box.current.offsetHeight,undefined,variant||'plain')});
+ // What the notices took, for the next page at this width: watched, so a
+ // banner that arrives later (the credits) is remembered too.
+ useLayoutEffect(()=>{
+  const el=box.current;if(!settled||!account||!el)return;
+  const remember=()=>rememberNoticeSpace(window.innerWidth,el.offsetHeight,undefined,variant||'plain');
+  remember();
+  if(typeof ResizeObserver==='undefined')return;
+  const watch=new ResizeObserver(remember);watch.observe(el);return()=>watch.disconnect();
+ },[settled,account,variant]);
  if(!settled)return space===null?<div className="notices-pending" aria-hidden="true"/>:<div className="studio-notices" aria-hidden="true" style={noticeSpace(space)}/>;
  if(!account)return null;
  const w=account.workspace,ds=variant==='ds';

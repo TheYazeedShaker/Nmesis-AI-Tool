@@ -28,6 +28,7 @@ export const EDITOR_TOOLS:{id:EditorTool;label:string;href:string;icon:React.Rea
 ];
 export const toolPage=(t:EditorTool):StudioPage=>t;
 export type {GenerateBlocker};
+export const LOADING_HOLD_MS=3000;
 
 /** Why Generate cannot run, the same in every tool: the account first (no
  *  plan, plan ended, only looking), then the tool's own reason (no AI set up),
@@ -63,7 +64,11 @@ export function EditorScreen({tool,onTool,bar,stage,history,jobs,settings,cost,v
  /** The tool's first data is still loading (the frame draws at once; the content when it is ready). */loading?:boolean;
 }){
  const why=generateBlocker(useAccount(),useCredits(),cost,blocked,payer);
- return <EditorLayout loading={loading} name={`editor-${tool}`} tools={EDITOR_TOOLS.map(t=>({id:t.id,label:t.label,icon:t.icon}))} tool={tool} onTool={id=>onTool(id as EditorTool)}
+ // The content waits for the tool's first answer, never long: after 3 s it shows
+ // whatever it has (a status that failed never hides the editor).
+ const [late,setLate]=React.useState(false);
+ React.useEffect(()=>{if(!loading)return;const t=setTimeout(()=>setLate(true),LOADING_HOLD_MS);return()=>clearTimeout(t)},[loading]);
+ return <EditorLayout loading={!!loading&&!late} name={`editor-${tool}`} tools={EDITOR_TOOLS.map(t=>({id:t.id,label:t.label,icon:t.icon}))} tool={tool} onTool={id=>onTool(id as EditorTool)}
   canvasBar={bar}
   canvas={<div className="editor-stage"><div className="editor-stage-main">{stage}</div><div className="editor-stage-history">{history}</div></div>}
   jobs={jobs}
