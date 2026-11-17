@@ -66,6 +66,10 @@ export const ROUTE_FEATURES:RouteRule[]=[
  {path:new RegExp(`^/api/assets/${ID}/original$`),feature:null},
  {path:/^\/api\/company\/support$/,methods:['GET'],feature:null,library:true},
  {path:/^\/api\/company\/support$/,feature:null},
+ // Company settings: everyone in the company reads; owners change (each route checks the owner).
+ {path:/^\/api\/company(\/team|\/notifications)?$/,methods:['GET'],feature:null,library:true},
+ {path:/^\/api\/company\/(team|notifications|ask)$/,feature:null},
+ {path:/^\/api\/company\/team\/[A-Za-z0-9-]{1,80}$/,feature:null},
  {path:/^\/api\/configurators$/,feature:null,library:true},
  // A car's picture and a brand's logo, from the configurator (cached by the Studio): read-only; the library may show them.
  {path:/^\/api\/cars\/[A-Za-z0-9_.-]{1,129}\/picture$/,methods:['GET'],feature:null,library:true},

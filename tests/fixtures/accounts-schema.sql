@@ -66,10 +66,21 @@ create table if not exists accounts.configurator_access (
   primary key (org_id, brand_id, model_id)
 );
 -- The admin's answer for a company with no plan yet ("legacy": everything allowed).
+-- A company's unexpired overrides (below) show among its features, as the
+-- admin's do (the team tests set `studio.seats` that way).
+create table if not exists accounts.overrides (
+  org_id uuid not null references accounts.organisations (id) on delete cascade,
+  feature_key text not null,
+  value jsonb,
+  expires_on date,
+  primary key (org_id, feature_key)
+);
 create or replace function accounts.entitlements(org uuid) returns jsonb
 language sql stable security definer set search_path = '' as $fn$
   select jsonb_build_object('org', o.id, 'org_name', o.name, 'managed', false, 'legacy', true,
-                            'status', null, 'plan_id', null, 'plan_name', null, 'features', '{}'::jsonb)
+                            'status', null, 'plan_id', null, 'plan_name', null,
+                            'features', coalesce((select jsonb_object_agg(ov.feature_key, ov.value) from accounts.overrides ov
+                                                   where ov.org_id = o.id and (ov.expires_on is null or ov.expires_on >= current_date)), '{}'::jsonb))
     from accounts.organisations o where o.id = org;
 $fn$;
 -- As in the admin: row level security on, no policies, nothing for the API roles.

@@ -388,3 +388,216 @@ select has_table_privilege('studio_app', v, 'select')
 select has_function_privilege('studio_app', 'accounts.credits_balance(uuid)', 'execute'),
        has_function_privilege('studio_app', 'accounts.record_usage(uuid, text, text, numeric, text, numeric, text, jsonb)', 'execute'),
        not has_table_privilege('studio_app', 'accounts.usage_ledger', 'insert');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 7. Team changes from Company settings (design finish pass). Run AFTER
+--    sections 5 and 6, in the main project (Preview and Production share it).
+--    Re-running is safe.
+--
+--    A client company's owners invite people, change their role and remove
+--    them in the Studio's Company settings. The Studio still never writes
+--    accounts.members itself: it calls the three functions below with the
+--    signed-in person's user id, which its server reads from the verified
+--    session. Each function checks that this person is an active owner of that
+--    company (not Nmesis's own workspace, which the admin manages), keeps at
+--    least one active owner, keeps within the plan's seats (the plan feature
+--    `studio.seats`, when the plan sets a number), and records the change in
+--    accounts.studio_team_log, which the admin may show as well.
+--    Someone with no sign-in yet: the Studio first sends Supabase Auth's own
+--    invitation (which creates their account and emails them a link), then
+--    calls studio_team_invite again. A removed person's row stays, with status
+--    'removed', as the admin's own removals do.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+create table if not exists accounts.studio_team_log (
+  id bigint generated always as identity primary key,
+  at timestamptz not null default now(),
+  org_id uuid not null references accounts.organisations (id) on delete cascade,
+  actor uuid not null,
+  action text not null check (action in ('invite', 'role', 'remove')),
+  user_id uuid not null,
+  email text,
+  role_before text,
+  role_after text
+);
+create index if not exists studio_team_log_org_at on accounts.studio_team_log (org_id, at desc);
+alter table accounts.studio_team_log enable row level security;
+revoke all on accounts.studio_team_log from public, anon, authenticated;
+
+-- The rule every change starts with: a client company that has not ended, and
+-- the person asking is one of its active owners. Not granted to anyone: only
+-- the three functions below call it.
+create or replace function accounts.studio_team_check(p_org uuid, p_actor uuid)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $fn$
+begin
+  if p_org is null or p_actor is null then
+    raise exception 'studio_team: the company and the person asking are required' using errcode = '22023';
+  end if;
+  if not exists (select 1 from accounts.organisations o where o.id = p_org and o.kind <> 'internal' and o.status <> 'ended') then
+    raise exception 'studio_team: not a client company the Studio may change' using errcode = '22023';
+  end if;
+  if not exists (select 1 from accounts.members m
+                  where m.org_id = p_org and m.user_id = p_actor and m.role = 'owner' and m.status = 'active') then
+    raise exception 'studio_team: only an owner of this company can change its team' using errcode = '42501';
+  end if;
+end
+$fn$;
+
+-- Invite a person by email with a role. Answers {"result": …}:
+--   invited         added (status 'invited' until they first sign in);
+--   already_member  they are already invited or active (nothing changed);
+--   no_seats        every seat of the plan is taken (nothing changed);
+--   no_account      nobody has this email yet: send Supabase's invitation, then call again.
+create or replace function accounts.studio_team_invite(p_org uuid, p_actor uuid, p_email text, p_role text)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $fn$
+declare
+  addr  text := lower(btrim(coalesce(p_email, '')));
+  who   uuid;
+  prior record;
+  ent   jsonb;
+  seats numeric;
+  taken integer;
+begin
+  perform accounts.studio_team_check(p_org, p_actor);
+  if p_role is null or p_role not in ('owner', 'creator', 'viewer') then
+    raise exception 'studio_team: the role must be owner, creator or viewer' using errcode = '22023';
+  end if;
+  if length(addr) > 254 or addr !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then
+    raise exception 'studio_team: invalid email address' using errcode = '22023';
+  end if;
+  -- One team change per company at a time, so two invitations never take the last seat twice.
+  perform pg_advisory_xact_lock(hashtextextended('accounts.studio_team:' || p_org::text, 0));
+  select u.id into who from auth.users u where lower(u.email::text) = addr order by u.created_at limit 1;
+  if who is not null then
+    select m.role, m.status into prior from accounts.members m
+     where m.org_id = p_org and m.user_id = who and m.status in ('invited', 'active');
+    if found then
+      return jsonb_build_object('result', 'already_member', 'user_id', who, 'role', prior.role, 'status', prior.status);
+    end if;
+  end if;
+  ent := accounts.entitlements(p_org);
+  if jsonb_typeof(ent -> 'features' -> 'studio.seats') = 'number' then
+    seats := (ent -> 'features' ->> 'studio.seats')::numeric;
+    select count(*) into taken from accounts.members m where m.org_id = p_org and m.status in ('invited', 'active');
+    if taken >= seats then
+      return jsonb_build_object('result', 'no_seats', 'seats', seats, 'taken', taken);
+    end if;
+  end if;
+  if who is null then
+    return jsonb_build_object('result', 'no_account');
+  end if;
+  insert into accounts.members (org_id, user_id, role, status)
+  values (p_org, who, p_role, 'invited')
+  on conflict (org_id, user_id) do update set role = excluded.role, status = 'invited', joined_at = null;
+  insert into accounts.studio_team_log (org_id, actor, action, user_id, email, role_before, role_after)
+  values (p_org, p_actor, 'invite', who, addr, null, p_role);
+  return jsonb_build_object('result', 'invited', 'user_id', who, 'role', p_role);
+end
+$fn$;
+
+-- Change an invited or active person's role. Answers {"result": …}: changed,
+-- unchanged, not_member, or last_owner (the company's only active owner stays an owner).
+create or replace function accounts.studio_team_set_role(p_org uuid, p_actor uuid, p_user uuid, p_role text)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $fn$
+declare
+  prior record;
+begin
+  perform accounts.studio_team_check(p_org, p_actor);
+  if p_user is null then
+    raise exception 'studio_team: the person is required' using errcode = '22023';
+  end if;
+  if p_role is null or p_role not in ('owner', 'creator', 'viewer') then
+    raise exception 'studio_team: the role must be owner, creator or viewer' using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended('accounts.studio_team:' || p_org::text, 0));
+  select m.role, m.status into prior from accounts.members m
+   where m.org_id = p_org and m.user_id = p_user and m.status in ('invited', 'active');
+  if not found then
+    return jsonb_build_object('result', 'not_member');
+  end if;
+  if prior.role = p_role then
+    return jsonb_build_object('result', 'unchanged', 'role', p_role);
+  end if;
+  if prior.role = 'owner' and prior.status = 'active'
+     and (select count(*) from accounts.members m where m.org_id = p_org and m.role = 'owner' and m.status = 'active') <= 1 then
+    return jsonb_build_object('result', 'last_owner');
+  end if;
+  update accounts.members m set role = p_role where m.org_id = p_org and m.user_id = p_user;
+  insert into accounts.studio_team_log (org_id, actor, action, user_id, email, role_before, role_after)
+  values (p_org, p_actor, 'role', p_user, (select lower(u.email::text) from auth.users u where u.id = p_user), prior.role, p_role);
+  return jsonb_build_object('result', 'changed', 'role_before', prior.role, 'role', p_role);
+end
+$fn$;
+
+-- Remove an invited or active person from the company (status 'removed'). Answers
+-- {"result": …}: removed, not_member, or last_owner.
+create or replace function accounts.studio_team_remove(p_org uuid, p_actor uuid, p_user uuid)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $fn$
+declare
+  prior record;
+begin
+  perform accounts.studio_team_check(p_org, p_actor);
+  if p_user is null then
+    raise exception 'studio_team: the person is required' using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended('accounts.studio_team:' || p_org::text, 0));
+  select m.role, m.status into prior from accounts.members m
+   where m.org_id = p_org and m.user_id = p_user and m.status in ('invited', 'active');
+  if not found then
+    return jsonb_build_object('result', 'not_member');
+  end if;
+  if prior.role = 'owner' and prior.status = 'active'
+     and (select count(*) from accounts.members m where m.org_id = p_org and m.role = 'owner' and m.status = 'active') <= 1 then
+    return jsonb_build_object('result', 'last_owner');
+  end if;
+  update accounts.members m set status = 'removed' where m.org_id = p_org and m.user_id = p_user;
+  insert into accounts.studio_team_log (org_id, actor, action, user_id, email, role_before, role_after)
+  values (p_org, p_actor, 'remove', p_user, (select lower(u.email::text) from auth.users u where u.id = p_user), prior.role, null);
+  return jsonb_build_object('result', 'removed', 'role_before', prior.role);
+end
+$fn$;
+
+-- The log as the Studio shows it in Company settings (newest first, with the
+-- address of the owner who made each change).
+create or replace view accounts.studio_team_changes with (security_invoker = false) as
+select l.id, l.at, l.org_id, l.actor, (select lower(u.email::text) from auth.users u where u.id = l.actor) as actor_email,
+       l.action, l.user_id, l.email, l.role_before, l.role_after
+  from accounts.studio_team_log l;
+
+revoke all on function accounts.studio_team_check(uuid, uuid) from public, anon, authenticated;
+revoke all on function accounts.studio_team_invite(uuid, uuid, text, text) from public, anon, authenticated;
+revoke all on function accounts.studio_team_set_role(uuid, uuid, uuid, text) from public, anon, authenticated;
+revoke all on function accounts.studio_team_remove(uuid, uuid, uuid) from public, anon, authenticated;
+revoke all on accounts.studio_team_changes from public, anon, authenticated;
+grant execute on function accounts.studio_team_invite(uuid, uuid, text, text) to studio_app;
+grant execute on function accounts.studio_team_set_role(uuid, uuid, uuid, text) to studio_app;
+grant execute on function accounts.studio_team_remove(uuid, uuid, uuid) to studio_app;
+grant select on accounts.studio_team_changes to studio_app;
+
+-- Check (expect four `t`, then two `t`):
+select has_function_privilege('studio_app', 'accounts.studio_team_invite(uuid, uuid, text, text)', 'execute'),
+       has_function_privilege('studio_app', 'accounts.studio_team_set_role(uuid, uuid, uuid, text)', 'execute'),
+       has_function_privilege('studio_app', 'accounts.studio_team_remove(uuid, uuid, uuid)', 'execute'),
+       has_table_privilege('studio_app', 'accounts.studio_team_changes', 'select');
+select not has_function_privilege('studio_app', 'accounts.studio_team_check(uuid, uuid)', 'execute'),
+       not has_table_privilege('studio_app', 'accounts.studio_team_log', 'select');

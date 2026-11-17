@@ -46,12 +46,26 @@ function FolderCard({folder,subs,canEdit,onRename,onDelete}:{folder:Folder;subs:
  </div>;
 }
 
+// The page's header, the same whether the folders are loading, not switched on
+// yet, or listed.
+export function ProjectsHeader({action}:{action?:React.ReactNode}){
+ return <PageHeader title="Projects" lede="Folders for your company’s work, shared with everybody in it. Owners and creators can change them." actions={action}/>;
+}
+
+// Folders not switched on yet (before migration 0006): the page keeps its
+// header and says where the work is.
+export function ProjectsUnavailable(){
+ return <>
+  <ProjectsHeader/>
+  <State kind="empty" title="Folders are on their way" icon={<FolderIcon/>} actions={<Link className="ds-btn" href="/library">Open the library</Link>}>Folders aren’t available yet. Your work is all in the library.</State>
+ </>;
+}
+
 export function ProjectsScreen({folders,canEdit,actions}:{folders:Folder[];canEdit:boolean;actions:FolderActions}){
  const [creating,setCreating]=React.useState(false),[renaming,setRenaming]=React.useState<Folder|null>(null);
  const top=folders.filter(f=>!f.parentId);
  return <>
-  <PageHeader title="Projects" lede="Folders for your company’s work, shared with everybody in it. Owners and creators can change them."
-   actions={canEdit&&<Button kind="primary" icon={<FolderPlus aria-hidden="true"/>} onClick={()=>setCreating(true)}>New folder</Button>}/>
+  <ProjectsHeader action={canEdit&&<Button kind="primary" icon={<FolderPlus aria-hidden="true"/>} onClick={()=>setCreating(true)}>New folder</Button>}/>
   {top.length
    ?<div className="workspace-folders" role="list" aria-label="Folders">{top.map(f=><FolderCard key={f.id} folder={f} subs={folders.filter(s=>s.parentId===f.id).length} canEdit={canEdit} onRename={()=>setRenaming(f)} onDelete={()=>actions.onDelete(f.id)}/>)}</div>
    :<State kind="empty" title="No folders yet" actions={canEdit&&<Button kind="primary" icon={<FolderPlus aria-hidden="true"/>} onClick={()=>setCreating(true)}>New folder</Button>}>A folder keeps a campaign’s visuals, films and stories together.</State>}

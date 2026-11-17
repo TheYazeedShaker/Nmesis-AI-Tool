@@ -346,10 +346,7 @@ export default function Studio(){
     {status?.storage&&<MenuItem icon={<Trash2/>} disabled={!!managingVisual||busy} onSelect={()=>void openDeleted()}>Deleted images</MenuItem>}
     {status?.storage&&<MenuItem icon={<FolderSync/>} disabled={busy||cleaningEmpty} onSelect={()=>void cleanEmpty()}>{cleaningEmpty?'Removing empty drafts…':'Remove empty drafts'}</MenuItem>}
     <MenuItem icon={<Download/>} onSelect={exportBrief}>Export brief</MenuItem>
-    <MenuSeparator/>
-    <MenuItem icon={<KeyRound/>} disabled={lock} onSelect={()=>setConnectionOpen(true)}>{status?.ownKeys?(status.personalKey?'OpenAI connected':'Connect OpenAI'):'AI connection'}</MenuItem>
-    {googleConnection?.ownKeys&&<MenuItem icon={<KeyRound/>} onSelect={()=>setGoogleOpen(true)}>Google connection</MenuItem>}
-    {higgsConnection?.ownKeys&&<MenuItem icon={<KeyRound/>} onSelect={()=>router.push('/films?settings=budget')}>Higgsfield connection</MenuItem>}
+    {creditInfo?.usage&&<MenuSeparator/>}
     {creditInfo?.usage&&<MenuItem icon={<ChartNoAxesColumn/>} onSelect={()=>router.push('/usage')}>Usage</MenuItem>}
     {ready&&<><MenuSeparator/><MenuItem icon={<Trash2/>} danger disabled={resultBusy||preparing} onSelect={()=>void removeVisual(ready)}>{managingVisual===ready.id?'Deleting…':'Delete image'}</MenuItem></>}
    </Menu>
