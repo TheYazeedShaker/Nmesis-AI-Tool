@@ -9,7 +9,7 @@ import path from 'node:path';
 // keyboard walk lands on slightly different stops from one run to the next.
 // It applies to the totals and to each screen.
 export const TOLERANCE = { focusWithoutIndicator: 5 };
-export const RATCHETED = ['pagesZoomedOutOnPhones', 'editorBand', 'fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
+export const RATCHETED = ['pagesZoomedOutOnPhones', 'editorBand', 'fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked', 'pagesOverCls01'];
 // Counted for the whole Studio process, not per page: in the totals only.
 const WHOLE_RUN = new Set(['serverHostsBlocked']);
 export const PER_SCREEN = RATCHETED.filter((k) => !WHOLE_RUN.has(k));

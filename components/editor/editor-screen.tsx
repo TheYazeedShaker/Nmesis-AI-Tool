@@ -52,16 +52,17 @@ export function Advanced({name,summary='Engine and model',children}:{name:string
  return <Fold name={`editor-advanced-${name}`} title="Advanced" summary={summary} className="editor-advanced"><div className="ds-stack">{children}</div></Fold>;
 }
 
-export function EditorScreen({tool,onTool,bar,stage,history,jobs,settings,cost,verb='Generate',busy,disabled,onGenerate,note,blocked,payer}:{
+export function EditorScreen({tool,onTool,bar,stage,history,jobs,settings,cost,verb='Generate',busy,disabled,onGenerate,note,blocked,payer,loading}:{
  tool:EditorTool;onTool:(t:EditorTool)=>void;
  /** Name, project, the result's own actions (each with its cost). */bar:React.ReactNode;
  stage:React.ReactNode;history:React.ReactNode;jobs?:React.ReactNode;settings:React.ReactNode;
  cost:number|null;verb?:string;busy?:boolean;disabled?:boolean;onGenerate:()=>void;note?:React.ReactNode;
  /** The tool's own reason Generate cannot run (no AI set up for it). */blocked?:GenerateBlocker|null;
  /** Who the work is billed through: with the company's own key, credits never stop it. */payer?:CreditProvider;
+ /** The tool's first data is still loading (the frame draws at once; the content when it is ready). */loading?:boolean;
 }){
  const why=generateBlocker(useAccount(),useCredits(),cost,blocked,payer);
- return <EditorLayout name={`editor-${tool}`} tools={EDITOR_TOOLS.map(t=>({id:t.id,label:t.label,icon:t.icon}))} tool={tool} onTool={id=>onTool(id as EditorTool)}
+ return <EditorLayout loading={loading} name={`editor-${tool}`} tools={EDITOR_TOOLS.map(t=>({id:t.id,label:t.label,icon:t.icon}))} tool={tool} onTool={id=>onTool(id as EditorTool)}
   canvasBar={bar}
   canvas={<div className="editor-stage"><div className="editor-stage-main">{stage}</div><div className="editor-stage-history">{history}</div></div>}
   jobs={jobs}

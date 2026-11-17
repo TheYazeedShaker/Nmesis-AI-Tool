@@ -42,7 +42,7 @@ export function GenerateNotice({ blocked }: { blocked: GenerateBlocker }) {
   );
 }
 
-export function EditorLayout({ name, tools, tool, onTool, canvasBar, canvas, jobs, settingsTitle = 'Settings', settings, notice, generate }: {
+export function EditorLayout({ name, tools, tool, onTool, canvasBar, canvas, jobs, settingsTitle = 'Settings', settings, notice, generate, loading }: {
   /** Remembers whether settings were closed, per tool. */
   name: string;
   tools: RailTool[];
@@ -56,13 +56,15 @@ export function EditorLayout({ name, tools, tool, onTool, canvasBar, canvas, job
   /** First in the settings (and the phone sheet): why Generate cannot run. */
   notice?: React.ReactNode;
   generate: React.ReactNode;
+  /** The tool's first data is still loading: the frame shows, its content waits (no layout shift when it arrives). */
+  loading?: boolean;
 }) {
   const [open, setOpen] = useRememberedOpen(`editor-settings:${name}`, true);
   const [sheet, setSheet] = React.useState(false);
   const toggle = () => setOpen(!open);
   const hidden = (node: React.ReactNode) => (React.isValidElement(node) ? React.cloneElement(node as React.ReactElement<{ 'aria-hidden'?: boolean }>, { 'aria-hidden': true }) : node);
   return (
-    <div className="ds-editor" data-settings={open ? 'open' : 'closed'}>
+    <div className="ds-editor" data-settings={open ? 'open' : 'closed'} data-loading={loading || undefined} aria-busy={loading || undefined}>
       <nav className="ds-editor-rail" aria-label="Tools">
         {tools.map((t) => (
           <button key={t.id} type="button" className="ds-rail-tool" aria-pressed={t.id === tool} onClick={() => onTool(t.id)}>
