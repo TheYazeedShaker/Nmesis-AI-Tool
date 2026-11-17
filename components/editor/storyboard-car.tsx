@@ -1,4 +1,5 @@
 'use client';
+import {LiveFrame} from './live-frame';
 import * as React from 'react';
 import {Check,ExternalLink,Images,MonitorUp,X} from 'lucide-react';
 import {Button,IconButton} from '@/components/ds/button';
@@ -131,8 +132,7 @@ export function StoryCar({config,views,onViews,onLabel,locked,disabled,library}:
   {locked
    ?<p className="ds-note">This story’s car is set: its shots were planned from these views. Start a new story for another car.</p>
    :<ConfiguratorStage frame={turn} frames={options.frames} onFrame={f=>{setTurn(f);adapter?.setFrame(f).catch((e:unknown)=>setError(e instanceof Error?e.message:'The configurator did not turn.'))}} onCapture={()=>void capture()} capturing={busy==='capture'}>
-     <iframe ref={frame} key={config.url} title={config.name+' configurator'} src={config.url} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation" referrerPolicy="no-referrer" allow="fullscreen" allowFullScreen/>
-     <span className="editor-live"><span aria-hidden="true"/>Live configurator</span>
+     <LiveFrame frameRef={frame} url={config.url} name={config.name}/>
     </ConfiguratorStage>}
   {fallback&&!locked&&<div className="ds-note ds-stack">
    <p>This configurator does not send a picture. Capture its tab, or add a screenshot under Car views.</p>

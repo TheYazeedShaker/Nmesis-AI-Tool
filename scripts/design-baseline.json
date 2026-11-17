@@ -1,27 +1,18 @@
 {
   "note": "What is wrong today, so nothing can get worse tomorrow. npm run check:design -- --list shows each one. Lower these by fixing screens; never raise one to make the check pass.",
-  "measured": "2026-11-16",
+  "measured": "2026-11-17",
   "counts": {
-    "app/auth.css": {
-      "raw-colour": 3,
-      "raw-size": 49
-    },
     "app/films/films.css": {
       "raw-colour": 150,
       "raw-size": 237
     },
     "app/globals.css": {
-      "raw-colour": 254,
-      "raw-size": 457
+      "raw-colour": 242,
+      "raw-size": 444
     },
     "app/lineup/lineup.css": {
       "raw-colour": 59,
       "raw-size": 91
-    },
-    "app/nano-lab/page.tsx": {
-      "raw-colour": 5,
-      "raw-size": 8,
-      "unstyled-control": 3
     },
     "app/storyboard/storyboard.css": {
       "raw-colour": 60,
@@ -29,7 +20,7 @@
     },
     "app/studio-workspace.css": {
       "raw-colour": 68,
-      "raw-size": 161
+      "raw-size": 157
     },
     "app/swap/page.tsx": {
       "unstyled-control": 1
@@ -37,12 +28,6 @@
     "app/swap/swap.css": {
       "raw-colour": 71,
       "raw-size": 101
-    },
-    "components/smart-reference-lab.tsx": {
-      "unstyled-control": 3
-    },
-    "components/smart-reference.tsx": {
-      "unstyled-control": 1
     },
     "components/ui/bubble.tsx": {
       "raw-colour": 4

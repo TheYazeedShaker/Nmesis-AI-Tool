@@ -3,6 +3,7 @@ import {tidyCarText} from './car-names';
 import {bucket,StudioError,validId} from './studio-server';
 import {foldersReady} from './trash-ready';
 import {indexReady} from './library-index';
+import {backfilled} from './library-backfill';
 import {companyLibrary,type LibraryItem} from './library';
 // The library a page at a time (Phase 3 group 2), from the database alone: the
 // index (0007) with the folders (0006). No storage read: each thumbnail is a
@@ -40,7 +41,8 @@ type Row={kind:PageItem['kind'];id:string;owner:string;title:string;tool:string;
  *  with work or without, and any other car that has work here. */
 export async function libraryPage(ctx:FilmContext,query:PageQuery,{brandCars,carChoices}:{brandCars?:string[]|null;carChoices?:string[]|null}={}):Promise<LibraryPage>{
  const db=database(ctx);
- if(!await indexReady(db))return fromFeed(ctx,query,brandCars||null,carChoices||null);
+ // Before 0007, or until this company's work from before it is indexed (lib/library-backfill.ts), the older feed.
+ if(!await indexReady(db)||!await backfilled({DB:db,BUCKET:ctx.BUCKET,org:ctx.org}))return fromFeed(ctx,query,brandCars||null,carChoices||null);
  const store=bucket(ctx.BUCKET),withFolders=await foldersReady(db);
  const folderRows=withFolders?(await db.prepare('SELECT id,name,parent_id,created_by FROM folders WHERE org_id=? AND deleted_at IS NULL ORDER BY name').bind(ctx.org).all<{id:string;name:string;parent_id:string|null;created_by:string}>()).results:[];
  const live=folderRows.map(f=>f.id),known=new Set(live);

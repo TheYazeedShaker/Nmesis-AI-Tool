@@ -44,6 +44,8 @@ async function harness(n=1000){
  }
  sql.prepare("INSERT INTO folders(id,org_id,parent_id,name,created_by,created_at,updated_at) VALUES('folder-top',?,NULL,'Launch',?,1,1),('folder-sub',?,'folder-top','Social',?,1,1),('folder-old',?,NULL,'Gone',?,1,1)").run(ORG,a,ORG,a,ORG,a);
  sql.prepare("UPDATE folders SET deleted_at=5 WHERE id='folder-old'").run();
+ // This company's older work is indexed (0009, lib/library-backfill.ts); a test below takes the mark away.
+ sql.prepare("INSERT INTO library_backfills(org_id,started_at,done_at) VALUES(?,1,2),('other-company',1,2)").run(ORG);
  const file=(kind,id,f)=>sql.prepare('INSERT INTO folder_items(org_id,item_kind,item_id,folder_id,updated_at) VALUES(?,?,?,?,1)').run(ORG,kind,id,f);
  for(let i=0;i<30;i++)file(i%10===7?'film':i%10===8?'swap':i%10===9?'story':'visual',`item-${String(i).padStart(5,'0')}`,i<20?'folder-top':i<25?'folder-sub':'folder-old');
  const q=(p={})=>({place:'all',tool:null,car:null,who:null,q:null,sort:'new',offset:0,limit:40,...p});
@@ -192,5 +194,13 @@ test('the car filter lists every car of the company (the chosen brand’s), with
   // carList on its own.
   assert.deepEqual([...h.page.carList(['IM 6',' IM 5 ',''],['IM IM 6','IM 5'])],['IM 5','IM 6']);
   assert.deepEqual([...h.page.carList(null,[])],[]);
+ }finally{h.close()}
+});
+
+test('until the company’s older work is indexed (0009), the library shows the older feed',async()=>{
+ const h=await harness(20);
+ try{
+  h.sql.prepare('DELETE FROM library_backfills').run();
+  await assert.rejects(()=>h.page.libraryPage(h.ctx,h.q()),/group 1 feed/);
  }finally{h.close()}
 });

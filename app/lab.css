@@ -1,0 +1,20 @@
+/* The Smart reference lab (/nano-lab) on the design system: tokens only, light and dark. */
+.lab { display: flex; flex-direction: column; gap: var(--ds-space-16); min-width: 0; }
+.lab-stack, .lab-smart .ds-section-body { display: flex; flex-direction: column; gap: var(--ds-space-16); min-width: 0; }
+.lab-row { display: flex; flex-wrap: wrap; gap: var(--ds-space-12) var(--ds-space-16); }
+.lab-row > .ds-field { flex: 1 1 12rem; }
+.lab-actions { display: flex; flex-wrap: wrap; gap: var(--ds-space-8); }
+.lab-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); gap: var(--ds-space-16); margin-top: var(--ds-space-16); }
+.lab-pair figure { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.lab-pair img { width: 100%; aspect-ratio: 16 / 9; object-fit: contain; border-radius: var(--ds-radius-md); background: var(--ds-media-bg); }
+.lab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(18rem, 100%), 1fr)); gap: var(--ds-space-16); }
+.lab-card { display: flex; flex-direction: column; gap: var(--ds-space-8); padding: var(--ds-space-12) var(--ds-space-16); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel); color: var(--ds-text); min-width: 0; }
+.lab-card img { width: 100%; border-radius: var(--ds-radius-sm); background: var(--ds-media-bg); }
+.lab-bullets { display: flex; flex-direction: column; gap: var(--ds-space-4); padding-left: var(--ds-space-20); list-style: disc; font-size: var(--ds-text-sm); }
+.lab-details summary { cursor: pointer; color: var(--ds-text); font-size: var(--ds-text-sm); min-height: var(--ds-space-24); }
+.lab-details pre { margin-top: var(--ds-space-8); padding: var(--ds-space-8) var(--ds-space-12); max-height: 26rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--ds-text-xs); border-radius: var(--ds-radius-sm); background: var(--ds-panel-2); color: var(--ds-text); }
+.lab-anchors { display: flex; flex-direction: column; gap: var(--ds-space-8); max-width: 54rem; }
+.lab-anchors-frame { position: relative; }
+.lab-anchors-frame img { width: 100%; display: block; }
+.lab-anchor { position: absolute; border: var(--ds-space-2) solid var(--ds-accent); }
+.lab-anchor span { background: var(--ds-media-shade); color: var(--ds-on-media); font-size: var(--ds-text-xs); padding: 0 var(--ds-space-4); }

@@ -1,7 +1,9 @@
 'use client';
 import {useState} from 'react';
 import Image from 'next/image';
-import {Eye,EyeOff,Mail,LoaderCircle,Check,Info,CircleCheck,ShieldCheck} from 'lucide-react';
+import {Eye,EyeOff,Mail,Check,Info,CircleCheck,ShieldCheck} from 'lucide-react';
+import {Button,IconButton,buttonClass} from '@/components/ds/button';
+import {Field,Input} from '@/components/ds/field';
 import {PASSWORD_MIN,passwordProblem} from '@/lib/auth/words';
 // The sign-in screens' forms. They post to the Studio's own /api/auth routes;
 // every decision (who you are, which step comes next) is made there.
@@ -9,13 +11,13 @@ async function post(url:string,data:Record<string,unknown>){
  try{const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(data)});const d=await r.json().catch(()=>({}));return {ok:r.ok,...d} as {ok:boolean;error?:string;problem?:string;said?:string;next?:string;signInAgain?:boolean;factorId?:string;qr?:string|null;secret?:string}}
  catch{return {ok:false,error:'The connection was interrupted. Try again.'}}
 }
-const Problem=({text}:{text:string})=>text?<p className="error-banner" role="alert"><Info size={18}/><span>{text}</span></p>:null;
-const Note=({text}:{text:string})=>text?<p className="auth-note" role="status"><CircleCheck size={18}/><span>{text}</span></p>:null;
+const Problem=({text}:{text:string})=>text?<div className="ds-banner bad" role="alert"><Info aria-hidden="true"/><span>{text}</span></div>:null;
+const Note=({text}:{text:string})=>text?<div className="ds-banner" role="status"><CircleCheck aria-hidden="true"/><span>{text}</span></div>:null;
 export function PasswordField({id,label,value,onChange,autoComplete,describedBy}:{id:string;label:string;value:string;onChange:(v:string)=>void;autoComplete:string;describedBy?:string}){
  const [shown,setShown]=useState(false);
- return <div className="auth-field"><label className="field-label" htmlFor={id}>{label}</label><div className="auth-password">
-  <input id={id} className="text-input" type={shown?'text':'password'} value={value} onChange={e=>onChange(e.target.value)} autoComplete={autoComplete} maxLength={200} aria-describedby={describedBy} required/>
-  <button type="button" className="auth-eye" onClick={()=>setShown(s=>!s)} aria-label={shown?'Hide password':'Show password'} aria-pressed={shown} title={shown?'Hide':'Show'}>{shown?<EyeOff size={18}/>:<Eye size={18}/>}</button>
+ return <div className="ds-field"><label className="ds-label" htmlFor={id}>{label}</label><div className="auth-password">
+  <Input id={id} type={shown?'text':'password'} value={value} onChange={e=>onChange(e.target.value)} autoComplete={autoComplete} maxLength={200} aria-describedby={describedBy} required/>
+  <IconButton label={shown?'Hide password':'Show password'} size="sm" className="auth-eye" aria-pressed={shown} onClick={()=>setShown(s=>!s)}>{shown?<EyeOff aria-hidden="true"/>:<Eye aria-hidden="true"/>}</IconButton>
  </div></div>;
 }
 export function SignInForm({next,email:initial='',google}:{next:string;email?:string;google:boolean}){
@@ -25,15 +27,15 @@ export function SignInForm({next,email:initial='',google}:{next:string;email?:st
  return <>
   <Problem text={problem}/><Note text={note}/>
   <form className="auth-form" onSubmit={withPassword}>
-   <div className="auth-field"><label className="field-label" htmlFor="email">Email address</label><input id="email" className="text-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username" maxLength={254} required/></div>
+   <Field label="Email address" id="email"><Input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username" maxLength={254} required/></Field>
    <PasswordField id="password" label="Password" value={password} onChange={setPassword} autoComplete="current-password"/>
-   <button className="generate" type="submit" disabled={!!busy}>{busy==='password'?<LoaderCircle className="spin" size={18}/>:null}Sign in</button>
-   <div className="auth-divider">OR</div>
-   <button className="secondary" type="button" onClick={()=>void withLink()} disabled={!!busy}>{busy==='link'?<LoaderCircle className="spin" size={16}/>:<Mail size={16}/>}Email me a sign-in link</button>
-   {google&&<a className="secondary" href="/auth/google">Continue with Google</a>}
+   <Button kind="primary" block type="submit" busy={busy==='password'} disabled={!!busy}>Sign in</Button>
+   <div className="auth-divider" role="separator"><span>or</span></div>
+   <Button block icon={<Mail aria-hidden="true"/>} busy={busy==='link'} disabled={!!busy} onClick={()=>void withLink()}>Email me a sign-in link</Button>
+   {google&&<a className={buttonClass({block:true})} href="/auth/google">Continue with Google</a>}
   </form>
-  <div className="auth-links"><a className="text-button" href={'/signin/forgot'+(email?'?email='+encodeURIComponent(email):'')}>Forgot your password?</a></div>
-  <p className="auth-staff-note">Nmesis staff? Sign in with your admin account.</p>
+  <div className="auth-links"><a className="ds-link" href={'/signin/forgot'+(email?'?email='+encodeURIComponent(email):'')}>Forgot your password?</a></div>
+  <p className="ds-help auth-staff-note">Nmesis staff? Sign in with your admin account.</p>
  </>;
 }
 export function ForgotForm({email:initial=''}:{email?:string}){
@@ -42,10 +44,10 @@ export function ForgotForm({email:initial=''}:{email?:string}){
  return <>
   <Problem text={problem}/><Note text={note}/>
   <form className="auth-form" onSubmit={send}>
-   <div className="auth-field"><label className="field-label" htmlFor="email">Email address</label><input id="email" className="text-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username" maxLength={254} required/></div>
-   <button className="generate" type="submit" disabled={busy}>{busy?<LoaderCircle className="spin" size={18}/>:null}Email me a link</button>
+   <Field label="Email address" id="email"><Input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username" maxLength={254} required/></Field>
+   <Button kind="primary" block type="submit" busy={busy} disabled={busy}>Email me a link</Button>
   </form>
-  <div className="auth-links"><a className="text-button" href="/signin">Back to sign in</a></div>
+  <div className="auth-links"><a className="ds-link" href="/signin">Back to sign in</a></div>
  </>;
 }
 export function ChoosePasswordForm({email,next}:{email:string;next:string}){
@@ -56,13 +58,13 @@ export function ChoosePasswordForm({email,next}:{email:string;next:string}){
  return <>
   <Problem text={problem}/>
   <form className="auth-form" onSubmit={save}>
-   <div className="auth-field"><label className="field-label" htmlFor="account">Your account</label><input id="account" className="text-input" type="email" value={email} readOnly autoComplete="username"/></div>
+   <Field label="Your account" id="account"><Input type="email" value={email} readOnly autoComplete="username"/></Field>
    <PasswordField id="new-password" label="Password" value={password} onChange={setPassword} autoComplete="new-password" describedBy="password-rules"/>
    <PasswordField id="confirm-password" label="The same again" value={confirm} onChange={setConfirm} autoComplete="new-password" describedBy="password-rules"/>
-   <ul className="auth-rules" id="password-rules" aria-label="Password rules">{rules.map(r=><li key={r.text} className={r.met?'met':''}>{r.met?<Check size={14}/>:<span aria-hidden="true">·</span>}{r.text}</li>)}</ul>
-   <button className="generate" type="submit" disabled={!!busy}>{busy==='save'?<LoaderCircle className="spin" size={18}/>:null}Save and continue</button>
+   <ul className="auth-rules ds-help" id="password-rules" aria-label="Password rules">{rules.map(r=><li key={r.text} data-met={r.met||undefined}>{r.met?<Check aria-hidden="true"/>:<span aria-hidden="true">·</span>}{r.text}</li>)}</ul>
+   <Button kind="primary" block type="submit" busy={busy==='save'} disabled={!!busy}>Save and continue</Button>
   </form>
-  <div className="auth-links"><button type="button" className="text-button" onClick={()=>void skip()} disabled={!!busy}>Skip, I’ll use email links</button></div>
+  <div className="auth-links"><Button kind="quiet" size="sm" busy={busy==='skip'} disabled={!!busy} onClick={()=>void skip()}>Skip, I’ll use email links</Button></div>
  </>;
 }
 // Nmesis staff, after their password: the six-digit code from their authenticator
@@ -76,15 +78,15 @@ export function CodeForm({next,email,enrol}:{next:string;email:string;enrol:bool
  const needsSetup=enrol&&!setup;
  return <>
   <Problem text={problem}/>
-  {needsSetup?<div className="auth-form"><button className="generate" type="button" onClick={()=>void start()} disabled={!!busy}>{busy==='enrol'?<LoaderCircle className="spin" size={18}/>:<ShieldCheck size={18}/>}Add an authenticator app</button></div>
+  {needsSetup?<div className="auth-form"><Button kind="primary" block icon={<ShieldCheck aria-hidden="true"/>} busy={busy==='enrol'} disabled={!!busy} onClick={()=>void start()}>Add an authenticator app</Button></div>
   :<form className="auth-form" onSubmit={verify}>
    {setup&&<div className="auth-qr">
-    {setup.qr?<Image src={setup.qr} alt="QR code to add Nmesis to your authenticator app" width={176} height={176} unoptimized/>:<p className="helper">The QR code could not be shown. Type the key below into your app instead.</p>}
-    {setup.secret&&<details open={!setup.qr}><summary>Can’t scan it? Type this key instead</summary><code className="auth-secret">{setup.secret}</code><p className="helper">Account: {email}. Choose a time-based code.</p></details>}
+    {setup.qr?<Image src={setup.qr} alt="QR code to add Nmesis to your authenticator app" width={176} height={176} unoptimized/>:<p className="ds-help">The QR code could not be shown. Type the key below into your app instead.</p>}
+    {setup.secret&&<details open={!setup.qr}><summary>Can’t scan it? Type this key instead</summary><code className="auth-secret">{setup.secret}</code><p className="ds-help">Account: {email}. Choose a time-based code.</p></details>}
    </div>}
-   <div className="auth-field"><label className="field-label" htmlFor="one-time-code">Six-digit code</label><input id="one-time-code" className="text-input auth-code" type="text" inputMode="numeric" pattern="[0-9 ]*" autoComplete="one-time-code" value={code} onChange={e=>setCode(e.target.value.replace(/[^\d ]/g,'').slice(0,7))} maxLength={7} required autoFocus/></div>
-   <button className="generate" type="submit" disabled={!!busy}>{busy==='verify'?<LoaderCircle className="spin" size={18}/>:null}{setup?'Turn on and continue':'Continue'}</button>
+   <Field label="Six-digit code" id="one-time-code"><Input className="auth-code" type="text" inputMode="numeric" pattern="[0-9 ]*" autoComplete="one-time-code" value={code} onChange={e=>setCode(e.target.value.replace(/[^\d ]/g,'').slice(0,7))} maxLength={7} required autoFocus/></Field>
+   <Button kind="primary" block type="submit" busy={busy==='verify'} disabled={!!busy}>{setup?'Turn on and continue':'Continue'}</Button>
   </form>}
-  <div className="auth-links"><form method="post" action="/auth/signout"><button className="text-button" type="submit">Use a different account</button></form></div>
+  <div className="auth-links"><form method="post" action="/auth/signout"><Button kind="quiet" size="sm" type="submit">Use a different account</Button></form></div>
  </>;
 }

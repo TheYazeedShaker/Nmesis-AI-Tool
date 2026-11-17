@@ -248,6 +248,25 @@
 .ds-section-count { margin-left: auto; color: var(--ds-muted); font-size: var(--ds-text-sm); font-variant-numeric: var(--ds-numeric); }
 .ds-section-body { padding: var(--ds-space-16) var(--ds-space-20) var(--ds-space-20); min-width: 0; }
 
+/* Long lists and logs (components/ds/list.tsx): 10 rows, then a pager. */
+.ds-list-wrap { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.ds-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.ds-pager { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ds-space-8); padding-top: var(--ds-space-8); border-top: var(--ds-border-width) solid var(--ds-border); }
+.ds-pager-range { color: var(--ds-muted); font-size: var(--ds-text-sm); font-variant-numeric: var(--ds-numeric); }
+.ds-pager-actions { display: flex; flex-wrap: wrap; gap: var(--ds-space-4); }
+
+/* The credit price and credits-used chips (components/credits.tsx) on design-system pages. */
+.ds-app .credit-cost, .ds-app .credit-used { gap: var(--ds-space-4); color: var(--ds-muted); font-size: var(--ds-text-sm); font-variant-numeric: var(--ds-numeric); }
+.ds-app .credit-cost { padding: var(--ds-space-2) var(--ds-space-8); border-color: var(--ds-border); border-radius: var(--ds-radius-pill); }
+
+/* A setting with a title, one line of help and a switch (Smart reference prompt).
+   It paints its own panel, so it sets its own text colour too: on a page not yet on
+   the design system (the Smart reference lab) it would inherit light text on a light panel. */
+.ds-setting { display: flex; flex-direction: column; gap: var(--ds-space-12); padding: var(--ds-space-12) var(--ds-space-16); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel); color: var(--ds-text); min-width: 0; }
+.ds-setting-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: var(--ds-space-8) var(--ds-space-12); }
+.ds-setting-text { display: flex; flex-direction: column; gap: var(--ds-space-2); flex: 1 1 12rem; min-width: 0; }
+.ds-setting-title { font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); }
+
 .ds-fold { border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel); }
 .ds-fold + .ds-fold { margin-top: var(--ds-space-8); }
 .ds-fold-head {

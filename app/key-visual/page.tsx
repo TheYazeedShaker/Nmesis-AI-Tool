@@ -1,4 +1,5 @@
 "use client";
+import {LiveFrame} from '@/components/editor/live-frame';
 import {useState,useRef,useEffect,useCallback,useId} from 'react';
 import {useRouter} from 'next/navigation';
 import {Camera,Crop,Download,ExternalLink,Film,FileJson,FolderSync,ImagePlus,KeyRound,Monitor,MoreHorizontal,RefreshCw,RotateCw,Scissors,Sparkles,Trash2,Upload,Wand2,X,ZoomIn,Columns2,Info,LogIn,ChartNoAxesColumn} from 'lucide-react';
@@ -19,7 +20,7 @@ import {RefinementReferences,type RefinementReference} from '@/components/refine
 import {AreaEditor} from '@/components/area-editor';
 import {submitSmartImage} from '@/lib/smart-reference-client';
 import {SmartControls,SmartPlanView,SmartReviewView} from '@/components/smart-reference';
-import type {SmartPriority,SmartPlan} from '@/lib/smart-reference';
+import {SMART_OPTIONS,type SmartPriority,type SmartPlan} from '@/lib/smart-reference';
 import {InspirationMatch} from '@/components/inspiration-match';
 import {DropZone} from '@/components/ds/drop-zone';
 import {InspirationCard} from '@/components/editor/inspiration-card';
@@ -300,8 +301,7 @@ export default function Studio(){
  const carStage=<>
   {mode==='live'&&<div className="editor-visuals-car" hidden={stage!=='car'}>
    <ConfiguratorStage frame={0} frames={0} onFrame={()=>undefined} onCapture={()=>void captureView()} capturing={capturing}>
-    <iframe ref={iframeRef} key={configurator.url} title={configurator.name+' configurator'} src={configurator.url} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation" referrerPolicy="no-referrer" allow="fullscreen" allowFullScreen/>
-    {!preparing&&<span className="editor-live"><span aria-hidden="true"/>Live configurator</span>}
+    <LiveFrame frameRef={iframeRef} url={configurator.url} name={configurator.name} visible={stage==='car'} badge={!preparing}/>
    </ConfiguratorStage>
   </div>}
   {mode!=='live'&&stage==='car'&&(view.src
@@ -402,7 +402,7 @@ export default function Studio(){
   </div>
   <PromptSettings label="Your idea (optional)" value={brief===DEFAULT_BRIEF?'':brief} onChange={v=>setBrief(v.trim()?v:DEFAULT_BRIEF)} placeholder="Golden hour, a quiet city street, warm reflections…" max={2000} inspiration={false}/>
   <SettingsSection title="Art direction" id="kv-direction-title">
-   <p className="ds-help">{smartPriority?'Smart prompt · '+smartPriority:referenceMode==='match-inspiration'?'Match reference':'Creative freedom'}</p>
+   <p className="ds-help">{smartPriority?'Smart prompt · '+(SMART_OPTIONS.find(o=>o.id===smartPriority)?.label||''):referenceMode==='match-inspiration'?'Match reference':'Creative freedom'}</p>
    {provider!=='higgsfield'&&(can('studio.smart_reference')?<SmartControls value={smartPriority} onChange={setSmartPriority} disabled={lock}/>:<p className="ds-help">Smart references <UpsellChip feature="studio.smart_reference" account={account}/></p>)}
    <InspirationMatch nanoBanana={provider==='google'} value={referenceMode} onChange={setReferenceMode} disabled={lock||provider!=='higgsfield'&&!!smartPriority}/>
    {smartStatus&&<p className="ds-help" role="status">{smartStatus}</p>}{smartPlan&&<SmartPlanView plan={smartPlan}/>}

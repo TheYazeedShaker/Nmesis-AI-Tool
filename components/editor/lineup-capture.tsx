@@ -1,4 +1,5 @@
 'use client';
+import {LiveFrame} from './live-frame';
 import * as React from 'react';
 import {MonitorUp,X} from 'lucide-react';
 import {Button,IconButton} from '@/components/ds/button';
@@ -121,8 +122,7 @@ export function LineupCarDialog({car,index,config,onPatch,onClose}:{car:LineupCa
    </Field>
    <div hidden={!!crop}>
     <ConfiguratorStage frame={0} frames={0} onFrame={()=>undefined} onCapture={()=>void capture()} capturing={busy==='capture'}>
-     <iframe ref={frame} key={config.url} title={`${config.name} configurator`} src={config.url} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation" referrerPolicy="no-referrer" allow="fullscreen" allowFullScreen/>
-     <span className="editor-live"><span aria-hidden="true"/>Live configurator</span>
+     <LiveFrame frameRef={frame} url={config.url} name={config.name} visible={!crop}/>
     </ConfiguratorStage>
     <p className="ds-help">Set the colour, trim and angle in the configurator, then Use this view. Capture views with the same colour and trim.</p>
    </div>
