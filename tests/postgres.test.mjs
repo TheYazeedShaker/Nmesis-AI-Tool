@@ -24,11 +24,13 @@ const PASSWORD='local-test-password-0123456789';
 // Stands in for hosted Supabase's SQL-editor user (not a superuser; CREATEROLE).
 const SETUP_ROLE='studio_setup_test';
 const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log','folders','folder_items','library_items'];
-const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql','0006_folders.sql','0007_library_index.sql','0008_alert_recipients.sql'];
+const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql','0006_folders.sql','0007_library_index.sql','0008_alert_recipients.sql','0009_library_backfills.sql'];
 // Client work, filtered by environment (0004); the holds and the staff log record it.
 // The tables 0004 scoped (they existed before it); 0006 adds folders scoped the same way from the start.
 const SCOPED_0004=['films','swap_jobs','storyboards','image_jobs','topaz_jobs','film_budgets'];
 const SCOPED=[...SCOPED_0004,'folders','folder_items','library_items'];
+// 0009: one mark per company and environment (no id, so not in the per-row tests); scoped and RLS-checked like client work.
+const MARKS=['library_backfills'];
 const RECORDED=['credit_holds','staff_access_log'];
 // The environment these tests run as: no VERCEL_ENV, not production.
 const ENV='development';
@@ -138,17 +140,17 @@ test('every table has org_id and RLS; anon/authenticated are refused; studio_app
  const tables=await admin`select c.relname, c.relrowsecurity, pg_get_userbyid(c.relowner) as owner,
    exists(select 1 from information_schema.columns k where k.table_schema='studio' and k.table_name=c.relname and k.column_name='org_id' and k.is_nullable='NO') as org_id
    from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relkind='r' order by 1`;
- assert.deepEqual(tables.map(t=>t.relname).sort(),['__studio_migrations','car_settings',...TABLES,...CREDIT_TABLES].sort());
+ assert.deepEqual(tables.map(t=>t.relname).sort(),['__studio_migrations','car_settings',...TABLES,...MARKS,...CREDIT_TABLES].sort());
  const envColumns=(await admin`select table_name from information_schema.columns where table_schema='studio' and column_name='environment' and is_nullable='NO'`).map(r=>r.table_name).sort();
- assert.deepEqual(envColumns,[...SCOPED,...RECORDED].sort(),'client work and the shared records carry their environment');
- for(const t of SCOPED){const [{q}]=await admin`select pg_get_expr(p.polqual,p.polrelid) as q from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relname=${t}`;assert.match(q,/environment = \( SELECT studio\.request_env\(\)/,t+' policy filters by environment')}
+ assert.deepEqual(envColumns,[...SCOPED,...MARKS,...RECORDED].sort(),'client work and the shared records carry their environment');
+ for(const t of [...SCOPED,...MARKS]){const [{q}]=await admin`select pg_get_expr(p.polqual,p.polrelid) as q from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relname=${t}`;assert.match(q,/environment = \( SELECT studio\.request_env\(\)/,t+' policy filters by environment')}
  for(const t of tables){assert.equal(t.relrowsecurity,true,t.relname+' RLS');assert.equal(t.owner,'studio_app');if(!['__studio_migrations','car_settings'].includes(t.relname))assert.equal(t.org_id,true,t.relname+' org_id')}
  const forced=await admin`select c.relname, c.relforcerowsecurity as forced, (select count(*)::int from pg_policy p where p.polrelid=c.oid) as policies
    from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relkind='r' and c.relname<>'__studio_migrations'`;
  for(const t of forced){assert.equal(t.forced,true,t.relname+' forced RLS');assert.equal(t.policies,['support_grants','alert_recipients'].includes(t.relname)?4:1,t.relname+' policies')}
  const [role]=await admin`select rolsuper,rolbypassrls,rolinherit,rolcanlogin from pg_roles where rolname='studio_app'`;
  assert.deepEqual({...role},{rolsuper:false,rolbypassrls:false,rolinherit:false,rolcanlogin:true});
- for(const api of ['anon','authenticated'])for(const table of [...TABLES,...CREDIT_TABLES])
+ for(const api of ['anon','authenticated'])for(const table of [...TABLES,...MARKS,...CREDIT_TABLES])
   await assert.rejects(()=>admin.begin(async tx=>{await tx.unsafe('set local role '+api);await tx.unsafe('select * from studio.'+table)}),/permission denied/);
  const app=postgres(appUrl,{max:1,prepare:false,ssl:ssl(appUrl),onnotice:()=>{}});
  try{
