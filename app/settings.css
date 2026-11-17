@@ -1,0 +1,99 @@
+/* ─── Company settings and Usage (design finish pass) ─────────────────────
+   components/company/*, components/workspace/table.tsx. Built on the design
+   system (app/design-system.css), light and dark. Tokens only. Loaded by
+   app/company/layout.tsx and app/usage/layout.tsx. */
+
+.settings-page { display: flex; flex-direction: column; gap: var(--ds-space-24); max-width: var(--ds-page-max); min-width: 0; }
+.settings-page .ds-page-head { margin-bottom: 0; }
+.settings-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr)); gap: var(--ds-space-24); min-width: 0; }
+.settings-line { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); max-width: var(--ds-measure); }
+.settings-line + .settings-line { margin-top: var(--ds-space-4); }
+.settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); margin-top: var(--ds-space-16); min-width: 0; }
+.settings-field { margin-top: var(--ds-space-16); max-width: var(--ds-measure); min-width: 0; }
+.settings-sub { display: block; margin-top: var(--ds-space-20); margin-bottom: var(--ds-space-8); }
+.settings-choices { display: flex; flex-direction: column; gap: var(--ds-space-8); margin: var(--ds-space-12) 0 0; padding: 0; border: 0; min-width: 0; }
+.settings-status { font-size: var(--ds-text-sm); color: var(--ds-text); }
+.settings-status[data-kind="bad"] { color: var(--ds-danger); }
+.settings-email { overflow-wrap: anywhere; }
+.settings-you { color: var(--ds-muted); font-weight: var(--ds-weight-regular); }
+
+/* The shared table: a table on wide screens, cards on phones. */
+.ws-table-wrap { min-width: 0; }
+.ws-table { width: 100%; border-collapse: collapse; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.ws-table-caption { text-align: left; color: var(--ds-muted); padding-bottom: var(--ds-space-8); }
+.ws-table th, .ws-table td { text-align: left; vertical-align: top; padding: var(--ds-space-8) var(--ds-space-12); border-bottom: var(--ds-border-width) solid var(--ds-border); overflow-wrap: anywhere; }
+.ws-table thead th { color: var(--ds-muted); font-weight: var(--ds-weight-medium); }
+.ws-table tbody th { font-weight: var(--ds-weight-medium); color: var(--ds-text); }
+.ws-table tbody tr:last-child > * { border-bottom: 0; }
+.ws-table .num { text-align: right; font-variant-numeric: var(--ds-numeric); white-space: nowrap; }
+.ws-table th:first-child, .ws-table td:first-child { padding-left: 0; }
+.ws-table th:last-child, .ws-table td:last-child { padding-right: 0; }
+@media (max-width: 600px) {
+  .ws-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ws-table, .ws-table tbody, .ws-table tr, .ws-table th, .ws-table td { display: block; }
+  .ws-table tbody tr { padding: var(--ds-space-12) 0; border-bottom: var(--ds-border-width) solid var(--ds-border); }
+  .ws-table tbody tr:last-child { border-bottom: 0; }
+  .ws-table tbody th, .ws-table tbody td { padding: 0; border: 0; text-align: left; }
+  .ws-table tbody th { margin-bottom: var(--ds-space-4); }
+  .ws-table tbody td { display: flex; justify-content: space-between; gap: var(--ds-space-12); color: var(--ds-text); }
+  .ws-table tbody td::before { content: attr(data-label); color: var(--ds-muted); flex: none; }
+  .ws-table tbody td.num { text-align: right; }
+}
+
+/* The credit gauge: used and left, with the 80% and 100% marks. */
+.usage-gauge { display: flex; flex-direction: column; gap: var(--ds-space-12); min-width: 0; }
+.usage-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(8rem, 100%), 1fr)); gap: var(--ds-space-16) var(--ds-space-24); min-width: 0; }
+.usage-figure { display: flex; flex-direction: column; min-width: 0; }
+.usage-figure b { font-family: var(--ds-font-display); font-size: var(--ds-text-2xl); line-height: var(--ds-leading-2xl); font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); font-variant-numeric: var(--ds-numeric); }
+.usage-figure span { color: var(--ds-muted); font-size: var(--ds-text-sm); }
+.usage-track { position: relative; height: var(--ds-space-12); border-radius: var(--ds-radius-pill); background: var(--ds-panel-3); }
+.usage-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--ds-accent-text); transform-origin: left center; }
+.usage-gauge[data-level="80"] .usage-fill { background: var(--ds-warn); }
+.usage-gauge[data-level="100"] .usage-fill { background: var(--ds-danger); }
+.usage-mark { position: absolute; top: calc(var(--ds-space-4) * -1); bottom: calc(var(--ds-space-4) * -1); width: var(--ds-border-width); background: var(--ds-border-strong); }
+.usage-marks { position: relative; height: var(--ds-leading-xs); font-size: var(--ds-text-xs); color: var(--ds-muted); }
+.usage-marks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.usage-marks span:last-child { transform: translateX(-100%); }
+
+/* Use over the period: bars, the axis words and a written summary. */
+.usage-chart { display: flex; flex-direction: column; gap: var(--ds-space-8); margin: 0; min-width: 0; }
+.usage-chart svg { display: block; width: 100%; height: calc(var(--ds-space-64) * 2); }
+.usage-bar { fill: var(--ds-accent-text); }
+.usage-bar-empty { fill: var(--ds-panel-3); }
+.usage-axis { display: flex; justify-content: space-between; gap: var(--ds-space-8); font-size: var(--ds-text-xs); color: var(--ds-muted); font-variant-numeric: var(--ds-numeric); }
+.usage-chart figcaption { color: var(--ds-muted); font-size: var(--ds-text-sm); }
+
+/* Team: one row per person; the controls wrap under the name on phones. */
+.team-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.team-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8) var(--ds-space-12); padding: var(--ds-space-12) 0; border-bottom: var(--ds-border-width) solid var(--ds-border); min-width: 0; }
+.team-row:last-child { border-bottom: 0; }
+.team-who { display: flex; align-items: center; gap: var(--ds-space-12); flex: 1 1 16rem; min-width: 0; }
+.team-name { display: flex; flex-direction: column; min-width: 0; }
+.team-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); }
+.team-controls .ds-select { width: auto; }
+.team-invite { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: var(--ds-space-12); margin-top: var(--ds-space-16); min-width: 0; }
+.team-invite .ds-field { min-width: 0; }
+@media (max-width: 600px) { .team-invite { grid-template-columns: minmax(0, 1fr); align-items: stretch; } }
+.team-log { display: flex; flex-direction: column; gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; font-size: var(--ds-text-sm); }
+.team-log time { color: var(--ds-muted); }
+
+/* Plan: what is included, two columns where there is room. */
+.plan-features { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr)); gap: var(--ds-space-8) var(--ds-space-16); margin: 0; padding: 0; list-style: none; }
+.plan-feature { display: flex; align-items: center; gap: var(--ds-space-8); font-size: var(--ds-text-sm); min-width: 0; }
+.plan-feature svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; color: var(--ds-success); }
+.plan-feature[data-on="false"] { color: var(--ds-muted); }
+.plan-feature[data-on="false"] svg { color: var(--ds-muted-2); }
+.plan-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(12rem, 100%), 1fr)); gap: var(--ds-space-12) var(--ds-space-16); margin: 0 0 var(--ds-space-16); }
+.plan-facts dt { color: var(--ds-muted); font-size: var(--ds-text-sm); }
+.plan-facts dd { margin: 0; font-weight: var(--ds-weight-medium); color: var(--ds-text); }
+
+/* Brands. */
+.brand-list { display: flex; flex-wrap: wrap; gap: var(--ds-space-12); margin: 0; padding: 0; list-style: none; }
+.brand-item { display: flex; align-items: center; gap: var(--ds-space-8); padding: var(--ds-space-8) var(--ds-space-12); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel-2); min-width: 0; }
+
+/* Own keys and support access. */
+.keys-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.keys-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ds-space-8) var(--ds-space-12); padding: var(--ds-space-12) 0; border-bottom: var(--ds-border-width) solid var(--ds-border); }
+.keys-row:last-child { border-bottom: 0; }
+.keys-name { display: flex; flex-direction: column; min-width: 0; }
+.support-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); margin-bottom: var(--ds-space-12); }

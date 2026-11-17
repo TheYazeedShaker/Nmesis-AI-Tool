@@ -455,10 +455,18 @@
 .ds-dialog.wide { width: min(720px, calc(100vw - var(--ds-space-32))); }
 .ds-dialog::backdrop { background: var(--ds-scrim); }
 .ds-dialog[open] { animation: ds-rise var(--ds-dur) var(--ds-ease); }
-.ds-dialog-inner { display: flex; flex-direction: column; max-height: inherit; }
+/* One scroll area: the body. The browser gives an open modal <dialog> its own
+   overflow: auto; with a border and a body that scrolls as well, that made two
+   scrollbars (the line-up references). So the dialog never scrolls: it is a
+   column that shrinks the body, head and foot stay put, and only the body
+   scrolls. Nothing inside a dialog adds a scroll of its own
+   (tests/dialog-scroll.test.mjs). */
+.ds-dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+.ds-dialog-inner { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.ds-dialog-head, .ds-dialog-foot, .ds-sheet-grip { flex: none; }
 .ds-dialog-head { display: flex; align-items: flex-start; gap: var(--ds-space-12); padding: var(--ds-space-20) var(--ds-space-24) 0; }
 .ds-dialog-title { font-family: var(--ds-font-display); font-size: var(--ds-text-lg); line-height: var(--ds-leading-lg); font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); flex: 1 1 auto; }
-.ds-dialog-body { padding: var(--ds-space-12) var(--ds-space-24) var(--ds-space-20); overflow-y: auto; display: flex; flex-direction: column; gap: var(--ds-space-12); }
+.ds-dialog-body { flex: 1 1 auto; min-height: 0; padding: var(--ds-space-12) var(--ds-space-24) var(--ds-space-20); overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: var(--ds-space-12); }
 .ds-dialog-foot {
   display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--ds-space-8);
   padding: var(--ds-space-16) var(--ds-space-24); border-top: var(--ds-border-width) solid var(--ds-border);
@@ -468,8 +476,6 @@
   border-radius: var(--ds-radius-lg) 0 0 var(--ds-radius-lg); border-right: 0;
 }
 .ds-drawer[open] { animation: ds-slide var(--ds-dur) var(--ds-ease); }
-.ds-drawer .ds-dialog-inner { height: 100%; }
-.ds-drawer .ds-dialog-body { flex: 1 1 auto; }
 /* The bottom sheet: an editor's settings on a phone. */
 .ds-sheet {
   margin: auto 0 0; width: 100vw; max-width: 100vw; max-height: 85dvh;
@@ -485,8 +491,6 @@
   .ds-dialog, .ds-dialog.wide, .ds-drawer {
     width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; border: 0;
   }
-  .ds-dialog .ds-dialog-inner { height: 100%; }
-  .ds-dialog .ds-dialog-body { flex: 1 1 auto; }
   .ds-dialog-foot { padding-bottom: calc(var(--ds-space-16) + env(safe-area-inset-bottom)); }
   .ds-dialog-foot .ds-btn { flex: 1 1 0; }
   .ds-sheet { height: auto; max-height: 85dvh; border-radius: var(--ds-radius-lg) var(--ds-radius-lg) 0 0; margin: auto 0 0; }
@@ -684,10 +688,20 @@
 .ds-menu { position: relative; display: inline-block; }
 .ds-menu-list { left: auto; right: 0; min-width: 200px; }
 .ds-menu-list.up { top: auto; bottom: calc(100% + var(--ds-space-4)); }
+.ds-menu-list.start { left: 0; right: auto; }
 .ds-menu-item svg { width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-muted); }
 .ds-menu-item.danger { color: var(--ds-danger); }
 .ds-menu-item.danger svg { color: var(--ds-danger); }
 .ds-menu-sep { height: var(--ds-border-width); margin: var(--ds-space-4) 0; background: var(--ds-border); border: 0; }
+.ds-menu-chevron { width: var(--ds-icon); height: var(--ds-icon); }
+/* An item that is off: still reachable by keyboard (aria-disabled), says why. */
+.ds-menu-item[aria-disabled="true"] { color: var(--ds-muted); cursor: not-allowed; }
+.ds-menu-item[aria-disabled="true"]:hover { background: transparent; }
+.ds-menu-text { display: flex; flex-direction: column; min-width: 0; padding: var(--ds-space-8) 0; }
+.ds-menu-detail { color: var(--ds-muted); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); }
+.ds-menu-aside { margin-left: auto; flex: none; }
+/* Create: tools and New folder, wide enough for a reason under a name. */
+.ds-menu-list.create { min-width: 260px; max-height: none; }
 
 /* ── Home: the ask bar, tool tiles, recent, cars ───────────────────────── */
 .ds-ask {

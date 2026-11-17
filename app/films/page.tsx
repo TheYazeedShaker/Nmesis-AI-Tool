@@ -92,7 +92,7 @@ function FilmStudio(){const router=useRouter(),showNames=providerNames(useAccoun
  const blocked:GenerateBlocker|null=editable&&connection&&!videoReady?(connection.ownKeys&&!connection.sponsored
   ?{title:w('Connect your video key to make films'),body:'Your company uses its own keys.',action:<Button size="sm" onClick={()=>setSettings(true)}>Connect</Button>}
   :{title:'Video isn’t set up for your Studio yet',body:'Ask Nmesis to set it up.'}):null;
- const note=typeof creditsLeft==='number'?<>{creditsLabel(creditsLeft)} left this month{overBudget&&film?.status==='quoted'?' · not enough for this film. Ask Nmesis to add a pack.':''}</>:undefined;
+ const note=typeof creditsLeft==='number'?<>{creditsLabel(creditsLeft)} left this month{overBudget&&film?.status==='quoted'?' · not enough for this film. Ask Nmesis to add a pack.':''}</>:' '/* the line stays reserved while credits load or are not counted: nothing under Generate moves */;
 
  // Versions: every film, newest first. Cancel shows only when every film being made can still be cancelled (queued); otherwise it is on the open film.
  const versions=filmVersions(films),makingNow=films.filter(f=>FILM_WORKING.includes(f.status)),cancelInHistory=makingNow.length>0&&makingNow.every(f=>f.status==='queued');
@@ -191,7 +191,7 @@ function FilmStudio(){const router=useRouter(),showNames=providerNames(useAccoun
   <EditorScreen tool="films" onTool={t=>{const href=EDITOR_TOOLS.find(x=>x.id===t)?.href;if(href&&t!=='films')router.push(href)}}
    bar={bar} stage={stage}
    history={<VersionHistory versions={versions} current={selected||null} onPick={id=>{const f=films.find(x=>x.id===id);if(f)void choose(f)}} onCancel={cancelInHistory?id=>void action('cancel',films.find(f=>f.id===id)):undefined}/>}
-   settings={settingsPanel} cost={cost} verb={verb} busy={generateBusy} disabled={generateDisabled} blocked={blocked} payer="higgsfield" onGenerate={onGenerate} note={note}/>
+   loading={loading} settings={settingsPanel} cost={cost} verb={verb} busy={generateBusy} disabled={generateDisabled} blocked={blocked} payer="higgsfield" onGenerate={onGenerate} note={note}/>
   <input ref={uploadInput} className="editor-films-hidden" type="file" hidden tabIndex={-1} aria-hidden="true" accept="image/png,image/jpeg,image/webp" onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void uploadFrame(file)}}/>
   {film?.videoUrl&&draft&&<FilmExportDialog open={exportOpen} onClose={()=>setExportOpen(false)} videoUrl={film.videoUrl} brand={draft.brand} tagline={draft.tagline} onBrand={brand=>setDraft({...draft,brand})} onTagline={tagline=>setDraft({...draft,tagline})} shape={shape} onShape={setShape} exporting={exporting} onExport={()=>void makeExport()} onCancel={()=>exportController.current?.abort()}/>}
   <FilmConnectionDialog open={settings} onClose={()=>setSettings(false)} connection={connection} words={w} busy={isBusy} saving={busy==='key'} error={settings?error:''} onSave={saveKey} onRemove={removeConnection}/>

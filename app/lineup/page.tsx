@@ -169,11 +169,11 @@ function LineupStudio(){
   {error&&<Banner kind="bad" icon={<AlertTriangle/>}><span className="ds-row editor-message"><span>{say(error)}</span><IconButton label="Dismiss error" size="sm" onClick={()=>setError('')}><X aria-hidden="true"/></IconButton></span></Banner>}
  </div>:undefined;
  // Why Generate cannot run here (the account and credits are checked by the editor).
- const blocked:GenerateBlocker|null=status.known&&provider==='openai'&&!connected?(status.ownKeys?{title:say('Connect your OpenAI key to generate'),body:'Your company uses its own keys. Connect it in Key visual, under More actions.'}:{title:'AI generation isn’t set up for your Studio yet',body:'Ask Nmesis to set it up.'}):null;
+ const blocked:GenerateBlocker|null=status.known&&provider==='openai'&&!connected?(status.ownKeys?{title:say('Connect your OpenAI key to generate'),body:'Your company uses its own keys. An owner connects it in Company settings, under Own keys.'}:{title:'AI generation isn’t set up for your Studio yet',body:'Ask Nmesis to set it up.'}):null;
  const note=issue?say(issue):!mood&&!pin.trim()?'Add an inspiration to generate.':[billing,'Creates one paid image. Original references and earlier versions stay saved.'].filter(Boolean).join(' ');
 
  return <WorkspaceFrame current="lineup" bleed notices={<AccountNotices variant="ds"/>}>
-  <EditorScreen tool="lineup" onTool={t=>{if(t!=='lineup')router.push(EDITOR_TOOLS.find(x=>x.id===t)?.href||'/')}}
+  <EditorScreen tool="lineup" loading={!status.known} onTool={t=>{if(t!=='lineup')router.push(EDITOR_TOOLS.find(x=>x.id===t)?.href||'/')}}
    bar={bar} stage={stage} history={<VersionHistory versions={versions} current={showResult?currentId:null} onPick={id=>{const v=visuals.find(x=>x.id===id);if(v)pick(v)}}/>}
    jobs={jobs} settings={settings} cost={cost} busy={!!busy} blocked={blocked} payer={provider} disabled={!ready||!status.known||!!issue||(!mood&&!pin.trim())} onGenerate={()=>void generate()} note={note}/>
   {editCar&&editConfig&&<LineupCarDialog key={editCar.id} car={editCar} index={cars.indexOf(editCar)} config={editConfig} onPatch={patch=>update(editCar.id,patch)} onClose={()=>setCaptureId('')}/>}

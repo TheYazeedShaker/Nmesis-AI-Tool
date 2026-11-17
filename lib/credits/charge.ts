@@ -3,6 +3,7 @@ import {NO_CREDIT_STATUS} from '../provider-credit';
 import {creditStore,type Billing,type CreditStore,type HoldInput} from './store';
 import {creditsFor,notEnoughCredits,PROVIDER_LABELS,isCostKey,type CostKey,type CreditProvider,type PriceBook} from './pricing';
 import {alertNmesis,sendMail,warningMail} from './alerts';
+import {alertRecipients} from './recipients';
 import type {FeatureKey} from '../accounts/plan';
 // Every paid action, in six steps: (1) its provider cost is quoted or taken from
 // the cost table, (2) converted to credits, (3) reserved atomically against the
@@ -84,13 +85,15 @@ export async function charged<T>(ctx:Ctx,spend:Spend,run:(hold:Hold)=>Promise<T>
  return {value,credits};
 }
 // The 80% and 100% warnings: a banner (from the meter) and one email per level
-// per billing period to the company's owners.
+// per billing period to the people the owners chose in Company settings, or to
+// the company's owners when they chose nobody (lib/credits/recipients.ts).
 export async function warnIfNeeded(ctx:Ctx,store:CreditStore=storeOf(ctx)){
  const meter=await store.meter(ctx.org);
  if(!meter.level||!meter.periodFrom)return null;
  if(!await store.markAlert(ctx.org,meter.periodFrom,meter.level))return null;
- const owners=await store.ownerEmails(ctx.org).catch(()=>[] as string[]);
- await sendMail(warningMail(ctx.account.org.name,meter.level,meter,owners),'credits-'+meter.level);
+ const people=await store.people(ctx.org).catch(e=>{console.error('Credit warning: the company’s people could not be read',e instanceof Error?e.name:'UnknownError');return []});
+ const to=await alertRecipients(ctx.DB,ctx.org,people);
+ await sendMail(warningMail(ctx.account.org.name,meter.level,meter,to),'credits-'+meter.level);
  return meter.level;
 }
 

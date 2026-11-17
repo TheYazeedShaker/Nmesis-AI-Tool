@@ -2,9 +2,44 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-17 (Design Phase 3 editor cleanup: the editor fills the window, one quality control, "not available" made clear)
+**Last updated:** 2026-11-17 (Design Phase 3 finish pass: faster CI and pages, the old screens in the new design)
 
-**Latest (2026-11-17, design programme Phase 3 editor cleanup, `design/editor-cleanup`):**
+**Latest (2026-11-17, design programme Phase 3 finish pass, `design/finish-pass`):**
+- **CI:**
+  - PRs run the fast gates in parallel, plus `check:ui` for only the screens the change can reach (`scripts/ui/affected.mjs` follows imports; a shell or design-system change means every screen), split over up to 4 shards.
+  - The full sweep with `--perf` runs nightly on `development` (once this `ci.yml` is on `main`), on PRs into `main`, and on demand (`full`, `update_baseline`).
+  - The ratchet holds per-screen counts (`byScreen`).
+  - Agents report once the fast gates pass.
+- **Pages draw at once:**
+  - The notices no longer hide the page once their height is known for this width and look, and the credit meter has its own skeleton.
+  - Fewer database statements, every value a parameter (owner, 2026-11-17: never write values into SQL text). The staff role and the memberships come in one statement, the meter (balance, holds, packs) in one statement with CTEs, and the other context reads in parallel. The saved-key check is one S3 listing, in parallel, capped at 1.5 s. The page gate checks the token locally where the Supabase project signs with asymmetric keys.
+  - `/api/me`, `/api/credits` and `/api/library` send `Server-Timing`.
+- **Brand logos:** read from the configurator's private asset bucket with a signed S3 read (`CONFIGURATOR_ASSET_BUCKET`, `CONFIGURATOR_ASSET_REGION`, optionally `CONFIGURATOR_ASSET_HOSTS`). A brand with no logo shows its name alone.
+- **Library:**
+  - Create is a design-system menu (the five tools and New folder; New folder is off until 0006 with "Folders turn on after the next update").
+  - The car filter lists every car of the brand.
+  - Each view and filter has its own empty state.
+- **Dialogs:** they scroll in one place only (their body). A test keeps it that way.
+- **Company settings:**
+  - Team: invite, change role, remove, seats and a log, through setup SQL section 7.
+  - Plan; Brand.
+  - Notifications: who gets the credit emails (migration 0008).
+  - Own keys, moved from the tools' menus.
+  - Support access with page names.
+- **Usage:**
+  - A gauge with the 80/100 marks, use by day, by person and by tool (tables that become cards on phones), the last 50 actions, packs, and "Ask Nmesis for a pack".
+  - It fits 360 and 390.
+- **Projects:** a page header in every state.
+- **Page titles:** "<Page> · Nmesis Studio". Dates are shown as "14 Nov 2026, 20:42".
+- **Upgrade page:** a design-system page with what the tool does, a sample picture from the company's own work or cars, the plan that has it, and "Ask Nmesis".
+- **Home:** each tool card shows the company's latest work for that tool, or one of its cars. The prompt suggests one of their cars.
+- **Story:**
+  - One primary action.
+  - The free-text car field only for a car that isn't one of the company's.
+  - A one-line bar with "More actions".
+- No hosted system was touched.
+
+**Earlier (2026-11-17, design programme Phase 3 editor cleanup, `design/editor-cleanup`, merged #37):**
 - The editor fills the window below the top bar at every size. The stage grows into the canvas with flex, not a percentage height that browsers resolve differently. A new `check:ui` count, `editorBand` (ratcheted at 0), fails on any band left below the editor or under its version history.
 - Clients choose Quality only. Engine, model and output size, and the video model and connection, are under an "Advanced" fold that only staff and companies with their own keys see (`Advanced` in `components/editor/editor-screen.tsx`), in all five tools.
 - Loose help lines at the end of the panels are gone ("Connections and usage…", the provider lines, the Film, Swap and Story trailing lines). Help sits under the field it explains.
@@ -114,7 +149,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the main Supabase project and S3 |
 | S2.1 hosted fixes, staff portal | ✅ | Merged into `development` and released to `main` (#22) |
 | S3 credits, own keys, support access | ✅ | Merged into `development` (#28); owner steps (setup SQL section 6, provider accounts and limits, Vercel variables, plans per client) in the PR body |
-| Design programme | 🟡 | Phases 0 (#29), 1 (#31), 2a (#32), 2b (#33), Phase 3 group 1 (#34), group 2 (#35) and editor polish (#36) merged; editor cleanup PR `design/editor-cleanup`; owner migrates 0007, runs the backfill, re-runs setup SQL section 5 |
+| Design programme | 🟡 | Phases 0 (#29), 1 (#31), 2a (#32), 2b (#33), Phase 3 group 1 (#34), group 2 (#35) editor polish (#36) and editor cleanup (#37) merged; finish pass PR `design/finish-pass`; owner migrates 0007, runs the backfill, re-runs setup SQL section 5 |
 | Environment scope | 🟡 | Merged (#30); owner runs `npm run db:migrate` (0004) only after the change is live on Preview **and** Production |
 
 ## What was built last session (Design Phase 0)
@@ -241,15 +276,20 @@ _Carried_
 
 ## Next session — start here
 
-1. Owner: review PR `design/editor-cleanup`.
-2. Owner:
+1. Owner: review PR `design/finish-pass`.
+2. Owner (finish pass):
+   - set the Vercel Functions region to the Supabase project's region, and redeploy (the largest remaining speed factor);
+   - optionally switch Supabase Auth's JWT signing keys to asymmetric, so the page gate checks tokens locally;
+   - for brand logos, per environment: give the Studio's IAM user read on the configurator asset bucket's icons, then set `CONFIGURATOR_ASSET_BUCKET` and `CONFIGURATOR_ASSET_REGION` (optionally `CONFIGURATOR_ASSET_HOSTS`). See `docs/s3-setup.md` section 6;
+   - run section 7 of `docs/supabase-setup.sql` (team functions) and apply migration 0008 (`npm run db:migrate`);
+   - after this `ci.yml` reaches `main`, the nightly sweep starts.
+3. Owner (earlier):
    - re-run section 5 of `docs/supabase-setup.sql` (adds `accounts.studio_brands`);
    - set `CONFIGURATOR_ORIGIN` if it isn't already set, per environment (it is already used for the configurator links);
    - turn off the Vercel Toolbar for Preview.
-3. Owner, after the release to `main` (unchanged): `npm run db:migrate` once (0004 to 0007), then the library backfill per environment.
-4. Then Phase 4 (BACKLOG #10).
-5. Follow-ups:
-   - the Usage page is wider than a 360/390 phone, which zooms it out (check:ui pagesZoomedOutOnPhones, ratcheted at 8);
+4. Owner, after the release to `main` (unchanged): `npm run db:migrate` once (0004 to 0007), then the library backfill per environment.
+5. Then Phase 4 (BACKLOG #10).
+6. Follow-ups:
    - toasts in the browser's top layer, so Undo can be reached while a dialog is open;
    - the remote-control configurator adapter when the protocol is ready (keep the current adapter as it is until then).
-6. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").
+7. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").

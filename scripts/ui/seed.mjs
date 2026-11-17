@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import postgres from 'postgres';
 import { encode } from 'fast-png';
+import { FOLDER_ID } from './screens.mjs';
 
 const ROOT = new URL('../../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, ROOT), 'utf8');
@@ -24,7 +25,8 @@ const ssl = (url) => (/[?&]sslmode=disable\b/.test(url) ? false : 'require');
 const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
 // Phase 3: the folders seeded for Demo Company (one with a sub-folder, one long name, one empty).
-export const FOLDER_ID = '00000000-0000-4000-8000-0000000f0001';
+// FOLDER_ID lives in ./screens.mjs (the folder screen's path), which has no dependency.
+export { FOLDER_ID };
 export const ENV = 'preview'; // the harness's Studio runs with VERCEL_ENV=preview
 
 export const ORGS = {

@@ -24,7 +24,7 @@ const PASSWORD='local-test-password-0123456789';
 // Stands in for hosted Supabase's SQL-editor user (not a superuser; CREATEROLE).
 const SETUP_ROLE='studio_setup_test';
 const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log','folders','folder_items','library_items'];
-const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql','0006_folders.sql','0007_library_index.sql'];
+const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql','0006_folders.sql','0007_library_index.sql','0008_alert_recipients.sql'];
 // Client work, filtered by environment (0004); the holds and the staff log record it.
 // The tables 0004 scoped (they existed before it); 0006 adds folders scoped the same way from the start.
 const SCOPED_0004=['films','swap_jobs','storyboards','image_jobs','topaz_jobs','film_budgets'];
@@ -33,7 +33,7 @@ const RECORDED=['credit_holds','staff_access_log'];
 // The environment these tests run as: no VERCEL_ENV, not production.
 const ENV='development';
 // S3: the credits and support-access tables (their own tests below).
-const CREDIT_TABLES=['credit_accounts','credit_holds','support_grants'];
+const CREDIT_TABLES=['credit_accounts','credit_holds','support_grants','alert_recipients'];
 // Synthetic companies and people in the accounts fixture.
 const ORG_A='0000000a-0000-4000-8000-00000000000a',ORG_B='0000000b-0000-4000-8000-00000000000b',ORG_N='00000001-0000-4000-8000-000000000001';
 // Company C and its owner and creator: the credits and support-access tests.
@@ -145,7 +145,7 @@ test('every table has org_id and RLS; anon/authenticated are refused; studio_app
  for(const t of tables){assert.equal(t.relrowsecurity,true,t.relname+' RLS');assert.equal(t.owner,'studio_app');if(!['__studio_migrations','car_settings'].includes(t.relname))assert.equal(t.org_id,true,t.relname+' org_id')}
  const forced=await admin`select c.relname, c.relforcerowsecurity as forced, (select count(*)::int from pg_policy p where p.polrelid=c.oid) as policies
    from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relkind='r' and c.relname<>'__studio_migrations'`;
- for(const t of forced){assert.equal(t.forced,true,t.relname+' forced RLS');assert.equal(t.policies,t.relname==='support_grants'?4:1,t.relname+' policies')}
+ for(const t of forced){assert.equal(t.forced,true,t.relname+' forced RLS');assert.equal(t.policies,['support_grants','alert_recipients'].includes(t.relname)?4:1,t.relname+' policies')}
  const [role]=await admin`select rolsuper,rolbypassrls,rolinherit,rolcanlogin from pg_roles where rolname='studio_app'`;
  assert.deepEqual({...role},{rolsuper:false,rolbypassrls:false,rolinherit:false,rolcanlogin:true});
  for(const api of ['anon','authenticated'])for(const table of [...TABLES,...CREDIT_TABLES])
@@ -377,6 +377,21 @@ test('the period the Studio meters: the allowance resets on the subscription\'s 
  try{const [r]=await app`select credits_balance(${org}) as b`;assert.equal(JSON.parse(r.b).monthly,30)}finally{await app.end({timeout:5})}
 });
 
+test('one statement each, every value a parameter: the meter (balance, holds, packs) and the person (staff role, memberships)',{skip},async()=>{
+ await setup();const org=await companyWith(30);const sql=connect(appUrl),db=new StudioDatabase(sql).forUser(USER_C);
+ const {METER_SQL}=await import('../lib/credits/store.ts');
+ const {postgresDirectory}=await import('../lib/accounts/directory.ts');
+ try{
+  // The combined meter runs as written (no fallback) and agrees with the balance.
+  const row=await db.prepare(METER_SQL).bind(org,org,Date.now(),org,new Date(Date.now()-31*86_400_000).toISOString()).first();
+  assert.equal(JSON.parse(row.b).monthly,30);assert.equal(Number(row.held),0);assert.equal(Number(row.packs),0);
+  const meter=await new CreditStore(db).meter(org);assert.equal(meter.periodFrom,JSON.parse(row.b).period_from.slice(0,10));
+  // The person read gives exactly what the two separate reads give.
+  const dir=postgresDirectory(db);
+  for(const who of [USER_C,STAFF])assert.deepEqual(await dir.person(who),{staffRole:await dir.staffRole(who),memberships:await dir.memberships(who)});
+ }finally{await sql.end({timeout:5})}
+});
+
 test('support access (RLS): the owner grants, a creator cannot, staff may read but never write, other companies see nothing',{skip},async()=>{
  await setup();const sql=connect(appUrl),base=new StudioDatabase(sql);
  const owner=base.forUser(USER_C),creator=base.forUser(USER_D),staff=base.forUser(STAFF),other=base.forUser(USER_A);
@@ -534,5 +549,89 @@ test('library index: one row per piece of work, upserted; another company or env
   assert.deepEqual((await page(a)).results.map(r=>r.id),['lib-1'],'the library query runs as written');
   assert.deepEqual((await page(prod.forUser(USER_B))).results,[],'another company sees none of it');
   assert.deepEqual((await page(prev.forUser(USER_A))).results,[],'Preview sees none of Production’s index');
+ }finally{await sql.end({timeout:5})}
+});
+
+// ── Design finish pass: team changes (setup SQL section 7) and credit-email recipients (0008) ──
+// The functions as the Studio calls them, as studio_app with the signed-in
+// person's id: only an active owner of that client company changes its team,
+// one active owner always stays, the plan's seats hold, every change is logged.
+test('team functions: owners only, one owner stays, seats, logged; studio_app reaches nothing else',{skip},async()=>{
+ await setup();
+ const org=`0000d${String(Date.now()).slice(-3)}-0000-4000-8000-${String(Date.now()).slice(-12).padStart(12,'0')}`;
+ await admin.unsafe(`insert into accounts.organisations(id,name,kind) values ('${org}','Team Co','client');
+  insert into accounts.members(org_id,user_id,role,status) values ('${org}','${USER_C}','owner','active'),('${org}','${USER_D}','creator','active');`);
+ const app=postgres(appUrl,{max:1,prepare:false,ssl:ssl(appUrl),onnotice:()=>{}});
+ const invite=(actor,email,role='creator',o=org)=>app`select accounts.studio_team_invite(${o}::uuid, ${actor}::uuid, ${email}, ${role}) as r`.then(r=>r[0].r);
+ const setRole=(actor,user,role,o=org)=>app`select accounts.studio_team_set_role(${o}::uuid, ${actor}::uuid, ${user}::uuid, ${role}) as r`.then(r=>r[0].r);
+ const remove=(actor,user,o=org)=>app`select accounts.studio_team_remove(${o}::uuid, ${actor}::uuid, ${user}::uuid) as r`.then(r=>r[0].r);
+ const member=async user=>(await admin`select role,status from accounts.members where org_id=${org}::uuid and user_id=${user}::uuid`)[0];
+ try{
+  // Not an owner: a creator, staff, an owner of another company. Nothing changes.
+  await assert.rejects(()=>invite(USER_D,'a@example.test'),e=>e.code==='42501','a creator cannot invite');
+  await assert.rejects(()=>invite(STAFF,'a@example.test'),e=>e.code==='42501','staff cannot invite');
+  await assert.rejects(()=>invite(USER_B,'a@example.test'),e=>e.code==='42501','another company’s owner cannot invite');
+  await assert.rejects(()=>setRole(USER_D,USER_C,'viewer'),e=>e.code==='42501');
+  await assert.rejects(()=>remove(USER_D,USER_C),e=>e.code==='42501');
+  await assert.rejects(()=>invite(USER_C,'a@example.test','creator',ORG_B),e=>e.code==='42501','USER_C owns Team Co, not B');
+  await assert.rejects(()=>invite(STAFF,'a@example.test','creator',ORG_N),e=>e.code==='22023','Nmesis’s own workspace is the admin’s');
+  await assert.rejects(()=>invite(USER_C,'not an email'),e=>e.code==='22023');
+  await assert.rejects(()=>invite(USER_C,'a@example.test','admin'),e=>e.code==='22023');
+  // No sign-in yet: nothing written; the Studio sends Supabase's invitation and asks again.
+  assert.deepEqual(await invite(USER_C,'Nobody.Yet@example.test'),{result:'no_account'});
+  // An existing sign-in joins as invited; a second time says so.
+  const added=await invite(USER_C,'A@Example.test','viewer');assert.equal(added.result,'invited');assert.equal(added.user_id,USER_A);
+  assert.deepEqual({...await member(USER_A)},{role:'viewer',status:'invited'});
+  // Who invited them and when are recorded on the member row; joined_at waits for their first sign-in.
+  const [row]=await admin`select invited_by::text as by, invited_at is not null as at, joined_at from accounts.members where org_id=${org}::uuid and user_id=${USER_A}::uuid`;
+  assert.deepEqual({...row},{by:USER_C,at:true,joined_at:null});
+  assert.equal((await invite(USER_C,'a@example.test')).result,'already_member');
+  // Roles: changed, unchanged; the only active owner stays an owner.
+  assert.equal((await setRole(USER_C,USER_D,'viewer')).result,'changed');assert.equal((await member(USER_D)).role,'viewer');
+  assert.equal((await setRole(USER_C,USER_D,'viewer')).result,'unchanged');
+  assert.equal((await setRole(USER_C,USER_C,'creator')).result,'last_owner');assert.equal((await member(USER_C)).role,'owner');
+  assert.equal((await setRole(USER_C,USER_B,'viewer')).result,'not_member','a person of another company');
+  assert.equal(await member(USER_B),undefined);
+  // Seats: the plan's studio.seats (here an override) counts invited and active people.
+  await admin.unsafe(`insert into accounts.overrides(org_id,feature_key,value) values ('${org}','studio.seats','3'::jsonb) on conflict (org_id,feature_key) do update set value=excluded.value`);
+  assert.equal((await invite(USER_C,'b@example.test')).result,'no_seats');
+  assert.equal((await invite(USER_C,'nobody.yet@example.test')).result,'no_seats','no free seat: no invitation email either');
+  // Remove: status 'removed'; again: not a member; never the last owner.
+  assert.equal((await remove(USER_C,USER_D)).result,'removed');assert.equal((await member(USER_D)).status,'removed');
+  assert.equal((await remove(USER_C,USER_D)).result,'not_member');
+  assert.equal((await remove(USER_C,USER_C)).result,'last_owner');
+  // A removed person can be invited back (a seat is free again).
+  assert.equal((await invite(USER_C,'d@example.test','creator')).result,'invited');assert.deepEqual({...await member(USER_D)},{role:'creator',status:'invited'});
+  // Every change, newest first, with who made it.
+  const log=await app`select action,email,role_before,role_after,actor_email from accounts.studio_team_changes where org_id=${org}::uuid order by at desc,id desc`;
+  assert.deepEqual(log.map(l=>[l.action,l.email,l.role_before,l.role_after]),[['invite','d@example.test',null,'creator'],['remove','d@example.test','viewer',null],['role','d@example.test','creator','viewer'],['invite','a@example.test',null,'viewer']]);
+  assert.ok(log.every(l=>l.actor_email==='c@example.test'));
+  // studio_app reads the log only through the view, and cannot write it or the members.
+  await assert.rejects(()=>app`select * from accounts.studio_team_log`,/permission denied/);
+  await assert.rejects(()=>app`insert into accounts.studio_team_log(org_id,actor,action,user_id) values (${org}::uuid,${USER_C}::uuid,'invite',${USER_C}::uuid)`,/permission denied/);
+  await assert.rejects(()=>app`select accounts.studio_team_check(${org}::uuid, ${USER_C}::uuid)`,/permission denied/);
+  await assert.rejects(()=>app`update accounts.members set role='owner' where user_id=${USER_D}::uuid`,/permission denied/);
+  for(const api of ['anon','authenticated'])await assert.rejects(()=>admin.begin(async tx=>{await tx.unsafe('set local role '+api);await tx.unsafe(`select accounts.studio_team_invite('${org}','${USER_C}','x@example.test','creator')`)}),/permission denied/);
+ }finally{await app.end({timeout:5})}
+});
+
+test('credit-email recipients (0008): owners choose; creators and staff cannot; members read; other companies see nothing',{skip},async()=>{
+ await setup();
+ await admin.unsafe('delete from studio.alert_recipients');
+ const sql=connect(appUrl),base=new StudioDatabase(sql);
+ const owner=base.forUser(USER_C),creator=base.forUser(USER_D),staff=base.forUser(STAFF),other=base.forUser(USER_A);
+ const choose=(db,user)=>db.prepare('INSERT INTO alert_recipients(org_id,user_id,chosen_by,chosen_at) VALUES(?,?,?,CAST(? AS BIGINT))').bind(ORG_C,user,USER_C,Date.now()).run();
+ try{
+  await assert.rejects(()=>choose(creator,USER_D),/row-level security/,'a creator cannot choose');
+  await assert.rejects(()=>choose(staff,USER_D),/row-level security/,'staff cannot choose');
+  await assert.rejects(()=>choose(other,USER_D),/row-level security/,'another company cannot choose');
+  assert.equal((await choose(owner,USER_D)).meta.changes,1,'the owner chooses');
+  assert.equal((await creator.prepare('SELECT user_id FROM alert_recipients WHERE org_id=?').bind(ORG_C).all()).results.length,1,'members read it');
+  assert.equal((await staff.prepare('SELECT user_id FROM alert_recipients').all()).results.length,1,'staff read it');
+  assert.equal((await other.prepare('SELECT user_id FROM alert_recipients').all()).results.length,0,'another company sees nothing');
+  assert.equal((await creator.prepare('DELETE FROM alert_recipients WHERE org_id=?').bind(ORG_C).run()).meta.changes,0,'a creator cannot remove it');
+  const {saveRecipients,chosenRecipients}=await import('../lib/credits/recipients.ts');
+  await saveRecipients(owner,ORG_C,USER_C,[USER_C,USER_D]);
+  assert.deepEqual((await chosenRecipients(creator,ORG_C)).sort(),[USER_C,USER_D].sort(),'the owner’s choice, replaced in one go');
  }finally{await sql.end({timeout:5})}
 });

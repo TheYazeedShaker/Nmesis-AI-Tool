@@ -41,6 +41,15 @@ const iso=(v:unknown)=>{const t=v instanceof Date?v.getTime():Date.parse(String(
 const day=(v:unknown)=>v instanceof Date?v.toISOString().slice(0,10):typeof v==='string'?v.slice(0,10):null;
 let bookCache:{at:number;value:Promise<PriceBook>}|null=null;
 export const clearPriceBookCache=()=>{bookCache=null};
+// The meter (see CreditStore.meter): balance, live holds and packs in one statement.
+export const METER_BALANCE_SQL="SELECT credits_balance(CAST(? AS TEXT)) AS b, CAST(COALESCE((SELECT SUM(h.credits) FROM credit_holds h WHERE h.org_id=? AND h.status='held' AND h.billing='credits' AND h.expires_at>CAST(? AS BIGINT)),0) AS BIGINT) AS held";
+export const METER_SQL=`WITH bal AS (SELECT credits_balance(CAST(? AS TEXT)) AS b),
+ pf AS (SELECT b, CASE WHEN left(b,1)='{' THEN CAST(b AS jsonb)->>'period_from' END AS from_day FROM bal),
+ period AS (SELECT b, CASE WHEN from_day ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN CAST(CAST(left(from_day,10) AS date) AS timestamp) AT TIME ZONE 'UTC' END AS since FROM pf)
+SELECT period.b,
+ CAST(COALESCE((SELECT SUM(h.credits) FROM credit_holds h WHERE h.org_id=? AND h.status='held' AND h.billing='credits' AND h.expires_at>CAST(? AS BIGINT)),0) AS BIGINT) AS held,
+ (SELECT COALESCE(-SUM(u.credits),0) FROM accounts.studio_usage u WHERE u.org_id=CAST(? AS uuid) AND u.pack_id IS NOT NULL AND u.at>=COALESCE(period.since,CAST(? AS timestamptz))) AS packs
+FROM period`;
 export class CreditStore{
  private db:StudioDatabase;
  constructor(db:StudioDatabase){this.db=db}
@@ -71,12 +80,20 @@ export class CreditStore{
  // Credits spent this period: the allowance used (the admin's own count) plus
  // whatever came out of packs since the period started.
  async meter(org:string,now=Date.now()):Promise<CreditMeter>{
-  // The balance and the live holds in one statement, so a settlement between two
-  // reads can never make the meter (or a refusal) show credits that are not there.
-  const row=await this.db.prepare("SELECT credits_balance(CAST(? AS TEXT)) AS b, CAST(COALESCE((SELECT SUM(h.credits) FROM credit_holds h WHERE h.org_id=? AND h.status='held' AND h.billing='credits' AND h.expires_at>CAST(? AS BIGINT)),0) AS BIGINT) AS held").bind(org,org,now).first<{b:unknown;held:unknown}>();
-  const b=readBalance(row?.b),held=Number(row?.held)||0;
-  const since=b.periodFrom?b.periodFrom+'T00:00:00Z':new Date(now-31*86_400_000).toISOString();
-  const fromPacks=Number(await this.db.prepare('SELECT COALESCE(-SUM(credits),0) AS n FROM accounts.studio_usage WHERE org_id=? AND pack_id IS NOT NULL AND at>=?').bind(org,since).first('n').catch(()=>0))||0;
+  // One statement, every value a parameter: the balance, the live holds and what
+  // packs paid since the period started (whose start the balance gives), so a
+  // settlement between reads can never make the meter (or a refusal) show
+  // credits that are not there, and the meter costs one statement.
+  const since=new Date(now-31*86_400_000).toISOString();
+  let row:{b:unknown;held:unknown;packs:unknown}|null;
+  try{row=await this.db.prepare(METER_SQL).bind(org,org,now,org,since).first<{b:unknown;held:unknown;packs:unknown}>()}
+  catch(e){
+   // The packs' view is missing (setup SQL not re-run): the balance and holds alone, as before.
+   console.warn('credits: the combined meter failed; reading the balance alone',e instanceof Error?e.name:'UnknownError');
+   const r=await this.db.prepare(METER_BALANCE_SQL).bind(org,org,now).first<{b:unknown;held:unknown}>();
+   row=r?{...r,packs:0}:null;
+  }
+  const b=readBalance(row?.b),held=Number(row?.held)||0,fromPacks=Number(row?.packs)||0;
   return creditMeter({spent:b.used+Math.max(0,fromPacks),total:b.total,held,periodFrom:b.periodFrom,periodTo:b.periodTo});
  }
  // The price book (credit_basis, studio_cost.*), cached 60 s per instance. If the

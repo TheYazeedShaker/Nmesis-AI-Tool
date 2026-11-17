@@ -1,14 +1,14 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useEffect,useLayoutEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {staffLabel,workName} from '@/lib/accounts/names';
-import Link from 'next/link';
 import {Eye,Lock,Info} from 'lucide-react';
-import {CreditBanner,loadCredits} from '@/components/credits';
-import {StudioTopBar} from '@/components/studio-topbar';
+import {CreditBanner,creditsKnown,loadCredits} from '@/components/credits';
+import {UpgradePage} from '@/components/workspace/upgrade';
 import {Banner} from '@/components/ds/shell';
 import {Popover,PopoverTrigger,PopoverContent} from '@/components/ui/popover';
 import {FEATURE_LABELS,type FeatureKey} from '@/lib/accounts/plan';
 import type {AccountSummary} from '@/lib/accounts/summary';
+import {noticeSpace,readNoticeSpace,rememberNoticeSpace} from '@/lib/notice-space';
 // The signed-in person's company and plan, loaded once per page from /api/me.
 // It only decides what to show: every API route checks the same things again.
 let pending:Promise<AccountSummary|null>|undefined;
@@ -23,6 +23,8 @@ export function loadAccount(){
   return last=r.ok?d as AccountSummary:null;
  }).catch(()=>{pending=undefined;return null});
 }
+/** Whether the account has been answered on this page (a page opened from another one in the Studio knows it at once). */
+export const accountKnown=()=>last!==undefined;
 export function useAccount(){
  const [account,setAccount]=useState<AccountSummary|null>(()=>last??null);
  useEffect(()=>{let live=true;void loadAccount().then(a=>{if(live)setAccount(a)});return()=>{live=false}},[]);
@@ -37,15 +39,28 @@ export const hasFeature=(account:AccountSummary|null,key:FeatureKey)=>!account||
 // components/studio-topbar.tsx.
 // Under the top bar: staff "Viewing as" (with support access), a refused company
 // link, no plan or a paused subscription, and the 80% / 100% credit banner.
-// Until the account and the credits are known (both decide which notices show),
-// a marker holds the rest of the page hidden (app/studio-shell.css), so the page
-// appears once, with its notices, instead of jumping down when they arrive
-// (CLS, F-036). Never longer than NOTICES_WAIT_MS, and never on a failed load.
-const NOTICES_WAIT_MS=3000;
+// Both the account and the credits decide which notices show, and a notice that
+// arrives after the page is drawn would push it down (CLS, F-036). So until they
+// are known (speed, finish pass):
+//  - when this browser knows how much room the notices took last time at this
+//    width (lib/notice-space.ts), that room is held empty and the page below is
+//    drawn at once, skeletons and all;
+//  - otherwise (a first visit, another width) a marker holds the page below
+//    hidden (app/studio-shell.css), never longer than NOTICES_WAIT_MS.
+// The page's own HTML (before the scripts run) always starts with the marker,
+// since the server cannot know either.
+const NOTICES_WAIT_MS=2000;
 function useNoticesSettled(){
- const [settled,setSettled]=useState(false);
+ // Opened from another Studio page: both are known, and the notices draw at once.
+ const [settled,setSettled]=useState(()=>accountKnown()&&creditsKnown());
  useEffect(()=>{let live=true;const done=()=>{if(live)setSettled(true)};void Promise.allSettled([loadAccount(),loadCredits()]).then(done);const timer=setTimeout(done,NOTICES_WAIT_MS);return()=>{live=false;clearTimeout(timer)}},[]);
  return settled;
+}
+// The room remembered for this width (null: none known). The page's HTML has
+// none (the server cannot know it); the browser reads it as the scripts start.
+const noUpdates=()=>()=>{};
+function useRememberedSpace(kind:string){
+ return useSyncExternalStore(noUpdates,()=>readNoticeSpace(window.innerWidth,undefined,kind),()=>null);
 }
 function Note({ds,kind,icon,children}:{ds:boolean;kind:'info'|'warn';icon:React.ReactNode;children:React.ReactNode}){
  return ds?<Banner kind={kind} icon={icon}>{children}</Banner>
@@ -53,13 +68,23 @@ function Note({ds,kind,icon,children}:{ds:boolean;kind:'info'|'warn';icon:React.
 }
 // variant 'ds' (the rebuilt screens): the same notices as design-system banners.
 export function AccountNotices({variant}:{variant?:'ds'}={}){
- const account=useAccount(),settled=useNoticesSettled();
+ const account=useAccount(),settled=useNoticesSettled(),space=useRememberedSpace(variant||'plain');
  // A deep link (/?org=…) the server refused, or could not open, lands here once.
  const [opened]=useState(()=>typeof window==='undefined'?null:new URLSearchParams(window.location.search).get('opened'));
- if(!settled)return <div className="notices-pending" aria-hidden="true"/>;
+ const box=useRef<HTMLDivElement>(null);
+ // What the notices took, for the next page at this width: watched, so a
+ // banner that arrives later (the credits) is remembered too.
+ useLayoutEffect(()=>{
+  const el=box.current;if(!settled||!account||!el)return;
+  const remember=()=>rememberNoticeSpace(window.innerWidth,el.offsetHeight,undefined,variant||'plain');
+  remember();
+  if(typeof ResizeObserver==='undefined')return;
+  const watch=new ResizeObserver(remember);watch.observe(el);return()=>watch.disconnect();
+ },[settled,account,variant]);
+ if(!settled)return space===null?<div className="notices-pending" aria-hidden="true"/>:<div className="studio-notices" aria-hidden="true" style={noticeSpace(space)}/>;
  if(!account)return null;
  const w=account.workspace,ds=variant==='ds';
- return <>
+ return <div ref={box} className="studio-notices">
   {opened==='refused'&&<Note ds={ds} kind="info" icon={<Info size={16}/>}>That company link isn’t open to you, so you are in <b>{workName(account)}</b>.</Note>}
   {opened==='support'&&<Note ds={ds} kind="info" icon={<Info size={16}/>}>Support access not granted for that company, so you are in <b>{workName(account)}</b>. Its owner can allow it in Company settings.</Note>}
   {opened==='failed'&&<Note ds={ds} kind="info" icon={<Info size={16}/>}>That company link could not be opened. Try it again, or choose the company here.</Note>}
@@ -68,7 +93,7 @@ export function AccountNotices({variant}:{variant?:'ds'}={}){
   {w.open&&<CreditBanner variant={variant}/>}
   {!w.open&&!w.noPlan&&<Note ds={ds} kind="warn" icon={<Lock size={16}/>}>{w.libraryOpen?'Your company’s Studio subscription is not active, so new work is paused.'+(w.libraryUntil?` Your library stays viewable until ${w.libraryUntil}.`:' Your library stays viewable.'):'Your company’s Studio subscription has ended and its library is no longer available here.'} Ask Nmesis to reopen it.</Note>}
   {w.open&&account.role==='viewer'&&!account.viewingAs&&<Note ds={ds} kind="info" icon={<Info size={16}/>}>You can look at your company’s work. Ask your company’s owner for creator access to make new work.</Note>}
- </>;
+ </div>;
 }
 // A company whose subscription has ended (not one that never had a plan): its
 // tools are off because the plan ended, not because the plan lacks them (F-051).
@@ -88,10 +113,10 @@ export function FeatureLink({feature,href,children,current,className}:{feature:F
  if(hasFeature(account,feature))return <a className={className} href={href} aria-current={current?'page':undefined}>{children}</a>;
  return <span className={'feature-off'+(className?' '+className:'')}>{children}<span className="plan-chip">{planEnded(account)?PLAN_ENDED_CHIP:account!.upsell[feature]}</span></span>;
 }
-// A whole page for one tool: shown when the plan has it, otherwise a plain notice.
+// A whole page for one tool: shown when the plan has it, otherwise the
+// "needs a plan upgrade" page (components/workspace/upgrade.tsx).
 export function PlanGate({feature,children}:{feature:FeatureKey;children:React.ReactNode}){
  const account=useAccount();
  if(hasFeature(account,feature))return <>{children}</>;
- const ended=planEnded(account);
- return <><StudioTopBar/><AccountNotices/><main className="plan-gate"><section><p className="eyebrow">YOUR PLAN</p>{ended?<><h1>Your Studio plan has ended</h1><p className="helper">New work, including {FEATURE_LABELS[feature].toLowerCase()}, is paused. Ask Nmesis to renew your company’s plan.</p><div className="upsell"><span className="plan-chip">{PLAN_ENDED_CHIP}</span><AskNmesis feature={feature} ended/></div></>:<><h1>{FEATURE_LABELS[feature]} is available on {account!.upsell[feature]}</h1><p className="helper">Your company’s plan doesn’t include {FEATURE_LABELS[feature].toLowerCase()} yet. Ask Nmesis to add it.</p><div className="upsell"><span className="plan-chip">Available on {account!.upsell[feature]}</span><AskNmesis feature={feature}/></div></>}<Link className="secondary" href="/">Back to Home</Link></section></main></>;
+ return <UpgradePage feature={feature} plan={account!.upsell[feature]} ended={planEnded(account)}/>;
 }

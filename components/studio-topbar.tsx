@@ -3,12 +3,13 @@ import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import Link from 'next/link';
 import {Aperture,BarChart3,Building2,Check,ChevronDown,ChevronsUpDown,Clapperboard,Eye,Film,FolderOpen,Home,ImageIcon,LayoutGrid,Layers,Lock,LogOut,Menu,Replace,Settings,Shapes} from 'lucide-react';
 import {Dialog} from '@/components/ds/dialog';
-import {loadCredits,useCredits} from '@/components/credits';
-import {hasFeature,loadAccount,planEnded,PLAN_ENDED_CHIP,useAccount} from '@/components/studio-account';
+import {useCredits,useCreditsAnswered} from '@/components/credits';
+import {hasFeature,planEnded,PLAN_ENDED_CHIP,useAccount} from '@/components/studio-account';
 import {creditsLabel} from '@/lib/credits/words';
 import type {FeatureKey} from '@/lib/accounts/plan';
 import type {AccountSummary} from '@/lib/accounts/summary';
-import {initialsOf,staffLabel,workName} from '@/lib/accounts/names';
+import {staffLabel,workName} from '@/lib/accounts/names';
+import {logoMissing,logoSrc,logoView} from '@/lib/brand-logo';
 import type {CreditOverview} from '@/lib/credits/usage';
 
 // The Studio's one top bar (Phase 2b): the brand, one shared navigation, the
@@ -18,9 +19,11 @@ import type {CreditOverview} from '@/lib/credits/usage';
 // (Home, Library, Projects) and a Tools menu; light and dark on the new
 // screens, dark on the tool screens until they are rebuilt (group 2).
 //
-// No layout shift: the bar's height is fixed, and everything that waits for
-// /api/me and /api/credits appears at once, at the right-hand end, where it
-// pushes nothing.
+// No layout shift: the bar's height is fixed, and what waits for /api/me
+// appears at the right-hand end, where it pushes nothing. The credit meter
+// loads on its own (speed, finish pass): the account's end of the bar appears
+// as soon as the account is known, with a skeleton of the meter's own size in
+// the meter's place until the credits arrive.
 
 export type StudioPage='home'|'library'|'projects'|'visuals'|'lineup'|'storyboard'|'films'|'swap'|'usage'|'company'|'lab';
 type Tool={key:StudioPage;href:string;label:string;icon:React.ReactNode;feature?:FeatureKey};
@@ -45,15 +48,13 @@ export type BarAction={label:string;icon:React.ReactNode;onClick:()=>void};
 const ROLE_LABEL={owner:'Owner',creator:'Creator',viewer:'Viewer'} as const;
 const offChip=(account:AccountSummary|null,feature:FeatureKey)=>planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[feature]}`;
 
-// The account and the credits, together: the bar's end appears once, complete.
-// A preview (the design-system proposals) passes synthetic ones instead.
+// The account, and the credits on their own. A preview (the design-system
+// proposals) passes synthetic ones instead.
 export type ShellPreview={account:AccountSummary;credits:CreditOverview|null};
 function useShellData(preview?:ShellPreview){
- const account=useAccount(),credits=useCredits();
- const [ready,setReady]=useState(false);
- useEffect(()=>{if(preview)return;let live=true;void Promise.allSettled([loadAccount(),loadCredits()]).then(()=>{if(live)setReady(true)});return()=>{live=false}},[preview]);
- if(preview)return {account:preview.account,credits:preview.credits,ready:true};
- return {account,credits,ready:ready&&!!account};
+ const account=useAccount(),credits=useCredits(),answered=useCreditsAnswered();
+ if(preview)return {account:preview.account,credits:preview.credits,creditsAnswered:true};
+ return {account,credits,creditsAnswered:answered};
 }
 
 async function switchTo(place:Place){
@@ -80,14 +81,16 @@ const sectionsOf=(account:AccountSummary)=>account.switcher
  :[{label:'',places:placesOf(account.orgs,false)}];
 const brandsOnly=(account:AccountSummary)=>!account.switcher&&account.orgs.every(o=>o.brands?.length);
 
-/** A brand's logo (from its configurator, cached by the Studio), or its initials while it loads or when it has none. */
-export function BrandMark({brand,name}:{brand:{id:string;name:string}|null|undefined;name:string}){
+/** A brand's logo (from its configurator, cached by the Studio) on its plate.
+ * With no logo (the route answers 204) the name beside it stands alone: nothing
+ * is drawn, or, with `blank`, an empty space of the mark's size so a list keeps
+ * its names in line. Never initials next to the same name (lib/brand-logo.ts). */
+export function BrandMark({brand,blank}:{brand:{id:string;name:string}|null|undefined;blank?:boolean}){
  const [failed,setFailed]=useState(false);
+ if(!brand||logoView(brand,failed)==='name')return blank?<span className="ds-avatar studio-brand-blank" aria-hidden="true"/>:null;
  return <span className="ds-avatar studio-brand-mark" aria-hidden="true">
-  {brand&&!failed
-   // eslint-disable-next-line @next/next/no-img-element -- a private logo on a signed link, sized by the avatar
-   ?<img src={'/api/brands/'+encodeURIComponent(brand.id)+'/logo'} alt="" onError={()=>setFailed(true)}/>
-   :initialsOf(name)}
+  {/* eslint-disable-next-line @next/next/no-img-element -- a private logo on a signed link, sized by the avatar */}
+  <img src={logoSrc(brand.id)} alt="" onError={()=>{logoMissing(brand.id);setFailed(true)}}/>
  </span>;
 }
 
@@ -109,6 +112,10 @@ function ToolsMenu({account,current}:{account:AccountSummary|null;current?:Studi
  </div>;
 }
 
+// While the credits load: the meter's own shape and size, so nothing moves when they arrive.
+function MeterSkeleton(){
+ return <span className="ds-meter studio-meter studio-meter-loading" aria-hidden="true"><span className="ds-meter-track"/><span className="ds-skel ds-skel-line studio-meter-skel"/></span>;
+}
 function Meter({credits}:{credits:ReturnType<typeof useCredits>}){
  if(!credits||credits.unlimited||!credits.meter)return null;
  const m=credits.meter,level=m.level===100?'out':m.level===80?'warn':'ok';
@@ -130,7 +137,7 @@ function PlaceList({account,busy,onChoose}:{account:AccountSummary;busy:boolean;
  return <>
   {total>=9&&<div className="ds-field"><label className="ds-label" htmlFor="studio-company-search">{brandsOnly(account)?'Search brands':'Search'}</label><input id="studio-company-search" className="ds-input" type="search" value={query} onChange={e=>setQuery(e.target.value)} autoComplete="off"/></div>}
   {shown.length===0&&<p className="ds-muted">{'No '+noun+' with that name.'}</p>}
-  {shown.map(s=><div key={s.label||'places'} className="studio-menu-group" role="group" aria-label={s.label||(brandsOnly(account)?'Brands':'Companies')}>{s.label&&<p className="ds-muted">{s.label}</p>}{s.places.map(p=><button key={p.key} type="button" className="studio-menu-row" disabled={busy} aria-current={isHere(account,p)||undefined} onClick={()=>onChoose(p)}>{p.brand?<BrandMark brand={p.brand} name={p.brand.name}/>:<Building2 aria-hidden="true"/>}<span className="ds-truncate">{p.label}</span>{isHere(account,p)?<Check aria-label="Current"/>:s.label==='Clients'?<Eye aria-label="Read-only"/>:null}</button>)}</div>)}
+  {shown.map(s=><div key={s.label||'places'} className="studio-menu-group" role="group" aria-label={s.label||(brandsOnly(account)?'Brands':'Companies')}>{s.label&&<p className="ds-muted">{s.label}</p>}{s.places.map(p=><button key={p.key} type="button" className="studio-menu-row" disabled={busy} aria-current={isHere(account,p)||undefined} onClick={()=>onChoose(p)}>{p.brand?<BrandMark brand={p.brand} blank/>:<Building2 aria-hidden="true"/>}<span className="ds-truncate">{p.label}</span>{isHere(account,p)?<Check aria-label="Current"/>:s.label==='Clients'?<Eye aria-label="Read-only"/>:null}</button>)}</div>)}
  </>;
 }
 
@@ -139,7 +146,7 @@ function PlaceList({account,busy,onChoose}:{account:AccountSummary;busy:boolean;
 function Switcher({account,busy,onChoose}:{account:AccountSummary;busy:boolean;onChoose:(p:Place)=>void}){
  const [open,setOpen]=useState(false);
  const name=workName(account),noun=brandsOnly(account)?'brand':'company';
- const face=<><BrandMark brand={account.brand} name={name}/><span className="ds-switcher-name ds-truncate">{name}</span></>;
+ const face=<><BrandMark brand={account.brand}/><span className="ds-switcher-name ds-truncate">{name}</span></>;
  if(sectionsOf(account).reduce((n,s)=>n+s.places.length,0)<=1)return <span className="ds-switcher studio-switcher" title={name}>{face}<span className="ds-sr-only">{(account.brand?'Brand: ':'Company: ')+name}</span></span>;
  return <>
   <button type="button" className="ds-switcher studio-switcher" aria-haspopup="dialog" title={name} disabled={busy} onClick={()=>setOpen(true)}>{face}<span className="ds-sr-only">{', switch '+noun}</span><ChevronsUpDown aria-hidden="true"/></button>
@@ -172,7 +179,7 @@ function PhoneMenu({account,current,actions,busy,onChoose}:{account:AccountSumma
    <div className="studio-menu-group">
     <p className="ds-label-caps">{account.brand&&!account.switcher?'Brand':'Company'}</p>
     {many?<PlaceList account={account} busy={busy} onChoose={p=>{setOpen(false);onChoose(p)}}/>
-     :<span className="studio-menu-row"><BrandMark brand={account.brand} name={workName(account)}/><span className="ds-truncate">{workName(account)}</span></span>}
+     :<span className="studio-menu-row"><BrandMark brand={account.brand}/><span className="ds-truncate">{workName(account)}</span></span>}
     <span className="studio-menu-row ds-muted">{account.viewingAs?'Staff':ROLE_LABEL[account.role]}</span>
    </div>
    <div className="studio-menu-group">
@@ -199,7 +206,7 @@ function useFit(bar:React.RefObject<HTMLElement|null>){
 }
 
 export function StudioTopBar({current,actions,theme='dark',preview}:{current?:StudioPage;/** The page's own controls (a connection button); in the menu on phones. */actions?:BarAction[];/** 'system' on the rebuilt screens (light and dark); 'dark' on the tool screens until group 2. */theme?:'system'|'dark';preview?:ShellPreview}){
- const {account,credits,ready}=useShellData(preview);
+ const {account,credits,creditsAnswered}=useShellData(preview);
  const bar=useRef<HTMLElement>(null);useFit(bar);
  const {busy,problem,choose}=useSwitch();
  const settings=!!account&&(account.role==='owner'&&!account.internal||account.viewingAs);
@@ -211,9 +218,9 @@ export function StudioTopBar({current,actions,theme='dark',preview}:{current?:St
   <nav className="ds-nav studio-nav" aria-label="Main">{STUDIO_PLACES.map(t=><NavLink key={t.key} tool={t} account={account} current={current}/>)}<ToolsMenu account={account} current={current}/></nav>
   <div className="ds-topbar-end studio-topbar-end">
    {!!actions?.length&&<div className="studio-topbar-actions">{actions.map(a=><button key={a.label} type="button" className="ds-btn sm" aria-label={a.label} title={a.label} onClick={a.onClick}><span aria-hidden="true">{a.icon}</span><span className="studio-action-word" aria-hidden="true">{a.label}</span></button>)}</div>}
-   {ready&&account&&<>
+   {account&&<>
     {problem&&<span className="studio-topbar-problem" role="alert">{problem}</span>}
-    {account.workspace.open&&<Meter credits={credits}/>}
+    {account.workspace.open&&(creditsAnswered?<Meter credits={credits}/>:!account.internal&&<MeterSkeleton/>)}
     <span className="studio-wide"><Switcher account={account} busy={busy} onChoose={p=>void choose(account,p)}/></span>
     <span className="studio-wide studio-role">{account.viewingAs?'Staff':ROLE_LABEL[account.role]}</span>
     {settings&&<Link className="ds-btn icon studio-wide" href="/company" aria-label="Company settings" title="Company settings" aria-current={current==='company'?'page':undefined}><Settings aria-hidden="true"/></Link>}

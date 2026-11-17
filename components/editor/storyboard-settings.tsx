@@ -8,12 +8,16 @@ import {filmModelLabel} from '@/lib/provider-words';
 import {FILM_MODELS,VIDEO_MODEL} from '@/lib/films';
 import type {Configurator} from '@/lib/configurators';
 import type {Storyboard} from '@/lib/storyboards';
+import {isCompanyCar} from '@/lib/story-vehicle';
 import {CarSettings,PromptSettings,QUALITY_LABEL,SettingsSection,type Quality} from './parts';
 import {Advanced} from './editor-screen';
 import type {ConfiguratorOptions} from './configurator';
 
 // Story, the one settings panel (Phase 3 group 2): the car, the idea and its
 // atmosphere, how many shots, the film's ending and soundtrack, and quality.
+// One car control: with a configurator car chosen the picker names the car
+// (the page saves its name as the story's vehicle, lib/story-vehicle.ts); the
+// free-text "Car / trim" field is only for a story without one.
 // Quality is the clips' video model: Standard is the studio's standard model,
 // High detail its higher-fidelity tier of the same model (lib/films.ts). Clip
 // prices are quoted live per clip, so the cost shows once the estimate is in.
@@ -37,12 +41,12 @@ export function StorySettings({board,edit,cars,car,onCar,count,onCount,expert,on
  const musicInput=React.useRef<HTMLInputElement>(null);
  const planned=board.shots.length>0,locked=planned||disabled;
  const quality=qualityOf(board.model),standardModel=board.model===QUALITY_MODEL.standard||board.model===QUALITY_MODEL.high;
- const names=cars.some(c=>c.url===car.url)?cars:[...cars,car];
+ const names=cars.some(c=>c.url===car.url)?cars:[...cars,car],typed=!isCompanyCar(cars,car.url);
  return <fieldset className="ds-contents" disabled={disabled}>
   <CarSettings cars={names.map(c=>c.name)} car={car.name} onCar={name=>{const c=names.find(x=>x.name===name);if(c&&!locked&&c.url!==car.url)onCar(c)}} options={NONE} state={{}} onColour={()=>{}} onTrim={()=>{}} onView={()=>{}} controlsInEditor={false} idPrefix="story-car"/>
-  <SettingsSection title="Your car" id="story-vehicle-title">
+  {typed&&<SettingsSection title="Your car" id="story-vehicle-title">
    <Field label="Car / trim" help={planned?'Start a new story for another car.':'How the planner names your car.'}><Input value={board.vehicle} onChange={e=>edit({vehicle:e.target.value})} maxLength={100}/></Field>
-  </SettingsSection>
+  </SettingsSection>}
   <PromptSettings label="Your idea" value={board.idea} onChange={idea=>edit({idea})} max={2000} inspiration={false} placeholder="A black SUV at a sculptural glass pavilion, warm desert sunset, understated luxury…"/>
   {!planned&&<div className="ds-row" role="group" aria-label="Start from an idea">{IDEAS.map(([name,idea])=><Button key={name} size="sm" kind="quiet" aria-pressed={board.idea===idea} onClick={()=>edit({idea})}>{name}</Button>)}</div>}
   <SettingsSection title="Atmosphere" id="story-mood-title">

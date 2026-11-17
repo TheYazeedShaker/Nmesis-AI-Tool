@@ -127,6 +127,15 @@ body .studio input[type="checkbox"], body .studio input[type="radio"] { min-widt
    Films and Line-up keep a screen's height while their work loads, so what is
    below them starts off-screen instead of jumping. */
 .notices-pending ~ * { visibility: hidden; }
+/* Speed (finish pass): the notices sit in one box, so the room they take can be
+   measured and, on the next page at this width, held empty while they load
+   (the page below is then drawn at once); flow-root keeps their margins inside. */
+.studio-notices { display: flow-root; }
+/* The credit meter's skeleton: the meter's own box, so nothing moves when the
+   numbers arrive. "300 left" on wide bars, "300" where the word is hidden. */
+.studio-meter-loading { pointer-events: none; }
+.studio-meter-skel { width: 8ch; }
+@media (max-width: 768px) { .studio-meter-skel { width: 3ch; } }
 .film-loading, .lineup-loading { min-height: 100dvh; }
 .studio-topbar[data-tight] .studio-action-word { display: none; }
 .studio-topbar-actions .ds-btn { color: var(--ds-text); }
@@ -148,9 +157,11 @@ body .studio input[type="checkbox"], body .studio input[type="radio"] { min-widt
 }
 
 /* The brand people work as (Phase 3 polish): its logo on a light plate in both
-   themes (brand logos are drawn for a light ground), its initials until then. */
+   themes (brand logos are drawn for a light ground); with no logo, its name alone. */
 .studio-brand-mark { overflow: hidden; }
 /* A logo is usually a wordmark: a small rounded plate as wide as the logo needs (up to 64px), not a circle. */
 .studio-brand-mark:has(img) { background: var(--ds-on-media); width: auto; min-width: var(--ds-space-24); max-width: var(--ds-space-64); border-radius: var(--ds-radius-sm); padding: var(--ds-space-2) var(--ds-space-4); }
 .studio-brand-mark > img { height: 100%; width: auto; max-width: 100%; object-fit: contain; display: block; }
 .studio-menu-row .studio-brand-mark { flex: none; }
+/* No logo: the name stands alone; in a list, an empty space of the mark's size keeps the names in line. */
+.studio-brand-blank { background: transparent; }

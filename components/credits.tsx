@@ -3,12 +3,16 @@ import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {Coins,Info} from 'lucide-react';
 import {Banner} from '@/components/ds/shell';
+import {dayDate} from '@/lib/ds/words';
 import {creditsLabel,CREDITS_USED} from '@/lib/credits/words';
 import type {CreditOverview} from '@/lib/credits/usage';
 import type {CostKey,CreditProvider} from '@/lib/credits/pricing';
 // The company's credits as the workspace shows them: the top-bar meter, the
 // 80% / 100% banner, "N credits" before an action and "Used N credits" after it.
 // Loaded once per page from /api/credits and refreshed after each paid action.
+// It loads on its own: nothing on a page waits for it except the notices
+// (components/studio-account.tsx), and the meter holds its place with a
+// skeleton of its own size until it arrives (components/studio-topbar.tsx).
 // The server decides every charge; these only show it.
 let pending:Promise<CreditOverview|null>|undefined;
 const listeners=new Set<(o:CreditOverview|null)=>void>();
@@ -16,7 +20,19 @@ const listeners=new Set<(o:CreditOverview|null)=>void>();
 // once the notices know what to show) draws at once instead of a moment later.
 let last:CreditOverview|null|undefined;
 export function loadCredits(){
- return pending??=fetch('/api/credits',{credentials:'same-origin',cache:'no-store'}).then(async r=>r.ok?await r.json() as CreditOverview:null).then(o=>{last=o;return o}).catch(()=>{pending=undefined;return null});
+ return pending??=fetch('/api/credits',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(CREDITS_TIMEOUT_MS)}).then(async r=>r.ok?await r.json() as CreditOverview:null).then(o=>{last=o;return o}).catch(()=>{pending=undefined;answered=true;return null});
+}
+// A request that never answers ends here: the meter is then left out, not a skeleton forever.
+const CREDITS_TIMEOUT_MS=20_000;
+// Answered at least once on this page (even with a failure).
+let answered=false;
+/** Whether the credits have been answered on this page. */
+export const creditsKnown=()=>answered||last!==undefined;
+/** True once the credits have been answered (or failed): until then the meter shows its skeleton. */
+export function useCreditsAnswered(){
+ const [done,setDone]=useState(creditsKnown);
+ useEffect(()=>{if(done)return;let live=true;void loadCredits().then(()=>{if(live)setDone(true)});return()=>{live=false}},[done]);
+ return done;
 }
 // Call after a paid action finishes (or fails): the meter and banner catch up.
 export function refreshCredits(){pending=undefined;void loadCredits().then(o=>{for(const l of listeners)l(o)})}
@@ -69,7 +85,7 @@ export function CreditMeter(){
 export function CreditBanner({variant}:{variant?:'ds'}={}){
  const o=useCredits();
  if(!o||o.unlimited||!o.meter||!o.meter.level)return null;
- const m=o.meter,resets=m.resetsOn?` They reset on ${m.resetsOn}.`:'';
+ const m=o.meter,resets=m.resetsOn?` They reset on ${dayDate(m.resetsOn)||m.resetsOn}.`:'';
  const words=<>{m.level===100?CREDITS_USED+resets:`Your company has used ${m.percent}% of this month’s credits: ${creditsLabel(m.left)} left.${resets} Ask Nmesis to add a pack if you need more.`}{o.usage?<> <Link className={variant==='ds'?'ds-link':undefined} href="/usage">Usage</Link></>:null}</>;
  if(variant==='ds')return <Banner kind={m.level===100?'bad':'warn'} icon={<Info/>}>{words}</Banner>;
  return <div className={'credit-banner'+(m.level===100?' credit-out':'')} role="status"><Info size={16}/><span>{words}</span></div>;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
-const SCREENS = ['app/key-visual/page.tsx', 'app/films/page.tsx', 'app/lineup/page.tsx', 'app/storyboard/page.tsx', 'app/swap/page.tsx', 'app/usage/page.tsx', 'app/company/page.tsx', 'app/nano-lab/page.tsx', 'components/studio-account.tsx'];
+const SCREENS = ['app/key-visual/page.tsx', 'app/films/page.tsx', 'app/lineup/page.tsx', 'app/storyboard/page.tsx', 'app/swap/page.tsx', 'app/usage/page.tsx', 'app/company/page.tsx', 'app/nano-lab/page.tsx', 'components/workspace/upgrade.tsx'];
 
 test('every screen uses the one top bar, with one shared navigation (Phase 2b)', () => {
   for (const file of SCREENS) {
@@ -28,10 +28,27 @@ test('the top bar holds the credit meter, the company switcher and the account; 
   assert.match(bar, /<PhoneMenu account=\{account\}/);
   assert.match(bar, /aria-label="Menu"/);
   assert.match(bar, /<Dialog open=\{open\} onClose=\{\(\)=>setOpen\(false\)\} title="Menu" variant="drawer"/);
-  // Everything that waits for /api/me and /api/credits appears at once, at the
-  // right-hand end, so nothing moves (CLS).
-  assert.match(bar, /Promise\.allSettled\(\[loadAccount\(\),loadCredits\(\)\]\)/);
-  assert.match(bar, /\{ready&&account&&<>/);
+  // What waits for /api/me appears at the right-hand end, so nothing moves (CLS);
+  // the credit meter loads on its own, holding its place with a skeleton of its
+  // own box until the credits arrive (speed, finish pass).
+  assert.match(bar, /\{account&&<>/);
+  assert.doesNotMatch(bar, /Promise\.allSettled\(\[loadAccount\(\),loadCredits\(\)\]\)/, 'the bar does not wait for the credits');
+  assert.match(bar, /creditsAnswered\?<Meter credits=\{credits\}\/>:!account\.internal&&<MeterSkeleton\/>/);
+  assert.match(bar, /<span className="ds-meter studio-meter studio-meter-loading" aria-hidden="true">/);
+  // With no logo the brand's name stands alone: never its initials beside it.
+  assert.doesNotMatch(bar, /initialsOf/);
+  assert.match(bar, /logoView\(brand,failed\)==='name'\)return blank\?/);
+});
+
+test('the notices hold their remembered room instead of hiding the page; the credits never block it', () => {
+  const account = read('components/studio-account.tsx');
+  assert.match(account, /if\(!settled\)return space===null\?<div className="notices-pending" aria-hidden="true"\/>:<div className="studio-notices" aria-hidden="true" style=\{noticeSpace\(space\)\}\/>/);
+  // Watched, so a banner that arrives after the notices settle (the credits) is remembered too.
+  assert.match(account, /rememberNoticeSpace\(window\.innerWidth,el\.offsetHeight,undefined,variant\|\|'plain'\)[\s\S]*new ResizeObserver\(remember\)/);
+  assert.match(account, /const NOTICES_WAIT_MS=2000;/);
+  assert.match(read('app/studio-shell.css'), /\.studio-notices \{ display: flow-root; \}/);
+  const credits = read('components/credits.tsx');
+  assert.match(credits, /signal:AbortSignal\.timeout\(CREDITS_TIMEOUT_MS\)/, 'a credits request that never answers ends');
 });
 
 test('the shell is drawn from tokens; phone account controls are 44px', () => {

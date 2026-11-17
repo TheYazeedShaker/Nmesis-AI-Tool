@@ -6,15 +6,17 @@ import {Clapperboard,Film,ImageIcon,Layers,Replace} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {SkeletonTile,State} from '@/components/ds/feedback';
 import {AccountNotices,hasFeature,planEnded,PLAN_ENDED_CHIP,useAccount} from '@/components/studio-account';
-import {useConfiguratorPresets} from '@/lib/configurator-presets';
+import {isDemoConfigurator,useConfiguratorPresets} from '@/lib/configurator-presets';
+import {FEATURE_TOOL,briefPlaceholder,toolSample} from '@/lib/tool-samples';
 import {KEY_VISUAL_HREF} from '@/components/studio-topbar';
 import type {AccountSummary} from '@/lib/accounts/summary';
 import type {FeatureKey} from '@/lib/accounts/plan';
 import {WorkspaceFrame} from './frame';
 import {HomeScreen,type HomeTool} from './home';
-import {LibraryView,type Place} from './library';
-import {FolderHeader,ProjectsScreen,folderHref} from './projects';
+import {LibraryView,type CreateOptions,type Place} from './library';
+import {FolderHeader,ProjectsHeader,ProjectsScreen,ProjectsUnavailable,folderHref} from './projects';
 import {useLibraryPage} from './data';
+import {asSamples} from './samples';
 
 // The rebuilt screens wired to the Studio (Phase 3): the library a page at a time.
 
@@ -27,6 +29,20 @@ const TOOLS:(Omit<HomeTool,'locked'>&{feature:FeatureKey})[]=[
  {key:'swap',name:'Replace car',line:'Put your car into an existing ad.',href:'/swap',icon:<Replace/>,feature:'studio.swap'},
 ];
 
+// The library's Create menu: the five tools, in the editor's order and to the
+// editor's pages (EDITOR_TOOLS), each with its plan chip when the plan lacks it.
+const CREATE:{key:string;label:string;href:string;icon:React.ReactNode;feature:FeatureKey}[]=[
+ {key:'kv',label:'New key visual',href:KEY_VISUAL_HREF,icon:<ImageIcon/>,feature:'studio.key_visuals'},
+ {key:'lineup',label:'New line-up',href:'/lineup',icon:<Layers/>,feature:'studio.lineups'},
+ {key:'film',label:'New film',href:'/films',icon:<Film/>,feature:'studio.film'},
+ {key:'swap',label:'New swap',href:'/swap',icon:<Replace/>,feature:'studio.swap'},
+ {key:'story',label:'New story',href:'/storyboard',icon:<Clapperboard/>,feature:'studio.storyboards'},
+];
+const planChip=(account:AccountSummary|null,feature:FeatureKey)=>hasFeature(account,feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[feature]}`;
+function createOptions(account:AccountSummary|null,onNewFolder:(name:string)=>void,folderIn?:string):CreateOptions{
+ return {tools:CREATE.map(({feature,...t})=>({...t,locked:planChip(account,feature)})),onNewFolder,folderIn};
+}
+
 function Loading(){
  return <div className="ds-grid" aria-busy="true" aria-label="Loading the library">{Array.from({length:8},(_,i)=><SkeletonTile key={i}/>)}</div>;
 }
@@ -38,11 +54,13 @@ const libraryHref=(p:Place)=>p==='all'?'/library':`/library?in=${encodeURICompon
 
 export function HomePage(){
  const account=useAccount(),lib=useLibraryPage('all',{limit:10});
- const presets=useConfiguratorPresets();
- const tools:HomeTool[]=TOOLS.map(t=>({...t,locked:hasFeature(account,t.feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[t.feature]}`}));
+ const presets=useConfiguratorPresets(),cars=presets.filter(c=>!isDemoConfigurator(c));
+ // Each tool's picture: its latest finished work in the feed Home loads, else one of the company's cars.
+ const work=lib.ready?asSamples(lib.items):[];
+ const tools:HomeTool[]=TOOLS.map((t,i)=>({...t,sample:toolSample(FEATURE_TOOL[t.feature],work,cars,i).src,locked:hasFeature(account,t.feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[t.feature]}`}));
  return <WorkspaceFrame current="home" notices={<AccountNotices variant="ds"/>}>
   {lib.problem&&!lib.ready?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:null}
-  <HomeScreen tools={tools} greeting={account?workName(account):undefined}
+  <HomeScreen tools={tools} greeting={account?workName(account):undefined} placeholder={briefPlaceholder(cars,account?.brand?.id)}
    recent={lib.ready?lib.items.map(i=>({...i,href:i.kind==='image'?`/library?open=${encodeURIComponent(i.id)}`:i.href})):lib.problem?[]:null}
    cars={presets.filter(c=>c.url.startsWith('https://')).map(c=>({name:c.name,href:`${KEY_VISUAL_HREF}?car=${encodeURIComponent(c.name)}`,picture:c.picture}))}
    onStart={brief=>location.assign(brief?`${KEY_VISUAL_HREF}?brief=${encodeURIComponent(brief)}`:KEY_VISUAL_HREF)}/>
@@ -55,15 +73,18 @@ export function LibraryPage(){
  const lib=useLibraryPage(place);
  return <WorkspaceFrame current="library" notices={<AccountNotices variant="ds"/>}>
   {!lib.ready?(lib.problem?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:<Loading/>)
-   :<LibraryView {...lib} hrefFor={libraryHref} readOnly={!canChange(account)} openId={openId}/>}
+   :<LibraryView {...lib} hrefFor={libraryHref} readOnly={!canChange(account)} openId={openId} create={createOptions(account,name=>lib.folderActions.onCreate(name,null))}/>}
  </WorkspaceFrame>;
 }
 
+// Projects keeps its header in every state: loading, a failed load, folders not
+// switched on yet, and the folders themselves.
 export function ProjectsPage(){
  const account=useAccount(),lib=useLibraryPage('all',{limit:1});
  return <WorkspaceFrame current="projects" notices={<AccountNotices variant="ds"/>}>
-  {!lib.ready?(lib.problem?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:<Loading/>)
-   :!lib.foldersReady?<State kind="empty" title="Folders are on their way">Folders aren’t available yet. Your work is all in the library.</State>
+  {!lib.ready?<><ProjectsHeader/>{lib.problem?<State kind="error" title="Your folders didn’t load" actions={<Button onClick={()=>void lib.reload()}>Try again</Button>}>{lib.problem}</State>
+    :<div className="workspace-folders" role="status" aria-busy="true" aria-label="Loading your folders">{Array.from({length:6},(_,i)=><SkeletonTile key={i}/>)}</div>}</>
+   :!lib.foldersReady?<ProjectsUnavailable/>
    :<ProjectsScreen folders={lib.folders} canEdit={canChange(account)} actions={lib.folderActions}/>}
  </WorkspaceFrame>;
 }
@@ -71,10 +92,13 @@ export function ProjectsPage(){
 export function FolderPage({id}:{id:string}){
  const account=useAccount(),lib=useLibraryPage(id);
  const folder=lib.folders.find(f=>f.id===id),canEdit=canChange(account);
+ // Folders go one level deep: in a top folder New folder makes a sub-folder; in a sub-folder, one beside it.
+ const home=folder&&(folder.parentId?lib.folders.find(f=>f.id===folder.parentId)||null:folder);
  return <WorkspaceFrame current="projects" notices={<AccountNotices variant="ds"/>}>
   {!lib.ready&&!lib.problem?<Loading/>
    :!folder?<State kind="empty" title="This folder isn’t here" actions={<Link className="ds-btn" href="/projects">All folders</Link>}>It may have been deleted, or belong to another company.</State>
    :<div className="workspace-folder-page"><LibraryView {...lib} hrefFor={folderHref} readOnly={!canEdit}
+     create={createOptions(account,name=>lib.folderActions.onCreate(name,home?.id??null),home?.name)}
      above={<FolderHeader folder={folder} folders={lib.folders} canEdit={canEdit} folderActions={lib.folderActions}/>}/></div>}
  </WorkspaceFrame>;
 }

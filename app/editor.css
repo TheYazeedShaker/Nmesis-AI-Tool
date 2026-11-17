@@ -158,3 +158,8 @@
    a 360 phone Story's four actions pushed "Deleted" out, the phone zoomed the
    page out and a band showed under the editor (check:ui zoomedOut, editorBand). */
 .editor-bar-actions { flex-wrap: wrap; row-gap: var(--ds-space-4); min-width: 0; max-width: 100%; }
+/* The tool's first data is loading: the frame (rail, bars, panels, Generate)
+   shows at once; what fills them waits, hidden, so nothing moves when it
+   arrives (check:ui layout shift on Film once pages stopped waiting for the
+   account; finish pass). */
+.ds-editor[data-loading] .ds-canvas-bar > *, .ds-editor[data-loading] .ds-canvas-stage, .ds-editor[data-loading] .ds-settings-body, .ds-editor[data-loading] .ds-generate > * { visibility: hidden; }
