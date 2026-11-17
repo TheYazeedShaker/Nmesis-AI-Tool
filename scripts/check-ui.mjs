@@ -10,93 +10,69 @@
 //
 // Writes ui-report/report.json (every page, every finding), ui-report/summary.md
 // and, with --shots, screenshots in ui-report/shots/ (never committed). Passes
-// while the counts in scripts/ui-baseline.json do not go up (Phase 1 records
-// them; Phase 4 empties them).
+// while the counts in scripts/ui-baseline.json do not go up: the totals for a
+// full run, and each screen that ran against its own counts (scripts/ui/ratchet.mjs).
+// The people and screens are in scripts/ui/screens.mjs.
 //
 //   npm run check:ui                        the full matrix (TEST_DATABASE_URL required)
-//   npm run check:ui -- --quick             1440 and 390 only, owner and staff
-//   npm run check:ui -- --only=usage,films  some screens
-//   npm run check:ui -- --shots             also save screenshots (1440 and 390)
-//   npm run check:ui -- --update            write the baseline as it is now
+//   npm run check:ui -- --quick             1440 and 390 only (not compared: other viewports)
+//   npm run check:ui -- --only=usage,films  some screens (each compared with its own counts)
+//   npm run check:ui -- --shard=2/4         one of four balanced parts (by screen and person);
+//                                           compared after scripts/ui/merge.mjs joins the parts
+//   npm run check:ui -- --shots             also save screenshots (1440, 1280, 1024 and 390)
+//   npm run check:ui -- --perf              the performance baseline too (scripts/ui/perf.mjs)
+//   npm run check:ui -- --update            write the baseline as it is now (a full run: totals
+//                                           and every screen; with --only: those screens)
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 import { startStack } from './ui/stack.mjs';
-import { seedStudio, ORGS, PEOPLE, PASSWORD, FOLDER_ID } from './ui/seed.mjs';
+import { seedStudio, ORGS, PEOPLE, PASSWORD } from './ui/seed.mjs';
 import { execFile } from 'node:child_process';
 // Asynchronous: the S3 stand-in runs in this process and must keep answering while the backfill runs.
 const backfill = (stack) => new Promise((resolve, reject) => execFile(process.execPath, ['scripts/backfill-library.mjs', '--env', 'preview', '--staff', PEOPLE.staff.id], { env: { ...stack.env, NODE_OPTIONS: '' }, encoding: 'utf8', timeout: 600_000, maxBuffer: 16 * 1024 * 1024 }, (e, out, err) => (e ? reject(new Error('The backfill failed: ' + (err || e.message).slice(-2000))) : resolve(String(out).trim().split(/\r?\n/).pop()))));
 import { initScript, quietFor, vitals, layoutChecks, focusState, providerNamesOnPage } from './ui/checks.mjs';
 import { PROVIDER_PATTERN } from '../lib/provider-words.ts';
 import { runPerf } from './ui/perf.mjs';
+import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
+import { finish } from './ui/ratchet.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes('--' + n);
-const opt = (n) => (args.find((a) => a.startsWith(`--${n}=`)) || '').split('=')[1];
+const opt = (n) => (args.find((a) => a.startsWith(`--${n}=`)) || '').slice(n.length + 3);
 const OUT = path.resolve('ui-report');
 const BASELINE = path.resolve('scripts/ui-baseline.json');
 const QUICK = flag('quick'), SHOTS = flag('shots'), UPDATE = flag('update'), PERF = flag('perf');
-const ONLY = opt('only') ? new Set(opt('only').split(',')) : null;
+const SELECTED = (() => { try { return selectScreens(opt('only')); } catch (e) { console.error(e instanceof Error ? e.message : e); process.exit(2); } })();
+const SHARD = opt('shard') ? opt('shard').split('/').map(Number) : null;
 const WORKERS = Number(opt('workers')) || 3;
-// Run-to-run noise allowed before a count fails CI (owner, 2026-11-15): the
-// keyboard walk lands on slightly different stops from one run to the next.
-const TOLERANCE = { focusWithoutIndicator: 5 };
-const RATCHETED = ['pagesZoomedOutOnPhones', 'editorBand', 'fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
+const VIEWPORTS = QUICK ? QUICK_VIEWPORTS : ALL_VIEWPORTS;
+// Every screen at every viewport: the totals mean something and are compared too.
+const FULL = !QUICK && SELECTED.length === SCREENS.length;
+if (UPDATE && (QUICK || SHARD)) { console.error('--update needs every viewport in one run (no --quick); for shards, merge them: node scripts/ui/merge.mjs <dir> --update.'); process.exit(2); }
 
-const VIEWPORTS = QUICK ? [[1440, 900], [390, 844]] : [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
-const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
-const SHOT_WIDTHS = new Set([1440, 1280, 1024, 390]); // screenshots: small laptops too (Phase 3 group 2)
-const THEMES = ['light', 'dark'];
+// The page checks of this run (or of this shard).
+const ALL_JOBS = pageJobs(SELECTED, { quick: QUICK });
+const { jobs: JOBS, units: UNITS } = SHARD ? shardJobs(ALL_JOBS, SHARD[0], SHARD[1]) : { jobs: ALL_JOBS, units: null };
+const inRun = (screen, role) => JOBS.some((j) => j.screen.id === screen && j.role === role);
+const RUN_STATES = SHOTS ? STATES.filter((s) => inRun(s.screen, s.role)) : [];
+// Sign in only the people this run needs: the seed uploads as Enterprise; --perf measures its own routes.
+const NEEDED = new Set([...JOBS.map((j) => j.role), ...RUN_STATES.map((s) => s.role), 'enterprise', ...(PERF ? ['anon', 'owner', 'enterprise', 'scale'] : [])]);
 
-// Who looks. `org` is opened through the Studio's own deep link after sign-in.
-const ROLES = {
-  anon: { person: null },
-  owner: { person: 'owner', org: 'growth', note: 'Growth, 85% of credits used, 300 visuals' },
-  creator: { person: 'creator', org: 'growth' },
-  viewer: { person: 'viewer', org: 'growth' },
-  starter: { person: 'starter', org: 'starter', note: 'Starter: tools locked, 100% of credits used' },
-  enterprise: { person: 'enterprise', org: 'enterprise', note: 'Enterprise: long name, huge numbers, films, swaps, storyboards' },
-  ended: { person: 'ended', org: 'ended', note: 'subscription ended 5 days ago' },
-  nocompany: { person: 'nocompany' },
-  staff: { person: 'staff', org: 'nmesis', note: 'Nmesis staff in their own workspace' },
-  staffViewing: { person: 'staff', org: 'growth', note: 'staff opening a client that granted support access ("Viewing as")' },
-  staffRefused: { person: 'staff', org: 'starter', note: 'staff opening a client that did not grant access' },
-  scale: { person: 'scale', org: 'scale', note: 'the library at scale: 1,000 pieces of work (--perf only)' },
-};
-// F-050: these people read no provider or model name anywhere (no own keys, not staff).
-const NO_PROVIDER_NAMES = new Set(['anon', 'owner', 'creator', 'viewer', 'starter', 'ended', 'nocompany']);
-const CLIENT_ROLES = ['owner', 'creator', 'viewer', 'starter', 'enterprise', 'ended', 'staff', 'staffViewing'];
-// The full viewport and theme matrix runs for `full`; other roles at 1440 and 390.
-const SCREENS = [
-  { id: 'signin', path: '/signin', roles: ['anon'], full: ['anon'] },
-  { id: 'forgot-password', path: '/signin/forgot', roles: ['anon'], full: ['anon'] },
-  { id: 'choose-password', path: '/auth/password', roles: ['owner'] },
-  { id: 'no-company', path: '/auth/no-company', roles: ['nocompany'] },
-  // Phase 3 group 1: Home, the one library, projects and a folder; the key-visual tool moved to /key-visual.
-  { id: 'home', path: '/', roles: ['owner', 'creator', 'viewer', 'starter', 'ended', 'staffViewing'], full: ['owner'] },
-  { id: 'workspace', path: '/key-visual', roles: CLIENT_ROLES, full: ['owner'] },
-  { id: 'library', path: '/library', roles: ['owner', 'viewer', 'ended', 'staffViewing'], full: ['owner'] },
-  { id: 'viewer', path: '/library', action: 'viewer', roles: ['owner', 'viewer'] },
-  { id: 'projects', path: '/projects', roles: ['owner', 'viewer'], full: ['owner'] },
-  { id: 'folder', path: `/projects/${FOLDER_ID}`, roles: ['owner', 'viewer'], full: ['owner'] },
-  { id: 'settings', path: '/key-visual', action: 'settings', roles: ['owner', 'enterprise', 'viewer'] },
-  { id: 'company-switcher', path: '/', action: 'switcher', roles: ['owner', 'staff'] },
-  { id: 'lineup', path: '/lineup', roles: ['owner', 'starter', 'viewer'], full: ['owner'] },
-  { id: 'films', path: '/films', roles: ['enterprise', 'owner'], full: ['enterprise'] },
-  { id: 'swap', path: '/swap', roles: ['enterprise', 'owner'], full: ['enterprise'] },
-  { id: 'storyboard', path: '/storyboard', roles: ['enterprise', 'owner'], full: ['enterprise'] },
-  { id: 'nano-lab', path: '/nano-lab', roles: ['owner'] },
-  { id: 'usage', path: '/usage', roles: ['owner', 'starter', 'enterprise', 'creator', 'staffViewing'], full: ['owner'] },
-  { id: 'company', path: '/company', roles: ['owner', 'creator', 'staffViewing'], full: ['owner'] },
-  { id: 'not-found', path: '/this-page-does-not-exist', roles: ['owner', 'anon'] },
-  { id: 'design-system', path: '/design-system', roles: ['staff'] },
-  { id: 'staff-refused', path: '/', roles: ['staffRefused'] },
-].filter((s) => !ONLY || ONLY.has(s.id));
+// --plan: what this run would check, and nothing else (no database, no browser).
+if (flag('plan')) {
+  const per = new Map();
+  for (const j of JOBS) per.set(`${j.screen.id}|${j.role}`, (per.get(`${j.screen.id}|${j.role}`) || 0) + 1);
+  console.log(`${JOBS.length} page checks${SHARD ? ` in shard ${SHARD.join('/')}` : ''}; ${FULL ? `every screen${SHARD ? '' : ' (totals compared)'}` : 'screens: ' + SELECTED.map((s) => s.id).join(', ')}; people: ${[...NEEDED].join(', ')}; state screenshots: ${RUN_STATES.map((s) => s.id).join(', ') || 'none'}`);
+  for (const [k, n] of per) console.log(`  ${k}: ${n}`);
+  process.exit(0);
+}
 
 // ── Run ───────────────────────────────────────────────────────────────────
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(path.join(OUT, 'shots'), { recursive: true });
+if (SHARD) console.log(`Shard ${SHARD.join('/')}: ${UNITS.length} screen and person pairs (${UNITS.join(', ')})`);
 const stack = await startStack({ adminUrl: process.env.TEST_DATABASE_URL, log: (l) => console.log('  ' + l) });
 console.log(`Studio ready in ${stack.readyMs} ms at ${stack.origin}`);
 const browser = await chromium.launch();
@@ -104,7 +80,10 @@ const harnessMistakes = [];
 const contexts = {};
 let exitCode = 0;
 try {
-  for (const [name, role] of Object.entries(ROLES)) contexts[name] = await roleContexts(name, role);
+  // In parallel, one person at a time per account (staff signs in three times, as three sessions).
+  const byPerson = new Map();
+  for (const name of Object.keys(ROLES).filter((n) => NEEDED.has(n))) { const k = ROLES[name].person || name; if (!byPerson.has(k)) byPerson.set(k, []); byPerson.get(k).push(name); }
+  await Promise.all([...byPerson.values()].map(async (names) => { for (const name of names) contexts[name] = await roleContexts(name, ROLES[name]); }));
   await seedStudio({ s3: stack.s3, adminUrl: stack.adminUrl, request: { enterprise: contexts.enterprise.desktop.request } });
   // The one-off backfill (Phase 3 group 2), as the owner runs it after 0007: the
   // library index and thumbnails for everything seeded above.
@@ -112,17 +91,7 @@ try {
   // Performance first, so the first request to the heaviest route is a cold one.
   const perf = PERF ? await runPerf({ stack, contexts, browser }) : undefined;
 
-  const jobs = [];
-  for (const screen of SCREENS) {
-    for (const role of screen.roles) {
-      if (screen.pending) { jobs.push({ screen, role, pending: true }); continue; }
-      const full = (screen.full || []).includes(role) && !QUICK;
-      for (const [w, h] of VIEWPORTS) {
-        if (!full && !KEY_WIDTHS.has(w)) continue;
-        for (const theme of THEMES) jobs.push({ screen, role, w, h, theme });
-      }
-    }
-  }
+  const jobs = JOBS;
   console.log(`${jobs.length} page checks, ${WORKERS} at a time`);
   const results = [];
   let done = 0;
@@ -132,15 +101,24 @@ try {
     if (++done % 25 === 0) console.log(`  ${done} / ${jobs.length}`);
   });
   const blocked = Object.fromEntries(stack.blocked);
-  const report = { at: new Date().toISOString(), studioReadyMs: stack.readyMs, viewports: VIEWPORTS, roles: ROLES, results: results.sort(byKey), blockedServerHosts: blocked, harnessMistakes };
+  const scope = { screens: SELECTED.map((s) => s.id), quick: QUICK, ...(SHARD ? { shard: SHARD.join('/'), units: UNITS } : {}) };
+  const report = { at: new Date().toISOString(), studioReadyMs: stack.readyMs, viewports: VIEWPORTS, roles: ROLES, scope, results: results.sort(byKey), blockedServerHosts: blocked, harnessMistakes };
   if (perf) report.perf = perf;
   // The library at scale (Phase 3 group 2): a hard limit, not a ratchet.
   if (perf?.libraryScale && !perf.libraryScale.ok) { console.log('✗ The library at 1,000 items: first paint 1.5 s or more on the phone profile, or storage read for work off screen: ' + JSON.stringify(perf.libraryScale)); exitCode = 1; }
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
   // Screens in a given state, for the PR (not counted): before/after sheets.
-  if (SHOTS) await stateShots();
-  const totals = summarise(report);
-  exitCode = Math.max(exitCode, ratchet(totals));
+  if (RUN_STATES.length) await stateShots();
+  if (SHARD) {
+    // A screen can span shards: the counts are compared once the shards are merged.
+    finish({ report, out: OUT, baselineFile: BASELINE, full: false, compareWith: false });
+    console.log(`Shard ${SHARD.join('/')} done: ${results.length} page checks. The ratchet runs on the merged report (node scripts/ui/merge.mjs).`);
+  } else if (QUICK) {
+    finish({ report, out: OUT, baselineFile: BASELINE, full: false, compareWith: false });
+    console.log('--quick checks 1440 and 390 only: not compared with the baseline (it counts every viewport).');
+  } else {
+    exitCode = Math.max(exitCode, finish({ report, out: OUT, baselineFile: BASELINE, update: UPDATE, full: FULL }));
+  }
 } catch (e) {
   console.error(e);
   console.error(stack.output.slice(-60).join('\n'));
@@ -275,83 +253,12 @@ async function keyboardWalk(page) {
 
 function byKey(a, b) { return `${a.screen}|${a.role}|${a.w}|${a.theme}`.localeCompare(`${b.screen}|${b.role}|${b.w}|${b.theme}`); }
 
-// The counts that may only go down, and a readable summary.
-function summarise(report) {
-  const pages = report.results.filter((r) => !r.pending);
-  const sum = (f) => pages.reduce((n, r) => n + (f(r) || 0), 0);
-  const axeBy = (impact) => sum((r) => (r.axe || []).filter((v) => v.impact === impact).reduce((n, v) => n + v.nodes, 0));
-  const totals = {
-    pages: pages.length,
-    pagesWithErrors: pages.filter((r) => r.error).length,
-    pagesWithSidewaysScroll: pages.filter((r) => r.overflowX > 0).length,
-    consoleErrors: sum((r) => r.consoleErrors.length),
-    httpErrors: sum((r) => r.httpErrors.length),
-    axeCritical: axeBy('critical'),
-    axeSerious: axeBy('serious'),
-    axeModerate: axeBy('moderate'),
-    axeMinor: axeBy('minor'),
-    focusWithoutIndicator: sum((r) => r.focus?.noIndicator.length),
-    focusHiddenBySticky: sum((r) => r.focus?.hidden.length),
-    targetsUnder24: sum((r) => r.under24?.length),
-    targetsUnder44OnPhones: sum((r) => r.under44?.length),
-    overlapped: sum((r) => r.overlapped?.length),
-    clippedWithoutEllipsis: sum((r) => r.clippedNoEllipsis?.length),
-    fixedOverSettings: sum((r) => r.fixedOverSettings?.length),
-    editorBand: sum((r) => r.editorBand?.length),
-    pagesZoomedOutOnPhones: pages.filter((r) => (r.zoomedBy || 0) > 1).length,
-    controlsSpilling: sum((r) => r.spilling?.length),
-    ellipsisWithoutFullText: sum((r) => r.ellipsisNoTitle?.length),
-    pagesOverCls01: pages.filter((r) => (r.vitals?.cls || 0) > 0.1).length,
-    providerNamesShown: sum((r) => r.providerNames?.length),
-    pagesNeverQuiet: pages.filter((r) => r.ready && !r.ready.quiet).length,
-    serverHostsBlocked: Object.keys(report.blockedServerHosts).length,
-  };
-  const axeRules = {};
-  for (const r of pages) for (const v of r.axe || []) { const k = `${v.impact} · ${v.id}`; axeRules[k] = (axeRules[k] || 0) + v.nodes; }
-  const lines = ['# UI harness summary', '', `${report.at}. ${totals.pages} page checks. Studio ready in ${report.studioReadyMs} ms.`, '', '| Check | Count |', '|---|---:|',
-    ...Object.entries(totals).map(([k, v]) => `| ${k} | ${v} |`), '', '## axe rules (nodes)', '', ...Object.entries(axeRules).sort((a, b) => b[1] - a[1]).map(([k, v]) => `- ${k}: ${v}`),
-    '', '## Provider or model names a client could read (F-050; must be none)', '', ...[...new Set(pages.flatMap((r) => (r.providerNames || []).map((f) => `- ${r.screen} (${r.role}) · ${f.where}: ${f.text}`)))].slice(0, 80),
-    ...(report.perf?.libraryScale ? ['', '## The library at 1,000 items (phone: 390 wide, 4x CPU, throttled network)', '', ...Object.entries(report.perf.libraryScale).map(([k, v]) => `- ${k}: ${v}`)] : []),
-    '', '## Pending screens', '', ...report.results.filter((r) => r.pending).map((r) => `- ${r.screen} (${r.role}): ${r.pending}`),
-    '', '## Server requests the network guard refused', '', ...Object.entries(report.blockedServerHosts).map(([h, n]) => `- ${h}: ${n}`),
-    '', '## Mistakes the harness made about itself', '', ...[...new Set(report.harnessMistakes)].map((m) => `- ${m}`)];
-  fs.writeFileSync(path.join(OUT, 'summary.md'), lines.join('\n') + '\n');
-  console.log(lines.slice(0, 30).join('\n'));
-  return totals;
-}
-
-function ratchet(totals) {
-  const now = Object.fromEntries(RATCHETED.map((k) => [k, totals[k]]));
-  if (UPDATE || QUICK || ONLY) {
-    if (UPDATE) { fs.writeFileSync(BASELINE, JSON.stringify({ note: 'Counts from the full npm run check:ui matrix. They may only go down; Phase 4 brings them to zero.', measured: new Date().toISOString().slice(0, 10), counts: now }, null, 2) + '\n'); console.log('Baseline written.'); }
-    return 0;
-  }
-  if (!fs.existsSync(BASELINE)) { console.log('No baseline yet (scripts/ui-baseline.json): nothing to compare. Write one with --update.'); return 0; }
-  const base = JSON.parse(fs.readFileSync(BASELINE, 'utf8')).counts;
-  const worse = RATCHETED.filter((k) => (now[k] || 0) > (base[k] ?? Infinity) + (TOLERANCE[k] || 0));
-  for (const k of RATCHETED) if (now[k] !== base[k]) console.log(`  ${k}: ${base[k]} → ${now[k]}`);
-  if (worse.length) { console.log(`✗ Worse than the baseline: ${worse.join(', ')}`); return 1; }
-  console.log('✓ Nothing got worse.');
-  return 0;
-}
-
-// Screens in a given state (Phase 3 polish), screenshots only: Home, Key visual
-// with each car view source, Inspiration, the switcher with one brand (Growth)
-// and with several (Enterprise), Story at 768. Saved as
-// shots/state-<id>--<width>--<theme>.png; nothing here is counted.
+// Screens in a given state (Phase 3 polish), screenshots only (scripts/ui/screens.mjs
+// STATES): taken in the run or shard that checks their screen as their person.
+// Saved as shots/state-<id>--<width>--<theme>.png; nothing here is counted.
 async function stateShots() {
-  const SIZES = [[1440, 900], [1280, 800], [1024, 768], [390, 844]];
-  const CLEANUP_SIZES = [[1440, 900], [1024, 768], [390, 844]];
-  const STATES = [
-    // The harness sets no provider key, so generation is not set up: the notice
-    // over the settings and Generate disabled. "Available" answers the Studio's
-    // own /api/status as if it were (its real answer, with generation on);
-    // nothing else changes and nothing is generated.
-    { id: 'key-visual-unavailable', role: 'owner', path: '/key-visual', sizes: CLEANUP_SIZES, steps: ['settings'] },
-    { id: 'key-visual-available', role: 'owner', path: '/key-visual', sizes: CLEANUP_SIZES, steps: ['settings'], generation: true },
-  ];
   let n = 0;
-  for (const s of STATES) for (const [w, h] of s.sizes || SIZES) for (const theme of THEMES) {
+  for (const s of RUN_STATES) for (const [w, h] of s.sizes) for (const theme of THEMES) {
     const page = await (w <= 480 ? contexts[s.role].phone : contexts[s.role].desktop).newPage();
     try {
       await page.setViewportSize({ width: w, height: h });

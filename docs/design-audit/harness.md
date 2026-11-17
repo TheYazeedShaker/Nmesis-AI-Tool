@@ -2,8 +2,120 @@
 
 Every Studio screen, in a real browser (Chromium through Playwright), at
 **1440 · 1280 · 1024 · 768 · 390 · 360**, in **light and dark**, as each kind of
-person, against the **production build** with synthetic data. It runs in CI
-(the `ui` job) on every pull request.
+person, against the **production build** with synthetic data. In CI a pull
+request checks the screens its change can affect, in parallel shards; the
+full sweep runs nightly and before Production (see "In CI" below).
+
+## In CI
+
+| When | What runs | Wall time (estimate) |
+|---|---|---|
+| A pull request into anything but `main`; a push to `development` or `moaz-playground` | the fast gates in parallel (`lint, typecheck, design` · `test` with Postgres · `build`), and `check:ui` for the **affected screens**, cut into **1 to 4 shards** (`--only=… --shard=i/n --shots`), each with its own Postgres | about 4 to 5 minutes |
+| A change that touches no screen (docs, tests only) | the fast gates; the shards are skipped and `ui` passes at once | about 2 minutes |
+| A change to the shell or design system (a full fallback) | the fast gates, and every screen in 4 shards (no `--perf`) | about 4 to 5 minutes |
+| Nightly at 02:30 UTC on `development`, a pull request into `main`, a push to `main`, or `workflow_dispatch` with `full` | the **full sweep** in one job: `npm run check:ui -- --perf --shots`, as before | about 10 minutes |
+| `workflow_dispatch` with `update_baseline` | every screen with `--shots --update`; uploads `scripts/ui-baseline.json` as the `ui-baseline` artifact | about 5 minutes |
+
+Agents report once the fast gates pass (lint, typecheck, tests, build, the
+affected `check:ui`); they do not wait for the full sweep.
+
+The jobs: `ui plan` decides; `ui shard i/n` runs a part; `ui` (the check
+branch protection requires) merges the parts and compares them with the
+baseline (`node scripts/ui/merge.mjs`), or passes the full sweep's result, or
+passes when no screen was affected. `verify` is the same for the fast gates:
+it passes when lint, typecheck, design, tests and build all passed. The merged
+report and every screenshot are the `ui-report` artifact (7 days); each
+shard's own report is `ui-report-shard-i` (1 day).
+
+Caches: npm (setup-node), the Playwright browser (`~/.cache/ms-playwright`,
+keyed on the Playwright version; only the headless shell is installed, which
+is what `chromium.launch()` runs), and the Next.js build cache (`.next/cache`).
+
+The nightly schedule is read from the copy of `ci.yml` on the default branch
+(`main`), so it starts once this workflow reaches `main`; it checks out
+`development`.
+
+### Which screens a pull request checks (`scripts/ui/affected.mjs`)
+
+`npm run ui:affected` lists them for your branch (against
+`origin/development`; `-- --base=origin/main`, `-- --diff=A..B` or a list of
+files also work). In CI the change is the pull request's merge commit against
+its base. Each changed file maps like this, in order:
+
+1. **Every screen** for the shell, the design system and what every request
+   uses: `app/layout.tsx`, `app/tokens.css`, `app/design-system.css`,
+   `app/studio-shell.css`, `app/workspace.css`, `app/globals.css`,
+   `components/ds/**`, `components/studio-topbar.tsx`,
+   `components/studio-account.tsx`, `components/credits.tsx`,
+   `components/studio-providers.tsx`, `components/workspace/frame.tsx`,
+   `lib/accounts/**`, `lib/studio-context.ts`, `lib/studio-server.ts`,
+   `lib/portable/**`, `lib/provider-words.ts`, `proxy.ts`, `app/api/auth/**`
+   (the harness signs everyone in through it); the build (`next.config.*`,
+   `package.json`, the lockfile, `tsconfig.json`, `postcss.config.*`,
+   `.nvmrc`, `vendor/`); and the harness itself (`scripts/check-ui.mjs`,
+   `scripts/ui/**`, `scripts/ui-baseline.json`, `scripts/verify/**`, the
+   backfill and migrate scripts, `supabase/**`, `docs/supabase-setup.sql`, the
+   accounts fixture, `.github/workflows/**`).
+2. **No screen** for docs and tests (`*.md`, `docs/**`, `tests/**`), other
+   `.github/` files and tooling that never reaches a page (`check:design`,
+   ESLint, Vercel and shadcn configuration).
+3. **The screens that reach it** for app code (`app/`, `components/`, `lib/`,
+   `hooks/`, `public/`, `integration/`). A screen reaches its page and the
+   layouts above it, everything they import (followed through `@/` and
+   relative imports, CSS included), and every API route its code calls
+   (`/api/<name>`) with what those routes import. A URL built at run time
+   (`/api/${PATH[kind]}/…`) counts as calling the routes its file (or what it
+   imports) names in quotes, and every route if it names none. A file under a
+   screen's own route folder (`app/usage/**`) is that screen's; the deepest
+   folder wins (`app/projects/[id]/**` is the folder screen). A file in
+   `public/` is reached by its URL. So `components/editor/*` maps to the
+   editor screens (workspace, settings, lineup, films, swap, storyboard) and
+   `components/workspace/*` to home, library, viewer, projects, folder and the
+   company switcher.
+4. **Every screen** for anything else: a file the map does not know, app code
+   no screen reaches, deleted app code, or a change git cannot list.
+
+A screen added to `SCREENS` (`scripts/ui/screens.mjs`) is mapped from its
+`path` without further work.
+
+### Shards (`--shard=i/n`)
+
+The page checks are grouped by screen and person (a screen and person never
+splits) and dealt out largest first, each to the lightest shard (a check at
+1440 or 390 weighs three: axe and the keyboard walk run there). Every shard
+computes the same cut from the same `--only`, so no list is passed around.
+The plan gives one shard per 80 checks, at most four (each shard pays about
+two minutes of setup). `npm run check:ui -- --plan [--only=…] [--shard=i/n]`
+prints what a run would check without starting anything. A shard takes the
+state screenshots whose screen and person it checks.
+
+### The ratchet on a subset
+
+`scripts/ui-baseline.json` holds `counts` (the totals of a full run) and
+`byScreen` (each screen's counts: every person, viewport and theme; a count
+left out is 0). A run that checks some screens compares **each screen with
+its own counts**; a full run compares the totals as well. The keyboard
+walk's tolerance (+5) applies to the totals and to each screen. Refused
+server hosts are counted for the whole Studio process, so a subset compares
+them with the full total. Shards are compared after `scripts/ui/merge.mjs`
+joins them (a screen can span shards). `--quick` is not compared (it skips
+viewports the baseline counts).
+
+While a screen has no counts of its own yet, the counts of those screens are
+summed and compared with the full totals (lenient), and the run prints a
+note. To record every screen's counts:
+
+1. Actions → CI → Run workflow, on `development` (or the branch to measure),
+   with **update_baseline** ticked (or
+   `gh workflow run ci.yml --ref development -f update_baseline=true`).
+2. When the `ui full sweep` job is done, download the `ui-baseline` artifact
+   (`gh run download <run id> -n ui-baseline -D scripts/`).
+3. Check the diff of `scripts/ui-baseline.json` (the totals should match the
+   last full run), commit it on a branch and open a pull request.
+
+`--update` on a full run writes the totals and every screen; with `--only` it
+writes those screens and keeps the totals; with `--quick` or `--shard` it
+refuses (merge shards with `node scripts/ui/merge.mjs <dir> --update`).
 
 ## What it runs against
 
@@ -50,7 +162,7 @@ phone widths (≤ 480) use a touch, mobile browser context.
 | Drawn over | pointing at the centre of each control on screen: is it what the pointer reaches? | — |
 | Clipped text | a box narrower than its own text with overflow hidden: **without an ellipsis**, or **with an ellipsis but no title** holding the whole text | — |
 | Layout shift | CLS by session window (as web-vitals counts it) | CLS < 0.1 |
-| Screenshots | 1440 and 390, both themes, with `--shots` (CI artifact, 7 days; never committed) | — |
+| Screenshots | 1440, 1280, 1024 and 390, both themes, with `--shots` (CI artifact, 7 days; never committed); in CI only the screens that ran | — |
 
 States opened by clicking (the library, the viewer, Studio settings, the company
 switcher) are opened by the harness and checked after they open.
@@ -72,9 +184,25 @@ what pages with work in progress ask for over 30 s; the largest chunks.
 `scripts/ui-baseline.json` holds the counts that do not depend on timing (page
 errors, sideways scroll, console and server errors, axe serious and critical,
 focus without an indicator or hidden, targets under 24, drawn over, clipped
-text, blocked server requests). The job fails when one goes up. Timing-dependent
-counts (CLS, never quiet) are reported, not ratcheted. `--update` writes the
-baseline; Phase 4 brings it to zero.
+text, blocked server requests, words spilling, fixed controls over the
+settings, the band under the editor, pages a phone zooms out), in total and
+per screen ("The ratchet on a subset" above). The job fails when one goes up.
+Timing-dependent counts (CLS, never quiet) are reported, not ratcheted.
+`--update` writes the baseline; Phase 4 brings it to zero.
+
+## The harness's own time
+
+Per page: the load event, then ready (no request in flight and 400 ms with no
+DOM change, polled every 100 ms, 12 s at most), the layout checks, and at 1440
+and 390 axe and a keyboard walk of up to 40 Tab stops. Three pages run at a
+time. Setup signs in only the people the run needs, in parallel (one session
+at a time per account), then seeds and backfills. The layout checks read each
+element's box and style once per call (an element "hidden on purpose" is
+remembered with its ancestors) and run the cheap DOM tests before layout and
+style reads; the checks and their results are the same. In the full sweep the
+`--perf` baseline is most of the time (its database-statement count waits
+about 11 s around each call for Postgres to publish its statistics, about
+4 minutes, and the polling watch is 60 s); it runs only in the full sweep.
 
 ## Mistakes the harness makes about itself
 

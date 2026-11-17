@@ -8,6 +8,7 @@ Agents read `CLAUDE.md` (permanent standards), then `PROGRESS.md` (state), then 
 - Keep provider credentials server-side. Never commit credentials, real `.env` files, uploaded images, generated media, or private database exports.
 - Preview and Production share the main Supabase project. Keep S3 buckets, keys and provider budgets separate per environment: Preview has its own bucket and IAM user, its own provider keys and billing limits, and its own secrets.
 - Run `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` before every push (CI runs the same gate).
+- Report once the fast gates pass (lint, typecheck, tests, build and the affected `check:ui`); don't wait for the full sweep (nightly and on PRs into `main`).
 - `archive/` (historical pre-Vercel source) is git-ignored and lives only on the owner's machine. Never commit it or overwrite the current app with it.
 - The repository is public: no credentials, infrastructure identifiers, real third-party brand names or customer data in source, tests, commits or PR text. Real configurators come from the master list (`accounts.cars`) at run time, never from source.
 
