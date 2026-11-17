@@ -255,6 +255,10 @@
 .ds-pager-range { color: var(--ds-muted); font-size: var(--ds-text-sm); font-variant-numeric: var(--ds-numeric); }
 .ds-pager-actions { display: flex; flex-wrap: wrap; gap: var(--ds-space-4); }
 
+/* The credit price and credits-used chips (components/credits.tsx) on design-system pages. */
+.ds-app .credit-cost, .ds-app .credit-used { gap: var(--ds-space-4); color: var(--ds-muted); font-size: var(--ds-text-sm); font-variant-numeric: var(--ds-numeric); }
+.ds-app .credit-cost { padding: var(--ds-space-2) var(--ds-space-8); border-color: var(--ds-border); border-radius: var(--ds-radius-pill); }
+
 /* A setting with a title, one line of help and a switch (Smart reference prompt).
    It paints its own panel, so it sets its own text colour too: on a page not yet on
    the design system (the Smart reference lab) it would inherit light text on a light panel. */

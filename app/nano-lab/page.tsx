@@ -1,5 +1,10 @@
 'use client';
-import {StudioTopBar} from '@/components/studio-topbar';
+import '@/app/lab.css';
+import {Button,buttonClass} from '@/components/ds/button';
+import {Field,Select} from '@/components/ds/field';
+import {Fold,PageHeader,Section} from '@/components/ds/layout';
+import {Banner} from '@/components/ds/shell';
+import {WorkspaceFrame} from '@/components/workspace/frame';
 import {providerNames,useAccount} from '@/components/studio-account';
 import {imageModelLabel,plainProviderText} from '@/lib/provider-words';
 import {AccountNotices,PlanGate} from '@/components/studio-account';
@@ -27,15 +32,49 @@ function NanoLab(){
   }
   running.current=false;setBusy('');
  }
- return <div className="studio"><StudioTopBar current="lab"/><AccountNotices/><main><p className="eyebrow">{showNames?'OPENAI + NANO BANANA / REFERENCE LAB':'REFERENCE LAB'}</p><h1>Keep the car. Match the shot.</h1><p>{w('Try an image-specific smart prompt, or open your original Nano Banana approaches below. Your existing prompts are unchanged.')}</p>
- <label className="field-label">Reference pair<select aria-label="Reference pair" value={selected} disabled={!!busy||smartBusy} onChange={e=>{setSelected(e.target.value);setAnalysis(null);setError('')}} className="text-input">{eligible.map(v=><option key={v.id} value={v.id}>{v.title} · {v.id.slice(0,8)}</option>)}</select></label>
- {pair&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:20,margin:'22px 0'}}><figure><figcaption>1 · Configurator car — identity source</figcaption><img crossOrigin="anonymous" src={'/api/assets/'+pair.sourceId} alt="Lab configurator reference" style={{width:'100%',height:320,objectFit:'contain',background:'#182226'}}/></figure><figure><figcaption>2 · Inspiration — scene and camera</figcaption><img crossOrigin="anonymous" src={'/api/assets/'+pair.moodId} alt="Lab inspiration reference" style={{width:'100%',height:320,objectFit:'contain',background:'#182226'}}/></figure></div>}
- <SmartReferenceLab pair={pair} initialResults={visuals} onBusy={setSmartBusy} disabled={!!busy}/><details style={{margin:"32px 0"}}><summary>{w('Original Nano Banana approaches · unchanged')}</summary><button className="generate" disabled={!pair||!!busy||smartBusy} onClick={()=>void inspect()}>Inspect references & build prompts</button><p className="helper">{w('Uses your saved Google key for a paid image analysis. An existing inspection of the same pair is reused. This button does not generate images.')}</p>
- {analysis?.detailRegions&&pair&&<figure style={{maxWidth:850,margin:'20px 0'}}><figcaption>Detected detail anchors — check that each box covers the intended car part</figcaption><div style={{position:'relative'}}><img crossOrigin="anonymous" src={'/api/assets/'+pair.sourceId} alt="Detected car details" style={{width:'100%',display:'block'}}/>{analysis.detailRegions.map((r,i)=><div key={i} style={{position:'absolute',left:r.x*100+'%',top:r.y*100+'%',width:r.width*100+'%',height:r.height*100+'%',border:'2px solid #ff713b',boxSizing:'border-box'}}><span style={{background:'#172024',color:'white',fontSize:12}}>{i+3} · {r.label}</span></div>)}</div></figure>}
- {analysis&&<section className="area-editor"><h2>What the model sees</h2><p><strong>Capture advice:</strong> {analysis.captureAdvice}</p><h3>Conflicts to review</h3><ul>{analysis.conflicts.map((v,i)=><li key={i}>{v}</li>)}</ul><details><summary>Car identity checklist</summary><ul>{analysis.carDetails.map((v,i)=><li key={i}>{v}</li>)}</ul></details><details><summary>Inspiration checklist</summary><ul>{analysis.sceneDetails.map((v,i)=><li key={i}>{v}</li>)}</ul></details><p className="helper">These are AI observations. Compare them against the images; uncertain or hidden details cannot be confirmed.</p></section>}
- <div className="area-repair-options" style={{margin:'24px 0'}}><label>Model<select aria-label="Lab model" value={model} disabled={!!busy||smartBusy} onChange={e=>setModel(e.target.value)}>{GEMINI_IMAGE_MODELS.map(m=><option key={m.id} value={m.id}>{showNames?m.label:imageModelLabel(m.id)}</option>)}</select></label><label>Approach<select aria-label="Prompt approach" value={strategy} disabled={!!busy||smartBusy} onChange={e=>setStrategy(e.target.value as NanoStrategy)}>{NANO_STRATEGIES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}</select></label><label>Resolution<select aria-label="Lab resolution" value={size} disabled={!!busy||smartBusy} onChange={e=>setSize(e.target.value)}><option value="1024x576">1K</option><option value="2048x1152">2K</option><option value="3840x2160">4K</option></select></label><p className="helper">{NANO_STRATEGIES.find(s=>s.id===strategy)?.description}</p></div>
- {(analysis||strategy==='baseline')&&<details style={{margin:'20px 0'}}><summary>Preview generated prompt</summary><pre style={{whiteSpace:'pre-wrap'}}>{nanoReferencePrompt(strategy,analysis||undefined,'Use only the two references to create one finished automotive photograph.')}</pre></details>}
- <div className="visual-actions"><button className="generate" disabled={!pair||!!busy||smartBusy||strategy!=='baseline'&&!analysis} onClick={()=>void generate()}>Generate selected approach · 1 paid image</button><button className="secondary" disabled={!pair||!!busy||smartBusy||!analysis} onClick={()=>void generate(true)}>Compare all approaches · 8 paid images</button></div><p className="helper">Both models use the same references, brief and resolution. Each result is saved in your key visuals. Tests start fresh from the original references. Keep this page open during a comparison; failed requests are never automatically retried.</p>
- {busy&&<p role="status">{busy}</p>}{error&&<p role="alert" className="field-error">{error}</p>}
- <h2>Comparison results</h2><p>Inspect grille and lamps, wheels, window line and body proportions first. Then check architecture, people, camera and lighting. Car first asks to retain the configurator viewpoint; verify that the model actually follows it.</p><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(310px,1fr))',gap:20}}>{matches.map(v=><article className="area-editor" key={v.id}><h3>{v.title}</h3><p>{v.size} · {v.status}</p>{v.status==='ready'?<><a href={v.src} target="_blank" rel="noreferrer"><img crossOrigin="anonymous" src={v.src} alt={v.title} style={{width:'100%'}}/></a><ImageDownload src={v.src} name={v.title}/><details><summary>Exact generation prompt</summary><pre style={{whiteSpace:'pre-wrap'}}>{v.prompt}</pre></details></>:<p>{v.error||'Generating…'}</p>}</article>)}</div></details></main></div>;
+ const off=!!busy||smartBusy;
+ return <WorkspaceFrame current="lab" notices={<AccountNotices variant="ds"/>}>
+  <PageHeader eyebrow="Reference lab" title="Keep the car. Match the shot." lede={w('Try an image-specific smart prompt, or open your original Nano Banana approaches below. Your existing prompts are unchanged.')}/>
+  <div className="lab">
+   <Section>
+    <Field label="Reference pair"><Select value={selected} disabled={off} onChange={e=>{setSelected(e.target.value);setAnalysis(null);setError('')}}>{eligible.map(v=><option key={v.id} value={v.id}>{v.title} · {v.id.slice(0,8)}</option>)}</Select></Field>
+    {!eligible.length&&<p className="ds-help">No key visual has both a car and an inspiration picture yet. Make one in Key visual, then come back.</p>}
+    {pair&&<div className="lab-pair">
+     {/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
+     <figure><img crossOrigin="anonymous" src={'/api/assets/'+pair.sourceId} alt="Lab configurator reference"/><figcaption className="ds-help">1 · Configurator car: identity source</figcaption></figure>
+     {/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
+     <figure><img crossOrigin="anonymous" src={'/api/assets/'+pair.moodId} alt="Lab inspiration reference"/><figcaption className="ds-help">2 · Inspiration: scene and camera</figcaption></figure>
+    </div>}
+   </Section>
+   <SmartReferenceLab pair={pair} initialResults={visuals} onBusy={setSmartBusy} disabled={!!busy}/>
+   <Fold name="nano-lab-original" title={w('Original Nano Banana approaches')} summary="Unchanged">
+    <div className="lab-stack">
+     <div className="lab-actions"><Button kind="primary" disabled={!pair||off} onClick={()=>void inspect()}>Inspect references & build prompts</Button></div>
+     <p className="ds-help">{w('Uses your saved Google key for a paid image analysis. An existing inspection of the same pair is reused. This button does not generate images.')}</p>
+     {analysis?.detailRegions&&pair&&<figure className="lab-anchors"><figcaption className="ds-help">Detected detail anchors: check that each box covers the intended car part</figcaption><div className="lab-anchors-frame">
+      {/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
+      <img crossOrigin="anonymous" src={'/api/assets/'+pair.sourceId} alt="Detected car details"/>
+      {analysis.detailRegions.map((r,i)=><div key={i} className="lab-anchor" style={{left:r.x*100+'%',top:r.y*100+'%',width:r.width*100+'%',height:r.height*100+'%'}}><span>{i+3} · {r.label}</span></div>)}</div></figure>}
+     {analysis&&<section className="lab-card" aria-label="What the model sees"><h3 className="ds-label">What the model sees</h3><p><strong>Capture advice:</strong> {analysis.captureAdvice}</p><h4 className="ds-label">Conflicts to review</h4><ul className="lab-bullets">{analysis.conflicts.map((v,i)=><li key={i}>{v}</li>)}</ul>
+      <details className="lab-details"><summary>Car identity checklist</summary><ul className="lab-bullets">{analysis.carDetails.map((v,i)=><li key={i}>{v}</li>)}</ul></details>
+      <details className="lab-details"><summary>Inspiration checklist</summary><ul className="lab-bullets">{analysis.sceneDetails.map((v,i)=><li key={i}>{v}</li>)}</ul></details>
+      <p className="ds-help">These are AI observations. Compare them against the images; uncertain or hidden details cannot be confirmed.</p></section>}
+     <div className="lab-row">
+      <Field label="Model"><Select value={model} disabled={off} onChange={e=>setModel(e.target.value)}>{GEMINI_IMAGE_MODELS.map(m=><option key={m.id} value={m.id}>{showNames?m.label:imageModelLabel(m.id)}</option>)}</Select></Field>
+      <Field label="Approach" help={NANO_STRATEGIES.find(s=>s.id===strategy)?.description}><Select value={strategy} disabled={off} onChange={e=>setStrategy(e.target.value as NanoStrategy)}>{NANO_STRATEGIES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}</Select></Field>
+      <Field label="Resolution"><Select value={size} disabled={off} onChange={e=>setSize(e.target.value)}><option value="1024x576">1K</option><option value="2048x1152">2K</option><option value="3840x2160">4K</option></Select></Field>
+     </div>
+     {(analysis||strategy==='baseline')&&<details className="lab-details"><summary>Preview generated prompt</summary><pre>{nanoReferencePrompt(strategy,analysis||undefined,'Use only the two references to create one finished automotive photograph.')}</pre></details>}
+     <div className="lab-actions"><Button kind="primary" disabled={!pair||off||strategy!=='baseline'&&!analysis} onClick={()=>void generate()}>Generate selected approach · 1 paid image</Button><Button disabled={!pair||off||!analysis} onClick={()=>void generate(true)}>Compare all approaches · 8 paid images</Button></div>
+     <p className="ds-help">Both models use the same references, brief and resolution. Each result is saved in your key visuals. Tests start fresh from the original references. Keep this page open during a comparison; failed requests are never automatically retried.</p>
+     {busy&&<p className="ds-help" role="status">{busy}</p>}{error&&<Banner kind="bad">{error}</Banner>}
+     <h3 className="ds-section-title">Comparison results</h3>
+     <p className="ds-help">Inspect grille and lamps, wheels, window line and body proportions first. Then check architecture, people, camera and lighting. Car first asks to retain the configurator viewpoint; verify that the model actually follows it.</p>
+     {matches.length>0&&<div className="lab-grid">{matches.map(v=><article className="lab-card" key={v.id}><h4 className="ds-label">{v.title}</h4><p className="ds-help">{v.size} · {v.status}</p>{v.status==='ready'?<>
+      {/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
+      <a href={v.src} target="_blank" rel="noreferrer"><img crossOrigin="anonymous" src={v.src} alt={v.title}/></a><ImageDownload src={v.src} name={v.title} label="Download" className={buttonClass({kind:'quiet',size:'sm'})}/><details className="lab-details"><summary>Exact generation prompt</summary><pre>{v.prompt}</pre></details></>:<p className="ds-help">{v.error||'Generating…'}</p>}</article>)}</div>}
+    </div>
+   </Fold>
+  </div>
+ </WorkspaceFrame>;
 }

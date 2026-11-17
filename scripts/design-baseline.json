@@ -14,11 +14,6 @@
       "raw-colour": 59,
       "raw-size": 91
     },
-    "app/nano-lab/page.tsx": {
-      "raw-colour": 5,
-      "raw-size": 8,
-      "unstyled-control": 3
-    },
     "app/storyboard/storyboard.css": {
       "raw-colour": 60,
       "raw-size": 113
@@ -33,9 +28,6 @@
     "app/swap/swap.css": {
       "raw-colour": 71,
       "raw-size": 101
-    },
-    "components/smart-reference-lab.tsx": {
-      "unstyled-control": 3
     },
     "components/ui/bubble.tsx": {
       "raw-colour": 4
