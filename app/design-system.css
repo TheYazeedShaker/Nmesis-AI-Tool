@@ -255,8 +255,10 @@
 .ds-pager-range { color: var(--ds-muted); font-size: var(--ds-text-sm); font-variant-numeric: var(--ds-numeric); }
 .ds-pager-actions { display: flex; flex-wrap: wrap; gap: var(--ds-space-4); }
 
-/* A setting with a title, one line of help and a switch (Smart reference prompt). */
-.ds-setting { display: flex; flex-direction: column; gap: var(--ds-space-12); padding: var(--ds-space-12) var(--ds-space-16); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel); min-width: 0; }
+/* A setting with a title, one line of help and a switch (Smart reference prompt).
+   It paints its own panel, so it sets its own text colour too: on a page not yet on
+   the design system (the Smart reference lab) it would inherit light text on a light panel. */
+.ds-setting { display: flex; flex-direction: column; gap: var(--ds-space-12); padding: var(--ds-space-12) var(--ds-space-16); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel); color: var(--ds-text); min-width: 0; }
 .ds-setting-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: var(--ds-space-8) var(--ds-space-12); }
 .ds-setting-text { display: flex; flex-direction: column; gap: var(--ds-space-2); flex: 1 1 12rem; min-width: 0; }
 .ds-setting-title { font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); }
