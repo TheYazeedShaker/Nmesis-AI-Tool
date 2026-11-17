@@ -46,7 +46,7 @@ function PlanSection({o,owner}:{o:CompanyOverview;owner:boolean}){
 
 function BrandSection({o}:{o:CompanyOverview}){
  return <Section title={o.brands.length>1?'Brands':'Brand'}>
-  {o.brands.length?<ul className="brand-list">{o.brands.map(b=><li key={b.id} className="brand-item"><BrandMark brand={b} name={b.name}/><span>{b.name}</span></li>)}</ul>
+  {o.brands.length?<ul className="brand-list">{o.brands.map(b=><li key={b.id} className="brand-item"><BrandMark brand={b}/><span>{b.name}</span></li>)}</ul>
    :<p className="settings-line">No brand yet.</p>}
   <p className="settings-line">Nmesis sets up your {o.brands.length>1?'brands':'brand'} and {o.brands.length>1?'their':'its'} cars. Ask Nmesis to change them.</p>
  </Section>;

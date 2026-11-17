@@ -15,7 +15,7 @@ Status: `queued` · `in-progress` · `blocked` (reason required) · `done` · `a
 | 7   | DESIGN-P1        | owner brief 2026-11-15 | #6 | done        | Merged (#31): `check:ui`, performance baseline, CRUD matrix, 69 findings. |
 | 11  | ENV-SCOPE        | owner 2026-11-15       | —  | done        | Merged (#30). Owner migrates (0004) after the release to `main`. |
 | 8   | DESIGN-P2        | owner brief 2026-11-15 | #7 | done        | 2a merged (#32), 2b merged (#33). |
-| 9   | DESIGN-P3        | owner brief 2026-11-15 | #8 | in-progress | Group 1 merged (#34), group 2 merged (#35), editor polish merged (#36). Editor cleanup (`design/editor-cleanup`): the editor fills the window, Quality only for clients (engine under Advanced), help under its field, one "can’t generate" notice with Generate disabled — PR waiting for review. |
+| 9   | DESIGN-P3        | owner brief 2026-11-15 | #8 | in-progress | Group 1 merged (#34), group 2 merged (#35), editor polish merged (#36), editor cleanup merged (#37). Finish pass (`design/finish-pass`): faster CI and pages, brand logos, the Library, dialogs, Company settings, Usage, Projects, titles, upgrade page, Home, Story — PR waiting for review. |
 | 10  | DESIGN-P4        | owner brief 2026-11-15 | #9 | queued      | Empty `check:design` baseline, visual baselines, JS/Lighthouse budgets, the full PR rule in CLAUDE.md. |
 
 ## Blocked log

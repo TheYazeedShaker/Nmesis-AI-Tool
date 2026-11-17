@@ -65,9 +65,20 @@ export const SCREEN_IDS = SCREENS.map((s) => s.id);
 // "Available" answers the Studio's own /api/status as if it were (its real
 // answer, with generation on); nothing else changes and nothing is generated.
 export const STATE_SIZES = [[1440, 900], [1024, 768], [390, 844]];
+export const FINISH_SIZES = [[1440, 900], [390, 844]];
 export const STATES = [
   { id: 'key-visual-unavailable', screen: 'settings', role: 'owner', path: '/key-visual', sizes: STATE_SIZES, steps: ['settings'] },
   { id: 'key-visual-available', screen: 'settings', role: 'owner', path: '/key-visual', sizes: STATE_SIZES, steps: ['settings'], generation: true },
+  // The finish pass (design/finish-pass): every screen it changed, at 1440 and 390.
+  { id: 'home', screen: 'home', role: 'owner', path: '/', sizes: FINISH_SIZES },
+  { id: 'library-create', screen: 'library', role: 'owner', path: '/library', sizes: FINISH_SIZES, steps: ['button:Create'] },
+  { id: 'projects', screen: 'projects', role: 'owner', path: '/projects', sizes: FINISH_SIZES },
+  { id: 'company', screen: 'company', role: 'owner', path: '/company', sizes: FINISH_SIZES },
+  { id: 'company-creator', screen: 'company', role: 'creator', path: '/company', sizes: FINISH_SIZES },
+  { id: 'usage', screen: 'usage', role: 'owner', path: '/usage', sizes: FINISH_SIZES },
+  { id: 'upgrade', screen: 'lineup', role: 'starter', path: '/lineup', sizes: FINISH_SIZES },
+  { id: 'story', screen: 'storyboard', role: 'enterprise', path: '/storyboard', sizes: [[1440, 900], [1024, 768], [390, 844]] },
+  { id: 'lineup-references', screen: 'lineup', role: 'owner', path: '/lineup', sizes: FINISH_SIZES, steps: ['button:Car 1'] },
 ];
 
 /** The screens named in `only` (comma-separated ids, or a list); all of them when empty. Unknown ids throw. */
