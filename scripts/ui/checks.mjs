@@ -42,16 +42,24 @@ export function layoutChecks({ phone }) {
   };
   // Visually hidden on purpose (screen-reader text, the 1 px skip-link pattern,
   // clip-path / clip hiding): neither a target, nor drawn over, nor clipped text.
-  const hiddenOnPurpose = (el) => {
-    for (let n = el; n && n !== document.body; n = n.parentElement) {
-      // Inside a closed <details> (other than its summary) nothing is drawn or
-      // reachable; Phase 1 counted those as covered (F-069 was this, in part).
-      if (n.parentElement && n.parentElement.tagName === 'DETAILS' && !n.parentElement.open && n.tagName !== 'SUMMARY') return true;
+  // The element or any ancestor below <body>; remembered per element for this
+  // call (the page does not change while it runs), so each box is read once.
+  const hiddenSeen = new Map();
+  const hiddenOnPurpose = (n) => {
+    if (!n || n === document.body) return false;
+    if (hiddenSeen.has(n)) return hiddenSeen.get(n);
+    let hidden = false;
+    // Inside a closed <details> (other than its summary) nothing is drawn or
+    // reachable; Phase 1 counted those as covered (F-069 was this, in part).
+    if (n.parentElement && n.parentElement.tagName === 'DETAILS' && !n.parentElement.open && n.tagName !== 'SUMMARY') hidden = true;
+    else {
       const cs = getComputedStyle(n), r = n.getBoundingClientRect();
-      if ((r.width <= 2 || r.height <= 2) && cs.overflow !== 'visible') return true;
-      if (/inset\(50%\)|rect\(0/.test(cs.clipPath + ' ' + cs.clip)) return true;
+      if ((r.width <= 2 || r.height <= 2) && cs.overflow !== 'visible') hidden = true;
+      else if (/inset\(50%\)|rect\(0/.test(cs.clipPath + ' ' + cs.clip)) hidden = true;
     }
-    return false;
+    if (!hidden) hidden = hiddenOnPurpose(n.parentElement);
+    hiddenSeen.set(n, hidden);
+    return hidden;
   };
   const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.01 && !hiddenOnPurpose(el); };
   const out = { overflowX: document.documentElement.scrollWidth - window.innerWidth, under24: [], under44: [], overlapped: [], clippedNoEllipsis: [], ellipsisNoTitle: [], spilling: [], interactive: 0 };
@@ -98,12 +106,13 @@ export function layoutChecks({ phone }) {
     }
   }
   // Text cut off: a box narrower than its text, overflow hidden.
+  // The same tests as before, cheapest first (DOM only, then layout, then style).
   for (const el of document.querySelectorAll('body *')) {
-    if (!visible(el) || !el.childNodes.length || el.children.length > 2) continue;
+    if (!el.childNodes.length || el.children.length > 2) continue;
     const ownText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 1);
-    if (!ownText) continue;
+    if (!ownText || el.scrollWidth <= el.clientWidth + 1) continue;
     const cs = getComputedStyle(el);
-    if (el.scrollWidth <= el.clientWidth + 1 || !/hidden|clip/.test(cs.overflowX + cs.overflow)) continue;
+    if (!/hidden|clip/.test(cs.overflowX + cs.overflow) || !visible(el)) continue;
     const full = (el.textContent || '').trim();
     if (cs.textOverflow === 'ellipsis') { if (!el.getAttribute('title') && !el.closest('[title]') && !el.getAttribute('aria-label')) out.ellipsisNoTitle.push({ el: describe(el), text: full.slice(0, 80) }); }
     else out.clippedNoEllipsis.push({ el: describe(el), text: full.slice(0, 80) });
