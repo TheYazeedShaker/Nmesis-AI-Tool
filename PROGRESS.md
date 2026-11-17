@@ -9,6 +9,7 @@
 - Clients choose Quality only. Engine, model and output size, and the video model and connection, are under an "Advanced" fold that only staff and companies with their own keys see (`Advanced` in `components/editor/editor-screen.tsx`), in all five tools.
 - Loose help lines at the end of the panels are gone ("Connections and usage…", the provider lines, the Film, Swap and Story trailing lines). Help sits under the field it explains.
 - When Generate cannot run, one design-system notice at the top of the settings says why and what to do, and Generate is disabled with that reason as its description. The reasons are: no plan, plan ended, viewer, support view, no AI or video set up, no credits (not with the company's own key). This is `generateBlocker` in the editor, plus each tool's own reason.
+- check:ui also counts pages a phone zooms out (pagesZoomedOutOnPhones, ratcheted at 8, all the Usage page). Story at 360 had one: its canvas bar actions now wrap.
 - No hosted system was touched.
 
 **Earlier (2026-11-16, design programme Phase 3 editor polish, `design/editor-polish`, merged #36):**
@@ -248,6 +249,7 @@ _Carried_
 3. Owner, after the release to `main` (unchanged): `npm run db:migrate` once (0004 to 0007), then the library backfill per environment.
 4. Then Phase 4 (BACKLOG #10).
 5. Follow-ups:
+   - the Usage page is wider than a 360/390 phone, which zooms it out (check:ui pagesZoomedOutOnPhones, ratcheted at 8);
    - toasts in the browser's top layer, so Undo can be reached while a dialog is open;
    - the remote-control configurator adapter when the protocol is ready (keep the current adapter as it is until then).
 6. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").
