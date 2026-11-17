@@ -7,8 +7,31 @@
 .workspace-hint { font-size: var(--ds-text-sm); }
 .workspace-link-icon { width: var(--ds-icon); height: var(--ds-icon); margin-left: var(--ds-space-4); }
 .workspace-home .ds-hero { padding-bottom: var(--ds-space-16); }
-.workspace-home .ds-tool-art { background: var(--ds-accent-soft); color: var(--ds-text-strong); }
-.workspace-home .ds-tool[data-locked="true"] .ds-tool-art { background: var(--ds-panel-2); color: var(--ds-muted); }
+/* A tool's picture (lib/tool-samples.ts): the company's own work or car in the
+   card's fixed 16:10 box (it loads lazily and never moves the card), with the
+   tool's mark on it; without one, the neutral placeholder and the mark. */
+.workspace-tool-art { position: relative; display: block; }
+.workspace-home .ds-tool-art { background: var(--ds-media-bg); color: var(--ds-muted); }
+.ds-tool-art > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.workspace-tool-mark {
+  position: absolute; left: var(--ds-space-8); top: var(--ds-space-8); display: grid; place-items: center;
+  width: var(--ds-space-32); height: var(--ds-space-32); border-radius: var(--ds-radius-round);
+  background: var(--ds-media-shade); color: var(--ds-on-media);
+}
+.workspace-tool-mark svg { width: var(--ds-icon); height: var(--ds-icon); }
+.workspace-home .ds-tool[data-locked="true"] .workspace-tool-mark { opacity: 0.55; }
+
+/* "Needs a plan upgrade" (components/workspace/upgrade.tsx): the picture and the words side by side, stacked on phones. */
+.workspace-upgrade {
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; gap: var(--ds-space-40);
+  max-width: calc(var(--ds-measure) * 2); margin: 0 auto; padding: var(--ds-space-40) 0;
+}
+.workspace-upgrade-art { margin: 0; border: var(--ds-border-width) solid var(--ds-border); }
+.workspace-upgrade .ds-hero-title { text-wrap: balance; }
+.workspace-upgrade-text > p { max-width: var(--ds-measure); }
+@media (max-width: 768px) {
+  .workspace-upgrade { grid-template-columns: minmax(0, 1fr); gap: var(--ds-space-24); padding: var(--ds-space-16) 0; }
+}
 
 /* Library. */
 .workspace-library-main { min-width: 0; }

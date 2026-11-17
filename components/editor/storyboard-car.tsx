@@ -19,7 +19,9 @@ import type {ConfiguratorAdapter,ConfiguratorOptions} from './configurator';
 // adapter (components/editor/configurator.ts), and the story's car views under
 // it. "Use this view" asks the adapter for the picture; when the configurator
 // sends none, the browser-tab capture and the screenshot upload of the old
-// screen still work. Every view is framed (cropped) before it is added.
+// screen still work. Every view is framed (cropped) before it is added. The
+// story's one next step is Generate in the settings panel ("Plan the shots"),
+// so the canvas has no button of its own for it.
 
 export const MAX_VIEWS=10;
 // Said just before the browser asks to share this tab, and only then.
@@ -33,11 +35,11 @@ function asDataUrl(blob:Blob){
  return new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=()=>reject(new Error('This picture could not be read.'));r.readAsDataURL(blob)});
 }
 
-export function StoryCar({config,views,onViews,onLabel,locked,disabled,library,onNext}:{
+export function StoryCar({config,views,onViews,onLabel,locked,disabled,library}:{
  config:Configurator;views:CarView[];
  /** Saves the story with these views (label: what the screen says meanwhile). */onViews:(views:CarView[],label:string)=>void;
  /** A view's label while typing (saved with the story). */onLabel:(id:string,label:string)=>void;
- /** The story has shots: its car is set. */locked:boolean;disabled:boolean;library:SavedVisual[];onNext:()=>void;
+ /** The story has shots: its car is set. */locked:boolean;disabled:boolean;library:SavedVisual[];
 }){
  const frame=React.useRef<HTMLIFrameElement>(null),image=React.useRef<HTMLImageElement>(null);
  const drag=React.useRef<{x:number;y:number}|null>(null),captureHandle=React.useRef('');
@@ -160,10 +162,7 @@ export function StoryCar({config,views,onViews,onLabel,locked,disabled,library,o
       </div>
      </li>)}</ol>
     :<p className="ds-muted">Capture a clean front three-quarter view first. Add side and rear angles to support more storyboard angles. Keep the same colour, wheels and trim in every capture.</p>}
-   <div className="ds-row">
-    <p className="ds-help editor-storyboard-grow">Only capture and upload happen here. Image generation begins after your approval.</p>
-    <Button kind="primary" disabled={disabled||!views.length} onClick={onNext}>Create your story</Button>
-   </div>
+   <p className="ds-help">{locked?'Only capture and upload happen here.':'Only capture and upload happen here. When your views are in, describe your idea in the settings and choose Plan the shots; nothing is generated until you approve it.'}</p>
   </section>
   <Dialog open={!!crop} onClose={()=>setCrop(null)} title="Frame the car" wide
    footer={<><Button onClick={()=>setBox(null)}>Use full image</Button><Button kind="primary" icon={<Check aria-hidden="true"/>} busy={busy==='upload'} onClick={()=>void addView()}>Add car view</Button></>}>

@@ -1,10 +1,9 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {staffLabel,workName} from '@/lib/accounts/names';
-import Link from 'next/link';
 import {Eye,Lock,Info} from 'lucide-react';
 import {CreditBanner,loadCredits} from '@/components/credits';
-import {StudioTopBar} from '@/components/studio-topbar';
+import {UpgradePage} from '@/components/workspace/upgrade';
 import {Banner} from '@/components/ds/shell';
 import {Popover,PopoverTrigger,PopoverContent} from '@/components/ui/popover';
 import {FEATURE_LABELS,type FeatureKey} from '@/lib/accounts/plan';
@@ -88,10 +87,10 @@ export function FeatureLink({feature,href,children,current,className}:{feature:F
  if(hasFeature(account,feature))return <a className={className} href={href} aria-current={current?'page':undefined}>{children}</a>;
  return <span className={'feature-off'+(className?' '+className:'')}>{children}<span className="plan-chip">{planEnded(account)?PLAN_ENDED_CHIP:account!.upsell[feature]}</span></span>;
 }
-// A whole page for one tool: shown when the plan has it, otherwise a plain notice.
+// A whole page for one tool: shown when the plan has it, otherwise the
+// "needs a plan upgrade" page (components/workspace/upgrade.tsx).
 export function PlanGate({feature,children}:{feature:FeatureKey;children:React.ReactNode}){
  const account=useAccount();
  if(hasFeature(account,feature))return <>{children}</>;
- const ended=planEnded(account);
- return <><StudioTopBar/><AccountNotices/><main className="plan-gate"><section><p className="eyebrow">YOUR PLAN</p>{ended?<><h1>Your Studio plan has ended</h1><p className="helper">New work, including {FEATURE_LABELS[feature].toLowerCase()}, is paused. Ask Nmesis to renew your company’s plan.</p><div className="upsell"><span className="plan-chip">{PLAN_ENDED_CHIP}</span><AskNmesis feature={feature} ended/></div></>:<><h1>{FEATURE_LABELS[feature]} is available on {account!.upsell[feature]}</h1><p className="helper">Your company’s plan doesn’t include {FEATURE_LABELS[feature].toLowerCase()} yet. Ask Nmesis to add it.</p><div className="upsell"><span className="plan-chip">Available on {account!.upsell[feature]}</span><AskNmesis feature={feature}/></div></>}<Link className="secondary" href="/">Back to Home</Link></section></main></>;
+ return <UpgradePage feature={feature} plan={account!.upsell[feature]} ended={planEnded(account)}/>;
 }

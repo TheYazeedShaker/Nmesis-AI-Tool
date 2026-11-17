@@ -6,14 +6,23 @@ import {Button} from '@/components/ds/button';
 import {Badge,SkeletonTile} from '@/components/ds/feedback';
 import {MediaTile} from '@/components/ds/media';
 import type {WorkItem} from './items';
-import {CarPicture} from './car-picture';
+import {briefPlaceholder} from '@/lib/tool-samples';
+import {CarPicture,SamplePicture} from './car-picture';
 
 // Home (Phase 3 group 1, the approved wireframe): what to make, the tools,
-// recent work, and the company's cars.
-export type HomeTool={key:string;name:string;line:string;href:string;icon:React.ReactNode;cost?:string;locked?:string};
+// recent work, and the company's cars. Each tool shows a picture of the
+// company's own work or cars (lib/tool-samples.ts), never stock imagery.
+export type HomeTool={key:string;name:string;line:string;href:string;icon:React.ReactNode;cost?:string;locked?:string;/** Its sample picture (lib/tool-samples.ts); none: the neutral placeholder. */sample?:string};
 export type HomeCar={name:string;href:string;/** Its picture (/api/cars/<id>/picture); none: the neutral car. */picture?:string};
 
-export function HomeScreen({greeting,tools,recent,cars,onStart,libraryHref='/library'}:{greeting?:string;tools:HomeTool[];/** null while loading: the row keeps its height. */recent:WorkItem[]|null;cars:HomeCar[];onStart:(brief:string)=>void;libraryHref?:string}){
+function ToolArt({tool}:{tool:HomeTool}){
+ return <span className="workspace-tool-art">
+  <SamplePicture src={tool.sample} className="ds-tool-art" fallback={tool.icon}/>
+  {tool.sample&&<span className="workspace-tool-mark" aria-hidden="true">{tool.icon}</span>}
+ </span>;
+}
+
+export function HomeScreen({greeting,tools,recent,cars,onStart,placeholder=briefPlaceholder([]),libraryHref='/library'}:{greeting?:string;placeholder?:string;tools:HomeTool[];/** null while loading: the row keeps its height. */recent:WorkItem[]|null;cars:HomeCar[];onStart:(brief:string)=>void;libraryHref?:string}){
  const [brief,setBrief]=React.useState('');
  return <div className="ds-blocks workspace-home">
   <div className="ds-hero">
@@ -22,7 +31,7 @@ export function HomeScreen({greeting,tools,recent,cars,onStart,libraryHref='/lib
    <form className="ds-ask" role="search" onSubmit={e=>{e.preventDefault();onStart(brief.trim())}}>
     <Search aria-hidden="true"/>
     <label className="ds-sr-only" htmlFor="home-brief">Describe the key visual you want</label>
-    <input id="home-brief" value={brief} onChange={e=>setBrief(e.target.value)} placeholder="The Demo SUV on a coast road at dusk…" autoComplete="off" maxLength={600}/>
+    <input id="home-brief" value={brief} onChange={e=>setBrief(e.target.value)} placeholder={placeholder} autoComplete="off" maxLength={600}/>
     <Button type="submit" kind="primary" icon={<Sparkles aria-hidden="true"/>}>Start</Button>
    </form>
    <p className="ds-muted workspace-hint">Opens a key visual with your words. Nothing is charged until you press Generate.</p>
@@ -34,12 +43,12 @@ export function HomeScreen({greeting,tools,recent,cars,onStart,libraryHref='/lib
     {tools.map(t=><li key={t.key}>
      {t.locked
       ?<span className="ds-tool" data-locked="true" aria-disabled="true">
-        <span className="ds-tool-art" aria-hidden="true">{t.icon}</span>
+        <ToolArt tool={t}/>
         <span className="ds-tool-name">{t.name}</span><span className="ds-tool-line">{t.line}</span>
         <span className="ds-tool-foot"><Badge icon={<Lock aria-hidden="true"/>}>{t.locked}</Badge></span>
        </span>
       :<Link className="ds-tool" href={t.href}>
-        <span className="ds-tool-art" aria-hidden="true">{t.icon}</span>
+        <ToolArt tool={t}/>
         <span className="ds-tool-name">{t.name}</span><span className="ds-tool-line">{t.line}</span>
         {t.cost&&<span className="ds-tool-foot"><Badge>{t.cost}</Badge></span>}
        </Link>}
