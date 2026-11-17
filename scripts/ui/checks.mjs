@@ -127,6 +127,18 @@ export function layoutChecks({ phone }) {
   // The editor fills the window under the top bar, with nothing left below it
   // or under its version history (owner, design/editor-cleanup: an empty band
   // under "Your versions appear here"). Measured with the page at the top.
+  // A phone zooms a page out when something is wider than the screen: the
+  // window then grows past the screen (innerWidth > screen.width), which the
+  // scrollWidth check above cannot see. Name the widest boxes that cause it.
+  out.zoomedOut = [];
+  if (phone && window.innerWidth > screen.width + 1) {
+    for (const el of document.querySelectorAll('body *')) {
+      const b = el.getBoundingClientRect();
+      if (b.width && b.right > screen.width + 1 && ![...el.children].some((c) => c.getBoundingClientRect().right > screen.width + 1)) out.zoomedOut.push({ el: describe(el), right: Math.round(b.right), screen: screen.width });
+    }
+    out.zoomedOut = out.zoomedOut.slice(0, 8);
+    out.overflowX = Math.max(out.overflowX, window.innerWidth - screen.width);
+  }
   out.editorBand = [];
   const editor = document.querySelector('.ds-editor');
   if (editor && visible(editor) && window.scrollY === 0) {
