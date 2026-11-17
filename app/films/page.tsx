@@ -12,7 +12,7 @@ import {Checkbox,Field,Input,Radio,RadioGroup,Select,Switch,Textarea} from '@/co
 import {DropZone} from '@/components/ds/drop-zone';
 import {useToast} from '@/components/ds/toast';
 import {WorkspaceFrame} from '@/components/workspace/frame';
-import {EditorScreen,EDITOR_TOOLS} from '@/components/editor/editor-screen';
+import {Advanced,EditorScreen,EDITOR_TOOLS,type GenerateBlocker} from '@/components/editor/editor-screen';
 import {CostBadge,SaveToProject,SettingsSection,VersionHistory} from '@/components/editor/parts';
 import {useProject} from '@/components/editor/use-project';
 import {FILM_STATUS,FILM_WORKING,FilmConnectionDialog,FilmExportDialog,FilmNameField,FilmQualitySettings,QUALITY_MODEL,filmVersions,hasQuality,qualityOf,type FilmShape,type VideoConnection} from '@/components/editor/films-parts';
@@ -86,8 +86,12 @@ function FilmStudio(){const router=useRouter(),showNames=providerNames(useAccoun
  if(film&&draft){
   if(!editable){verb='Create another version';generateBusy=busy==='new';generateDisabled=(isBusy&&!generateBusy)||exporting!==null;onGenerate=()=>void duplicate()}
   else if(quoted){verb='Generate film';cost=film.credits;generateBusy=busy==='render';generateDisabled=(isBusy&&!generateBusy)||!approved||overBudget;onGenerate=()=>void action('render')}
-  else{verb=videoReady?'Get film estimate':connection?.ownKeys&&!connection.sponsored?'Connect video to continue':'Video connection details';generateBusy=busy==='quote';generateDisabled=isBusy&&!generateBusy;onGenerate=()=>videoReady?void action('quote'):setSettings(true)}
+  else{verb='Get film estimate';generateBusy=busy==='quote';generateDisabled=isBusy&&!generateBusy;onGenerate=()=>void action('quote')}
  }
+ // Why Generate cannot run here: no video set up (the account and credits are checked by the editor).
+ const blocked:GenerateBlocker|null=editable&&connection&&!videoReady?(connection.ownKeys&&!connection.sponsored
+  ?{title:w('Connect your video key to make films'),body:'Your company uses its own keys.',action:<Button size="sm" onClick={()=>setSettings(true)}>Connect</Button>}
+  :{title:'Video isn’t set up for your Studio yet',body:'Ask Nmesis to set it up.'}):null;
  const note=typeof creditsLeft==='number'?<>{creditsLabel(creditsLeft)} left this month{overBudget&&film?.status==='quoted'?' · not enough for this film. Ask Nmesis to add a pack.':''}</>:undefined;
 
  // Versions: every film, newest first. Cancel shows only when every film being made can still be cancelled (queued); otherwise it is on the open film.
@@ -143,7 +147,6 @@ function FilmStudio(){const router=useRouter(),showNames=providerNames(useAccoun
     value={film&&draft?'/api/assets/'+draft.sourceId:null} valueName={draft?.vehicle} valueMeta={reference?'Car reference':'Starting frame'}
     onFile={file=>uploadFrame(file)} busy={busy==='upload'?'Uploading your starting frame…':false} disabled={(isBusy&&busy!=='upload')||loading||exporting!==null}/>
    <div className="editor-row"><a className={buttonClass({kind:'quiet',size:'sm'})} href={KEY_VISUAL_HREF}><Plus aria-hidden="true"/>Choose a key visual</a></div>
-   <p className="ds-help">Either one starts a new film. From a key visual, choose Create launch film.</p>
   </SettingsSection>
   {film&&draft&&<fieldset className="editor-films-fieldset" disabled={!editable||isBusy}>
    <legend className="ds-sr-only">Direct the film</legend>
@@ -160,7 +163,6 @@ function FilmStudio(){const router=useRouter(),showNames=providerNames(useAccoun
       <Field label={`Shot ${i+1} title`}><Input value={shot.title} maxLength={60} onChange={e=>edit({shots:draft.shots.map((s,n)=>n===i?{...s,title:e.target.value}:s)})}/></Field>
       <Field label={`Shot ${i+1} direction · ${i*5}–${(i+1)*5} s`} count={{value:shot.direction.length,max:700}}><Textarea value={shot.direction} maxLength={700} rows={4} onChange={e=>edit({shots:draft.shots.map((s,n)=>n===i?{...s,direction:e.target.value}:s)})}/></Field>
      </div>)}
-     <p className="ds-help">These are timing and camera instructions; review the generated film for the final execution.</p>
     </>}
     {editable&&<span className="editor-row"><Button size="sm" busy={busy==='save'} disabled={!dirty||(isBusy&&busy!=='save')} onClick={()=>void run('save',async()=>{await save();notify(reference?'Direction saved.':'Storyboard saved.')})}>{dirty?(reference?'Save direction':'Save storyboard'):(reference?'Direction saved':'Storyboard saved')}</Button></span>}
    </SettingsSection>
@@ -170,30 +172,26 @@ function FilmStudio(){const router=useRouter(),showNames=providerNames(useAccoun
     {selectedModel.sound?<><Switch label="Cinematic sound" checked={draft.sound} onChange={e=>edit({sound:e.target.checked})}/><p className="ds-help">Ambient sound and instrumental direction.</p></>:<p className="ds-help">This model creates a silent video.</p>}
    </SettingsSection>
    {hasQuality(draft.mode)&&<FilmQualitySettings value={qualityOf(draft.model)} onChange={q=>chooseModel(QUALITY_MODEL[q])} price={price}/>}
-   <SettingsSection title="Model" id="film-model-title">
-    <Field label="Model" help={<>{selectedModel.description}. {draft.mode==='launch'?w('Three-shot films use Kling 3.0 with a separate direction for each shot.'):reference?w('Seedance uses your image as a car reference. Your text describes the shot and setting.'):w('The image anchors the first frame. Kling, Seedance and PixVerse are available.')} The price is checked for your selection before rendering.</>}>
-     <Select value={selectedModel.id} onChange={e=>chooseModel(e.target.value)}>{FILM_MODELS.filter(m=>reference?m.reference:draft.mode==='launch'?m.launch:!m.reference).map(m=><option key={m.id} value={m.id}>{modelName(m)}{m.sound?'':' · Silent'}</option>)}</Select>
-    </Field>
-   </SettingsSection>
   </fieldset>}
-  {film&&draft&&(editable?<SettingsSection title="Estimate" id="film-estimate-title">
-   {quoted?<>
-    <p><span className="editor-films-price">{price}</span> <span className="ds-muted">for this film</span></p>
-    <p className="ds-help">{connection?.connected?w('Your company’s Higgsfield key: 0 credits'):w('Reserved when it starts, charged once Higgsfield accepts it')}. Price checked again before submission. A higher price requires your approval again.</p>
-    <Checkbox label="I approve this source image, storyboard and estimated cost." checked={approved} onChange={e=>setApproved(e.target.checked)}/>
-    <span className="editor-row"><Button size="sm" kind="quiet" icon={<RefreshCw aria-hidden="true"/>} busy={busy==='quote'} disabled={isBusy&&busy!=='quote'} onClick={()=>void action('quote')}>Refresh estimate</Button></span>
-   </>:<p className="ds-help">Get a live price first. Estimating does not start a video render.</p>}
-  </SettingsSection>:<SettingsSection title="Next version" id="film-next-title"><p className="ds-help">This storyboard is saved with its render. Start a new version to try another direction.</p></SettingsSection>)}
-  <SettingsSection title="Video connection" id="film-connection-title">
+  {film&&draft&&quoted&&<SettingsSection title="Estimate" id="film-estimate-title">
+   <p><span className="editor-films-price">{price}</span> <span className="ds-muted">for this film</span></p>
+   <p className="ds-help">{connection?.connected?w('Your company’s Higgsfield key: 0 credits'):w('Reserved when it starts, charged once Higgsfield accepts it')}. Price checked again before submission. A higher price requires your approval again.</p>
+   <Checkbox label="I approve this source image, storyboard and estimated cost." checked={approved} onChange={e=>setApproved(e.target.checked)}/>
+   <span className="editor-row"><Button size="sm" kind="quiet" icon={<RefreshCw aria-hidden="true"/>} busy={busy==='quote'} disabled={isBusy&&busy!=='quote'} onClick={()=>void action('quote')}>Refresh estimate</Button></span>
+  </SettingsSection>}
+  <Advanced name="film" summary={film&&draft?'Model and video connection':'Video connection'}>
+   {film&&draft&&<Field label="Model" help={<>{selectedModel.description}. {draft.mode==='launch'?w('Three-shot films use Kling 3.0 with a separate direction for each shot.'):reference?w('Seedance uses your image as a car reference. Your text describes the shot and setting.'):w('The image anchors the first frame. Kling, Seedance and PixVerse are available.')} The price is checked for your selection before rendering.</>}>
+     <Select value={selectedModel.id} disabled={!editable||isBusy} onChange={e=>chooseModel(e.target.value)}>{FILM_MODELS.filter(m=>reference?m.reference:draft.mode==='launch'?m.launch:!m.reference).map(m=><option key={m.id} value={m.id}>{modelName(m)}{m.sound?'':' · Silent'}</option>)}</Select>
+    </Field>}
    <span className="editor-row"><Button size="sm" kind="quiet" onClick={()=>setSettings(true)}>{connection?.sponsored?'Company video connection':'Video connection'}</Button></span>
-  </SettingsSection>
+  </Advanced>
  </>;
 
  return <WorkspaceFrame current="films" bleed notices={<AccountNotices variant="ds"/>}>
   <EditorScreen tool="films" onTool={t=>{const href=EDITOR_TOOLS.find(x=>x.id===t)?.href;if(href&&t!=='films')router.push(href)}}
    bar={bar} stage={stage}
    history={<VersionHistory versions={versions} current={selected||null} onPick={id=>{const f=films.find(x=>x.id===id);if(f)void choose(f)}} onCancel={cancelInHistory?id=>void action('cancel',films.find(f=>f.id===id)):undefined}/>}
-   settings={settingsPanel} cost={cost} verb={verb} busy={generateBusy} disabled={generateDisabled} onGenerate={onGenerate} note={note}/>
+   settings={settingsPanel} cost={cost} verb={verb} busy={generateBusy} disabled={generateDisabled} blocked={blocked} payer="higgsfield" onGenerate={onGenerate} note={note}/>
   <input ref={uploadInput} className="editor-films-hidden" type="file" hidden tabIndex={-1} aria-hidden="true" accept="image/png,image/jpeg,image/webp" onChange={e=>{const file=e.target.files?.[0];e.target.value='';if(file)void uploadFrame(file)}}/>
   {film?.videoUrl&&draft&&<FilmExportDialog open={exportOpen} onClose={()=>setExportOpen(false)} videoUrl={film.videoUrl} brand={draft.brand} tagline={draft.tagline} onBrand={brand=>setDraft({...draft,brand})} onTagline={tagline=>setDraft({...draft,tagline})} shape={shape} onShape={setShape} exporting={exporting} onExport={()=>void makeExport()} onCancel={()=>exportController.current?.abort()}/>}
   <FilmConnectionDialog open={settings} onClose={()=>setSettings(false)} connection={connection} words={w} busy={isBusy} saving={busy==='key'} error={settings?error:''} onSave={saveKey} onRemove={removeConnection}/>

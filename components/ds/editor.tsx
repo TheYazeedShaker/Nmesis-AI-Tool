@@ -1,6 +1,6 @@
 'use client';
 import * as React from 'react';
-import { PanelRightClose, PanelRightOpen, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Info, PanelRightClose, PanelRightOpen, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { Button, IconButton } from './button';
 import { Dialog } from './dialog';
 import { useRememberedOpen } from './layout';
@@ -14,19 +14,35 @@ import { credits } from '@/lib/ds/words';
 
 export type RailTool = { id: string; label: string; icon: React.ReactNode };
 
-export function GenerateButton({ cost, busy, disabled, onGenerate, note, verb = 'Generate' }: { cost: number | null; busy?: boolean; disabled?: boolean; onGenerate: () => void; note?: React.ReactNode; verb?: string }) {
+/** Why Generate cannot run (no AI set up, the plan ended, no credits): one
+ *  notice at the top of the settings, and the disabled button's description. */
+export type GenerateBlocker = { title: string; body: string; action?: React.ReactNode };
+
+export function GenerateButton({ cost, busy, disabled, onGenerate, note, verb = 'Generate', blocked }: { cost: number | null; busy?: boolean; disabled?: boolean; onGenerate: () => void; note?: React.ReactNode; verb?: string; blocked?: GenerateBlocker | null }) {
+  const reason = React.useId();
   return (
     <>
-      <Button kind="primary" busy={busy} disabled={disabled} onClick={onGenerate} icon={<Sparkles aria-hidden="true" />}>
+      <Button kind="primary" busy={busy} disabled={disabled || !!blocked} onClick={onGenerate} icon={<Sparkles aria-hidden="true" />} aria-describedby={blocked ? reason : undefined}>
         {verb}
         {cost !== null && <span className="ds-btn-meta">· {credits(cost)}</span>}
       </Button>
-      {note && <p className="ds-generate-note">{note}</p>}
+      {/* While Generate cannot run, its reason is its description (the notice over the settings shows it); never a grey line under an active-looking button. */}
+      {blocked ? <span id={reason} className="ds-sr-only">{blocked.title}. {blocked.body}</span> : note && <p className="ds-generate-note">{note}</p>}
     </>
   );
 }
 
-export function EditorLayout({ name, tools, tool, onTool, canvasBar, canvas, jobs, settingsTitle = 'Settings', settings, generate }: {
+/** The one notice over the settings when Generate cannot run: why, and what to do. */
+export function GenerateNotice({ blocked }: { blocked: GenerateBlocker }) {
+  return (
+    <div className="ds-banner warn ds-generate-blocked" role="status">
+      <Info aria-hidden="true" />
+      <span className="ds-stack"><b>{blocked.title}</b><span>{blocked.body}</span>{blocked.action && <span>{blocked.action}</span>}</span>
+    </div>
+  );
+}
+
+export function EditorLayout({ name, tools, tool, onTool, canvasBar, canvas, jobs, settingsTitle = 'Settings', settings, notice, generate }: {
   /** Remembers whether settings were closed, per tool. */
   name: string;
   tools: RailTool[];
@@ -37,6 +53,8 @@ export function EditorLayout({ name, tools, tool, onTool, canvasBar, canvas, job
   jobs?: React.ReactNode;
   settingsTitle?: string;
   settings: React.ReactNode;
+  /** First in the settings (and the phone sheet): why Generate cannot run. */
+  notice?: React.ReactNode;
   generate: React.ReactNode;
 }) {
   const [open, setOpen] = useRememberedOpen(`editor-settings:${name}`, true);
@@ -66,7 +84,7 @@ export function EditorLayout({ name, tools, tool, onTool, canvasBar, canvas, job
       <aside className="ds-editor-settings" aria-label={settingsTitle}>
         <div className="ds-settings-head"><h2 className="ds-section-title">{settingsTitle}</h2></div>
         {/* One copy of the settings at a time: while the phone sheet is open it holds them (duplicate radio groups and ids otherwise). */}
-        <div className="ds-settings-body">{sheet ? null : settings}</div>
+        <div className="ds-settings-body">{sheet ? null : <>{notice}{settings}</>}</div>
         <div className="ds-generate">{generate}</div>
       </aside>
       <div className="ds-phone-generate">
@@ -74,7 +92,7 @@ export function EditorLayout({ name, tools, tool, onTool, canvasBar, canvas, job
         {generate}
       </div>
       <Dialog open={sheet} onClose={() => setSheet(false)} title={settingsTitle} variant="sheet" footer={<Button kind="primary" onClick={() => setSheet(false)}>Done</Button>}>
-        {settings}
+        {notice}{settings}
       </Dialog>
     </div>
   );

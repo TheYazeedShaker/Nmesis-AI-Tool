@@ -18,7 +18,7 @@ import {Button,buttonClass} from '@/components/ds/button';
 import {State} from '@/components/ds/feedback';
 import {useToast} from '@/components/ds/toast';
 import {WorkspaceFrame} from '@/components/workspace/frame';
-import {EDITOR_TOOLS,EditorScreen} from '@/components/editor/editor-screen';
+import {Advanced,EDITOR_TOOLS,EditorScreen,type GenerateBlocker} from '@/components/editor/editor-screen';
 import {CarSettings,ConfiguratorStage,CostBadge,PromptSettings,QUALITY_LABEL,SaveToProject,VersionHistory} from '@/components/editor/parts';
 import {iframeConfigurator} from '@/components/editor/iframe-configurator';
 import type {ConfiguratorAdapter,ConfiguratorOptions} from '@/components/editor/configurator';
@@ -151,13 +151,16 @@ function CarSwap(){
   <SwapCarViews views={refs} disabled={!!busy} configuratorUrl={config.url} onFile={readScreenshot} onRemove={id=>{setRefs(prev=>prev.filter(x=>x.id!==id));changed()}}/>
   <PromptSettings label="Anything to keep?" value={notes} max={700} inspiration={false} placeholder="Keep the wet-road reflections; preserve the final overhead shot…" onChange={v=>{setNotes(v);changed()}}/>
   <SwapQuality value={qualityOf(resolution)} disabled={!!busy} onChange={q=>{setResolution(resolutionOf(q));changed()}}/>
-  <SwapConnectionSection connection={connection} w={w} keyValue={key} onKey={setKey} onSave={()=>void saveKey()} disabled={!!busy}/>
+  <Advanced name="swap" summary="Video connection"><SwapConnectionSection connection={connection} w={w} keyValue={key} onKey={setKey} onSave={()=>void saveKey()} disabled={!!busy}/></Advanced>
   <SwapCostSection quote={quoted} label={active?price(active.credits):''} showNames={showNames} creditsLeft={typeof creditsLeft==='number'?creditsLeft:undefined} approved={approved} onApprove={setApproved} onRefresh={()=>void act('quote')} overBudget={overBudget} disabled={!!busy}/>
  </>;
 
+ // Why Generate cannot run here: no video set up (the account and credits are checked by the editor).
+ const blocked:GenerateBlocker|null=connection&&!available?(connection.ownKeys&&!connection.sponsored
+  ?{title:w('Connect your video key to swap cars'),body:'Your company uses its own keys. Add it under Advanced, in the settings.'}
+  :{title:'Car swap isn’t set up for your Studio yet',body:'Ask Nmesis to set it up.'}):null;
  const note=quoted?(overBudget?'Not enough credits left this month for this swap.':approved&&quote?`Up to ${price(quote.credits)}, approved.`:'Approve the estimate under Cost first.')
   :busy==='quote'?'Uploading references & estimating…'
-  :connection&&!available?'Car swap isn’t available in your Studio right now. Ask Nmesis.'
   :!source?'Choose a reference ad first.':!refs.length?'Add at least one view of your car.'
   :active&&!editable?'Starts a new version from these settings. You see the cost before it starts.':'You see the cost, and approve it, before the swap starts.';
 
@@ -166,7 +169,7 @@ function CarSwap(){
    history={<VersionHistory versions={versions} current={selected||null} onPick={id=>{const s=swaps.find(x=>x.id===id);if(s)chooseJob(s)}} onCancel={cancellable?id=>void act('cancel',swaps.find(s=>s.id===id)||null):undefined}/>}
    settings={settings}
    cost={quote?quote.credits:null} verb={quoted?'Replace car in video':'Get cost estimate'} busy={busy==='quote'||busy==='render'}
-   disabled={quoted?!!busy||!approved||overBudget:!!busy||!source||!refs.length||!available}
+   disabled={quoted?!!busy||!approved||overBudget:!!busy||!source||!refs.length} blocked={blocked} payer="higgsfield"
    onGenerate={()=>void(quoted?act('render'):prepare())} note={note}/>
   <input hidden ref={adInput} type="file" accept="video/mp4,.mp4" aria-label="Reference ad" onChange={e=>{void uploadAd(e.target.files?.[0]);e.target.value=''}}/>
   <input hidden ref={imageInput} type="file" accept="image/png,image/jpeg,image/webp" aria-label="Car view image" onChange={e=>{void uploadScreenshot(e.target.files?.[0]);e.target.value=''}}/>

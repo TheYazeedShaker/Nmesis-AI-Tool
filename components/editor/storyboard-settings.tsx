@@ -9,6 +9,7 @@ import {FILM_MODELS,VIDEO_MODEL} from '@/lib/films';
 import type {Configurator} from '@/lib/configurators';
 import type {Storyboard} from '@/lib/storyboards';
 import {CarSettings,PromptSettings,QUALITY_LABEL,SettingsSection,type Quality} from './parts';
+import {Advanced} from './editor-screen';
 import type {ConfiguratorOptions} from './configurator';
 
 // Story, the one settings panel (Phase 3 group 2): the car, the idea and its
@@ -45,15 +46,14 @@ export function StorySettings({board,edit,cars,car,onCar,count,onCount,expert,on
   <PromptSettings label="Your idea" value={board.idea} onChange={idea=>edit({idea})} max={2000} inspiration={false} placeholder="A black SUV at a sculptural glass pavilion, warm desert sunset, understated luxury…"/>
   {!planned&&<div className="ds-row" role="group" aria-label="Start from an idea">{IDEAS.map(([name,idea])=><Button key={name} size="sm" kind="quiet" aria-pressed={board.idea===idea} onClick={()=>edit({idea})}>{name}</Button>)}</div>}
   <SettingsSection title="Atmosphere" id="story-mood-title">
-   <Field label={<>Art direction <span className="ds-muted">(optional)</span></>} count={{value:board.direction.length,max:2000}}><Textarea value={board.direction} onChange={e=>edit({direction:e.target.value})} maxLength={2000} rows={3} placeholder="Natural reflections, warm highlights, cinematic contrast…"/></Field>
-   <DropZone name="place picture" label="Drop, paste or upload a picture of the place" hint="Optional · PNG, JPEG or WebP · up to 40 MB"
+   <Field label={<>Art direction <span className="ds-muted">(optional)</span></>} help={planned?'Changing it, the idea or the references resets the affected images. Earlier versions stay saved.':undefined} count={{value:board.direction.length,max:2000}}><Textarea value={board.direction} onChange={e=>edit({direction:e.target.value})} maxLength={2000} rows={3} placeholder="Natural reflections, warm highlights, cinematic contrast…"/></Field>
+   <DropZone name="place picture" label="Drop, paste or upload a picture of the place" hint="Optional · sets the place and light · PNG, JPEG or WebP · up to 40 MB"
     value={board.moodId?'/api/assets/'+board.moodId:null} valueName="Atmosphere picture" valueAlt="Campaign atmosphere reference"
     onFile={onMood} onRemove={()=>edit({moodId:'',pin:''})} disabled={disabled}/>
    <Field label={<>Pinterest image pin <span className="ds-muted">(optional)</span></>}><Input value={board.pin} onChange={e=>edit({pin:e.target.value})} placeholder="https://www.pinterest.com/pin/…" inputMode="url"/></Field>
    <div className="editor-row">
     <Button size="sm" icon={<Link2 aria-hidden="true"/>} disabled={!board.pin} onClick={onPin}>Add reference</Button>
    </div>
-   <p className="ds-help">The car views define your vehicle. This image guides the environment and lighting.{planned?' Changing the shared idea, art direction or references resets the affected images. Earlier versions stay saved.':''}</p>
   </SettingsSection>
   <SettingsSection title="Story" id="story-shots-title">
    <Field label="Shots" help={planned?'Set when the shots were planned.':'How many shots the planner writes.'}><Select value={String(count)} onChange={e=>onCount(Number(e.target.value))} disabled={planned}>{[6,12].map(n=><option key={n} value={n}>{n} shots</option>)}</Select></Field>
@@ -74,9 +74,11 @@ export function StorySettings({board,edit,cars,car,onCar,count,onCount,expert,on
      label={<span className="editor-quality-label">{QUALITY_LABEL[q]}<span className="ds-muted">{standardModel&&quality===q&&quote?quote:'Priced before rendering'}</span></span>}
      help={q==='standard'?'Balanced cinematic motion for every clip.':'Higher-fidelity motion for the final.'}/>)}
    </RadioGroup>
-   <Switch label="Expert controls" checked={expert} onChange={e=>onExpert(e.target.checked)}/>
-   {expert&&<Field label="Video model" help="Changing it needs a new estimate for every clip."><Select value={board.model} onChange={e=>edit({model:e.target.value})}>{FILM_MODELS.filter(m=>!m.reference).map(m=><option key={m.id} value={m.id}>{showNames?m.label:filmModelLabel(m.id)}</option>)}</Select></Field>}
-   <a className="ds-link" href="/films">Video connection & daily budget</a>
+   <Switch label="Choose each shot’s car angle" checked={expert} onChange={e=>onExpert(e.target.checked)}/>
+   <Advanced name="story" summary="Video model and connection">
+    <Field label="Video model" help="Changing it needs a new estimate for every clip."><Select value={board.model} onChange={e=>edit({model:e.target.value})}>{FILM_MODELS.filter(m=>!m.reference).map(m=><option key={m.id} value={m.id}>{showNames?m.label:filmModelLabel(m.id)}</option>)}</Select></Field>
+    <a className="ds-link" href="/films?settings=budget">Video connection and daily budget</a>
+   </Advanced>
   </SettingsSection>
  </fieldset>;
 }

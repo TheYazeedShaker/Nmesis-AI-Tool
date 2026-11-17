@@ -96,8 +96,9 @@ function SwapProvides(){
   {o?.ignoredKeys&&<span className="ds-help">{o.ignoredKeys}</span>}</span></div>;
 }
 
+/** The video connection, under Advanced (staff, companies with their own keys). */
 export function SwapConnectionSection({connection,w,keyValue,onKey,onSave,disabled}:{connection:SwapConnection|null;w:(t:string)=>string;keyValue:string;onKey:(v:string)=>void;onSave:()=>void;disabled?:boolean}){
- return <SettingsSection title="Video connection" id="swap-connection-title">
+ return <>
   {connection&&!connection.ownKeys?<SwapProvides/>
    :!connection?.connected?<div className="editor-swap-note"><LockKeyhole aria-hidden="true"/><span>
      <b>{connection?.sponsored?'Your company’s own key':w('Connect your Higgsfield key (optional)')}</b>
@@ -108,22 +109,22 @@ export function SwapConnectionSection({connection,w,keyValue,onKey,onSave,disabl
    <Field label={w('Higgsfield API credential')}><Input type="password" autoComplete="off" value={keyValue} onChange={e=>onKey(e.target.value)}/></Field>
    <div className="editor-row"><Button size="sm" disabled={disabled||keyValue.trim().length<20} onClick={onSave}>Save video connection</Button></div>
   </>}
- </SettingsSection>;
+ </>;
 }
 
-/** The cost: before the estimate, how it is worked out; after it, the most it
- *  can cost, the approval and Refresh estimate. */
+/** The cost, once estimated: the most it can cost, the approval and Refresh
+ *  estimate. Before the estimate, Generate's note says how it is worked out. */
 export function SwapCostSection({quote,label,showNames,creditsLeft,approved,onApprove,onRefresh,overBudget,disabled}:{
  quote:boolean;label:string;showNames:boolean;creditsLeft?:number;approved:boolean;onApprove:(v:boolean)=>void;onRefresh:()=>void;overBudget:boolean;disabled?:boolean}){
+ if(!quote)return null;
  return <SettingsSection title="Cost" id="swap-cost-title">
-  {quote?<>
+  <>
    <p className="editor-swap-estimate"><span className="ds-label">Maximum cost at the current rate</span><b>{label}</b></p>
    <p className="ds-help">{showNames?'From Higgsfield’s current rate and the rounded-up video length.':'From the current rate and the rounded-up video length.'} It is checked again before submission; a higher amount needs new approval.{typeof creditsLeft==='number'?` Your company has ${creditsLabel(creditsLeft)} left this month.`:''}</p>
    <Checkbox checked={approved} disabled={disabled} onChange={e=>onApprove(e.target.checked)} label="I approve up to these credits for this ad and car."/>
    <div className="editor-row"><Button size="sm" kind="quiet" disabled={disabled} onClick={onRefresh}>Refresh estimate</Button></div>
    {overBudget&&<p className="ds-error"><AlertTriangle aria-hidden="true"/>Not enough credits left this month for this swap. Ask Nmesis to add a pack.</p>}
-  </>:<p className="ds-help">The cost comes from the current rate and the ad’s length. You see it, and approve it, before the swap starts.</p>}
-  <p className="ds-help">AI may still change fine details. Review badges, wheels, reflections and every shot before publishing.</p>
+  </>
  </SettingsSection>;
 }
 

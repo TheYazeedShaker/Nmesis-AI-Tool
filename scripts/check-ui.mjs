@@ -42,7 +42,7 @@ const WORKERS = Number(opt('workers')) || 3;
 // Run-to-run noise allowed before a count fails CI (owner, 2026-11-15): the
 // keyboard walk lands on slightly different stops from one run to the next.
 const TOLERANCE = { focusWithoutIndicator: 5 };
-const RATCHETED = ['fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
+const RATCHETED = ['pagesZoomedOutOnPhones', 'editorBand', 'fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked'];
 
 const VIEWPORTS = QUICK ? [[1440, 900], [390, 844]] : [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
 const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
@@ -297,6 +297,8 @@ function summarise(report) {
     overlapped: sum((r) => r.overlapped?.length),
     clippedWithoutEllipsis: sum((r) => r.clippedNoEllipsis?.length),
     fixedOverSettings: sum((r) => r.fixedOverSettings?.length),
+    editorBand: sum((r) => r.editorBand?.length),
+    pagesZoomedOutOnPhones: pages.filter((r) => (r.zoomedBy || 0) > 1).length,
     controlsSpilling: sum((r) => r.spilling?.length),
     ellipsisWithoutFullText: sum((r) => r.ellipsisNoTitle?.length),
     pagesOverCls01: pages.filter((r) => (r.vitals?.cls || 0) > 0.1).length,
@@ -339,14 +341,14 @@ function ratchet(totals) {
 // shots/state-<id>--<width>--<theme>.png; nothing here is counted.
 async function stateShots() {
   const SIZES = [[1440, 900], [1280, 800], [1024, 768], [390, 844]];
+  const CLEANUP_SIZES = [[1440, 900], [1024, 768], [390, 844]];
   const STATES = [
-    { id: 'home', role: 'owner', path: '/' },
-    { id: 'key-visual-live', role: 'owner', path: '/key-visual' },
-    { id: 'key-visual-captured', role: 'owner', path: '/key-visual', steps: ['settings', 'radio:Captured view'] },
-    { id: 'inspiration', role: 'owner', path: '/key-visual', steps: ['settings', 'scroll:Inspiration'] },
-    { id: 'switcher-one-brand', role: 'owner', path: '/', steps: ['switcher'] },
-    { id: 'switcher-several-brands', role: 'enterprise', path: '/', steps: ['switcher'] },
-    { id: 'story-768', role: 'enterprise', path: '/storyboard', sizes: [[768, 1024]] },
+    // The harness sets no provider key, so generation is not set up: the notice
+    // over the settings and Generate disabled. "Available" answers the Studio's
+    // own /api/status as if it were (its real answer, with generation on);
+    // nothing else changes and nothing is generated.
+    { id: 'key-visual-unavailable', role: 'owner', path: '/key-visual', sizes: CLEANUP_SIZES, steps: ['settings'] },
+    { id: 'key-visual-available', role: 'owner', path: '/key-visual', sizes: CLEANUP_SIZES, steps: ['settings'], generation: true },
   ];
   let n = 0;
   for (const s of STATES) for (const [w, h] of s.sizes || SIZES) for (const theme of THEMES) {
@@ -354,6 +356,7 @@ async function stateShots() {
     try {
       await page.setViewportSize({ width: w, height: h });
       await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
+      if (s.generation) await page.route('**/api/status', async (route) => { const res = await route.fetch(); const body = await res.json().catch(() => ({})); await route.fulfill({ response: res, json: { ...body, generation: true, storage: true } }); });
       await page.goto(s.path, { waitUntil: 'load', timeout: 30_000 });
       await ready(page);
       for (const step of s.steps || []) {

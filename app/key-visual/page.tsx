@@ -38,12 +38,12 @@ import {Button,IconButton,buttonClass} from '@/components/ds/button';
 import {Banner} from '@/components/ds/shell';
 import {State} from '@/components/ds/feedback';
 import {Dialog} from '@/components/ds/dialog';
-import {Field,Input,Textarea} from '@/components/ds/field';
+import {Field,Input,Select,Textarea} from '@/components/ds/field';
 import {Fold} from '@/components/ds/layout';
 import {Menu,MenuItem,MenuSeparator} from '@/components/ds/menu';
 import {useToast,type ToastKind} from '@/components/ds/toast';
 import {WorkspaceFrame} from '@/components/workspace/frame';
-import {EDITOR_TOOLS,EditorScreen} from '@/components/editor/editor-screen';
+import {Advanced,EDITOR_TOOLS,EditorScreen,type GenerateBlocker} from '@/components/editor/editor-screen';
 import {CarSettings,ChoiceChips,ConfiguratorStage,CostBadge,PromptSettings,QualitySettings,SaveToProject,SettingsSection,VersionHistory,type Quality,type Version} from '@/components/editor/parts';
 import {iframeConfigurator} from '@/components/editor/iframe-configurator';
 import type {ConfiguratorAdapter} from '@/components/editor/configurator';
@@ -226,6 +226,8 @@ export default function Studio(){
  async function cleanEmpty(){if(working.current)return;working.current=true;setCleaningEmpty(true);try{const d=await responseJson(await studioFetch('/api/visuals/cleanup',{method:'POST'}));await refreshResults();say(d.removed?d.removed+' empty entries removed. Finished images are preserved.':'No empty drafts to remove.','ok')}catch(e){setHistoryError((e as Error).message)}finally{working.current=false;setCleaningEmpty(false)}}
  function exportBrief(){downloadJson({vehicle:configurator.name,configurator:configurator.url,visualCount,view:{title:view.title,finish:view.finish},brief,direction:directions[direction],pinterest:safePinterest(pin),output:size,provider,model:imageModel,referenceMode,referenceStatus:mood?'Inspiration image selected':'No inspiration image',notes:referenceMode==='match-inspiration'?'The car capture defines product identity. Inspiration defines camera, lens, composition, light and mood.':'The car capture defines product identity and angle. Inspiration defines atmosphere.'},'nmesis-creative-brief.json')}
 
+ const engineFallback=!showProvider&&provider!=='openai'&&!!status?.generation&&(provider==='google'?!googleReady:!higgsConnected);
+ useEffect(()=>{if(engineFallback&&!busy)chooseImageProvider('openai')/* eslint-disable-line react-hooks/exhaustive-deps -- chooseImageProvider is a plain function of this render */},[engineFallback,busy]);
  const generationReady=provider==='openai'?!!status?.generation:provider==='google'?googleReady&&(!googleConnection?.connected||googleConnection.models.includes(imageModel)):higgsConnected;
  function chooseImageProvider(next:ImageProvider){const nextModel=next==='openai'?OPENAI_IMAGE_MODEL:next==='google'?GEMINI_IMAGE_MODELS[0].id:HIGGSFIELD_IMAGE_MODELS[0].id;setProvider(next);setImageModel(nextModel);try{imageSettings(next,size,nextModel)}catch{setSize('2048x1152')}}
  function chooseImageModel(next:string){setImageModel(next);try{imageSettings(provider,size,next)}catch{setSize('2048x1152')}}
@@ -355,6 +357,20 @@ export default function Studio(){
  </>;
 
  const saved=savedViews.current[configurator.id]||[];
+ const howMany=<Field label="How many"><Select value={String(visualCount)} disabled={lock} onChange={e=>setVisualCount(Number(e.target.value))}><option value="1">1 visual</option><option value="3">3 visuals</option></Select></Field>;
+ // Staff and companies with their own keys: the engine, its model and exact size, and who pays for it.
+ const paidBy=provider==='google'?(googleConnection?.connected?'Uses your company’s Google key: 0 credits.':googleReady?'Nano Banana is provided by Nmesis; each image costs credits.':'')
+  :provider==='higgsfield'?(higgsConnection?.connected?'Uses your company’s Higgsfield key: 0 credits.':higgsConnected?'Higgsfield is provided by Nmesis; each image costs credits.':'')
+  :status?.generation?(status.personalKey?'Uses your company’s OpenAI key: 0 credits.':'Provided by Nmesis; each image costs credits.'):'';
+ const advanced=<Advanced name="visuals"><VisualsEngine provider={provider} model={imageModel} size={size} onProvider={chooseImageProvider} onModel={chooseImageModel} onSize={setSize} disabled={lock}/>{paidBy&&<p className="ds-help">{paidBy}</p>}</Advanced>;
+ // Why Generate cannot run here (the account and credits are checked by the editor).
+ const blocked:GenerateBlocker|null=status?.signedOut?{title:'Sign in to generate',body:'Your draft stays here.'}
+  :!status?null
+  :!generationReady?(provider==='google'&&googleConnection?.connected&&!googleConnection.models.includes(imageModel)?{title:w('This Nano Banana model isn’t available on your key'),body:'Choose another model under Advanced, or reconnect to check access.'}
+   :status.ownKeys&&provider==='openai'?{title:w('Connect your OpenAI key to generate'),body:'Your company uses its own keys.',action:<Button size="sm" icon={<KeyRound aria-hidden="true"/>} onClick={()=>setConnectionOpen(true)}>Connect</Button>}
+   :{title:'AI generation isn’t set up for your Studio yet',body:'Ask Nmesis to set it up.'})
+  :!status.storage?{title:'Saving pictures isn’t available right now',body:'Ask Nmesis.'}
+  :null;
  const settings=<>
   <CarSettings cars={configurators.map(c=>c.name)} car={configurator.name} onCar={name=>{const c=configurators.find(x=>x.name===name);if(c&&!busy&&!capturing&&!preparing)chooseConfigurator(c)}} options={{colours:[],trims:[],views:[],frames:0}} state={{}} onColour={()=>undefined} onTrim={()=>undefined} onView={()=>undefined} controlsInEditor={false} idPrefix="kv-car"/>
   <div className="ds-contents" onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!busy&&!preparing&&!capturing&&!cropSrc)void receiveCapture(file)}}}>
@@ -395,15 +411,8 @@ export default function Studio(){
    {smartStatus&&<p className="ds-help" role="status">{smartStatus}</p>}{smartPlan&&<SmartPlanView plan={smartPlan}/>}
   </SettingsSection>
   {highAllowed&&!lock
-   ?<QualitySettings value={qualityOfSize(size)} onChange={chooseQuality} costs={qualityCosts}/>
-   :<VisualsQuality value={qualityOfSize(size)} onChange={chooseQuality} costs={qualityCosts} highAllowed={highAllowed} disabled={lock}/>}
-  <SettingsSection title="Engine" id="kv-engine-title">
-   <VisualsEngine provider={provider} model={imageModel} size={size} count={visualCount} onCount={setVisualCount} onProvider={chooseImageProvider} onModel={chooseImageModel} onSize={setSize} disabled={lock}/>
-   <p className="ds-help">{provider==='google'?<>{googleConnection?.connected?'Uses your company’s Google key: 0 credits.':googleReady?w('Nano Banana is provided by Nmesis; each image costs credits.'):w('Nano Banana isn’t available in your Studio right now. Ask Nmesis.')}{googleConnection?.connected&&!googleConnection.models.includes(imageModel)&&<> This model was not available when your key was checked. Reconnect to check access.</>}</>
-    :provider==='higgsfield'?(higgsConnection?.connected?'Uses your company’s Higgsfield key: 0 credits.':higgsConnected?w('Higgsfield is provided by Nmesis; each image costs credits.'):w('Higgsfield isn’t available in your Studio right now. Ask Nmesis.'))
-    :!status?'Checking studio connection…':!status.generation?'Image generation isn’t available in your Studio right now. Ask Nmesis.':!status.storage?'Image storage is unavailable.':w(status.personalKey?'Uses your company’s OpenAI key: 0 credits.':'Provided by Nmesis; each image costs credits.')}</p>
-   <p className="ds-help">Connections and usage are under More actions in the canvas bar.</p>
-  </SettingsSection>
+   ?<QualitySettings value={qualityOfSize(size)} onChange={chooseQuality} costs={qualityCosts}>{howMany}{advanced}</QualitySettings>
+   :<VisualsQuality value={qualityOfSize(size)} onChange={chooseQuality} costs={qualityCosts} highAllowed={highAllowed} disabled={lock}>{howMany}{advanced}</VisualsQuality>}
  </>;
 
  const notices=<>
@@ -419,8 +428,8 @@ export default function Studio(){
    stage={<>{carStage}{resultStage}</>}
    history={<>{historyError&&<p className="ds-error" role="alert">{historyError}</p>}<VersionHistory versions={versions} current={stage==='result'?shown?.id||null:null} onPick={pickVersion}/></>}
    settings={settings}
-   cost={cost} verb={generateVerb} busy={lock} onGenerate={startGenerate}
-   disabled={!!moodUpload||!!moodUploadError||!!cropSrc||!generationReady||!status?.storage||(!pin.trim()&&!mood)}
+   cost={cost} verb={generateVerb} busy={lock} onGenerate={startGenerate} blocked={blocked} payer={provider}
+   disabled={!status||!!moodUpload||!!moodUploadError||!!cropSrc||(!pin.trim()&&!mood)}
    note={<>{costNote&&<>{costNote}. </>}{mode==='live'?'Takes a picture of the car as it is shown, adds your references and generates.':'Uses the car reference shown above. Starts a paid generation.'}</>}/>
 
   <Dialog open={trashOpen} onClose={()=>{if(!managingVisual)setTrashOpen(false)}} title="Deleted images">
@@ -485,7 +494,7 @@ export default function Studio(){
     {can('studio.area_edit')&&<div><Button size="sm" icon={<Scissors aria-hidden="true"/>} disabled={busy||readingReferences} onClick={()=>{setRefineOpen(false);setStage('result');setAreaOpen(true);setUpscaleOpen(false)}}>Paint an area to refine {meta(areaCost)}</Button></div>}
     <RefinementReferences value={refinementImages} onChange={setRefinementImages} disabled={busy} limit={refinementReferenceLimit(provider,imageModel)} onPreparingChange={setReadingReferences}/>
     <Field label="What would you like to change?" count={{value:refinement.length,max:1000}}><Textarea rows={4} placeholder={refinementImages.length?'Use Reference 1 for the wheel details and Reference 2 for the material finish. Keep everything else unchanged…':referenceMode==='match-inspiration'?'Match the reference shadows more closely, correct wheel details…':'Warmer sunlight, simpler scenery, softer reflections…'} value={refinement} onChange={e=>setRefinement(e.target.value)} maxLength={1000}/></Field>
-    <VisualsEngine provider={provider} model={imageModel} size={size} onProvider={chooseImageProvider} onModel={chooseImageModel} onSize={setSize} disabled={busy}/>
+    <Advanced name="visuals-refine"><VisualsEngine provider={provider} model={imageModel} size={size} onProvider={chooseImageProvider} onModel={chooseImageModel} onSize={setSize} disabled={busy}/></Advanced>
     {provider==='google'&&googleConnection?.ownKeys&&<div><Button size="sm" kind="quiet" icon={<KeyRound aria-hidden="true"/>} onClick={()=>{setRefineOpen(false);setGoogleOpen(true)}}>{googleConnection?.connected?'Manage Google connection':'Connect your Google key'}</Button></div>}
     <p className="ds-help">Edits the version displayed in the canvas, preserving previous changes. Saves a new version and keeps this one.</p>
    </div>}

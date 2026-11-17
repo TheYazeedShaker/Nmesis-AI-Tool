@@ -62,23 +62,24 @@ export function lineupBillingNote(o:CreditOverview|null,provider:ImageProvider,m
  return '';
 }
 
-export function LineupQuality({o,provider,model,size,onSize,names}:{o:CreditOverview|null;provider:ImageProvider;model:string;size:string;onSize:(s:string)=>void;names:boolean}){
+export function LineupQuality({o,provider,model,size,onSize,names,children}:{o:CreditOverview|null;provider:ImageProvider;model:string;size:string;onSize:(s:string)=>void;names:boolean;/** The Advanced fold (staff, own keys). */children?:React.ReactNode}){
  let fourK=true;
  try{fourK=provider!=='higgsfield'||higgsImageModel(model).max4k}catch{fourK=false/* unknown model: offer only what every model makes */}
- if(!fourK)return <SettingsSection title="Quality" id="lineup-quality-title"><p className="ds-help">{names?'Grok makes 1K or 2K.':'This mode makes Standard (up to 2K).'} For High detail, choose another mode under Engine.</p></SettingsSection>;
+ if(!fourK)return <SettingsSection title="Quality" id="lineup-quality-title"><p className="ds-help">{names?'Grok makes 1K or 2K. For High detail, choose another model under Advanced.':'Standard (up to 2K) for this version.'}</p>{children}</SettingsSection>;
  const value=sizeQuality(size);
  const costs={standard:lineupCredits(o,provider,model,QUALITY_SIZE.standard),high:lineupCredits(o,provider,model,QUALITY_SIZE.high)};
- if(costs.standard!==null&&costs.high!==null)return <QualitySettings value={value} onChange={q=>onSize(QUALITY_SIZE[q])} costs={costs as Record<Quality,number>}/>;
+ if(costs.standard!==null&&costs.high!==null)return <QualitySettings value={value} onChange={q=>onSize(QUALITY_SIZE[q])} costs={costs as Record<Quality,number>}>{children}</QualitySettings>;
  return <SettingsSection title="Quality" id="lineup-quality-title">
   <RadioGroup legend="Quality" className="editor-quality">
    {(['standard','high'] as Quality[]).map(q=><Radio key={q} name="lineup-quality" checked={value===q} onChange={()=>onSize(QUALITY_SIZE[q])} label={QUALITY_LABEL[q]} help={q==='standard'?'Quicker; good for trying ideas.':'Sharper details for the final.'}/>)}
   </RadioGroup>
+  {children}
  </SettingsSection>;
 }
 
 // ── Engine (the old image generator settings) ────────────────────────────
-// A client without its own keys sees plain names; Nmesis staff and companies
-// with their own keys see the provider and the model (owner's decision F-050).
+// Only for Nmesis staff and companies with their own keys, under Advanced in
+// the Quality section; they see the provider and the model (F-050).
 export function LineupEngine({names,provider,model,size,onProvider,onModel,onSize}:{names:boolean;provider:ImageProvider;model:string;size:string;onProvider:(p:ImageProvider)=>void;onModel:(m:string)=>void;onSize:(s:string)=>void}){
  let info:ReturnType<typeof higgsImageModel>=higgsImageModel(HIGGSFIELD_IMAGE_MODELS[0].id);
  try{if(provider==='higgsfield')info=higgsImageModel(model)}catch{info=higgsImageModel(HIGGSFIELD_IMAGE_MODELS[0].id)/* unknown model: describe the default */}
@@ -92,7 +93,7 @@ export function LineupEngine({names,provider,model,size,onProvider,onModel,onSiz
   :provider==='openai'?named:info.max4k?'High-quality reference editing at 1K, 2K or 4K. Generate starts a paid request immediately. Each image costs the credits shown next to Generate.':'Grok supports 1K or 2K. Generate starts a paid request immediately; Higgsfield prices it in credits as it starts. Choose Sunburst or Flare for 4K.';
  const models=provider==='openai'?OPENAI_IMAGE_MODELS.map(m=><option key={m.id} value={m.id}>{modelName(m.id,m.label)}</option>)
   :HIGGSFIELD_IMAGE_MODELS.map(m=><option key={m.id} value={m.id}>{modelName(m.id,m.label)}{names?(m.max4k?' · up to 4K':' · up to 2K'):(m.max4k?' · up to 4K':'')}</option>);
- return <SettingsSection title="Engine" id="lineup-engine-title">
+ return <>
   <Field label={names?'Image generator':'Image engine'}><Select value={provider} onChange={e=>onProvider(e.target.value as ImageProvider)}><option value="openai">{engine('openai','ChatGPT / OpenAI')}</option><option value="higgsfield">{engine('higgsfield','Higgsfield')}</option></Select></Field>
   <Field label={names?'Image model':'Mode'} help={about}><Select value={model} onChange={e=>onModel(e.target.value)}>{models}</Select></Field>
   <Field label="Output size"><Select value={size} onChange={e=>onSize(e.target.value)}>
@@ -101,8 +102,7 @@ export function LineupEngine({names,provider,model,size,onProvider,onModel,onSiz
    {fourK&&<option value="3840x2160">{provider==='openai'?'4K · 3840 × 2160':'4K · landscape'}</option>}
   </Select></Field>
   {names&&provider==='higgsfield'&&<details className="editor-lineup-details"><summary>Nano Banana Pro &amp; Seedream</summary><p className="ds-help">Use these on Higgsfield’s website. These models are not connected through the Higgsfield API here.</p><div className="editor-row">{EXTERNAL_IMAGE_MODELS.map(m=><a key={m.label} className="ds-link" href={m.url} target="_blank" rel="noreferrer">Open {m.label} on Higgsfield</a>)}</div></details>}
-  <a className="ds-link" href={provider==='higgsfield'?'/films?settings=budget':'/'}>Connection and settings</a>
- </SettingsSection>;
+ </>;
 }
 
 // ── Match the reference exactly ──────────────────────────────────────────

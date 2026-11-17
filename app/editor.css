@@ -113,8 +113,13 @@
 /* Flex boxes never shrink below what they hold (check:ui overlapped): the stage
    keeps its content and the canvas scrolls, instead of the history sliding over
    it; a picture that loads late grows the stage, never moves the history up. */
-.editor-stage { height: auto; min-height: 100%; }
 .editor-stage-main { flex: 1 0 auto; }
+/* The stage fills the canvas to the bottom at every size, with the history
+   last: the canvas is a column and the stage grows into it (flex), never a
+   percentage height, which browsers resolve differently and which left an
+   empty band under the history (owner, 1440). check:ui counts that band. */
+.ds-canvas-stage:has(.editor-stage) { display: flex; flex-direction: column; }
+.ds-canvas-stage > .editor-stage { flex: 1 0 auto; height: auto; min-height: 0; }
 /* What is shown sits at the top of the stage: when the history loads under it,
    nothing above moves (check:ui layout shift on Film). */
 .editor-stage-main { place-items: start center; }
@@ -146,3 +151,10 @@
 /* The canvas bar never shrinks below its rows (Story on phones has three): the
    canvas gives way, never the bar's buttons (check:ui overlapped). */
 .ds-editor-canvas > .ds-canvas-bar { flex: none; }
+/* Advanced (staff and companies with their own keys): the engine and model,
+   folded under the choice clients make, Quality (design/editor-cleanup). */
+.editor-advanced { margin-top: var(--ds-space-4); }
+/* The bar's own actions wrap inside the bar, never past the screen's edge: on
+   a 360 phone Story's four actions pushed "Deleted" out, the phone zoomed the
+   page out and a band showed under the editor (check:ui zoomedOut, editorBand). */
+.editor-bar-actions { flex-wrap: wrap; row-gap: var(--ds-space-4); min-width: 0; max-width: 100%; }

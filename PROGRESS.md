@@ -2,9 +2,17 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-16 (Design Phase 3 editor polish: brands, car pictures, the drop zone)
+**Last updated:** 2026-11-17 (Design Phase 3 editor cleanup: the editor fills the window, one quality control, "not available" made clear)
 
-**Latest (2026-11-16, design programme Phase 3 editor polish, `design/editor-polish`):**
+**Latest (2026-11-17, design programme Phase 3 editor cleanup, `design/editor-cleanup`):**
+- The editor fills the window below the top bar at every size. The stage grows into the canvas with flex, not a percentage height that browsers resolve differently. A new `check:ui` count, `editorBand` (ratcheted at 0), fails on any band left below the editor or under its version history.
+- Clients choose Quality only. Engine, model and output size, and the video model and connection, are under an "Advanced" fold that only staff and companies with their own keys see (`Advanced` in `components/editor/editor-screen.tsx`), in all five tools.
+- Loose help lines at the end of the panels are gone ("Connections and usage…", the provider lines, the Film, Swap and Story trailing lines). Help sits under the field it explains.
+- When Generate cannot run, one design-system notice at the top of the settings says why and what to do, and Generate is disabled with that reason as its description. The reasons are: no plan, plan ended, viewer, support view, no AI or video set up, no credits (not with the company's own key). This is `generateBlocker` in the editor, plus each tool's own reason.
+- check:ui also counts pages a phone zooms out (pagesZoomedOutOnPhones, ratcheted at 8, all the Usage page). Story at 360 had one: its canvas bar actions now wrap.
+- No hosted system was touched.
+
+**Earlier (2026-11-16, design programme Phase 3 editor polish, `design/editor-polish`, merged #36):**
 - Clients work as their brand. The brands come from `accounts.organisation_brands` through a new read-only view, `accounts.studio_brands` (setup SQL, section 5; until the owner re-runs it, they are worked out from each company's cars).
   - The brand's logo and name replace the company's name in the top bar, the switcher, Home and the notices.
   - A company with several brands switches between them. The choice is remembered (`studio_brand` cookie, re-checked on every request) and narrows the cars, Home and the library.
@@ -106,7 +114,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 | Accounts, client configurators, plans | ✅ | S2 merged into `development`; running on the Preview against the main Supabase project and S3 |
 | S2.1 hosted fixes, staff portal | ✅ | Merged into `development` and released to `main` (#22) |
 | S3 credits, own keys, support access | ✅ | Merged into `development` (#28); owner steps (setup SQL section 6, provider accounts and limits, Vercel variables, plans per client) in the PR body |
-| Design programme | 🟡 | Phases 0 (#29), 1 (#31), 2a (#32), 2b (#33), Phase 3 group 1 (#34) and group 2 (#35) merged; editor polish PR `design/editor-polish`; owner migrates 0007, runs the backfill, re-runs setup SQL section 5 |
+| Design programme | 🟡 | Phases 0 (#29), 1 (#31), 2a (#32), 2b (#33), Phase 3 group 1 (#34), group 2 (#35) and editor polish (#36) merged; editor cleanup PR `design/editor-cleanup`; owner migrates 0007, runs the backfill, re-runs setup SQL section 5 |
 | Environment scope | 🟡 | Merged (#30); owner runs `npm run db:migrate` (0004) only after the change is live on Preview **and** Production |
 
 ## What was built last session (Design Phase 0)
@@ -233,7 +241,7 @@ _Carried_
 
 ## Next session — start here
 
-1. Owner: review PR `design/editor-polish`.
+1. Owner: review PR `design/editor-cleanup`.
 2. Owner:
    - re-run section 5 of `docs/supabase-setup.sql` (adds `accounts.studio_brands`);
    - set `CONFIGURATOR_ORIGIN` if it isn't already set, per environment (it is already used for the configurator links);
@@ -241,6 +249,7 @@ _Carried_
 3. Owner, after the release to `main` (unchanged): `npm run db:migrate` once (0004 to 0007), then the library backfill per environment.
 4. Then Phase 4 (BACKLOG #10).
 5. Follow-ups:
+   - the Usage page is wider than a 360/390 phone, which zooms it out (check:ui pagesZoomedOutOnPhones, ratcheted at 8);
    - toasts in the browser's top layer, so Undo can be reached while a dialog is open;
    - the remote-control configurator adapter when the protocol is ready (keep the current adapter as it is until then).
 6. Admin repository: "Open in Studio" uses `accounts.studio_support_access` ("Support access not granted").

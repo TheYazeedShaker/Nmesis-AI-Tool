@@ -3,6 +3,8 @@
   "measured": "2026-11-16 (Phase 3 group 2, #35)",
   "counts": {
     "fixedOverSettings": 0,
+    "editorBand": 0,
+    "pagesZoomedOutOnPhones": 8,
     "controlsSpilling": 0,
     "providerNamesShown": 0,
     "pagesWithErrors": 0,

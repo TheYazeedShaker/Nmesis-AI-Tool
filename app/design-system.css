@@ -820,6 +820,11 @@
 .ds-generate .ds-btn { width: 100%; min-height: var(--ds-space-48); font-size: var(--ds-text-md); }
 .ds-generate-note { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); text-align: center; font-variant-numeric: var(--ds-numeric); }
 .ds-phone-generate { display: none; }
+/* Generate cannot run: one boxed notice at the top of the settings. */
+.ds-banner.ds-generate-blocked { flex-wrap: nowrap; align-items: flex-start; padding: var(--ds-space-12); border: var(--ds-border-width) solid var(--ds-warn); border-radius: var(--ds-radius); color: var(--ds-text); }
+.ds-generate-blocked > svg { margin-top: var(--ds-space-2); }
+.ds-generate-blocked > .ds-stack { gap: var(--ds-space-4); min-width: 0; }
+.ds-generate-blocked b { color: var(--ds-text-strong); font-weight: var(--ds-weight-semibold); }
 @media (max-width: 1024px) {
   .ds-editor { --ds-settings-w: 300px; }
 }
