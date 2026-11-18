@@ -80,6 +80,9 @@ test('every scroll area in the design system is known, and none sits in a dialog
     ['.editor-match-prompt', 'the fixed prompt in the editor’s settings (not shown when refining in a dialog)'],
     ['.lab-details pre', 'a long prompt shown on the Smart reference lab page (no dialog)'],
     ['.tp-viewport', 'the area editor’s drawing surface: it pans a zoomed picture (2×, 3×)'],
+    ['.studio-side', 'the left navigation, when the window is too short for all of it (never in a dialog: on phones the drawer’s body scrolls)'],
+    ['.studio-account-pop', 'the account menu over the page, on a very short window'],
+    ['.studio-panel-body', 'the References and Uploads panel beside the navigation (on phones the drawer’s body scrolls instead)'],
   ]);
   const found = [];
   for (const f of SHEETS) for (const r of rules(read('app/' + f))) if (scrolls(r.body)) found.push(r.selector);

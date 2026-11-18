@@ -64,14 +64,14 @@ export function EditorLayout({ name, tools, tool, onTool, canvasBar, canvas, job
   const toggle = () => setOpen(!open);
   const hidden = (node: React.ReactNode) => (React.isValidElement(node) ? React.cloneElement(node as React.ReactElement<{ 'aria-hidden'?: boolean }>, { 'aria-hidden': true }) : node);
   return (
-    <div className="ds-editor" data-settings={open ? 'open' : 'closed'} data-loading={loading || undefined} aria-busy={loading || undefined}>
-      <nav className="ds-editor-rail" aria-label="Tools">
+    <div className="ds-editor" data-settings={open ? 'open' : 'closed'} data-rail={tools.length ? undefined : 'none'} data-loading={loading || undefined} aria-busy={loading || undefined}>
+      {tools.length > 0 && <nav className="ds-editor-rail" aria-label="Tools">
         {tools.map((t) => (
           <button key={t.id} type="button" className="ds-rail-tool" aria-pressed={t.id === tool} onClick={() => onTool(t.id)}>
             {hidden(t.icon)}<span>{t.label}</span>
           </button>
         ))}
-      </nav>
+      </nav>}
       <section className="ds-editor-canvas" aria-label="Canvas">
         <div className="ds-canvas-bar">
           {canvasBar}

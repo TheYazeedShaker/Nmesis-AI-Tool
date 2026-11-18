@@ -32,7 +32,7 @@ export async function getStudioContext(deps:{user?:SessionUser|null;directory?:D
  const user=deps.user!==undefined?deps.user:timing?await timing.time('auth',sessionUser):await sessionUser();
  if(!user)return {ok:false,problem:'signed_out'};
  const jar=await cookies(),chosen=jar.get(ORG_COOKIE)?.value||null,brand=jar.get(BRAND_COOKIE)?.value?.slice(0,64)||null;
- const resolve=()=>resolveContext({user:{id:user.id,email:user.email,aal:user.aal},chosenOrg:chosen,chosenBrand:brand,directory});
+ const resolve=()=>resolveContext({user:{id:user.id,email:user.email,aal:user.aal,name:user.name},chosenOrg:chosen,chosenBrand:brand,directory});
  const read=()=>deps.directory?resolve():recent(`${user.id}|${user.aal||''}|${chosen||''}|${brand||''}`,resolve);
  const resolved=timing?await timing.time('account',read):await read();
  return resolved.ok?resolved:{ok:false,problem:resolved.reason};

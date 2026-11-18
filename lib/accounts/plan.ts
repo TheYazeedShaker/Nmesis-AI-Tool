@@ -64,6 +64,14 @@ export const ROUTE_FEATURES:RouteRule[]=[
  {path:/^\/api\/assets$/,feature:null},
  {path:new RegExp(`^/api/assets/${ID}$`),methods:['GET'],feature:null,library:true},
  {path:new RegExp(`^/api/assets/${ID}/original$`),feature:null},
+ // The company's brand kit (logos, colours, fonts, voice): everyone in the company reads; owners and creators change it (lib/accounts/can.ts).
+ {path:/^\/api\/brand-kit(\/logos(\/[a-z0-9-]{8,80})?)?$/,methods:['GET'],feature:null,library:true},
+ {path:/^\/api\/brand-kit(\/logos(\/[a-z0-9-]{8,80})?)?$/,feature:null},
+ // Reference photos from a provider (lib/references): searching and bringing one into the Studio's storage.
+ {path:/^\/api\/references(\/import)?$/,feature:null},
+ // Who can see a piece of work, and its public view link (lib/shares).
+ {path:/^\/api\/shares\/(visual|film|swap|story)\/[a-z0-9-]{8,80}(\/link)?$/,methods:['GET'],feature:null,library:true},
+ {path:/^\/api\/shares\/(visual|film|swap|story)\/[a-z0-9-]{8,80}(\/link)?$/,feature:null},
  {path:/^\/api\/company\/support$/,methods:['GET'],feature:null,library:true},
  {path:/^\/api\/company\/support$/,feature:null},
  // Company settings: everyone in the company reads; owners change (each route checks the owner).

@@ -4,7 +4,7 @@ import {UUID,type Brand,type Directory,type Membership} from './directory';
 // the master list. No I/O of its own beyond the directory, so tests drive it.
 export type OrgChoice={id:string;name:string;kind:string;/** Its brands (what its people work as). */brands:Brand[]};
 export type StudioContext={
- user:{id:string;email:string};
+ user:{id:string;email:string;name?:string};
  org:{id:string;name:string;kind:string};
  role:Role;
  entitlements:Entitlements;
@@ -28,7 +28,7 @@ export const SUPPORT_NOT_GRANTED='Support access not granted. The company’s ow
 export const MFA_REQUIRED='Enter the six-digit code from your authenticator app to continue.';
 // `chosenOrg` comes from the company cookie (or a deep link) and is only a wish:
 // it is honoured when the user is an active member of that company, or is staff.
-export async function resolveContext({user,chosenOrg,chosenBrand,directory}:{user:{id:string;email:string;aal?:'aal1'|'aal2'};chosenOrg?:string|null;chosenBrand?:string|null;directory:Directory}):Promise<Resolved>{
+export async function resolveContext({user,chosenOrg,chosenBrand,directory}:{user:{id:string;email:string;aal?:'aal1'|'aal2';name?:string};chosenOrg?:string|null;chosenBrand?:string|null;directory:Directory}):Promise<Resolved>{
  // Independent reads start together (one round trip, not three); the brands are
  // read here too because nearly every answer needs them.
  const brandsRead=directory.brands?directory.brands():Promise.resolve(new Map<string,Brand[]>());
@@ -62,7 +62,7 @@ export async function resolveContext({user,chosenOrg,chosenBrand,directory}:{use
  const brandsOf=(o:{id:string;kind:string})=>o.kind==='internal'?[]:brandMap.get(o.id)||[];
  const orgs=staff?(await directory.organisations()).filter(o=>mayOpen(o)||active.some(m=>m.orgId===o.id)).map(o=>({id:o.id,name:o.name,kind:o.kind,brands:brandsOf(o)})):active.map(m=>({id:m.orgId,name:m.orgName,kind:m.orgKind,brands:brandsOf({id:m.orgId,kind:m.orgKind})}));
  const brands=brandsOf(org),brand=brands.find(b=>b.id===chosenBrand)||brands[0]||null;
- return {ok:true,ctx:{user:{id:user.id,email:user.email},org,role,entitlements,staff,viewingAs,supportUntil:viewingAs?grants.get(org.id)??null:null,orgs,brands,brand}};
+ return {ok:true,ctx:{user:{id:user.id,email:user.email,...user.name?{name:user.name}:{}},org,role,entitlements,staff,viewingAs,supportUntil:viewingAs?grants.get(org.id)??null:null,orgs,brands,brand}};
 }
 // The company switcher's sections: staff see Nmesis (their own workspace) and
 // Clients; everyone else sees only their own companies, with no sections.

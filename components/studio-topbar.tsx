@@ -25,7 +25,7 @@ import type {CreditOverview} from '@/lib/credits/usage';
 // as soon as the account is known, with a skeleton of the meter's own size in
 // the meter's place until the credits arrive.
 
-export type StudioPage='home'|'library'|'projects'|'visuals'|'lineup'|'storyboard'|'films'|'swap'|'usage'|'company'|'lab';
+export type StudioPage='home'|'library'|'projects'|'brand'|'account'|'visuals'|'lineup'|'storyboard'|'films'|'swap'|'usage'|'company'|'lab';
 type Tool={key:StudioPage;href:string;label:string;icon:React.ReactNode;feature?:FeatureKey};
 // The places: the same for everybody.
 export const STUDIO_PLACES:Tool[]=[
@@ -62,7 +62,7 @@ async function switchTo(place:Place){
  if(r.ok){location.reload();return ''}
  const d=await r.json().catch(()=>({}));return (d as {error?:string}).error||'That could not be opened.';
 }
-function useSwitch(){
+export function useSwitch(){
  const [busy,setBusy]=useState(false),[problem,setProblem]=useState('');
  const choose=async(account:AccountSummary,place:Place)=>{if(isHere(account,place))return;setBusy(true);setProblem('');try{const p=await switchTo(place);if(p)setProblem(p)}catch{setProblem('The connection was interrupted. Try again.')}setBusy(false)};
  return {busy,problem,choose};
@@ -70,16 +70,16 @@ function useSwitch(){
 // Where a person can work: a company's brand (clients work as their brand), or
 // a company with no brand (Nmesis's own workspace). Clients see the brand's
 // name only; staff see "Brand · Company" so they know whose workspace it is.
-type Place={key:string;orgId:string;brandId?:string;label:string;brand:{id:string;name:string}|null};
+export type Place={key:string;orgId:string;brandId?:string;label:string;brand:{id:string;name:string}|null};
 type Org={id:string;name:string;brands?:{id:string;name:string}[]};
 const placesOf=(orgs:Org[],staff:boolean):Place[]=>orgs.flatMap((o):Place[]=>o.brands?.length
  ?o.brands.map(b=>({key:o.id+'/'+b.id,orgId:o.id,brandId:b.id,label:staff?staffLabel(b,o):b.name,brand:b}))
  :[{key:o.id,orgId:o.id,label:o.name,brand:null}]);
 const isHere=(account:AccountSummary,p:Place)=>p.orgId===account.org.id&&(p.brandId??null)===(account.brand?.id??null);
-const sectionsOf=(account:AccountSummary)=>account.switcher
+export const sectionsOf=(account:AccountSummary)=>account.switcher
  ?[{label:'Nmesis',places:placesOf(account.switcher.nmesis,true)},{label:'Clients',places:placesOf(account.switcher.clients,true)}].filter(s=>s.places.length)
  :[{label:'',places:placesOf(account.orgs,false)}];
-const brandsOnly=(account:AccountSummary)=>!account.switcher&&account.orgs.every(o=>o.brands?.length);
+export const brandsOnly=(account:AccountSummary)=>!account.switcher&&account.orgs.every(o=>o.brands?.length);
 
 /** A brand's logo (from its configurator, cached by the Studio) on its plate.
  * With no logo (the route answers 204) the name beside it stands alone: nothing
@@ -113,10 +113,10 @@ function ToolsMenu({account,current}:{account:AccountSummary|null;current?:Studi
 }
 
 // While the credits load: the meter's own shape and size, so nothing moves when they arrive.
-function MeterSkeleton(){
+export function MeterSkeleton(){
  return <span className="ds-meter studio-meter studio-meter-loading" aria-hidden="true"><span className="ds-meter-track"/><span className="ds-skel ds-skel-line studio-meter-skel"/></span>;
 }
-function Meter({credits}:{credits:ReturnType<typeof useCredits>}){
+export function Meter({credits}:{credits:ReturnType<typeof useCredits>}){
  if(!credits||credits.unlimited||!credits.meter)return null;
  const m=credits.meter,level=m.level===100?'out':m.level===80?'warn':'ok';
  // The name starts with the visible words ("300 left"), so voice control and screen readers agree (2.5.3, F-024).
@@ -129,7 +129,7 @@ function Meter({credits}:{credits:ReturnType<typeof useCredits>}){
 
 // The places, as rows: staff see Nmesis and Clients (read-only); a search from
 // nine. The same list in the desktop switcher and the phone menu.
-function PlaceList({account,busy,onChoose}:{account:AccountSummary;busy:boolean;onChoose:(p:Place)=>void}){
+export function PlaceList({account,busy,onChoose}:{account:AccountSummary;busy:boolean;onChoose:(p:Place)=>void}){
  const [query,setQuery]=useState('');
  const sections=sectionsOf(account),total=sections.reduce((n,s)=>n+s.places.length,0),q=query.trim().toLowerCase();
  const shown=sections.map(s=>({...s,places:s.places.filter(p=>!q||p.label.toLowerCase().includes(q))})).filter(s=>s.places.length);
@@ -154,7 +154,7 @@ function Switcher({account,busy,onChoose}:{account:AccountSummary;busy:boolean;o
  </>;
 }
 
-function SignOut({account,withWord}:{account:AccountSummary;withWord?:boolean}){
+export function SignOut({account,withWord}:{account:AccountSummary;withWord?:boolean}){
  return <form method="post" action="/auth/signout" className="studio-signout"><button type="submit" className={withWord?'ds-btn studio-menu-row':'ds-btn icon'} aria-label={withWord?undefined:'Sign out'} title={'Signed in as '+account.user.email}><LogOut aria-hidden="true"/>{withWord&&'Sign out'}</button></form>;
 }
 

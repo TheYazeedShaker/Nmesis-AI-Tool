@@ -3,7 +3,7 @@ import {getStorage} from './storage';
 import {StudioError} from '@/lib/studio-server';
 import {keySecretState,KEY_STORAGE_MISCONFIGURED} from '@/lib/secret-crypto';
 type Ticket={key:string;prefix:string;target:string;size:number;type:string;expires:number};
-export function uploadTarget(path:string){return ['/api/assets','/api/area-edits','/api/swap-source','/api/upscale-import'].includes(path)||/^\/api\/assets\/[a-z0-9-]{8,80}\/original$/.test(path)||/^\/api\/storyboards\/[a-z0-9-]{8,80}\/video$/.test(path);}
+export function uploadTarget(path:string){return ['/api/assets','/api/area-edits','/api/swap-source','/api/upscale-import','/api/brand-kit/logos'].includes(path)||/^\/api\/assets\/[a-z0-9-]{8,80}\/original$/.test(path)||/^\/api\/storyboards\/[a-z0-9-]{8,80}\/video$/.test(path);}
 // Upload tickets are signed with KEY_ENCRYPTION_SECRET (checked once per process).
 function secret(){const state=keySecretState();if(state.misconfigured)throw new StudioError(KEY_STORAGE_MISCONFIGURED,503);if(!state.value)throw new StudioError('Configure secure storage before uploading.',503);return state.value;}
 export function signTicket(data:Ticket){const payload=Buffer.from(JSON.stringify(data)).toString('base64url');const sig=createHmac('sha256',secret()).update('upload:'+payload).digest('base64url');return payload+'.'+sig;}

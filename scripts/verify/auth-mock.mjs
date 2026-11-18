@@ -64,7 +64,7 @@ export function startAuthMock({port=0}={}){
   invite(email,landing){const u={id:randomUUID(),email:email.toLowerCase(),password:null,app_metadata:{},confirmed:true,created:new Date().toISOString()};users.set(u.id,u);const s=session(u);const link=landing+'#'+new URLSearchParams({access_token:s.access_token,expires_at:String(s.expires_at),expires_in:'3600',refresh_token:s.refresh_token,token_type:'bearer',type:'invite'});outbox.push({to:u.email,kind:'invite',link});return {user:u,link,session:s}},
   // {id, aal}: a fixed id (to match seeded memberships) and, for Nmesis staff in the
   // UI harness, sessions that have already passed the six-digit code ('aal2').
-  addUser(email,password,app_metadata={},{id,aal}={}){const u={id:id||randomUUID(),aal:aal||'aal1',email:email.toLowerCase(),password,app_metadata,confirmed:true,created:new Date().toISOString()};users.set(u.id,u);return u},
+  addUser(email,password,app_metadata={},{id,aal,name}={}){const u={id:id||randomUUID(),aal:aal||'aal1',email:email.toLowerCase(),password,app_metadata,user_metadata:name?{full_name:name}:{},confirmed:true,created:new Date().toISOString()};users.set(u.id,u);return u},
   lastLink(email,kind){return [...outbox].reverse().find(m=>m.to===email.toLowerCase()&&(!kind||m.kind===kind))?.link},
  };
  return new Promise(r=>server.listen(port,'127.0.0.1',()=>r({...api,server,url:'http://127.0.0.1:'+server.address().port})));

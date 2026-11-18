@@ -14,6 +14,11 @@ import "./workspace.css";
 import "./editor.css";
 import "./panels.css";
 import "./inputs.css";
+// The shell: the left navigation, the account menu and its panels (References, Uploads), Brand and Share.
+import "./side-nav.css";
+import "./references.css";
+import "./brand.css";
+import "./share.css";
 import {LinkLanding} from "@/components/link-landing";
 import {StudioProviders} from "@/components/studio-providers";
 // The Nmesis fonts. preload stays off until screens use them (Phase 2b), so no

@@ -44,7 +44,7 @@ test('the notices hold their remembered room instead of hiding the page; the cre
   const account = read('components/studio-account.tsx');
   assert.match(account, /if\(!settled\)return space===null\?<div className="notices-pending" aria-hidden="true"\/>:<div className="studio-notices" aria-hidden="true" style=\{noticeSpace\(space\)\}\/>/);
   // Watched, so a banner that arrives after the notices settle (the credits) is remembered too.
-  assert.match(account, /rememberNoticeSpace\(window\.innerWidth,el\.offsetHeight,undefined,variant\|\|'plain'\)[\s\S]*new ResizeObserver\(remember\)/);
+  assert.match(account, /rememberNoticeSpace\(window\.innerWidth,el\.offsetHeight,undefined,kind\)[\s\S]*new ResizeObserver\(remember\)/);
   assert.match(account, /const NOTICES_WAIT_MS=2000;/);
   assert.match(read('app/studio-shell.css'), /\.studio-notices \{ display: flow-root; \}/);
   const credits = read('components/credits.tsx');

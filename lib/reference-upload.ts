@@ -29,12 +29,12 @@ export async function prepareReference(original:Blob,knownDimensions?:ReturnType
  }finally{bitmap.close();canvas.width=canvas.height=1}
 }
 async function json(response:Response){const d=await response.json().catch(()=>({error:'Image upload was interrupted.'})) as {id:string;url:string;error?:string};if(!response.ok)throw new Error(d.error||'Image upload failed.');return d}
-export type ReferenceUploadOptions={signal?:AbortSignal;onStage?:(stage:string)=>void};
+export type ReferenceUploadOptions={signal?:AbortSignal;onStage?:(stage:string)=>void;/** Also list it in the person's Uploads (lib/uploads.ts). */upload?:boolean};
 export async function uploadReference(image:Blob,original:Blob=image,options:ReferenceUploadOptions={}):Promise<ReferenceAsset>{
  options.signal?.throwIfAborted();options.onStage?.('Preparing image…');
  validateReference(original);const originalDimensions=imageDimensions(new Uint8Array(await original.arrayBuffer()));
  const prepared=await prepareReference(image,image===original?originalDimensions:undefined);options.signal?.throwIfAborted();
- const form=new FormData();form.set('image',prepared.blob,'reference.'+prepared.blob.type.split('/')[1]);
+ const form=new FormData();form.set('image',prepared.blob,'reference.'+prepared.blob.type.split('/')[1]);if(options.upload)form.set('upload','1');
  options.onStage?.('Uploading reference…');
  const signal=()=>options.signal?AbortSignal.any([options.signal,AbortSignal.timeout(120000)]):AbortSignal.timeout(120000);
  const asset=await json(await studioFetch('/api/assets',{method:'POST',body:form,signal:signal()}));

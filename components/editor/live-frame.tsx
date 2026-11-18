@@ -1,8 +1,10 @@
 'use client';
 import * as React from 'react';
-import {RotateCw} from 'lucide-react';
+import {Car,RotateCw} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {State} from '@/components/ds/feedback';
+import {liveConfiguratorUrl} from '@/lib/configurators';
+import {useConfiguratorsAnswered} from '@/lib/configurator-presets';
 
 // The live configurator's iframe, for every tool. Why it sometimes stayed black
 // until a refresh:
@@ -13,6 +15,12 @@ import {State} from '@/components/ds/feedback';
 //    3D view at 0 × 0 and never redrew: now it loads the first time it is shown.
 // If it has not loaded 10 s after it is shown, it says so with Try again, and
 // the cause goes to the console (no address, only the host).
+// Only a real car's page is ever loaded (liveConfiguratorUrl): the placeholder
+// shown before the company's cars arrive, and when none come back, has no
+// address that exists, and loading it made the browser draw its own error page
+// (a torn-page icon) above "Use this view", with a `load` event, so the 10 s
+// check never caught it. Now the frame says "Loading your cars…" until the cars
+// are answered, and then why there is no car to show.
 export const LIVE_FRAME_TIMEOUT_MS = 10_000;
 type Status = 'loading' | 'ready' | 'failed';
 const noop = () => () => {};
@@ -22,6 +30,22 @@ function host(url: string) {
 }
 
 export function LiveFrame({url, name, frameRef, visible = true, badge = true}: {url: string; name: string; frameRef?: React.Ref<HTMLIFrameElement>; visible?: boolean; badge?: boolean}) {
+  const address = liveConfiguratorUrl({url});
+  const answered = useConfiguratorsAnswered();
+  if (!address) return <NoCar waiting={!answered}/>;
+  return <Frame url={address} name={name} frameRef={frameRef} visible={visible} badge={badge}/>;
+}
+
+/** The car view with no car to load: still loading the company's cars, or none to show. */
+export function NoCar({waiting}: {waiting: boolean}) {
+  return <div className="editor-frame-state">
+    {waiting
+      ? <State kind="empty" icon={<RotateCw className="ds-spin-icon" aria-hidden="true"/>} title="Loading your cars…"><span role="status">The configurator opens here.</span></State>
+      : <State kind="empty" icon={<Car aria-hidden="true"/>} title="No car to show here yet">Your company’s cars appear here once Nmesis adds their configurators. You can still add a picture of the car under Car and view.</State>}
+  </div>;
+}
+
+function Frame({url, name, frameRef, visible, badge}: {url: string; name: string; frameRef?: React.Ref<HTMLIFrameElement>; visible: boolean; badge: boolean}) {
   // false on the server and in the hydrating render, true after: the frame is created only once React listens.
   const mounted = React.useSyncExternalStore(noop, () => true, () => false);
   const [shown, setShown] = React.useState(visible);

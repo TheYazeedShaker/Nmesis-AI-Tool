@@ -164,3 +164,18 @@
    arrives (check:ui layout shift on Film once pages stopped waiting for the
    account; finish pass). */
 .ds-editor[data-loading] .ds-canvas-bar > *, .ds-editor[data-loading] .ds-canvas-stage, .ds-editor[data-loading] .ds-settings-body, .ds-editor[data-loading] .ds-generate > * { visibility: hidden; }
+
+/* References in the settings (components/editor/references-settings.tsx). */
+.editor-refs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-8); }
+.editor-ref { display: flex; flex-direction: column; gap: var(--ds-space-4); min-width: 0; }
+.editor-ref-thumb { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: var(--ds-radius-md); overflow: hidden; background: var(--ds-media-bg); border: var(--ds-border-width) solid var(--ds-border); }
+.editor-ref-thumb > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.editor-ref-remove { position: absolute; top: var(--ds-space-4); right: var(--ds-space-4); background: var(--ds-panel); box-shadow: var(--ds-shadow-1); }
+.editor-ref-meta { display: flex; flex-direction: column; min-width: 0; font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); color: var(--ds-muted); }
+.editor-ref-count { margin-left: auto; font-size: var(--ds-text-xs); font-variant-numeric: var(--ds-numeric); }
+.editor-smart-pick { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ds-space-8); }
+.editor-smart-count .ds-select { min-width: 0; }
+/* What Generate will use, live, just above it. */
+.editor-cost-line { margin: 0; padding: var(--ds-space-8) 0; color: var(--ds-text); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-variant-numeric: var(--ds-numeric); border-top: var(--ds-border-width) solid var(--ds-border); }
+.editor-cost-line b { color: var(--ds-text-strong); font-weight: var(--ds-weight-semibold); }
+.editor-count > button { flex: 1 1 0; }

@@ -13,7 +13,7 @@ assert(handler);
 const js=ts.transpileModule(handler,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
 function harness(overrides={}){
  const calls=[],track={readyState:'live',addEventListener(){}},stream={getVideoTracks:()=>[track]};
- const scope={preparingRef:{current:false},working:{current:false},moodUpload:'',moodUploadError:'',cropSrc:'',provider:'openai',status:{generation:true},pin:'',mood:{src:'inspiration'},view:{src:'old-capture'},mode:'live',adapter:{current:{capture:async()=>{throw new Error('This configurator did not send a picture.')}}},blobToDataUrl:async()=>'original-car',iframeRef:{current:{}},handleRef:{current:'studio'},streamRef:{current:null},captureVersion:{current:1},configurator:{id:'car',url:'https://car.test'},savedViews:{current:{}},crypto:{randomUUID:()=> 'capture-id'},
+ const scope={preparingRef:{current:false},working:{current:false},moodUpload:'',moodUploadError:'',cropSrc:'',provider:'openai',status:{generation:true},pin:'',mood:{src:'inspiration'},tray:[],view:{src:'old-capture'},mode:'live',adapter:{current:{capture:async()=>{throw new Error('This configurator did not send a picture.')}}},blobToDataUrl:async()=>'original-car',iframeRef:{current:{}},handleRef:{current:'studio'},streamRef:{current:null},captureVersion:{current:1},configurator:{id:'car',url:'https://car.test'},savedViews:{current:{}},crypto:{randomUUID:()=> 'capture-id'},
  navigator:{mediaDevices:{getDisplayMedia:async()=>{calls.push('permission');return stream}}},highResolutionDisplayOptions:()=>({}),
  snapshotStream:async()=>{calls.push('capture');return 'isolated-car'},
  generate:async(_,refs)=>calls.push({generate:refs}),importPin:async()=>{calls.push('inspiration');return {src:'largest-pin'}},

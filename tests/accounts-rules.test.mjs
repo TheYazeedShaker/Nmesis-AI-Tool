@@ -47,7 +47,7 @@ test('every API route is in the single route → feature table',()=>{
  const exempt=/^app\/api\/(auth\/|me\/)/;let checked=0;
  for(const file of files){
   if(exempt.test(file))continue;
-  const path='/'+file.replace(/\/route\.ts$/,'').replace(/\[action\]/,'quote').replace(/\[id\]/g,'item-12345678').replace(/^app\//,'');
+  const path='/'+file.replace(/\/route\.ts$/,'').replace(/\[action\]/,'quote').replace(/\[kind\]/,'visual').replace(/\[id\]/g,'item-12345678').replace(/^app\//,'');
   for(const method of ['GET','POST','PUT','PATCH','DELETE'])if(new RegExp(`export (async )?function ${method}\\b`).test(readFileSync(file,'utf8'))){assert.ok(plan.routeRule(path,method),`${method} ${path} has no entry`);checked++}
  }
  assert.ok(checked>50,'checked '+checked);
