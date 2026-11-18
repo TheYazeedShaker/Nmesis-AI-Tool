@@ -141,9 +141,14 @@ a.studio-account-row:hover, button.studio-account-row:hover { background: var(--
   /* No phone navigation bar under the page any more: no room held for one. */
   .studio-frame .ds-main { padding-bottom: var(--ds-space-32); }
   .studio-frame .ds-main.bleed { padding-bottom: 0; }
-  .studio-frame:has(.ds-main.bleed) { height: auto; min-height: 100dvh; overflow: visible; }
-  /* The editor is as tall as its content on phones (as before the shell): nothing below it moves when the work loads. */
-  .studio-frame .ds-main.bleed > .ds-editor { grid-template-rows: auto auto; min-height: 0; }
+  /* Phones, as before the shell: the editor is the window under the slim bar, the canvas scrolls inside
+     itself and Generate keeps its own row at the bottom, so it never moves when the work loads. */
+  .studio-frame .ds-main.bleed > .ds-editor { grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
+  /* The stage keeps its own height and the version strip takes the room left under it: when the versions
+     arrive they fill that room, and nothing above or below them moves (check:ui layout shift). Without the
+     old tool strip there is spare room on phones; before, the stage stretched into it and gave it back. */
+  .studio-frame .ds-canvas-stage > .editor-stage > .editor-stage-main { flex: 0 0 auto; }
+  .studio-frame .ds-canvas-stage > .editor-stage > .editor-stage-history { flex: 1 0 auto; }
   .ds-editor[data-rail="none"], .ds-editor[data-rail="none"][data-settings="closed"] { grid-template-columns: minmax(0, 1fr); }
   .studio-side-drawer .studio-side-item { flex-direction: row; justify-content: flex-start; gap: var(--ds-space-12); min-height: var(--ds-tap-min); padding: 0 var(--ds-space-12); font-size: var(--ds-text-md); text-align: left; }
   .studio-side-drawer .studio-side-list { margin-bottom: var(--ds-space-8); }

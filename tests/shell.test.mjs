@@ -170,7 +170,13 @@ test('accessibility of the shell (check:ui on PR 42): references point only at w
   // The editor's own rules no longer assume main sits directly in the frame: phones size the editor to its content (no layout shift).
   const editor = read('app/editor.css');
   assert.doesNotMatch(editor, /\.workspace > \.ds-main\.bleed|:has\(> \.ds-main\.bleed\)/);
-  assert.match(read('app/side-nav.css'), /\.studio-frame \.ds-main\.bleed > \.ds-editor \{ grid-template-rows: auto auto; min-height: 0; \}/);
+  // Phones: the editor is the window (Generate keeps its own row and never moves), and the version strip,
+  // not the stage, takes the spare room, so nothing moves when the versions load (check:ui on PR 42).
+  const shell = read('app/side-nav.css');
+  assert.match(shell, /\.studio-frame \.ds-main\.bleed > \.ds-editor \{ grid-template-rows: minmax\(0, 1fr\) auto; min-height: 0; \}/);
+  assert.match(shell, /\.editor-stage > \.editor-stage-main \{ flex: 0 0 auto; \}/);
+  assert.match(shell, /\.editor-stage > \.editor-stage-history \{ flex: 1 0 auto; \}/);
+  assert.doesNotMatch(shell, /height: auto; min-height: 100dvh; overflow: visible/);
   // Smart pick asks the photo library only for someone who can make work now.
   assert.match(read('app/key-visual/page.tsx'), /if\(!smartPick\|\|!car\|\|!mayChange\|\|handAdded/);
 });
