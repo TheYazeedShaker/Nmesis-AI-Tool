@@ -1,5 +1,6 @@
 'use client';
 import {useSyncExternalStore} from 'react';
+import type {ToolId} from './tools';
 // The references chosen for the next piece of work: one tray for the page and
 // the panels (References, Uploads) that add to it. A photo added in the
 // References panel shows with a tick there and in the settings panel's
@@ -18,6 +19,9 @@ export type TrayItem={
  /** Added by Smart pick rather than by hand. */picked?:boolean;
 };
 export const TRAY_LIMIT=6;
+/** How many references a tool uses: Car lineup takes one picture (its inspiration), the others up to TRAY_LIMIT. */
+const TOOL_LIMIT:Partial<Record<ToolId,number>>={lineup:1};
+export const referenceLimit=(tool:ToolId|null|undefined)=>(tool&&TOOL_LIMIT[tool])||TRAY_LIMIT;
 const STORE='studio-reference-tray';
 let items:TrayItem[]|null=null;
 const listeners=new Set<()=>void>();
@@ -37,11 +41,14 @@ export const trayItems=()=>typeof window==='undefined'?EMPTY:read();
 export function useReferenceTray(){
  return useSyncExternalStore(l=>{listeners.add(l);return()=>listeners.delete(l)},trayItems,()=>EMPTY);
 }
-/** Adds (or updates, by key) one reference; false when the tray is full. */
-export function addReference(item:TrayItem):boolean{
+/** Adds (or updates, by key) one reference; false when the tray is full. `replace` makes it the only one
+ *  (a tool that takes one reference); `limit` is the tool's own (referenceLimit). Panels call
+ *  addAsReference (components/shell/shell-state.ts), which picks these for the tool on screen. */
+export function addReference(item:TrayItem,{limit=TRAY_LIMIT,replace=false}:{limit?:number;replace?:boolean}={}):boolean{
  const now=read(),at=now.findIndex(i=>i.key===item.key);
+ if(replace){write([{...(at>=0?now[at]:{}),...item}]);return true}
  if(at>=0){write(now.map((i,n)=>n===at?{...i,...item}:i));return true}
- if(now.length>=TRAY_LIMIT)return false;
+ if(now.length>=Math.min(limit,TRAY_LIMIT))return false;
  write([...now,item]);return true;
 }
 export function removeReference(key:string){write(read().filter(i=>i.key!==key))}

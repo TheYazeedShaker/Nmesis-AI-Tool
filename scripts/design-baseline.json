@@ -1,6 +1,6 @@
 {
   "note": "What is wrong today, so nothing can get worse tomorrow. npm run check:design -- --list shows each one. Lower these by fixing screens; never raise one to make the check pass.",
-  "measured": "2026-11-17",
+  "measured": "2026-11-18",
   "counts": {
     "app/films/films.css": {
       "raw-colour": 150,
@@ -8,7 +8,7 @@
     },
     "app/globals.css": {
       "raw-colour": 242,
-      "raw-size": 444
+      "raw-size": 434
     },
     "app/lineup/lineup.css": {
       "raw-colour": 59,

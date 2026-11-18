@@ -29,7 +29,7 @@ body:has(> .ds-shell), body:has(.studio-frame) { background: var(--ds-bg); }
   display: flex; flex-direction: column; gap: var(--ds-space-8);
   padding: var(--ds-space-12) var(--ds-space-8);
   background: var(--ds-panel); border-right: var(--ds-border-width) solid var(--ds-border);
-  overflow-y: auto; z-index: var(--ds-z-raised);
+  overflow-y: auto; z-index: var(--ds-z-panel);
 }
 .studio-side[data-expanded] { --studio-side-w: 232px; padding: var(--ds-space-12); }
 .studio-side-head { display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-8); padding-bottom: var(--ds-space-8); }
@@ -50,7 +50,13 @@ body:has(> .ds-shell), body:has(.studio-frame) { background: var(--ds-bg); }
 }
 .studio-side-item > svg { width: var(--ds-icon-lg); height: var(--ds-icon-lg); flex: none; }
 .studio-side-item:hover { background: var(--ds-panel-2); color: var(--ds-text); }
-.studio-side-item[aria-current="page"], .studio-side-item[aria-pressed="true"] { background: var(--ds-panel-hover); color: var(--ds-text-strong); }
+/* The one selected item (lib/shell-nav.ts navSelection): a quiet fill and the lime mark. */
+.studio-side-item { position: relative; }
+.studio-side-item[data-selected] { background: var(--ds-selected-bg); color: var(--ds-selected-text); }
+.studio-side-item[data-selected]::before {
+  content: ""; position: absolute; left: 0; top: var(--ds-space-8); bottom: var(--ds-space-8); width: var(--ds-space-4);
+  border-radius: var(--ds-radius-pill); background: var(--ds-selected-mark);
+}
 .studio-side-item:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: calc(var(--ds-focus-width) * -1); }
 .studio-side[data-expanded] .studio-side-item {
   flex-direction: row; justify-content: flex-start; gap: var(--ds-space-12); min-height: var(--ds-tap-min);
@@ -67,9 +73,9 @@ body:has(> .ds-shell), body:has(.studio-frame) { background: var(--ds-bg); }
 .studio-side[data-expanded] .studio-account-button { padding: var(--ds-space-8); }
 .studio-account-label, .studio-account-names { display: flex; flex-direction: column; min-width: 0; line-height: var(--ds-leading-sm); }
 .studio-account-label b, .studio-account-names b { color: var(--ds-text-strong); font-weight: var(--ds-weight-semibold); }
-/* Fixed, so the navigation column (which scrolls) never clips it. */
+/* In the layer over every panel (components/ds/layer.tsx), placed above its button. */
 .studio-account-pop {
-  position: fixed; left: var(--ds-space-8); bottom: calc(var(--ds-space-64) + var(--ds-space-8)); z-index: var(--ds-z-dropdown);
+  position: fixed; z-index: var(--ds-z-dropdown);
   width: 320px; max-height: calc(100dvh - var(--ds-space-64)); overflow-y: auto;
   background: var(--ds-panel); color: var(--ds-text); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-lg); box-shadow: var(--ds-shadow-3);
 }
@@ -91,12 +97,13 @@ a.studio-account-row:hover, button.studio-account-row:hover { background: var(--
 .studio-theme > button { padding: 0 var(--ds-space-8); gap: var(--ds-space-4); }
 .studio-theme > button svg { width: var(--ds-icon); height: var(--ds-icon); }
 
-/* ── The side panel (References, Uploads) ─────────────────────────────── */
+/* ── The secondary panel (References, Brand, Elements, Uploads) ────────── */
 .studio-panel {
-  position: sticky; top: 0; flex: none; width: 360px; height: 100dvh;
+  position: sticky; top: 0; flex: none; width: var(--ds-panel-w); height: 100dvh;
   display: flex; flex-direction: column; background: var(--ds-panel); border-right: var(--ds-border-width) solid var(--ds-border);
-  z-index: var(--ds-z-raised);
+  z-index: var(--ds-z-panel);
 }
+.studio-panel:focus { outline: none; }
 .studio-panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-8); padding: var(--ds-space-12) var(--ds-space-16); border-bottom: var(--ds-border-width) solid var(--ds-border); }
 .studio-panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--ds-space-16); }
 .studio-pick-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-8); }
@@ -115,23 +122,40 @@ a.studio-account-row:hover, button.studio-account-row:hover { background: var(--
 
 /* ── How it works (Home, Help) ────────────────────────────────────────── */
 .studio-how { display: flex; flex-direction: column; gap: var(--ds-space-12); }
-.studio-how-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--ds-space-12); counter-reset: step; }
-.studio-how-step { display: flex; align-items: flex-start; gap: var(--ds-space-12); min-width: 0; padding: var(--ds-space-12); border-radius: var(--ds-radius-md); background: var(--ds-panel-2); }
-.studio-how-mark { display: grid; place-items: center; flex: none; width: var(--ds-space-32); height: var(--ds-space-32); border-radius: var(--ds-radius-round); background: var(--ds-accent-soft); color: var(--ds-text-strong); }
-.studio-how-mark svg { width: var(--ds-icon); height: var(--ds-icon); }
-.studio-how-text { display: flex; flex-direction: column; gap: var(--ds-space-2); min-width: 0; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
-.studio-how-text b { color: var(--ds-text-strong); font-weight: var(--ds-weight-semibold); }
+/* A step strip: the numbers on one baseline, joined by a hairline; under each,
+   its icon and title, then one line. No boxes. */
+.studio-how-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--ds-space-24); row-gap: var(--ds-space-16); }
+.studio-how-step { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.studio-how-rail { display: flex; align-items: center; gap: var(--ds-space-12); }
+.studio-how-step:not(:last-child) .studio-how-rail::after { content: ""; flex: 1 1 auto; height: var(--ds-border-width); background: var(--ds-border); }
+.studio-how-num {
+  display: grid; place-items: center; flex: none; width: var(--ds-space-24); height: var(--ds-space-24); border-radius: var(--ds-radius-round);
+  border: var(--ds-border-width) solid var(--ds-border-strong); background: var(--ds-panel); color: var(--ds-text-strong);
+  font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); font-weight: var(--ds-weight-semibold); font-variant-numeric: var(--ds-numeric);
+}
+.studio-how-title { display: flex; align-items: center; gap: var(--ds-space-8); min-width: 0; color: var(--ds-text-strong); font-size: var(--ds-text-md); line-height: var(--ds-leading-md); }
+.studio-how-title > svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; color: var(--ds-muted); }
+.studio-how-title b { font-weight: var(--ds-weight-semibold); }
+.studio-how-line { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+/* Stacked (Help, phones): the number beside the words, a hairline down to the next. */
 .ds-dialog .studio-how-steps { grid-template-columns: minmax(0, 1fr); }
+.ds-dialog .studio-how-step { display: grid; grid-template-columns: var(--ds-space-24) minmax(0, 1fr); column-gap: var(--ds-space-12); row-gap: var(--ds-space-2); }
+.ds-dialog .studio-how-rail { grid-row: span 2; flex-direction: column; align-self: stretch; }
+.ds-dialog .studio-how-step:not(:last-child) .studio-how-rail::after { width: var(--ds-border-width); height: auto; }
 
 /* ── Phones: a slim bar, the navigation in a drawer ───────────────────── */
 .studio-phonebar { display: none; }
 @media (max-width: 1024px) {
-  .studio-how-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .studio-panel { width: 320px; }
+  .studio-panel { --ds-panel-w: 320px; }
 }
 @media (max-width: 768px) {
   .ds-shell.studio-frame { flex-direction: column; }
   .studio-side { display: none; }
+  /* The panel is a sheet under the slim bar: the bar (and its menu) stay above it. */
+  .studio-panel {
+    position: fixed; top: var(--ds-topbar-h); left: 0; right: 0; bottom: 0; width: auto; height: auto;
+    border-right: 0; border-top: var(--ds-border-width) solid var(--ds-border); box-shadow: var(--ds-shadow-3);
+  }
   .studio-phonebar {
     position: sticky; top: 0; z-index: var(--ds-z-sticky); display: flex; align-items: center; gap: var(--ds-space-8);
     min-height: var(--ds-topbar-h); padding: 0 var(--ds-space-16); background: var(--ds-panel); border-bottom: var(--ds-border-width) solid var(--ds-border);
@@ -154,13 +178,13 @@ a.studio-account-row:hover, button.studio-account-row:hover { background: var(--
   .studio-side-drawer .studio-side-list { margin-bottom: var(--ds-space-8); }
   .studio-side-drawer .studio-account-body { padding: var(--ds-space-8) 0 0; border-top: var(--ds-border-width) solid var(--ds-border); }
   .studio-how-steps { grid-template-columns: minmax(0, 1fr); }
+  .studio-how-step { display: grid; grid-template-columns: var(--ds-space-24) minmax(0, 1fr); column-gap: var(--ds-space-12); row-gap: var(--ds-space-2); }
+  .studio-how-rail { grid-row: span 2; flex-direction: column; align-self: stretch; }
+  .studio-how-step:not(:last-child) .studio-how-rail::after { width: var(--ds-border-width); height: auto; }
 }
 
-/* ── Your account (components/shell/account-page.tsx) ─────────────────── */
-.studio-account-page { max-width: 720px; }
-.studio-facts { display: flex; flex-direction: column; gap: var(--ds-space-12); margin: 0; }
-.studio-fact { display: flex; flex-direction: column; gap: var(--ds-space-2); }
-.studio-fact dd { margin: 0; color: var(--ds-text-strong); }
-.studio-fact-who { flex-direction: row; align-items: center; gap: var(--ds-space-12); }
-/* The References and Uploads panel as a drawer on phones: its body scrolls (the dialog's), nothing inside it does. */
-.studio-panel-drawer .refs-grid, .studio-panel-drawer .studio-pick-grid { overflow: visible; }
+
+
+
+/* ── Uploads, the page (components/shell/uploads-page.tsx) ─────────────── */
+.studio-uploads-page .studio-pick-grid { grid-template-columns: repeat(auto-fill, minmax(calc(var(--ds-space-64) * 2.5), 1fr)); }

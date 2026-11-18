@@ -1,0 +1,80 @@
+/* The Elements panel (components/shell/elements-panel.tsx). Tokens only.
+   About 360px beside the navigation (a drawer on phones): a category bar that
+   scrolls sideways inside itself and stays at the top of the panel while the
+   grid scrolls, then three columns of square tiles. */
+.elements-panel { display: flex; flex-direction: column; gap: var(--ds-space-12); min-width: 0; }
+
+/* The categories: one row, never wrapped, never wider than the panel. The
+   inline padding (given back by the margin) keeps the focus ring unclipped. */
+.elements-bar {
+  position: sticky; top: 0; z-index: var(--ds-z-raised);
+  display: flex; flex-wrap: nowrap; gap: var(--ds-space-8); min-width: 0;
+  margin: 0 calc(var(--ds-space-4) * -1);
+  padding: var(--ds-space-4) var(--ds-space-4) var(--ds-space-8);
+  overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin;
+  background: var(--ds-panel);
+}
+/* A focused chip scrolls into view sideways only: the bar is already in view. */
+.elements-bar > .ds-chip { scroll-margin-block: 0; scroll-margin-inline: var(--ds-space-16); }
+
+/* "All": a small heading per group, "See all" on its right. */
+.elements-group { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.elements-group + .elements-group { margin-top: var(--ds-space-8); }
+.elements-group-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-8); min-width: 0; }
+.elements-group-title {
+  margin: 0; min-width: 0; color: var(--ds-text-strong);
+  font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-weight: var(--ds-weight-semibold);
+}
+
+/* The grid: three square tiles a row; text styles take a whole row each. */
+.elements-grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ds-space-8);
+  margin: 0; padding: 0; list-style: none; min-width: 0;
+}
+.elements-grid[data-group="text"] { grid-template-columns: minmax(0, 1fr); }
+.elements-item { min-width: 0; }
+.elements-tile {
+  display: grid; place-items: center; aspect-ratio: 1 / 1; min-width: 0; overflow: hidden;
+  padding: var(--ds-space-20);
+  border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md);
+  background: var(--ds-panel-2); color: var(--ds-text);
+}
+.elements-art { display: block; width: 100%; height: 100%; }
+.elements-icon { display: block; width: var(--ds-space-32); height: var(--ds-space-32); }
+.elements-tile[data-kind="frame"] {
+  grid-template-rows: minmax(0, 1fr) auto; gap: var(--ds-space-4);
+  padding: var(--ds-space-12) var(--ds-space-12) var(--ds-space-8);
+}
+.elements-frame-label { color: var(--ds-muted); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); font-variant-numeric: var(--ds-numeric); }
+.elements-tile[data-kind="logo"] { padding: var(--ds-space-8); }
+.elements-tile[data-kind="logo"] > img { width: 100%; height: 100%; object-fit: contain; }
+
+/* Text styles: the words in their size, the brand font's name under them. */
+.elements-text {
+  display: flex; flex-direction: column; gap: var(--ds-space-2); min-width: 0;
+  padding: var(--ds-space-12) var(--ds-space-16);
+  border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md);
+  background: var(--ds-panel-2);
+}
+.elements-text-sample { min-width: 0; overflow-wrap: anywhere; color: var(--ds-text); font-family: var(--ds-font-sans); }
+.elements-text-sample[data-style="heading"] {
+  color: var(--ds-text-strong); font-family: var(--ds-font-display);
+  font-size: var(--ds-text-2xl); line-height: var(--ds-leading-2xl); font-weight: var(--ds-weight-bold); letter-spacing: var(--ds-tracking-tight);
+}
+.elements-text-sample[data-style="subheading"] {
+  color: var(--ds-text-strong); font-family: var(--ds-font-display);
+  font-size: var(--ds-text-lg); line-height: var(--ds-leading-lg); font-weight: var(--ds-weight-semibold);
+}
+.elements-text-sample[data-style="body"] { font-size: var(--ds-text-base); line-height: var(--ds-leading-base); }
+.elements-text-sample[data-style="caption"] { color: var(--ds-muted); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); }
+.elements-text-font { color: var(--ds-muted); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); }
+
+/* Logos with nothing to show: one calm line, and the way to add some. */
+.elements-empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--ds-space-4); min-width: 0;
+  color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm);
+}
+.elements-empty > p { margin: 0; }
+/* Loading logos: square skeletons, the shape of the tiles coming. */
+.elements-grid > .ds-skel-tile > .ds-skel:first-child { aspect-ratio: 1 / 1; border-radius: var(--ds-radius-md); }
+.elements-grid > .ds-skel-tile > .ds-skel-line { display: none; }

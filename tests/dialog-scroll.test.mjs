@@ -70,6 +70,7 @@ test('every scroll area in the design system is known, and none sits in a dialog
     ['.ds-combo-list, .ds-menu-list', 'a dropdown list over the page'],
     ['.ds-dialog-body', 'the one scroll area of a dialog'],
     ['.ds-tabs', 'a row of tabs, sideways'],
+    ['.elements-bar', 'the Elements panel’s categories, sideways only (overflow-y hidden); the panel is never a dialog'],
     ['.ds-scroller', 'Home’s strips, sideways'],
     ['.ds-editor-rail', 'the editor’s tool rail'],
     ['.ds-canvas-stage', 'the editor’s canvas'],
@@ -82,7 +83,7 @@ test('every scroll area in the design system is known, and none sits in a dialog
     ['.tp-viewport', 'the area editor’s drawing surface: it pans a zoomed picture (2×, 3×)'],
     ['.studio-side', 'the left navigation, when the window is too short for all of it (never in a dialog: on phones the drawer’s body scrolls)'],
     ['.studio-account-pop', 'the account menu over the page, on a very short window'],
-    ['.studio-panel-body', 'the References and Uploads panel beside the navigation (on phones the drawer’s body scrolls instead)'],
+    ['.studio-panel-body', 'the secondary panel (References, Brand, Elements, Uploads): a column beside the navigation, a sheet under the slim bar on phones; never a dialog'],
   ]);
   const found = [];
   for (const f of SHEETS) for (const r of rules(read('app/' + f))) if (scrolls(r.body)) found.push(r.selector);

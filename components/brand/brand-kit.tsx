@@ -15,9 +15,11 @@ import {can} from '@/lib/accounts/can';
 import {studioFetch} from '@/lib/studio-fetch';
 import {BRAND_FONTS,cleanHex,COLOUR_NAME_MAX,LOGO_MAX_BYTES,LOGO_NAME_MAX,MAX_COLOURS,MAX_LOGOS,NOT_YET,ONLY_EDITORS,parseKit,parseLogoName,PICKER_FALLBACK,TOO_MANY_LOGOS,VOICE_MAX,type BrandFont,type BrandKit,type BrandLogo} from '@/lib/brand-kit';
 
-// The company's brand kit (the Brand page): logos, colours, fonts and the
-// brand voice. Everyone in the company reads it; owners and creators change it
-// (can(…,'brand.edit'); every write route checks the same rule again).
+// The company's brand kit (Settings → Brand kit, /company/brand): logos,
+// colours, fonts and the brand voice. The Brand panel beside a tool shows the
+// same kit to use (brand-panel.tsx, through useBrandKit below). Everyone in
+// the company reads it; owners and creators change it (can(…,'brand.edit');
+// every write route checks the same rule again).
 // Logos are added and removed at once; colours, fonts and voice are saved
 // together with one button. Styles: app/brand.css.
 
@@ -261,7 +263,7 @@ export function BrandKitScreen(){
  const mayEdit=can(account,'brand.edit');
  const editable=mayEdit&&!!account?.workspace.open&&!!kit?.ready;
  return <div className="brand-page">
-  <PageHeader title="Brand kit" lede="Your company’s logos, colours, fonts and voice, in one place for all its work."/>
+  <PageHeader eyebrow="Settings" title="Brand kit" lede="Your company’s logos, colours, fonts and voice, in one place for all its work."/>
   {error&&!kit?<State kind="error" title="The brand kit didn’t load" actions={<Button onClick={()=>void reload()}>Try again</Button>}>{error}</State>
    :!kit||!accountSettled?<Loading label="Loading the brand kit" className="ds-stack"><SkeletonPanel/><SkeletonPanel/></Loading>
    :<>

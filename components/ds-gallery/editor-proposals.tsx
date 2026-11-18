@@ -22,7 +22,7 @@ const ACCOUNT={user:{email:'alex@example.test'},org:{id:'c1',name:'Demo Company'
  upsell:{},maxEdge:3840,workspace:{open:true,libraryOpen:true,libraryUntil:null}} as unknown as AccountSummary;
 const CREDITS={unlimited:false,meter:{used:1700,left:300,held:0,percent:85,level:80,periodFrom:null,periodTo:null,resetsOn:'5 Dec'},prices:{},billing:{},ignoredKeys:null,usage:true} as unknown as CreditOverview;
 const OPTIONS:ConfiguratorOptions={
- colours:[{id:'c1',name:'Lime metallic',swatch:'var(--nm-lime)'},{id:'c2',name:'Glacier white',swatch:'var(--ds-panel)'},{id:'c3',name:'Graphite',swatch:'var(--nm-graphite)'},{id:'c4',name:'Night black',swatch:'var(--ds-text-strong)'},{id:'c5',name:'Signal blue',swatch:'var(--ds-info)'},{id:'c6',name:'Rosso',swatch:'var(--ds-danger)'}],
+ colours:[{id:'c1',name:'Lime metallic',swatch:'var(--nm-lime)'},{id:'c2',name:'Glacier white',swatch:'var(--ds-panel)'},{id:'c3',name:'Graphite',swatch:'var(--ds-neutral-muted)'},{id:'c4',name:'Night black',swatch:'var(--ds-text-strong)'},{id:'c5',name:'Signal blue',swatch:'var(--ds-info)'},{id:'c6',name:'Rosso',swatch:'var(--ds-danger)'}],
  trims:[{id:'t1',name:'Sport'},{id:'t2',name:'Premium'},{id:'t3',name:'Base'}],
  views:[{id:'front34',name:'Front ¾'},{id:'side',name:'Side'},{id:'rear34',name:'Rear ¾'},{id:'front',name:'Front'},{id:'interior',name:'Interior'}],
  frames:36,

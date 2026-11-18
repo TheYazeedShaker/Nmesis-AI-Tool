@@ -67,7 +67,7 @@
 .editor-inspiration { display: flex; flex-direction: column; gap: var(--ds-space-8); }
 .editor-row { display: flex; flex-wrap: wrap; gap: var(--ds-space-8); }
 .editor-quality .ds-radio { padding: var(--ds-space-8) var(--ds-space-12); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); }
-.editor-quality .ds-radio:has(input:checked) { border-color: var(--ds-ring); background: var(--ds-accent-soft); }
+.editor-quality .ds-radio:has(input:checked) { border-color: var(--ds-ring); background: var(--ds-selected-bg); }
 .editor-quality-label { display: inline-flex; gap: var(--ds-space-8); align-items: baseline; justify-content: space-between; width: 100%; }
 .editor-upload { display: flex; align-items: center; gap: var(--ds-space-12); padding: var(--ds-space-8); border: var(--ds-border-width) dashed var(--ds-border-strong); border-radius: var(--ds-radius-md); min-width: 0; }
 .editor-upload > svg { width: var(--ds-icon-lg); height: var(--ds-icon-lg); color: var(--ds-muted); flex: none; }

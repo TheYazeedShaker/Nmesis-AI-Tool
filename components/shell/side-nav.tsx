@@ -1,8 +1,9 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import {Aperture,BarChart3,ChevronsUpDown,CircleHelp,CloudUpload,FolderOpen,Home,Images,LogOut,Menu as MenuIcon,Monitor,Moon,PanelLeftClose,PanelLeftOpen,Palette,Settings,Sun,UserRound} from 'lucide-react';
+import {Aperture,BarChart3,ChevronsUpDown,CircleHelp,CloudUpload,FolderOpen,Home,Images,LogOut,Menu as MenuIcon,Monitor,Moon,PanelLeftClose,PanelLeftOpen,Palette,Settings,Shapes,Sun,UserRound} from 'lucide-react';
 import {Dialog} from '@/components/ds/dialog';
+import {Layer,anchorAbove} from '@/components/ds/layer';
 import {useRememberedOpen} from '@/components/ds/layout';
 import {useAccount} from '@/components/studio-account';
 import {useCredits,useCreditsAnswered} from '@/components/credits';
@@ -11,30 +12,25 @@ import {workName} from '@/lib/accounts/names';
 import type {AccountSummary} from '@/lib/accounts/summary';
 import {THEME_CHOICES,setTheme,useTheme,type ThemeChoice} from '@/lib/theme';
 import {HowItWorks} from './how-it-works';
-import {togglePanel,useShell,type ShellPanel} from './shell-state';
+import {navItems,navSelection,type NavKey} from '@/lib/shell-nav';
+import {closePanel,togglePanel,useShell} from './shell-state';
 
 // The left navigation (like Canva's): icon and label, collapsible (remembered),
-// Home, Projects, References, Brand and Uploads, with the account at the
-// bottom. References and Uploads open a panel beside it, so a photo can be
-// added while working; the others are pages. Below 768px it lives in a drawer
+// with the account at the bottom. What it lists and which one item is selected
+// come from lib/shell-nav.ts: pages everywhere (Home, Projects, Uploads,
+// Settings), and inside a tool's view the tool's panels (References, Brand,
+// Elements, Uploads), which open beside it. Below 768px it lives in a drawer
 // opened from a slim bar at the top.
 
-type Place={key:string;label:string;icon:React.ReactNode}&({href:string;pages:StudioPage[]}|{panel:ShellPanel});
-export const NAV:Place[]=[
- {key:'home',label:'Home',icon:<Home/>,href:'/',pages:['home']},
- {key:'projects',label:'Projects',icon:<FolderOpen/>,href:'/library',pages:['library','projects']},
- {key:'references',label:'References',icon:<Images/>,panel:'references'},
- {key:'brand',label:'Brand',icon:<Palette/>,href:'/brand',pages:['brand']},
- {key:'uploads',label:'Uploads',icon:<CloudUpload/>,panel:'uploads'},
-];
+const ICON:Record<NavKey,React.ReactNode>={home:<Home/>,projects:<FolderOpen/>,references:<Images/>,brand:<Palette/>,elements:<Shapes/>,uploads:<CloudUpload/>,settings:<Settings/>};
 const hide=(icon:React.ReactNode)=>React.isValidElement(icon)?React.cloneElement(icon as React.ReactElement<{'aria-hidden'?:boolean}>,{'aria-hidden':true}):icon;
 
 function NavItems({current,onGo}:{current?:StudioPage;onGo?:()=>void}){
- const {panel}=useShell();
+ const {panel}=useShell(),selected=navSelection(current,panel);
  return <ul className="studio-side-list">
-  {NAV.map(p=><li key={p.key}>{'href' in p
-   ?<Link className="studio-side-item" href={p.href} aria-current={current&&p.pages.includes(current)?'page':undefined} onClick={onGo}>{hide(p.icon)}<span className="studio-side-word">{p.label}</span></Link>
-   :<button type="button" className="studio-side-item" aria-pressed={panel===p.panel} aria-controls={panel===p.panel?'studio-panel':undefined} onClick={()=>{onGo?.();togglePanel(p.panel)}}>{hide(p.icon)}<span className="studio-side-word">{p.label}</span></button>}</li>)}
+  {navItems(current).map(p=>{const on=p.key===selected;return <li key={p.key}>{'href' in p
+   ?<Link className="studio-side-item" href={p.href} data-selected={on||undefined} aria-current={on?'page':undefined} onClick={()=>{closePanel();onGo?.()}}>{hide(ICON[p.key])}<span className="studio-side-word">{p.label}</span></Link>
+   :<button type="button" className="studio-side-item" data-selected={on||undefined} aria-pressed={on} aria-controls={on?'studio-panel':undefined} onClick={()=>{onGo?.();togglePanel(p.panel)}}>{hide(ICON[p.key])}<span className="studio-side-word">{p.label}</span></button>}</li>})}
  </ul>;
 }
 
@@ -93,15 +89,23 @@ function AccountMenuBody({account,onClose,onHelp}:{account:AccountSummary;onClos
  </div>;
 }
 
+/** The account menu opens above its button in a layer over every panel (components/ds/layer.tsx). */
 function AccountButton({account,compact,onHelp}:{account:AccountSummary;compact:boolean;onHelp:()=>void}){
- const [open,setOpen]=React.useState(false);
- const root=React.useRef<HTMLDivElement>(null),button=React.useRef<HTMLButtonElement>(null);
+ const [open,setOpen]=React.useState<React.CSSProperties|null>(null);
+ const root=React.useRef<HTMLDivElement>(null),button=React.useRef<HTMLButtonElement>(null),pop=React.useRef<HTMLDivElement>(null);
  const id=React.useId().replace(/[^a-zA-Z0-9]/g,'');
- const close=React.useCallback((refocus=true)=>{setOpen(false);if(refocus)button.current?.focus()},[]);
- React.useEffect(()=>{if(!open)return;const away=(e:PointerEvent)=>{if(root.current&&!root.current.contains(e.target as Node))close(false)};document.addEventListener('pointerdown',away);return()=>document.removeEventListener('pointerdown',away)},[open,close]);
+ const close=React.useCallback((refocus=true)=>{setOpen(null);if(refocus)button.current?.focus()},[]);
+ React.useEffect(()=>{
+  if(!open)return;
+  const inside=(t:EventTarget|null)=>t instanceof Node&&(!!root.current?.contains(t)||!!pop.current?.contains(t));
+  const away=(e:PointerEvent)=>{if(!inside(e.target))close(false)};
+  const place=()=>setOpen(anchorAbove(button.current));
+  document.addEventListener('pointerdown',away);window.addEventListener('resize',place);
+  return()=>{document.removeEventListener('pointerdown',away);window.removeEventListener('resize',place)};
+ },[open,close]);
  return <div ref={root} className="studio-account" onKeyDown={e=>{if(e.key==='Escape'&&open){e.stopPropagation();close()}}}>
-  {open&&<div id={`${id}-account`} role="dialog" aria-label="Account" className="studio-account-pop"><AccountMenuBody account={account} onClose={()=>close(false)} onHelp={onHelp}/></div>}
-  <button ref={button} type="button" className="studio-side-item studio-account-button" aria-expanded={open} aria-controls={open?`${id}-account`:undefined} aria-label={compact?`Account: ${account.user.name||account.user.email}`:undefined} onClick={()=>setOpen(o=>!o)}>
+  {open&&<Layer><div ref={pop} id={`${id}-account`} role="dialog" aria-label="Account" className="studio-account-pop" style={open} onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();close()}}}><AccountMenuBody account={account} onClose={()=>close(false)} onHelp={onHelp}/></div></Layer>}
+  <button ref={button} type="button" className="studio-side-item studio-account-button" aria-expanded={!!open} aria-controls={open?`${id}-account`:undefined} aria-label={compact?`Account: ${account.user.name||account.user.email}`:undefined} onClick={()=>setOpen(o=>o?null:anchorAbove(button.current))}>
    <Avatar account={account}/>{!compact&&<span className="studio-side-word studio-account-label"><b className="ds-truncate" title={account.user.name||account.user.email}>{account.user.name||account.user.email}</b><span className="ds-truncate ds-muted" title={workName(account)}>{workName(account)}</span><span className="ds-sr-only">, account</span></span>}
   </button>
  </div>;

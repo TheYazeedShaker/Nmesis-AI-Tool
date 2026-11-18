@@ -57,10 +57,16 @@ export function workspaceState(e:Entitlements,now=Date.now()):{open:boolean;libr
 // narrows an entry; the first matching entry wins. Routes whose feature depends
 // on the request body (line-ups, smart references, adding an object) also call
 // requireFeature themselves once the body is read.
-export type RouteRule={path:RegExp;methods?:string[];feature:FeatureKey|null;library?:boolean};
+export type RouteRule={path:RegExp;methods?:string[];feature:FeatureKey|null;library?:boolean;
+ /** The person's own sign-in profile (their name, and their avatar when it comes), never company data:
+  *  every role may change it, viewers included, whatever the company's Studio state (owner, 2026-11-18).
+  *  Only /api/account/profile carries it (tests/account-profile.test.mjs holds that). */ownProfile?:true};
 const ID='[a-z0-9-]{8,80}';
 export const ROUTE_FEATURES:RouteRule[]=[
  {path:/^\/api\/area-edits(\/[^/]+)?$/,feature:'studio.area_edit'},
+ // Your own name (Your account): the person's sign-in profile, not company work. Every role may change it
+ // (ownProfile); the route itself still refuses staff viewing a company, whose session there is read-only.
+ {path:/^\/api\/account\/profile$/,methods:['PATCH'],feature:null,ownProfile:true},
  {path:/^\/api\/assets$/,feature:null},
  {path:new RegExp(`^/api/assets/${ID}$`),methods:['GET'],feature:null,library:true},
  {path:new RegExp(`^/api/assets/${ID}/original$`),feature:null},
@@ -130,6 +136,8 @@ export function requireFeature(ctx:{entitlements:Entitlements},key:FeatureKey){i
 export function checkRoute(ctx:{entitlements:Entitlements;role:Role},pathname:string,method:string){
  const rule=routeRule(pathname,method),write=method.toUpperCase()!=='GET',state=workspaceState(ctx.entitlements);
  if(!rule)throw new PlanError('That address is not part of the Studio.',404);
+ // Your own profile is yours, not the company's: no role or Studio state stops it.
+ if(rule.ownProfile)return rule;
  if(!state.open&&!(rule.library&&!write&&state.libraryOpen))throw new PlanError(state.noPlan?NO_PLAN_MESSAGE:state.libraryOpen?CLOSED_MESSAGE:LIBRARY_CLOSED_MESSAGE);
  if(write&&ctx.role==='viewer')throw new PlanError(VIEWER_MESSAGE);
  if(rule.feature)requireFeature(ctx,rule.feature);

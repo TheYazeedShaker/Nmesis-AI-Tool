@@ -27,8 +27,20 @@ export async function serverAuth(store?:CookieStore){
  });
 }
 let admin:SupabaseClient|undefined;
-// The secret key: user lookups and password changes only. Never leaves the server.
+// The secret key: user lookups, password changes and the person's own name only. Never leaves the server.
 export function adminAuth(){const e=env();return admin??=createClient(e.url,e.secret,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},global:{fetch:timedFetch}})}
+// The signed-in person's own name (user_metadata.full_name, which profileName
+// reads first). `userId` is always the verified session's (ctx.userId), never a
+// request's. Supabase merges user_metadata, so the person's other keys stay.
+// Unanswered (the ten-second limit above) or refused: ok false, logged by kind
+// only, and the caller says so in a sentence.
+export async function saveOwnName(userId:string,name:string):Promise<{ok:true;name:string}|{ok:false}>{
+ try{
+  const {data,error}=await adminAuth().auth.admin.updateUserById(userId,{user_metadata:{full_name:name}});
+  if(error||!data.user){console.error('Profile: the name was not saved',JSON.stringify({status:error?.status??null,code:error?.code||error?.name||'no-user'}));return {ok:false}}
+  return {ok:true,name:profileName(data.user.user_metadata)??name};
+ }catch(e){console.error('Profile: the name was not saved',e instanceof Error?e.name:'UnknownError');return {ok:false}}
+}
 // `aal` is the session's assurance level: 'aal2' only after the six-digit code
 // (TOTP) in this session. `totp` says whether the account has a verified factor.
 export type SessionUser={id:string;email:string;appMetadata:Record<string,unknown>;aal:'aal1'|'aal2';totp:boolean;/** The person's own name from their profile (user_metadata), when they gave one: shown in the account menu only. */name?:string};

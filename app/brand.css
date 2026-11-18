@@ -1,6 +1,7 @@
-/* ─── The Brand page ──────────────────────────────────────────────────────
+/* ─── The brand kit (Settings → Brand kit) and the Brand panel ────────────
    components/brand/brand-kit.tsx: the company's logos, colours, fonts and
-   voice. Built on the design system (app/design-system.css), light and dark.
+   voice, at /company/brand. components/brand/brand-panel.tsx: the Brand
+   panel, further down. Built on the design system (app/design-system.css), light and dark.
    Tokens only (docs/design-system.md). A swatch's own colour is data, set
    inline from the saved hex value. */
 
@@ -62,3 +63,58 @@
   background: var(--ds-panel); border-color: var(--ds-border); box-shadow: var(--ds-shadow-2);
 }
 .brand-save[data-dirty="true"] .brand-save-state { color: var(--ds-text); }
+
+/* ─── The Brand panel ─────────────────────────────────────────────────────
+   components/brand/brand-panel.tsx: the body of the side panel beside the
+   navigation inside a tool (components/shell/panels.tsx draws the panel).
+   Logos to use as references, colours and fonts to copy. */
+.brand-panel { display: flex; flex-direction: column; gap: var(--ds-space-24); min-width: 0; }
+.brand-panel-loading { display: flex; flex-direction: column; gap: var(--ds-space-16); min-width: 0; }
+.brand-panel-part { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+
+/* Logos: two across, whole (contain) on the light checkerboard. In use: an
+   outline and a tick. The checkerboard is its own layer carrying
+   data-theme="light", so the outline and focus ring keep the page's theme. */
+.brand-panel-logos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; min-width: 0; }
+.brand-panel-logo {
+  display: flex; flex-direction: column; gap: var(--ds-space-4); width: 100%; min-width: 0; padding: 0;
+  border: 0; background: transparent; color: var(--ds-text); font: inherit; text-align: left; cursor: pointer;
+}
+.brand-panel-logo-media {
+  position: relative; display: block; aspect-ratio: 4 / 3; overflow: hidden;
+  border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md);
+  transition: border-color var(--ds-dur-fast) var(--ds-ease);
+}
+.brand-panel-board { position: absolute; inset: 0; background: repeating-conic-gradient(var(--ds-panel-2) 0 25%, var(--ds-panel-3) 0 50%) 0 0 / var(--ds-space-16) var(--ds-space-16); }
+.brand-panel-logo-media > img { position: relative; display: block; width: 100%; height: 100%; object-fit: contain; padding: var(--ds-space-12); }
+.brand-panel-logo:hover .brand-panel-logo-media { border-color: var(--ds-border-strong); }
+.brand-panel-logo[aria-pressed="true"] .brand-panel-logo-media { outline: var(--ds-focus-width) solid var(--ds-accent-edge); outline-offset: calc(var(--ds-focus-width) * -1); }
+.brand-panel-logo:focus-visible { outline: none; }
+.brand-panel-logo:focus-visible .brand-panel-logo-media { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.brand-panel-tick {
+  position: absolute; top: var(--ds-space-8); right: var(--ds-space-8); display: grid; place-items: center;
+  width: var(--ds-space-24); height: var(--ds-space-24); border-radius: var(--ds-radius-round); background: var(--ds-accent); color: var(--ds-accent-ink);
+}
+.brand-panel-tick svg { width: var(--ds-icon); height: var(--ds-icon); }
+.brand-panel-logo-name { font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); color: var(--ds-text); }
+
+/* Colours and fonts: one press copies the hex or the font's name. */
+.brand-panel-swatches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; min-width: 0; }
+.brand-panel-fonts { display: flex; flex-direction: column; gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; min-width: 0; }
+.brand-panel-swatch, .brand-panel-font {
+  display: flex; align-items: center; gap: var(--ds-space-8); width: 100%; min-width: 0; min-height: var(--ds-control-h);
+  padding: var(--ds-space-4) var(--ds-space-8); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md);
+  background: var(--ds-panel); color: var(--ds-text); font: inherit; text-align: left; cursor: pointer;
+  transition: background-color var(--ds-dur-fast) var(--ds-ease), border-color var(--ds-dur-fast) var(--ds-ease);
+}
+.brand-panel-swatch:hover, .brand-panel-font:hover { background: var(--ds-panel-2); border-color: var(--ds-border-strong); }
+.brand-panel-swatch:focus-visible, .brand-panel-font:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.brand-panel-chip { flex: none; width: var(--ds-space-24); height: var(--ds-space-24); border-radius: var(--ds-radius-sm); border: var(--ds-border-width) solid var(--ds-border); }
+.brand-panel-swatch-text { display: flex; flex-direction: column; min-width: 0; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.brand-panel-swatch-text b { font-weight: var(--ds-weight-medium); color: var(--ds-text); }
+.brand-panel-font-text { flex: 1 1 auto; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-weight: var(--ds-weight-medium); }
+.brand-panel-font-role { color: var(--ds-muted); font-weight: var(--ds-weight-regular); }
+.brand-panel-font > svg { flex: none; width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-muted); }
+
+/* The way to the editor (owners and creators), or who can change the kit. */
+.brand-panel-foot { padding-top: var(--ds-space-16); border-top: var(--ds-border-width) solid var(--ds-border); }

@@ -1,20 +1,23 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import {ArrowRight,Coins,Lock,Search,Sparkles} from 'lucide-react';
+import {ArrowRight,Coins,Search,Sparkles} from 'lucide-react';
 import {Button} from '@/components/ds/button';
-import {Badge,SkeletonTile} from '@/components/ds/feedback';
+import {SkeletonTile} from '@/components/ds/feedback';
 import {MediaTile} from '@/components/ds/media';
+import {ToolTile} from '@/components/ds/tool-tile';
 import {HowItWorks} from '@/components/shell/how-it-works';
 import type {WorkItem} from './items';
 import {briefPlaceholder} from '@/lib/tool-samples';
 import {CarPicture,SamplePicture} from './car-picture';
 
-// Home: a greeting, "What do you want to make?" (a brief that opens Key visual,
-// and the tool cards), how it works, the work to continue, and the credits
-// left. No banners, no carousels. Each card shows a picture of the company's
-// own work or cars (lib/tool-samples.ts), never stock imagery; Car lineup shows
-// two or three of the company's cars side by side, so it reads as "several cars".
+// Home: a greeting, "What do you want to make?" (a brief that opens Key visual),
+// the five tools in one row of equal tiles (components/ds/tool-tile.tsx: the
+// open ones, then the locked ones with a small "Coming soon" badge), how it
+// works, the work to continue, and the credits left. Calm: no banners, no
+// carousels. Each tile shows a picture of the company's own work or cars
+// (lib/tool-samples.ts), never stock imagery; Car lineup shows two or three of
+// the company's cars side by side on one ground line, so it reads as a lineup.
 export type HomeTool={key:string;name:string;line:string;href:string;icon:React.ReactNode;cost?:string;
  /** Why it can't be opened: its plan, or "Coming soon" (lib/tools.ts). */locked?:string;soon?:boolean;
  /** Its sample picture (lib/tool-samples.ts); none: the neutral placeholder. */sample?:string;
@@ -22,34 +25,31 @@ export type HomeTool={key:string;name:string;line:string;href:string;icon:React.
 export type HomeCredits={left:number;resetsOn?:string|null;href?:string}|null;
 export const CONTINUE_MAX=6;
 
-function ToolArt({tool}:{tool:HomeTool}){
- if(tool.cars?.length)return <span className="workspace-tool-art">
-  <span className="ds-tool-art workspace-lineup-art" aria-hidden="true">{tool.cars.slice(0,3).map((src,i)=><CarPicture key={i} src={src} className="workspace-lineup-car"/>)}</span>
-  <span className="workspace-tool-mark" aria-hidden="true">{tool.icon}</span>
- </span>;
- return <span className="workspace-tool-art">
-  <SamplePicture src={tool.sample} className="ds-tool-art" fallback={tool.icon}/>
-  {tool.sample&&<span className="workspace-tool-mark" aria-hidden="true">{tool.icon}</span>}
+/** Car lineup's picture: the company's cars, each its configurator's opening frame, full size on one
+ *  ground line, overlapping a little, the middle one in front (neutral cars while they load). */
+export function LineupArt({cars}:{cars:(string|undefined)[]}){
+ const shown=cars.slice(0,3);
+ return <span className="ds-tool-art workspace-lineup-art" aria-hidden="true" data-count={shown.length}>
+  <span className="workspace-lineup-ground"/>
+  {shown.map((src,i)=><CarPicture key={i} src={src} className="workspace-lineup-car"/>)}
  </span>;
 }
 
+function ToolArt({tool}:{tool:HomeTool}){
+ const mark=<span className="workspace-tool-mark" aria-hidden="true">{tool.icon}</span>;
+ if(tool.cars?.length)return <><LineupArt cars={tool.cars}/>{mark}</>;
+ return <><SamplePicture src={tool.sample} className="ds-tool-art" fallback={tool.icon}/>{tool.sample&&mark}</>;
+}
+
 function ToolCard({t}:{t:HomeTool}){
- if(t.locked)return <span className="ds-tool" data-locked="true" data-soon={t.soon||undefined} aria-disabled="true">
-  <ToolArt tool={t}/>
-  <span className="ds-tool-name">{t.name}</span><span className="ds-tool-line">{t.line}</span>
-  <span className="ds-tool-foot"><Badge icon={t.soon?undefined:<Lock aria-hidden="true"/>}>{t.locked}</Badge></span>
- </span>;
- return <Link className="ds-tool" href={t.href}>
-  <ToolArt tool={t}/>
-  <span className="ds-tool-name">{t.name}</span><span className="ds-tool-line">{t.line}</span>
-  {t.cost&&<span className="ds-tool-foot"><Badge>{t.cost}</Badge></span>}
- </Link>;
+ return <ToolTile name={t.name} line={t.line} href={t.locked?undefined:t.href} locked={t.locked} soon={t.soon} cost={t.cost} art={<ToolArt tool={t}/>}/>;
 }
 
 export function HomeScreen({greeting,tools,recent,onStart,credits,placeholder=briefPlaceholder([]),libraryHref='/library'}:{greeting?:string;placeholder?:string;tools:HomeTool[];/** null while loading: the row keeps its height. */recent:WorkItem[]|null;onStart:(brief:string)=>void;credits?:HomeCredits;libraryHref?:string;
  /** @deprecated Home no longer lists the cars; they are in each tool's car picker. */cars?:unknown}){
  const [brief,setBrief]=React.useState('');
- const open=tools.filter(t=>!t.soon),soon=tools.filter(t=>t.soon);
+ // One row: the tools that open first, then the ones coming soon.
+ const row=[...tools.filter(t=>!t.soon),...tools.filter(t=>t.soon)];
  const shown=recent?.slice(0,CONTINUE_MAX)??null;
  return <div className="ds-blocks workspace-home">
   <div className="ds-hero">
@@ -58,7 +58,7 @@ export function HomeScreen({greeting,tools,recent,onStart,credits,placeholder=br
    <form className="ds-ask" role="search" onSubmit={e=>{e.preventDefault();onStart(brief.trim())}}>
     <Search aria-hidden="true"/>
     <label className="ds-sr-only" htmlFor="home-brief">Describe the key visual you want</label>
-    <input id="home-brief" value={brief} onChange={e=>setBrief(e.target.value)} placeholder={placeholder} autoComplete="off" maxLength={600}/>
+    <input id="home-brief" className="ds-ask-input" value={brief} onChange={e=>setBrief(e.target.value)} placeholder={placeholder} autoComplete="off" maxLength={600}/>
     <Button type="submit" kind="primary" icon={<Sparkles aria-hidden="true"/>}>Start</Button>
    </form>
    <p className="ds-muted workspace-hint">Describe a scene to start a key visual, or pick a tool below. Nothing is charged until you press Generate.</p>
@@ -66,12 +66,9 @@ export function HomeScreen({greeting,tools,recent,onStart,credits,placeholder=br
 
   <section aria-labelledby="home-tools">
    <div className="ds-block-head" id="tools"><h2 className="ds-block-title" id="home-tools">Tools</h2></div>
-   <ul className="ds-tools workspace-list workspace-tools-open" aria-labelledby="home-tools">
-    {open.map(t=><li key={t.key}><ToolCard t={t}/></li>)}
+   <ul className="ds-tools workspace-list workspace-tools-row" aria-labelledby="home-tools" data-count={row.length}>
+    {row.map(t=><li key={t.key}><ToolCard t={t}/></li>)}
    </ul>
-   {soon.length>0&&<ul className="ds-tools workspace-list workspace-tools-soon" aria-label="Coming soon">
-    {soon.map(t=><li key={t.key}><ToolCard t={t}/></li>)}
-   </ul>}
   </section>
 
   <HowItWorks/>

@@ -53,6 +53,8 @@ export function startAuthMock({port=0}={}){
    if(req.method==='PUT'){
     if(typeof body.password==='string'){u.password=body.password;for(const [sid,uid] of sessions)if(uid===u.id)sessions.delete(sid)}// the real service revokes them all
     if(body.app_metadata)u.app_metadata={...body.app_metadata};
+    // The person's own name (app/api/account/profile): merged key by key, as the real service does; null removes a key.
+    if(body.user_metadata&&typeof body.user_metadata==='object'){const next={...u.user_metadata};for(const [k,v] of Object.entries(body.user_metadata)){if(v===null)delete next[k];else next[k]=v}u.user_metadata=next}
     return send(200,publicUser(u));
    }
   }

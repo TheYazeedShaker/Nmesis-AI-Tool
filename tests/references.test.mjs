@@ -363,15 +363,20 @@ test('ReferenceCredit says "Photo by <name> on Unsplash" with both links, and ne
  assert.match(odd,/Photo by Demo Photographer on Unsplash/);
 });
 
-test('the panel opens on the chosen car\'s name, loading, with the search and the tray count',()=>{
- const {ReferencesPanel}=load('components/references/references-panel.tsx');
- const html=draw(ReferencesPanel,{initialQuery:'  Demo SUV '});
+test('the panel opens with an empty search and the hint, loading the tool\'s suggested photos, with the tray count',()=>{
+ const {ReferencesPanel,SUGGESTED,SEARCH_HINT}=load('components/references/references-panel.tsx');
+ assert.equal(SEARCH_HINT,'Search car photos, e.g. coastal road at dusk');
+ assert.deepEqual([SUGGESTED.visuals.q,SUGGESTED.lineup.q],['car key visual','car lineup']);
+ const html=draw(ReferencesPanel,{tool:'visuals'});
  assert.match(html,/<form class="refs-search" role="search">/);
- assert.match(html,/<input class="ds-input" type="search" maxLength="100"[^>]*value="Demo SUV"\/>/);
+ // Never prefilled (a model name is not a photo search): empty, with the hint.
+ assert.match(html,/<input class="ds-input" type="search" maxLength="100"[^>]*placeholder="Search car photos, e.g. coastal road at dusk" value=""\/>/);
  assert.match(html,/role="status" aria-busy="true"><span class="ds-sr-only">Loading photos<\/span>/);
  assert.equal((html.match(/ds-skel-tile/g)||[]).length,8);
  assert.match(html,/0 of 6 references chosen/);
- const none=draw(ReferencesPanel,{initialQuery:''});
- assert.match(none,/Search for photos/);
- assert.doesNotMatch(none,/Loading photos/);
+ // In Car lineup one photo is the inspiration.
+ assert.match(draw(ReferencesPanel,{tool:'lineup'}),/Click a photo to use it as your inspiration\./);
+ const src=String(load('components/references/references-panel.tsx').ReferencesPanel);
+ assert.match(src,/const query = search\.q \|\| suggested\.q;/,'the curated grid until the person searches');
+ assert.doesNotMatch(src,/initialQuery/);
 });
