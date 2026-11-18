@@ -1,14 +1,17 @@
 import type {Metadata} from 'next';
 import {notFound} from 'next/navigation';
+import {after} from 'next/server.js';
 import {getDatabase} from '@/lib/portable/database';
 import {getStorage} from '@/lib/portable/storage';
 import {studioEnvironment} from '@/lib/portable/environment';
-import {publicPicture,publicShare} from '@/lib/shares';
+import {publicPicture,publicShare,sweepPublicCopies} from '@/lib/shares';
 // A public view link (lib/shares.ts): no sign-in (proxy.ts lets /view/<token>
 // through). Looked up by the token's hash through studio.public_share (0011) on
 // every request, so turning the link off or its expiry takes effect at once.
-// The picture is a short-lived signed link built on the server from the stored
-// owner prefix and id. A link that is off, expired or unknown answers 404 with
+// The picture is a short-lived signed link to the link's own copy at a neutral
+// key (public/<random>): its address names no company, person or piece of work.
+// A dead link (off, replaced, expired) also has its leftover copies swept, after
+// the answer is sent. A link that is off, expired or unknown answers 404 with
 // one plain sentence (./not-found.tsx) and nothing else.
 export const dynamic='force-dynamic';
 export const metadata:Metadata={title:'Shared from Nmesis Studio',robots:{index:false,follow:false,nocache:true,googleBot:{index:false,follow:false}},referrer:'no-referrer'};
@@ -16,7 +19,11 @@ type Shown={title:string;src:string}|'off'|'unavailable';
 async function open(token:string):Promise<Shown>{
  try{
   const share=await publicShare(getDatabase(),token,studioEnvironment());
-  if(!share)return 'off';
+  if(!share){
+   // Outside a Next.js request (the tests) there is no after(): the next link change or the daily job sweeps instead.
+   try{after(()=>sweepPublicCopies(getDatabase(),getStorage(),studioEnvironment()))}catch(e){console.info('Public link sweep not scheduled',e instanceof Error?e.message.slice(0,80):'unknown')}
+   return 'off';
+  }
   const src=await publicPicture(getStorage(),share);
   return src?{title:share.title,src}:'off';
  }catch(e){console.error('Public view link could not be opened',e instanceof Error?e.name:'UnknownError');return 'unavailable'}

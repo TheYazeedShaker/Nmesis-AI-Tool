@@ -14,7 +14,7 @@
 - **Brand** (`/brand`, migration `0010_brand_kits.sql`): logos, colours, fonts, brand voice per company; owners and creators edit (`lib/accounts/can.ts`).
 - **References panel:** a provider interface (`lib/references`), Unsplash first (official API, attribution, download tracking, `UNSPLASH_ACCESS_KEY`), a Pinterest stub that stays off; no scraping. `docs/references.md`.
 - **Uploads:** the person's own uploads (an empty mark beside each asset, `lib/uploads.ts`), reusable as references.
-- **Share** (migration `0011_shares.sql`): access per piece of work (only me / company can view / company can edit), a signed-in link, a public view link (off by default, expiring, can be turned off), and downloads in PNG or JPG at a chosen size.
+- **Share** (migration `0011_shares.sql`): access per piece of work (only me / company can view / company can edit), a signed-in link, a public view link (off by default, expiring, can be turned off), and downloads in PNG or JPG at a chosen size. The public page shows a copy at `public/<random>` (no company or person in its address), deleted when the link is turned off or replaced and swept after expiry (link changes, the page, and a daily Vercel Cron job with `CRON_SECRET`).
 - No hosted system was touched.
 
 **Earlier (2026-11-17, `fix/lists-and-leftovers`):**
@@ -299,7 +299,7 @@ _Carried_
 ## Next session — start here
 
 0. Studio shell (PR 1 of 2, `feat/studio-shell`):
-   - Owner: review the PR; then run `npm run db:migrate` (0010 brand kits, 0011 shares) and set `UNSPLASH_ACCESS_KEY` per environment (`docs/references.md`), and redeploy;
+   - Owner: review the PR; then run `npm run db:migrate` (0010 brand kits, 0011 shares), set `UNSPLASH_ACCESS_KEY` per environment (`docs/references.md`) and `CRON_SECRET` for Production (`docs/s3-setup.md` section 7), and redeploy;
    - if the car view still shows a blank or broken frame on a deployment, check the server log for "Configurators left out" (`CONFIGURATOR_ORIGIN` per environment);
    - then PR 2, `feat/studio-editor` (the canvas editor), from `development` after PR 1 is merged.
 

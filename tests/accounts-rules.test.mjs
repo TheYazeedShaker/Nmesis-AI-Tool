@@ -44,7 +44,8 @@ test('an ended or switched-off Studio shows a notice; the library stays viewable
 });
 test('every API route is in the single route → feature table',()=>{
  const files=[];const walk=d=>{for(const n of readdirSync(d)){const p=d+'/'+n;if(statSync(p).isDirectory())walk(p);else if(n==='route.ts')files.push(p)}};walk('app/api');
- const exempt=/^app\/api\/(auth\/|me\/)/;let checked=0;
+ // cron/: the daily job, called by Vercel with its secret (no person, no context()).
+ const exempt=/^app\/api\/(auth\/|me\/|cron\/)/;let checked=0;
  for(const file of files){
   if(exempt.test(file))continue;
   const path='/'+file.replace(/\/route\.ts$/,'').replace(/\[action\]/,'quote').replace(/\[kind\]/,'visual').replace(/\[id\]/g,'item-12345678').replace(/^app\//,'');

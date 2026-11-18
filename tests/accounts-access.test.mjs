@@ -216,7 +216,8 @@ const apiRoutes=()=>{const files=[];const walk=d=>{for(const n of readdirSync(d)
 test('S2.1: staff without the six-digit code are refused on every API route',async()=>{
  as(T0,ORG_N);let checked=0;const before=state.db.raw.prepare('SELECT count(*) AS n FROM staff_access_log').get().n;
  // Every route outside the sign-in flow itself, plus the company switcher.
- for(const file of apiRoutes().filter(f=>!/^app\/api\/auth\//.test(f)||f==='app/api/auth/org/route.ts')){
+ // cron/ is the daily job's (Vercel's secret, no person): tests/shares.test.mjs checks it refuses everyone else.
+ for(const file of apiRoutes().filter(f=>(!/^app\/api\/auth\//.test(f)||f==='app/api/auth/org/route.ts')&&!/^app\/api\/cron\//.test(f))){
   routes[file]??=await import('@/'+file);
   const path='/'+file.replace(/\/route\.ts$/,'').replace(/\[action\]/,'quote').replace(/\[id\]/g,'item-12345678').replace(/^app\//,'');
   for(const method of ['GET','POST','PUT','PATCH','DELETE']){

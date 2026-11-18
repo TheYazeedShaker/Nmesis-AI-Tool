@@ -1,5 +1,5 @@
-import {createHash,randomBytes,randomUUID} from 'node:crypto';
-import {StudioError,imageKey,validId,type RequestContext} from './studio-server';
+import {createHash,randomBytes,randomUUID,timingSafeEqual} from 'node:crypto';
+import {StudioError,imageKey,imageType,validId,type RequestContext} from './studio-server';
 import {isUserPrefix,orgOf,userOf} from './portable/tenancy';
 import {accessReady,indexReady} from './library-index';
 import {locate} from './org-library';
@@ -7,6 +7,7 @@ import {can} from './accounts/can';
 import {teamPage,type TeamStore} from './accounts/team';
 import type {Role} from './accounts/plan';
 import type {StudioBucket} from './portable/storage';
+import {studioEnvironment} from './portable/environment';
 // Share (migration 0011): who in the company sees a piece of work, and its
 // public view link. Server only; the panel is components/share/share-panel.tsx.
 //
@@ -22,6 +23,11 @@ import type {StudioBucket} from './portable/storage';
 // once, of which only the SHA-256 is stored; 1, 7 or 30 days; off at any time.
 // Making a new link turns the previous one off. /view/<token> (app/view) reads
 // it through studio.public_share, the one way past row level security.
+// The page shows a copy of the picture at a neutral key, public/<32 random hex>,
+// made when the link is made: its address names no company, person or piece of
+// work. The copy is deleted when the link is turned off or replaced, and after
+// it expires by the sweep (sweepPublicCopies: the link routes, the public page
+// and a daily job, app/api/cron/public-links).
 
 export const SHARE_KINDS=['visual','film','swap','story'] as const;
 export type ShareKind=typeof SHARE_KINDS[number];
@@ -145,6 +151,65 @@ export function peopleWithAccess(team:TeamView,owner:string,access:Access):Share
  return rows;
 }
 
+// ── Public copies ──────────────────────────────────────────────────────────
+/** A public link's picture: a key that names no company, person or piece of work. */
+export const PUBLIC_KEY=/^public\/[0-9a-f]{32}$/;
+export const newPublicKey=()=>'public/'+randomBytes(16).toString('hex');
+const PICTURE_TYPE=/^image\/(png|jpeg|webp)$/;
+type CopyStore=Pick<StudioBucket,'get'|'put'|'delete'>;
+/** Copies a picture to a new neutral key (server to storage, no browser in between); null when it is not there. */
+export async function copyToPublic(store:Pick<StudioBucket,'get'|'put'>,source:string):Promise<string|null>{
+ const got=await store.get(source);
+ if(!got)return null;
+ const bytes=new Uint8Array(await got.arrayBuffer());
+ const type=PICTURE_TYPE.test(got.httpMetadata.contentType||'')?got.httpMetadata.contentType!:imageType(bytes);
+ if(!type)return null;
+ const key=newPublicKey();
+ await store.put(key,bytes,{httpMetadata:{contentType:type}});
+ return key;
+}
+/** Deletes the copies; answers the ids of the rows whose copy is gone (a failure is logged and left for the next sweep). */
+async function deleteCopies(store:Pick<StudioBucket,'delete'>,rows:{id:string;public_key:string}[]):Promise<string[]>{
+ const gone:string[]=[];
+ for(const r of rows){
+  if(!PUBLIC_KEY.test(r.public_key))continue;
+  try{await store.delete(r.public_key);gone.push(r.id)}
+  catch(e){console.error('Public link picture not deleted; the next sweep tries again',e instanceof Error?e.name:'UnknownError')}
+ }
+ return gone;
+}
+/** This piece of work's dead links (turned off, replaced or expired): their copies, at once. Never fails the request. */
+async function clearItemCopies(db:Db,store:CopyStore,org:string,kind:ShareKind,id:string,now:number){
+ try{
+  const dead=(await db.prepare('SELECT id,public_key FROM share_links WHERE org_id=? AND item_kind=? AND item_id=? AND public_key IS NOT NULL AND cleared_at IS NULL AND (revoked_at IS NOT NULL OR expires_at<=?)').bind(org,kind,id,now).all<{id:string;public_key:string}>()).results;
+  for(const done of await deleteCopies(store,dead))await db.prepare('UPDATE share_links SET cleared_at=? WHERE id=? AND org_id=?').bind(now,done,org).run();
+ }catch(e){console.error('Public link pictures not cleared; the next sweep tries again',e instanceof Error?e.name:'UnknownError')}
+}
+type SweepDb={prepare(sql:string):{bind(...v:unknown[]):{all<T=unknown>():Promise<{results:T[]}>;first<T=unknown>():Promise<T|null>}}};
+/** Postgres: the SECURITY DEFINER pair of 0011 (dead links of every company in one environment, keys only). */
+export const PUBLIC_COPIES_DUE_SQL='SELECT id,public_key FROM studio.public_copies_due(?,?)';
+export const PUBLIC_COPIES_CLEARED_SQL='SELECT studio.public_copies_cleared(?,?) AS n';
+export const SWEEP_LIMIT=50;
+/** Deletes the copies of dead links (turned off or expired) in this environment, oldest first,
+ *  at most `limit`; answers how many were cleared. Never throws: a failure is logged and the next sweep tries again. */
+export async function sweepPublicCopies(db:SweepDb|undefined,store:CopyStore|undefined,env:string,limit=SWEEP_LIMIT):Promise<number>{
+ if(!db||!store)return 0;
+ try{
+  const due=(await db.prepare(PUBLIC_COPIES_DUE_SQL).bind(env,limit).all<{id:string;public_key:string}>()).results;
+  if(!due.length)return 0;
+  const gone=await deleteCopies(store,due);
+  if(!gone.length)return 0;
+  const row=await db.prepare(PUBLIC_COPIES_CLEARED_SQL).bind(env,gone).first<{n:number|string}>();
+  return Number(row?.n||0);
+ }catch(e){console.error('Public link pictures not swept; the next sweep tries again',e instanceof Error?e.name:'UnknownError');return 0}
+}
+/** The daily job's caller: Vercel sends Authorization: Bearer <CRON_SECRET>. Compared in constant time; no secret, no entry. */
+export function cronAuthorized(header:string|null,secret=process.env.CRON_SECRET):boolean{
+ if(!secret||secret.length<16)return false;
+ const want=Buffer.from('Bearer '+secret,'utf8'),got=Buffer.from(header||'','utf8');
+ return got.length===want.length&&timingSafeEqual(got,want);
+}
+
 // ── Links ──────────────────────────────────────────────────────────────────
 async function latestLink(db:Db,org:string,kind:ShareKind,id:string,now:number):Promise<ShareLink|null>{
  const row=await db.prepare('SELECT expires_at,revoked_at FROM share_links WHERE org_id=? AND item_kind=? AND item_id=? AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 1').bind(org,kind,id).first<LinkRow>();
@@ -177,38 +242,52 @@ export async function createLink(ctx:Ctx,kind:unknown,id:unknown,daysValue:unkno
  const {work,db}=await managed(ctx,kind,id);
  if(work.kind!=='visual')throw new StudioError('A public view link can be made for pictures for now.',409);
  if(!work.indexed||work.status!=='ready'||!validId(work.assetId))throw new StudioError('This picture isn’t ready to share yet. Try again in a minute.',409);
- const token=newToken(),expiresAt=now+days*DAY_MS;
- await db.batch([
-  db.prepare('UPDATE share_links SET revoked_at=? WHERE org_id=? AND item_kind=? AND item_id=? AND revoked_at IS NULL').bind(now,ctx.org,work.kind,work.id),
-  db.prepare('INSERT INTO share_links(id,org_id,item_kind,item_id,token_hash,expires_at,revoked_at,created_by,created_at) VALUES(?,?,?,?,?,?,NULL,?,?)').bind(randomUUID(),ctx.org,work.kind,work.id,hashToken(token),expiresAt,ctx.prefix,now),
- ]);
+ if(!ctx.BUCKET)throw new StudioError(NOT_YET,503);
+ const store=ctx.BUCKET,token=newToken(),expiresAt=now+days*DAY_MS;
+ // The picture the link shows: a copy at a neutral key (no company or person in its address).
+ const publicKey=await copyToPublic(store,imageKey(work.owner,work.assetId));
+ if(!publicKey)throw new StudioError('This picture isn’t ready to share yet. Try again in a minute.',409);
+ try{
+  await db.batch([
+   db.prepare('UPDATE share_links SET revoked_at=? WHERE org_id=? AND item_kind=? AND item_id=? AND revoked_at IS NULL').bind(now,ctx.org,work.kind,work.id),
+   db.prepare('INSERT INTO share_links(id,org_id,item_kind,item_id,token_hash,expires_at,revoked_at,created_by,created_at,public_key) VALUES(?,?,?,?,?,?,NULL,?,?,?)').bind(randomUUID(),ctx.org,work.kind,work.id,hashToken(token),expiresAt,ctx.prefix,now,publicKey),
+  ]);
+ }catch(e){
+  // No link was made: its copy goes too.
+  await store.delete(publicKey).catch(err=>console.error('Public link picture not deleted after a failed link',err instanceof Error?err.name:'UnknownError'));
+  throw e;
+ }
+ // The link it replaced: its copy goes now; and any other expired copies in this environment.
+ await clearItemCopies(db,store,ctx.org,work.kind,work.id,now);
+ await sweepPublicCopies(db,store,studioEnvironment());
  return {token,expiresAt,days};
 }
 export async function turnOffLink(ctx:Ctx,kind:unknown,id:unknown,now=Date.now()){
  const {work,db}=await managed(ctx,kind,id);
  await db.prepare('UPDATE share_links SET revoked_at=? WHERE org_id=? AND item_kind=? AND item_id=? AND revoked_at IS NULL').bind(now,ctx.org,work.kind,work.id).run();
+ // Off: its picture copy is deleted now (and any other expired ones in this environment).
+ if(ctx.BUCKET){await clearItemCopies(db,ctx.BUCKET,ctx.org,work.kind,work.id,now);await sweepPublicCopies(db,ctx.BUCKET,studioEnvironment())}
  return {link:null};
 }
 export const linkUrl=(origin:string,token:string)=>`${origin.replace(/\/+$/,'')}/view/${token}`;
 
 // ── The public page ────────────────────────────────────────────────────────
 type PlainDb={prepare(sql:string):{bind(...v:unknown[]):{first<T=unknown>():Promise<T|null>}}};
-export type PublicShare={org:string;kind:ShareKind;id:string;owner:string;title:string;assetId:string;expiresAt:number};
+export type PublicShare={org:string;kind:ShareKind;id:string;title:string;publicKey:string;expiresAt:number};
 /** Postgres: the SECURITY DEFINER lookup of 0011 (the page has no signed-in user). */
-export const PUBLIC_SHARE_SQL='SELECT org_id,item_kind,item_id,owner,title,asset_id,expires_at FROM studio.public_share(?,?)';
+export const PUBLIC_SHARE_SQL='SELECT org_id,item_kind,item_id,title,public_key,expires_at FROM studio.public_share(?,?)';
 /** The work behind a public token, or null (malformed, unknown, turned off, expired, deleted).
  *  The database decides; the answer is checked again here and fails closed. */
 export async function publicShare(db:PlainDb|undefined,token:unknown,env:string,now=Date.now()):Promise<PublicShare|null>{
  if(!db||typeof token!=='string'||!TOKEN_SHAPE.test(token))return null;
- const row=await db.prepare(PUBLIC_SHARE_SQL).bind(hashToken(token),env).first<{org_id:string;item_kind:string;item_id:string;owner:string;title:string;asset_id:string|null;expires_at:number|string}>();
+ const row=await db.prepare(PUBLIC_SHARE_SQL).bind(hashToken(token),env).first<{org_id:string;item_kind:string;item_id:string;title:string;public_key:string|null;expires_at:number|string}>();
  if(!row||!(SHARE_KINDS as readonly string[]).includes(row.item_kind)||!(Number(row.expires_at)>now))return null;
- if(!isUserPrefix(row.owner)||orgOf(row.owner)!==row.org_id||!validId(row.asset_id))return null;
- return {org:row.org_id,kind:row.item_kind as ShareKind,id:row.item_id,owner:row.owner,title:row.title,assetId:row.asset_id,expiresAt:Number(row.expires_at)};
+ if(typeof row.public_key!=='string'||!PUBLIC_KEY.test(row.public_key))return null;
+ return {org:row.org_id,kind:row.item_kind as ShareKind,id:row.item_id,title:row.title,publicKey:row.public_key,expiresAt:Number(row.expires_at)};
 }
-/** A short-lived signed link to the picture, built from the stored owner prefix and id (as /api/assets/<id>). */
+/** A short-lived signed link to the link's own copy, at its neutral key: the address names no company, person or work. */
 export async function publicPicture(store:Pick<StudioBucket,'head'|'downloadUrl'>|undefined,share:PublicShare):Promise<string|null>{
- if(!store)return null;
- const key=imageKey(share.owner,share.assetId);
- if(!await store.head(key))return null;
- return store.downloadUrl(key);
+ if(!store||!PUBLIC_KEY.test(share.publicKey))return null;
+ if(!await store.head(share.publicKey))return null;
+ return store.downloadUrl(share.publicKey);
 }

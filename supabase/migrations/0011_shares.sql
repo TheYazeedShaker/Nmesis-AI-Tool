@@ -11,6 +11,12 @@
 -- made it). A link works until expires_at (1, 7 or 30 days) unless revoked_at
 -- is set; making a new link revokes the item's previous one.
 --
+-- The picture a public link shows is a copy at a neutral key, public/<32 random
+-- hex> (public_key): its address names no company, person or piece of work.
+-- The copy is deleted as soon as the link is turned off or replaced, and once
+-- it has expired by the sweep (studio.public_copies_due / _cleared, run by the
+-- link routes, the public page and a daily job); cleared_at records that.
+--
 -- The public page (/view/<token>) has no signed-in user, so row level security
 -- would show it nothing. studio.public_share(hash, env) is the one way in: it
 -- sets `studio.share_hash` for its own statement, which the public_link
@@ -43,7 +49,9 @@ create table if not exists studio.share_links (
   expires_at bigint not null,
   revoked_at bigint,
   created_by text not null,
-  created_at bigint not null
+  created_at bigint not null,
+  public_key text,
+  cleared_at bigint
 );
 create unique index if not exists share_links_token_hash on studio.share_links (token_hash);
 create index if not exists share_links_env_org_item on studio.share_links (environment, org_id, item_kind, item_id);
@@ -78,6 +86,9 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'share_links_hash_ck') then
     alter table studio.share_links add constraint share_links_hash_ck check (token_hash ~ '^[0-9a-f]{64}$');
   end if;
+  if not exists (select 1 from pg_constraint where conname = 'share_links_public_key_ck') then
+    alter table studio.share_links add constraint share_links_public_key_ck check (public_key is null or public_key ~ '^public/[0-9a-f]{32}$');
+  end if;
 end
 $$;
 
@@ -97,11 +108,34 @@ create policy public_link on studio.library_items for select
                    and s.environment = library_items.environment and s.org_id = library_items.org_id
                    and s.item_kind = library_items.kind and s.item_id = library_items.id));
 
--- The public page's lookup: the work behind a link, only while the link is on.
--- Answers no row for a malformed hash, an unknown environment, a revoked or
--- expired link, or deleted work. The settings it uses are put back before it ends.
-create or replace function studio.public_share(p_hash text, p_env text)
-returns table (org_id text, item_kind text, item_id text, owner text, title text, asset_id text, expires_at bigint)
+-- The sweep's view (only inside studio.public_copies_due / _cleared, which set
+-- studio.public_sweep for their own statement): dead links of any company in
+-- this environment, turned off or expired, whose copy is still there. A dead
+-- link's hash opens nothing, and its copy's key names nothing.
+drop policy if exists public_sweep on studio.share_links;
+-- (cleared ones included: Postgres checks an updated row against these too, and a
+-- copy just marked cleared must stay visible to the statement that marked it).
+create policy public_sweep on studio.share_links for select
+  using ((select nullif(current_setting('studio.public_sweep', true), '')) = 'on'
+    and environment = (select studio.request_env())
+    and public_key is not null
+    and (revoked_at is not null or expires_at <= (extract(epoch from clock_timestamp()) * 1000)::bigint));
+drop policy if exists public_sweep_clear on studio.share_links;
+create policy public_sweep_clear on studio.share_links for update
+  using ((select nullif(current_setting('studio.public_sweep', true), '')) = 'on'
+    and environment = (select studio.request_env())
+    and public_key is not null and cleared_at is null
+    and (revoked_at is not null or expires_at <= (extract(epoch from clock_timestamp()) * 1000)::bigint))
+  with check ((select nullif(current_setting('studio.public_sweep', true), '')) = 'on'
+    and environment = (select studio.request_env()) and cleared_at is not null);
+
+-- The public page's lookup: the link's neutral picture, only while the link is
+-- on. Answers no row for a malformed hash, an unknown environment, a revoked or
+-- expired link, a link whose copy is gone, or deleted work. The settings it uses
+-- are put back before it ends.
+drop function if exists studio.public_share(text, text);
+create function studio.public_share(p_hash text, p_env text)
+returns table (org_id text, item_kind text, item_id text, title text, public_key text, expires_at bigint)
 language plpgsql volatile security definer
 set search_path = ''
 as $fn$
@@ -116,12 +150,12 @@ begin
   perform set_config('studio.share_hash', p_hash, true);
   perform set_config('studio.env', p_env, true);
   return query
-    select s.org_id, s.item_kind, s.item_id, li.owner, li.title, li.asset_id, s.expires_at
+    select s.org_id, s.item_kind, s.item_id, li.title, s.public_key, s.expires_at
       from studio.share_links s
       join studio.library_items li
         on li.environment = s.environment and li.org_id = s.org_id and li.kind = s.item_kind and li.id = s.item_id
      where s.token_hash = p_hash and s.environment = p_env
-       and s.revoked_at is null
+       and s.revoked_at is null and s.public_key is not null and s.cleared_at is null
        and s.expires_at > (extract(epoch from clock_timestamp()) * 1000)::bigint
        and li.deleted_at is null and li.status = 'ready'
      limit 1;
@@ -130,8 +164,62 @@ begin
 end
 $fn$;
 
+-- The sweep: dead links' copies still in storage (oldest first, at most 100 at
+-- a time), then, once the server has deleted those objects, marked cleared.
+create or replace function studio.public_copies_due(p_env text, p_limit integer)
+returns table (id text, public_key text)
+language plpgsql volatile security definer
+set search_path = ''
+as $fn$
+#variable_conflict use_column
+declare
+  was_sweep text := coalesce(current_setting('studio.public_sweep', true), '');
+  was_env text := coalesce(current_setting('studio.env', true), '');
+begin
+  if p_env is null or p_env not in ('production', 'preview', 'development') or p_limit is null or p_limit < 1 or p_limit > 100 then
+    return;
+  end if;
+  perform set_config('studio.public_sweep', 'on', true);
+  perform set_config('studio.env', p_env, true);
+  return query
+    select s.id, s.public_key from studio.share_links s
+     where s.environment = p_env and s.public_key is not null and s.cleared_at is null
+       and (s.revoked_at is not null or s.expires_at <= (extract(epoch from clock_timestamp()) * 1000)::bigint)
+     order by s.expires_at
+     limit p_limit;
+  perform set_config('studio.public_sweep', was_sweep, true);
+  perform set_config('studio.env', was_env, true);
+end
+$fn$;
+create or replace function studio.public_copies_cleared(p_env text, p_ids text[])
+returns integer
+language plpgsql volatile security definer
+set search_path = ''
+as $fn$
+declare
+  was_sweep text := coalesce(current_setting('studio.public_sweep', true), '');
+  was_env text := coalesce(current_setting('studio.env', true), '');
+  n integer := 0;
+begin
+  if p_env is null or p_env not in ('production', 'preview', 'development') or p_ids is null or cardinality(p_ids) > 100 then
+    return 0;
+  end if;
+  perform set_config('studio.public_sweep', 'on', true);
+  perform set_config('studio.env', p_env, true);
+  update studio.share_links s set cleared_at = (extract(epoch from clock_timestamp()) * 1000)::bigint
+   where s.environment = p_env and s.id = any (p_ids) and s.public_key is not null and s.cleared_at is null
+     and (s.revoked_at is not null or s.expires_at <= (extract(epoch from clock_timestamp()) * 1000)::bigint);
+  get diagnostics n = row_count;
+  perform set_config('studio.public_sweep', was_sweep, true);
+  perform set_config('studio.env', was_env, true);
+  return n;
+end
+$fn$;
+
 -- Nothing for anyone else (as 0001, 0002, 0006 and 0007 for their objects).
 revoke all on function studio.public_share(text, text) from public;
+revoke all on function studio.public_copies_due(text, integer) from public;
+revoke all on function studio.public_copies_cleared(text, text[]) from public;
 revoke all on studio.work_access from public;
 revoke all on studio.share_links from public;
 do $$
@@ -142,10 +230,14 @@ begin
       execute format('revoke all on studio.work_access from %I', api_role);
       execute format('revoke all on studio.share_links from %I', api_role);
       execute format('revoke all on function studio.public_share(text, text) from %I', api_role);
+      execute format('revoke all on function studio.public_copies_due(text, integer) from %I', api_role);
+      execute format('revoke all on function studio.public_copies_cleared(text, text[]) from %I', api_role);
     end if;
   end loop;
   if exists (select 1 from pg_roles where rolname = 'studio_app') then
     grant execute on function studio.public_share(text, text) to studio_app;
+    grant execute on function studio.public_copies_due(text, integer) to studio_app;
+    grant execute on function studio.public_copies_cleared(text, text[]) to studio_app;
   end if;
 end
 $$;

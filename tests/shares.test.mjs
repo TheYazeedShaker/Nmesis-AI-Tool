@@ -35,7 +35,10 @@ const FULL={legacy:false,status:'active',planId:'enterprise',planName:'Enterpris
 const SHARES='app/api/shares/[kind]/[id]/route.ts',LINK='app/api/shares/[kind]/[id]/link/route.ts',LIBRARY='app/api/library/route.ts',VISUAL='app/api/visuals/[id]/route.ts',ASSET='app/api/assets/[id]/route.ts';
 let s3,store,shares,View,routes={};const realFetch=globalThis.fetch;
 // studio.public_share (0011) on SQLite: the same conditions as the function.
-const EMULATED="SELECT s.org_id,s.item_kind,s.item_id,li.owner,li.title,li.asset_id,s.expires_at FROM share_links s JOIN library_items li ON li.environment=s.environment AND li.org_id=s.org_id AND li.kind=s.item_kind AND li.id=s.item_id WHERE s.token_hash=? AND s.environment=? AND s.revoked_at IS NULL AND s.expires_at>? AND li.deleted_at IS NULL AND li.status='ready' LIMIT 1";
+const EMULATED="SELECT s.org_id,s.item_kind,s.item_id,li.title,s.public_key,s.expires_at FROM share_links s JOIN library_items li ON li.environment=s.environment AND li.org_id=s.org_id AND li.kind=s.item_kind AND li.id=s.item_id WHERE s.token_hash=? AND s.environment=? AND s.revoked_at IS NULL AND s.public_key IS NOT NULL AND s.cleared_at IS NULL AND s.expires_at>? AND li.deleted_at IS NULL AND li.status='ready' LIMIT 1";
+// studio.public_copies_due / _cleared (0011): dead links of every company in one environment, keys only.
+const DUE="SELECT id,public_key FROM share_links WHERE environment=? AND public_key IS NOT NULL AND cleared_at IS NULL AND (revoked_at IS NOT NULL OR expires_at<=?) ORDER BY expires_at LIMIT ?";
+const CLEARED="UPDATE share_links SET cleared_at=? WHERE environment=? AND id IN (SELECT value FROM json_each(?)) AND public_key IS NOT NULL AND cleared_at IS NULL AND (revoked_at IS NOT NULL OR expires_at<=?)";
 before(async()=>{
  s3=await startS3();
  // The SQLite rows are written as 'production' (the column default), so this process is Production.
@@ -43,7 +46,10 @@ before(async()=>{
  globalThis.fetch=async(url,init)=>{const u=String(url instanceof Request?url.url:url);if(u.startsWith(s3.url))return realFetch(url,init);throw new Error('No calls outside the Studio in this test.')};
  state.db=sqliteDatabase();
  const prepare=state.db.prepare;
- state.db.prepare=text=>text===shares?.PUBLIC_SHARE_SQL?{bind:(hash,env)=>prepare(EMULATED).bind(hash,env,Date.now())}:prepare(text);
+ state.db.prepare=text=>text===shares?.PUBLIC_SHARE_SQL?{bind:(hash,env)=>prepare(EMULATED).bind(hash,env,Date.now())}
+  :text===shares?.PUBLIC_COPIES_DUE_SQL?{bind:(env,limit)=>prepare(DUE).bind(env,Date.now(),limit)}
+  :text===shares?.PUBLIC_COPIES_CLEARED_SQL?{bind:(env,ids)=>({first:async()=>{const r=state.db.raw.prepare(CLEARED).run(Date.now(),env,JSON.stringify(ids),Date.now());return {n:Number(r.changes)}}})}
+  :prepare(text);
  state.directory=memoryDirectory({
   orgs:[{id:ORG_A,name:'Demo Company',kind:'client'},{id:ORG_B,name:'Other Company',kind:'client'}],
   members:[{userId:A1.id,orgId:ORG_A,role:'owner',status:'active'},{userId:A2.id,orgId:ORG_A,role:'creator',status:'active'},{userId:A3.id,orgId:ORG_A,role:'viewer',status:'active'},{userId:A4.id,orgId:ORG_A,role:'creator',status:'active'},{userId:B1.id,orgId:ORG_B,role:'owner',status:'active'}],
@@ -185,12 +191,17 @@ test('public link: made by the creator, the address shown once, the page works u
 
  state.user=null;// The page: no sign-in.
  let p=await page(token);assert.equal(p.status,200);
- assert.match(p.img.src,new RegExp('^'+s3.url+'/studio-test/'+pA2.replace(/\//g,'\\/')+'images/avisual-002\\?.*X-Amz-Signature'));
+ assert.match(p.img.src,new RegExp('^'+s3.url+'/studio-test/public/[0-9a-f]{32}\\?.*X-Amz-Signature'),'a copy at a neutral key');
+ const firstKey=tableRows()[0].public_key;assert.match(firstKey,/^public\/[0-9a-f]{32}$/);
+ assert.ok(p.img.src.includes(firstKey));
+ assert.ok(await store.head(firstKey),'the copy is there while the link is on');
+ const original=await store.get(pA2+'images/avisual-002'),copy=await store.get(firstKey);
+ assert.deepEqual(new Uint8Array(await copy.arrayBuffer()),new Uint8Array(await original.arrayBuffer()),'the same picture');
+ assert.equal(copy.httpMetadata.contentType,'image/png');
  assert.equal(p.img.alt,'Demo SUV at dusk');assert.equal(p.img.referrerPolicy,'no-referrer');
  assert.ok(p.text.includes('Shared from Nmesis Studio'));
- // Beyond the signed picture address (whose storage key carries the ids, as every signed link does): nothing about the company or the person.
- const words=p.text.split(p.img.src).join('');
- for(const x of [ORG_A,A2.id,A2.email,'Demo Company','folder-launch'])assert.ok(!words.includes(x),'leaked '+x);
+ // Nothing about the company, the person or the work anywhere on the page, its picture's address included.
+ for(const x of [ORG_A,A2.id,A2.email,'Demo Company','folder-launch','avisual-002','orgs/','users/'])assert.ok(!p.text.includes(x)&&!p.img.src.includes(x),'leaked '+x);
  assert.equal((await shares.publicShare(state.db,token,'preview')),null,'another environment’s link is not found');
  assert.equal((await page('x'.repeat(43))).status,404,'an unknown token');
  assert.equal((await page('short')).status,404,'a malformed token');
@@ -199,14 +210,29 @@ test('public link: made by the creator, the address shown once, the page works u
  as(A2);r=await link('POST','avisual-002',{});assert.equal(r.status,200);assert.ok(Math.abs(r.body.expiresAt-(Date.now()+7*DAY))<60_000,'7 days by default');
  const second=tokenOf(r.body.url);state.user=null;
  assert.equal((await page(token)).status,404,'the replaced link stops');assert.equal((await page(second)).status,200);
+ assert.equal(await store.head(firstKey),null,'the replaced link’s copy is deleted at once');
+ const secondKey=tableRows().find(r=>r.token_hash===shares.hashToken(second)).public_key;assert.notEqual(secondKey,firstKey,'a new copy, a new key');
+ assert.ok(tableRows().find(r=>r.public_key===firstKey).cleared_at,'and marked cleared');
  // Turned off.
  as(A1);r=await link('DELETE','avisual-002');assert.equal(r.status,200,'a company owner may turn it off');
  as(A2);assert.equal((await share('GET','avisual-002')).body.link,null);
  state.user=null;assert.equal((await page(second)).status,404,'turned off');
+ assert.equal(await store.head(secondKey),null,'turning it off deletes its copy');
  // Expired.
  as(A2);r=await link('POST','avisual-002',{days:1});const third=tokenOf(r.body.url);
  state.db.raw.prepare('UPDATE share_links SET expires_at=? WHERE token_hash=?').run(Date.now()-1,shares.hashToken(third));
  state.user=null;assert.equal((await page(third)).status,404,'expired');
+ // An expired copy goes with the next sweep: the daily job (Vercel's secret only), a link change, or the page meeting a dead link.
+ const thirdKey=tableRows().find(r=>r.token_hash===shares.hashToken(third)).public_key;assert.ok(await store.head(thirdKey));
+ const cron=(await import('@/app/api/cron/public-links/route.ts')).GET,run=auth=>cron(new Request(ORIGIN+'/api/cron/public-links',{headers:auth?{authorization:auth}:{}}));
+ delete process.env.CRON_SECRET;assert.equal((await run('Bearer anything')).status,503,'no secret set: nothing runs');
+ process.env.CRON_SECRET='demo-cron-secret-0123456789';
+ assert.equal((await run()).status,401);assert.equal((await run('Bearer wrong-secret-0123456789xx')).status,401);assert.equal((await run('demo-cron-secret-0123456789')).status,401);
+ assert.ok(await store.head(thirdKey),'a refused call deletes nothing');
+ const swept=await run('Bearer demo-cron-secret-0123456789');assert.equal(swept.status,200);assert.ok((await swept.json()).cleared>=1);
+ assert.equal(await store.head(thirdKey),null,'the expired link’s copy is gone');
+ assert.equal((await (await run('Bearer demo-cron-secret-0123456789')).json()).cleared,0,'nothing twice');
+ delete process.env.CRON_SECRET;
  as(A2);assert.deepEqual((await share('GET','avisual-002')).body.link?.on,false,'shown as expired');
  // Deleted work: its link stops too.
  r=await link('POST','avisual-002',{days:7});const fourth=tokenOf(r.body.url);
@@ -221,13 +247,14 @@ test('public link: made by the creator, the address shown once, the page works u
 });
 
 test('the page checks the database’s answer again and fails closed',async()=>{
- const token=shares.newToken(),good={org_id:ORG_A,item_kind:'visual',item_id:'avisual-002',owner:pA2,title:'Demo SUV at dusk',asset_id:'avisual-002',expires_at:Date.now()+DAY};
+ const token=shares.newToken(),good={org_id:ORG_A,item_kind:'visual',item_id:'avisual-002',title:'Demo SUV at dusk',public_key:'public/'+'0a'.repeat(16),expires_at:Date.now()+DAY};
  const db=row=>({prepare:sql=>{assert.equal(sql,shares.PUBLIC_SHARE_SQL);return {bind:(hash,env)=>{assert.equal(hash,shares.hashToken(token),'looked up by its hash');assert.equal(env,'production');return {first:async()=>row}}}}});
  assert.ok(await shares.publicShare(db(good),token,'production'));
  assert.equal(await shares.publicShare(db({...good,expires_at:Date.now()-1}),token,'production'),null,'expired');
- assert.equal(await shares.publicShare(db({...good,owner:pB1}),token,'production'),null,'an owner of another company');
- assert.equal(await shares.publicShare(db({...good,owner:'orgs/../'}),token,'production'),null,'not a member prefix');
- assert.equal(await shares.publicShare(db({...good,asset_id:'../x'}),token,'production'),null);
+ // Only a neutral copy's key is ever opened: never a member's storage, never a path.
+ for(const public_key of [null,'',pA2+'images/avisual-002','public/../'+pB1,'public/'+'0a'.repeat(15),'public/'+'ZZ'.repeat(16),'orgs/'+ORG_A+'/x'])
+  assert.equal(await shares.publicShare(db({...good,public_key}),token,'production'),null,String(public_key));
+ assert.equal(await shares.publicPicture({head:async()=>{throw new Error('no storage read for a bad key')},downloadUrl:async()=>''},{org:ORG_A,kind:'visual',id:'avisual-002',title:'x',publicKey:pA2+'images/avisual-002',expiresAt:Date.now()+DAY}),null);
  assert.equal(await shares.publicShare(db(null),token,'production'),null);
  assert.equal(await shares.publicShare(undefined,token,'production'),null,'no database');
 });
@@ -244,7 +271,11 @@ test('migration 0011: client tables with environment and forced row level securi
  assert.match(sql,/primary key \(environment, item_kind, item_id\)/);
  assert.match(sql,/create unique index if not exists share_links_token_hash on studio\.share_links \(token_hash\)/);
  assert.match(sql,/check \(token_hash ~ '\^\[0-9a-f\]\{64\}\$'\)/);
- assert.match(sql,/create or replace function studio\.public_share\(p_hash text, p_env text\)[\s\S]*?security definer\s+set search_path = ''/);
+ assert.match(sql,/create function studio\.public_share\(p_hash text, p_env text\)[\s\S]*?security definer\s+set search_path = ''/);
+ for(const fn of ['public_copies_due(p_env text, p_limit integer)','public_copies_cleared(p_env text, p_ids text[])'])assert.match(sql,new RegExp('create or replace function studio\\.'+fn.replace(/[()[\]]/g,'\\$&')+"[\\s\\S]*?security definer\\s+set search_path = ''"));
+ assert.match(sql,/check \(public_key is null or public_key ~ '\^public\/\[0-9a-f\]\{32\}\$'\)/,'the copy’s key names nothing');
+ assert.match(sql,/create policy public_sweep on studio\.share_links for select\s+using \(\(select nullif\(current_setting\('studio\.public_sweep', true\), ''\)\) = 'on'[\s\S]*?\(revoked_at is not null or expires_at <= /,'the sweep sees dead links only');
+ assert.match(sql,/grant execute on function studio\.public_copies_due\(text, integer\) to studio_app/);assert.match(sql,/grant execute on function studio\.public_copies_cleared\(text, text\[\]\) to studio_app/);
  assert.match(sql,/revoke all on function studio\.public_share\(text, text\) from public/);
  assert.match(sql,/grant execute on function studio\.public_share\(text, text\) to studio_app/);
  assert.match(sql,/s\.revoked_at is null[\s\S]*s\.expires_at > /);
@@ -254,5 +285,5 @@ test('migration 0011: client tables with environment and forced row level securi
  assert.match(schema,/create table if not exists work_access/);assert.match(schema,/create table if not exists share_links/);
  assert.doesNotMatch(schema,/public_share|policy/i);
  const columns=state.db.raw.prepare("SELECT name FROM pragma_table_info('share_links')").all().map(c=>c.name);
- assert.deepEqual(columns.sort(),['created_at','created_by','environment','expires_at','id','item_id','item_kind','org_id','revoked_at','token_hash']);
+ assert.deepEqual(columns.sort(),['cleared_at','created_at','created_by','environment','expires_at','id','item_id','item_kind','org_id','public_key','revoked_at','token_hash']);
 });
