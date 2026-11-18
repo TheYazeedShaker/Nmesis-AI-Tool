@@ -14,7 +14,7 @@
 .ds-drop-zone:hover { border-color: var(--ds-text); background: var(--ds-panel-hover); }
 .ds-drop-zone:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
 /* A file is over the zone: a solid ring and the accent wash, not colour alone (the border style changes too). */
-.ds-drop-zone[data-drag="true"] { border-style: solid; border-color: var(--ds-ring); background: var(--ds-accent-soft); box-shadow: var(--ds-shadow-focus); }
+.ds-drop-zone[data-drag="true"] { border-style: solid; border-color: var(--ds-ring); background: var(--ds-selected-bg); box-shadow: var(--ds-shadow-focus); }
 .ds-drop-zone[data-invalid="true"] { border-color: var(--ds-danger); }
 .ds-drop-zone[data-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
 .ds-drop-zone[data-disabled="true"]:hover { border-color: var(--ds-border-strong); background: var(--ds-panel); }

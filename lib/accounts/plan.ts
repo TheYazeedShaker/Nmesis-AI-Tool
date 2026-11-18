@@ -61,6 +61,8 @@ export type RouteRule={path:RegExp;methods?:string[];feature:FeatureKey|null;lib
 const ID='[a-z0-9-]{8,80}';
 export const ROUTE_FEATURES:RouteRule[]=[
  {path:/^\/api\/area-edits(\/[^/]+)?$/,feature:'studio.area_edit'},
+ // Your own name (Your account): the person's sign-in profile, not company work; the route refuses staff viewing a company.
+ {path:/^\/api\/account\/profile$/,methods:['PATCH'],feature:null},
  {path:/^\/api\/assets$/,feature:null},
  {path:new RegExp(`^/api/assets/${ID}$`),methods:['GET'],feature:null,library:true},
  {path:new RegExp(`^/api/assets/${ID}/original$`),feature:null},

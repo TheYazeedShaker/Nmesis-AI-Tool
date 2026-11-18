@@ -52,3 +52,4 @@
 .refs-more-error { display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-8); text-align: center; color: var(--ds-text); }
 .refs-more-error > p, .refs-end { margin: 0; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
 .refs-end { color: var(--ds-muted); text-align: center; }
+.refs-heading { margin: 0; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); }

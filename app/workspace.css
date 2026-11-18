@@ -10,7 +10,6 @@
 /* A tool's picture (lib/tool-samples.ts): the company's own work or car in the
    card's fixed 16:10 box (it loads lazily and never moves the card), with the
    tool's mark on it; without one, the neutral placeholder and the mark. */
-.workspace-tool-art { position: relative; display: block; }
 .workspace-home .ds-tool-art { background: var(--ds-media-bg); color: var(--ds-muted); }
 .ds-tool-art > img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .workspace-tool-mark {
@@ -92,7 +91,12 @@
 
 /* Home's tool cards: one width and one height for all, whatever each says
    (a cost, a plan, a longer line); the footer sits at the bottom. */
-.workspace-home .ds-tools { grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); grid-auto-rows: 1fr; align-items: stretch; }
+.workspace-home .ds-tools { grid-auto-rows: 1fr; align-items: stretch; }
+/* The five tools in one row of equal tiles (components/ds/tool-tile.tsx): three
+   across on a small laptop, two on a phone; never a second size. */
+.workspace-home .ds-tools.workspace-tools-row { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1024px) { .workspace-home .ds-tools.workspace-tools-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .workspace-home .ds-tools.workspace-tools-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .workspace-home .ds-tools > li { display: flex; min-width: 0; }
 .workspace-home .ds-tools .ds-tool { flex: 1 1 auto; width: 100%; height: 100%; }
 .workspace-home .ds-tool-foot { margin-top: auto; }
@@ -107,16 +111,28 @@
    smaller as "Coming soon", how it works, work to continue (a grid of at most
    six, never a carousel) and the credits left. */
 .workspace-greeting { color: var(--ds-muted); font-size: var(--ds-text-md); line-height: var(--ds-leading-md); font-weight: var(--ds-weight-medium); }
-.workspace-home .ds-tools.workspace-tools-open { grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); max-width: 880px; }
-.workspace-home .workspace-tools-open .ds-tool-name { font-size: var(--ds-text-lg); line-height: var(--ds-leading-lg); }
-.workspace-home .ds-tools.workspace-tools-soon { margin-top: var(--ds-space-16); grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); }
-.workspace-home .ds-tool[data-soon] { cursor: default; box-shadow: none; transform: none; opacity: 0.72; }
-.workspace-home .ds-tool[data-soon] .ds-tool-art { aspect-ratio: 16 / 7; }
-.workspace-lineup-art { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: var(--ds-space-4); padding: var(--ds-space-8); }
-.workspace-lineup-art > .workspace-lineup-car { display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: var(--ds-radius-sm); overflow: hidden; background: var(--ds-panel-2); color: var(--ds-muted); }
-.workspace-lineup-art > .workspace-lineup-car:nth-child(2) { transform: translateY(calc(var(--ds-space-8) * -1)) scale(1.08); z-index: 1; box-shadow: var(--ds-shadow-1); }
-.workspace-lineup-car > img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.workspace-lineup-car > svg { width: var(--ds-space-24); height: var(--ds-space-24); }
+/* Car lineup's picture (home.tsx LineupArt): the company's cars, each its
+   configurator's opening frame, full size on one ground line in a light studio,
+   overlapping a little with soft edges, the middle one in front. Multiply
+   blends each frame's own light backdrop into the studio's. The studio is a
+   picture, so it stays light in both themes, like the Key visual photo. */
+.workspace-home .ds-tool-art.workspace-lineup-art {
+  position: relative; display: flex; align-items: flex-end; justify-content: center; isolation: isolate;
+  padding: 0 0 var(--ds-space-12); background: linear-gradient(180deg, var(--ds-stage-sky) 0%, var(--ds-stage-sky) 62%, var(--ds-stage-floor) 100%); color: var(--ds-stage-ink);
+}
+.workspace-lineup-ground {
+  position: absolute; left: 8%; right: 8%; bottom: var(--ds-space-12); height: var(--ds-space-12);
+  border-radius: var(--ds-radius-round); background: radial-gradient(closest-side, var(--ds-stage-shadow), transparent);
+}
+.workspace-lineup-art > .workspace-lineup-car {
+  position: relative; display: grid; place-items: center; flex: 0 0 46%; aspect-ratio: 16 / 9; margin: 0 -6%;
+  mix-blend-mode: multiply;
+  mask-image: linear-gradient(90deg, transparent 0%, var(--ds-on-media) 16%, var(--ds-on-media) 84%, transparent 100%);
+}
+.workspace-lineup-art[data-count="2"] > .workspace-lineup-car { flex-basis: 54%; margin: 0 -4%; }
+.workspace-lineup-art[data-count="3"] > .workspace-lineup-car:nth-child(3) { flex-basis: 52%; z-index: var(--ds-z-raised); }
+.workspace-lineup-car > img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 62%; display: block; transform: scale(1.2); transform-origin: 50% 80%; }
+.workspace-lineup-car > svg { width: var(--ds-space-32); height: var(--ds-space-32); }
 .workspace-continue { grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); }
 .workspace-credits { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ds-space-8); color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-variant-numeric: var(--ds-numeric); }
 .workspace-credits > svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; }

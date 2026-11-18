@@ -16,6 +16,7 @@ Status: `queued` · `in-progress` · `blocked` (reason required) · `done` · `a
 | 11  | ENV-SCOPE        | owner 2026-11-15       | —  | done        | Merged (#30). Owner migrates (0004) after the release to `main`. |
 | 8   | DESIGN-P2        | owner brief 2026-11-15 | #7 | done        | 2a merged (#32), 2b merged (#33). |
 | 9   | DESIGN-P3        | owner brief 2026-11-15 | #8 | in-progress | Group 1 merged (#34), group 2 merged (#35), editor polish merged (#36), editor cleanup merged (#37). Finish pass (`design/finish-pass`): faster CI and pages, brand logos, the Library, dialogs, Company settings, Usage, Projects, titles, upgrade page, Home, Story — PR waiting for review. |
+| 12  | STUDIO-FOUNDATIONS | owner brief 2026-11-18 | — | in-review   | `feat/studio-foundations`: cool palette and contrast test, button tokens, one shell (nav model, panel slot, layers), one field and tool tile, Brand and Elements panels, Account page. PR waiting for review. |
 | 10  | DESIGN-P4        | owner brief 2026-11-15 | #9 | queued      | Empty `check:design` baseline, visual baselines, JS/Lighthouse budgets, the full PR rule in CLAUDE.md. |
 
 ## Blocked log

@@ -1,10 +1,7 @@
-import type {Metadata} from 'next';
-import {AccountNotices} from '@/components/studio-account';
-import {WorkspaceFrame} from '@/components/workspace/frame';
-import {BrandKitScreen} from '@/components/brand/brand-kit';
-export const metadata:Metadata={title:'Brand · Nmesis Studio'};
-// The company's brand kit: logos, colours, fonts and voice. Everyone in the
-// company reads; owners and creators change it.
-export default function Brand(){
- return <WorkspaceFrame current="brand" notices={<AccountNotices variant="ds"/>}><BrandKitScreen/></WorkspaceFrame>;
+import {redirect} from 'next/navigation';
+// The brand kit moved into Settings (Settings → Brand kit); beside a tool, the
+// Brand panel shows it to use. An old link to /brand lands there. The proxy
+// has already asked for a signed-in person, as on every workspace page.
+export default function Brand():never{
+ redirect('/company/brand');
 }

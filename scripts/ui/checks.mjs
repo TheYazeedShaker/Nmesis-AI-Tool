@@ -162,7 +162,21 @@ export function layoutChecks({ phone }) {
       if (c.bottom - pad - h.bottom > 8) out.editorBand.push({ el: 'under .editor-stage-history', gap: Math.round(c.bottom - pad - h.bottom) });
     }
   }
-  for (const k of ['under24', 'under44', 'overlapped', 'clippedNoEllipsis', 'ellipsisNoTitle', 'spilling', 'fixedOverSettings']) out[k] = dedupe(out[k]);
+  // Layers (feat/studio-foundations): an open menu or drawer is drawn over everything,
+  // never under a panel. Five points inside each open one (its middle and near
+  // each corner) must hit the menu itself; whatever covers a point is named.
+  out.menusUnder = [];
+  const open = [...document.querySelectorAll('.studio-account-pop, [role="menu"], dialog[open]')].filter((m) => visible(m));
+  for (const m of open) {
+    const r = m.getBoundingClientRect();
+    const inset = 12, pts = [[r.left + r.width / 2, r.top + r.height / 2], [r.left + inset, r.top + inset], [r.right - inset, r.top + inset], [r.left + inset, r.bottom - inset], [r.right - inset, r.bottom - inset]];
+    for (const [x, y] of pts) {
+      if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) continue;
+      const hit = document.elementFromPoint(x, y);
+      if (hit && !m.contains(hit)) { out.menusUnder.push({ el: describe(m), coveredBy: describe(hit) }); break; }
+    }
+  }
+  for (const k of ['under24', 'under44', 'overlapped', 'clippedNoEllipsis', 'ellipsisNoTitle', 'spilling', 'fixedOverSettings', 'menusUnder']) out[k] = dedupe(out[k]);
   return out;
   function sideScroller(el) {
     for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) if (/auto|scroll/.test(getComputedStyle(n).overflowX)) return true;

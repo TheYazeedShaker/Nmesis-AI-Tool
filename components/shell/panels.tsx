@@ -2,43 +2,49 @@
 import * as React from 'react';
 import {Check,X} from 'lucide-react';
 import {IconButton} from '@/components/ds/button';
-import {Dialog} from '@/components/ds/dialog';
 import {DropZone} from '@/components/ds/drop-zone';
 import {SkeletonTile,State} from '@/components/ds/feedback';
 import {useToast} from '@/components/ds/toast';
 import {useAccount} from '@/components/studio-account';
 import {ReferencesPanel} from '@/components/references/references-panel';
+import {BrandPanel} from '@/components/brand/brand-panel';
 import {can} from '@/lib/accounts/can';
 import {uploadReference} from '@/lib/reference-upload';
-import {addReference,removeReference,TRAY_LIMIT,useReferenceTray} from '@/lib/reference-tray';
+import {removeReference,useReferenceTray} from '@/lib/reference-tray';
+import {panelsOn,toolOf,type NavPage} from '@/lib/shell-nav';
 import type {Upload} from '@/lib/uploads';
-import {closePanel,useShell,type ShellPanel} from './shell-state';
+import {addAsReference,closePanel,useShell,type ShellPanel} from './shell-state';
+import {ElementsPanel} from './elements-panel';
 
-// The side panel beside the left navigation: References or Uploads. On wide
+// The one secondary-panel slot, beside the left navigation: References, Brand,
+// Elements or Uploads, only inside a tool's view (lib/shell-nav.ts). On wide
 // screens a column next to the navigation (the page stays usable beside it);
-// below 768px a drawer over the page.
-const TITLE:Record<ShellPanel,string>={references:'References',uploads:'Uploads'};
-
-function useNarrow(){
- return React.useSyncExternalStore(l=>{const m=window.matchMedia('(max-width: 768px)');m.addEventListener('change',l);return()=>m.removeEventListener('change',l)},()=>window.matchMedia('(max-width: 768px)').matches,()=>false);
-}
+// below 768px a sheet under the slim top bar. Either way it sits on the panel
+// layer (--ds-z-panel), so menus and drawers open over it, never under it.
+const TITLE:Record<ShellPanel,string>={references:'References',brand:'Brand',elements:'Elements',uploads:'Uploads'};
 
 function Body({panel}:{panel:ShellPanel}){
- const {car}=useShell();
- return panel==='references'?<ReferencesPanel key={car} initialQuery={car}/>:<UploadsPanel/>;
+ const {tool}=useShell();
+ if(panel==='references')return <ReferencesPanel tool={tool}/>;
+ if(panel==='brand')return <BrandPanel/>;
+ if(panel==='elements')return <ElementsPanel/>;
+ return <UploadsPanel/>;
 }
 
-export function ShellPanels(){
- const {panel}=useShell(),narrow=useNarrow();
- if(!panel)return null;
- if(narrow)return <Dialog open onClose={closePanel} title={TITLE[panel]} variant="drawer" className="studio-panel-drawer"><Body panel={panel}/></Dialog>;
- return <aside id="studio-panel" className="studio-panel" aria-label={TITLE[panel]}>
-  <div className="studio-panel-head"><h2 className="ds-section-title">{TITLE[panel]}</h2><IconButton label={`Close ${TITLE[panel]}`} size="sm" kind="quiet" onClick={closePanel}><X aria-hidden="true"/></IconButton></div>
-  <div className="studio-panel-body"><Body panel={panel}/></div>
+export function ShellPanels({current}:{current?:NavPage}){
+ const {panel}=useShell(),ref=React.useRef<HTMLElement>(null);
+ const shown=panel&&panelsOn(current).includes(panel)?panel:null;
+ // Opening a panel takes the keyboard there; Escape closes it.
+ React.useEffect(()=>{if(shown)ref.current?.focus({preventScroll:true})},[shown]);
+ if(!shown||!toolOf(current))return null;
+ return <aside ref={ref} id="studio-panel" className="studio-panel" aria-label={TITLE[shown]} tabIndex={-1} onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();closePanel()}}}>
+  <div className="studio-panel-head"><h2 className="ds-section-title">{TITLE[shown]}</h2><IconButton label={`Close ${TITLE[shown]}`} size="sm" kind="quiet" onClick={closePanel}><X aria-hidden="true"/></IconButton></div>
+  <div className="studio-panel-body"><Body panel={shown}/></div>
  </aside>;
 }
 
-/** The person's own uploads: add pictures, and pick one as a reference (a tick shows it is in use). */
+/** The person's own uploads: add pictures, and pick one as a reference (a tick shows it is in use).
+ *  The Uploads panel inside a tool, and the Uploads page outside one. */
 export function UploadsPanel(){
  const account=useAccount(),tray=useReferenceTray(),toaster=useToast();
  const [uploads,setUploads]=React.useState<Upload[]|null>(null),[problem,setProblem]=React.useState(''),[busy,setBusy]=React.useState('');
@@ -61,7 +67,9 @@ export function UploadsPanel(){
  function pick(u:Upload){
   const key='upload:'+u.id;
   if(tray.some(t=>t.key===key)){removeReference(key);return}
-  if(!addReference({key,src:u.src,thumb:u.thumb,name:'Your upload',provider:'upload',assetId:u.id}))toaster.toast({message:`You can use up to ${TRAY_LIMIT} references. Remove one first.`,kind:'info'});
+  const done=addAsReference({key,src:u.src,thumb:u.thumb,name:'Your upload',provider:'upload',assetId:u.id});
+  if(done==='full')toaster.toast({message:'Your references are full. Remove one first.',kind:'info'});
+  else if(done==='replaced')toaster.toast({message:'This upload is now your reference.',kind:'ok'});
  }
  return <div className="ds-stack">
   {mayAdd&&<DropZone name="picture" label="Drop, paste or upload a picture" hint="PNG, JPEG or WebP · up to 40 MB" onFile={file=>void add(file)} disabled={!!busy}/>}

@@ -2,7 +2,9 @@ import * as React from 'react';
 import {Car,Images,Share2,Sparkles} from 'lucide-react';
 
 // "How it works", the same four steps on Home and in Help: what a first-time
-// person needs to know to make their first picture.
+// person needs to know to make their first picture. A step strip: numbered
+// steps on one horizontal baseline (a hairline joins the numbers), each with
+// its icon, title and one line, on the page's grid. Stacked in Help and on phones.
 export const STEPS:{title:string;line:string;icon:React.ReactNode}[]=[
  {title:'Pick',line:'A tool and one of your cars.',icon:<Car aria-hidden="true"/>},
  {title:'Add references',line:'Photos that show the look you want.',icon:<Images aria-hidden="true"/>},
@@ -16,8 +18,9 @@ export function HowItWorks({headingLevel=2}:{headingLevel?:2|3}){
   <H className="ds-block-title" id="studio-how-title">How it works</H>
   <ol className="studio-how-steps">
    {STEPS.map((s,i)=><li key={s.title} className="studio-how-step">
-    <span className="studio-how-mark">{s.icon}</span>
-    <span className="studio-how-text"><b><span className="ds-sr-only">Step {i+1}: </span>{s.title}</b><span className="ds-muted">{s.line}</span></span>
+    <span className="studio-how-rail" aria-hidden="true"><span className="studio-how-num">{i+1}</span></span>
+    <span className="studio-how-title">{s.icon}<b>{s.title}</b></span>
+    <span className="studio-how-line">{s.line}</span>
    </li>)}
   </ol>
  </section>;

@@ -49,8 +49,32 @@ Studio tokens carry a `--ds-` prefix: the Studio also runs Tailwind, whose theme
 already owns `--text-*`, `--radius-*`, `--shadow-*`, `--font-*`, `--leading-*`
 and `--spacing`. Reusing those names would quietly restyle every shadcn
 component. After the prefix, every step has the admin's name and value
-(`--ds-space-12` here is the admin's `--space-12`), and the brand colours keep
-the admin's own names (`--nm-lime`, `--nm-graphite` …).
+(`--ds-space-12` here is the admin's `--space-12`), and the brand accent keeps
+the admin's own name (`--nm-lime`).
+
+### Colour: cool neutrals and one accent (feat/studio-foundations)
+
+The neutrals are one cool scale, `--ds-neutral-bg` → `card` → `surface` →
+`hover` → `pressed`, with `border`, `border-strong`, `ink`, `muted` and `faint`
+(light and dark). The old green-grey brand neutrals (`--nm-background` …
+`--nm-graphite`) are retired. The lime is for the main action and for
+selection marks only, never an area: a selected item is `--ds-selected-bg` with
+the `--ds-selected-mark`. Buttons read only `--ds-btn-*` (each kind's fill,
+label and edge at rest, hover, pressed and unavailable; unavailable is a
+quiet surface with the muted ink, never a faded button).
+
+Every text and background pair and every button label is at least 4.5:1 in
+both themes, checked by `tests/contrast.test.mjs` from the tokens themselves;
+`node scripts/design/contrast.mjs` prints the table.
+
+### Layers
+
+`--ds-z-base` < `raised` < `sticky` < `panel` (the navigation, the secondary
+panel) < `dropdown` (menus) < `drawer` < `modal` < `toast`. Menus and
+non-modal drawers render in a portal at the end of the page
+(`components/ds/layer.tsx`), so a panel's own stacking can never hold them
+under another panel; check:ui counts any open menu that is covered
+(`menusUnderPanels`, zero).
 
 ### Spacing: a 4px base
 

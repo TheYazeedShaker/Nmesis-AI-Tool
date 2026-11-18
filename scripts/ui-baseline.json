@@ -20,7 +20,8 @@
     "clippedWithoutEllipsis": 0,
     "ellipsisWithoutFullText": 4,
     "serverHostsBlocked": 0,
-    "pagesOverCls01": 0
+    "pagesOverCls01": 0,
+    "menusUnderPanels": 0
   },
   "byScreen": {
     "choose-password": {"axeSerious":2},

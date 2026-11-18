@@ -4,9 +4,13 @@
    counts the ones that don't). docs/design-system.md explains each scale and
    gives the old → new mapping; /design-system shows them.
 
-   Shared with the Nmesis admin: the brand palette keeps the admin's own names
-   (--nm-lime, --nm-graphite …) and values, and every scale has the admin's
-   step names. Studio tokens carry a --ds- prefix because the Studio also runs
+   Colour: a cool, fresh neutral system (slightly blue-tinted greys, more
+   contrast between the page and its cards) and one accent, the brand lime
+   (--nm-lime, the admin's own name and value). The lime is for the main
+   action and for selection only, never for a large area. Every text and
+   background pair, and every button label in every state, is at least 4.5:1
+   in both themes: tests/contrast.test.mjs reads this file and checks them.
+   Every scale keeps the admin's step names. Studio tokens carry a --ds- prefix because the Studio also runs
    Tailwind, whose theme already owns --text-*, --radius-*, --shadow-*,
    --font-*, --leading-* and --spacing; reusing those names would silently
    restyle every shadcn component.
@@ -26,45 +30,79 @@
    own half. A browser that understands light-dark() natively gets the same
    result. */
 :root, .ds-app, [data-theme] {
-  /* The brand palette, under the brand's own names (light, then dark). */
-  --nm-background: light-dark(#f7f8f6, #101211);
-  --nm-card: light-dark(#ffffff, #191d19);
-  --nm-surface: light-dark(#eef0ed, #222822);
-  --nm-silver: light-dark(#e1e5e0, #2b322b);
-  --nm-panel: light-dark(#d4dad3, #222822);
-  --nm-border: light-dark(#cbd0cb, #363d36);
-  --nm-ink: light-dark(#141414, #eef1eb);
-  --nm-muted: light-dark(#606760, #a9b2a8);
-  --nm-graphite: light-dark(#303530, #303930);
+  /* The neutrals (light, then dark): cool greys, from the page to the ink.
+     From the brief's starting point, the light page and the dark card moved
+     one step so a card stands off the page more than before (1.10:1 and
+     1.12:1, from 1.07:1 and 1.10:1); everything else is as given. */
+  --ds-neutral-bg: light-dark(#f3f5f8, #0b0d10);
+  --ds-neutral-card: light-dark(#ffffff, #161a21);
+  --ds-neutral-surface: light-dark(#f1f3f6, #1b2028);
+  --ds-neutral-hover: light-dark(#e9ecf0, #222831);
+  --ds-neutral-pressed: light-dark(#dde1e7, #2a313b);
+  --ds-neutral-border: light-dark(#e3e6eb, #2a303a);
+  --ds-neutral-border-strong: light-dark(#b8bfc9, #434c59);
+  --ds-neutral-ink: light-dark(#0e1116, #f2f4f7);
+  --ds-neutral-muted: light-dark(#5b6472, #9aa3af);
+  --ds-neutral-faint: light-dark(#626b79, #8a93a0);
+  /* The accent: the brand lime. */
   --nm-lime: #d9ff00;
 
   /* Surfaces */
-  --ds-bg: var(--nm-background);
-  --ds-panel: var(--nm-card);
-  --ds-panel-2: var(--nm-surface);
-  --ds-panel-hover: var(--nm-silver);
-  --ds-panel-3: var(--nm-panel);
-  --ds-scrim: light-dark(rgba(20, 20, 20, 0.48), rgba(0, 0, 0, 0.64));
-  --ds-border: var(--nm-border);
-  --ds-border-strong: light-dark(#aab1aa, #4a524a);
+  --ds-bg: var(--ds-neutral-bg);
+  --ds-panel: var(--ds-neutral-card);
+  --ds-panel-2: var(--ds-neutral-surface);
+  --ds-panel-hover: var(--ds-neutral-hover);
+  --ds-panel-3: var(--ds-neutral-pressed);
+  --ds-scrim: light-dark(rgba(14, 17, 22, 0.44), rgba(0, 0, 0, 0.64));
+  --ds-border: var(--ds-neutral-border);
+  --ds-border-strong: var(--ds-neutral-border-strong);
 
   /* Text */
-  --ds-text: var(--nm-ink);
-  --ds-text-strong: light-dark(#000000, #ffffff);
-  --ds-muted: var(--nm-muted);
-  --ds-muted-2: light-dark(#6c736c, #939c92);
+  --ds-text: var(--ds-neutral-ink);
+  --ds-text-strong: light-dark(#05070a, #ffffff);
+  --ds-muted: var(--ds-neutral-muted);
+  --ds-muted-2: var(--ds-neutral-faint);
 
   /* Brand. The lime is a FILL; never text on a light background (1.1:1).
      Words in the brand colour use --ds-accent-text; words ON the lime use
      --ds-accent-ink; a lime fill that means something also gets
      --ds-accent-edge, because the fill alone is not a 3:1 signal. */
   --ds-accent: var(--nm-lime);
-  --ds-accent-hover: #c3e600;
-  --ds-accent-ink: #141414;
-  --ds-accent-text: light-dark(#303530, #d9ff00);
-  --ds-accent-edge: var(--ds-accent-text);
+  --ds-accent-hover: #c8eb00;
+  --ds-accent-active: #b6d600;
+  --ds-accent-ink: #0e1116;
+  --ds-accent-text: light-dark(#3d4a00, #d9ff00);
+  --ds-accent-edge: light-dark(#7d9400, #d9ff00);
   --ds-accent-soft: light-dark(rgba(217, 255, 0, 0.22), rgba(217, 255, 0, 0.14));
-  --ds-ring: light-dark(#141414, #d9ff00);
+  --ds-ring: light-dark(#0e1116, #d9ff00);
+  /* Selection (a chosen item in a list, the current place in the navigation):
+     a quiet fill and a lime mark, never a lime area. */
+  --ds-selected-bg: var(--ds-neutral-hover);
+  --ds-selected-text: var(--ds-text-strong);
+  --ds-selected-mark: var(--ds-accent);
+
+  /* Buttons: each kind's fill, label and edge, at rest, on hover, pressed and
+     unavailable. Unavailable keeps its label readable (no fading): a quiet
+     surface and the muted ink, 4.5:1 or more. components/ds/button.tsx and
+     .ds-btn read only these. */
+  --ds-btn-bg: var(--ds-panel);
+  --ds-btn-text: var(--ds-text);
+  --ds-btn-edge: var(--ds-border-strong);
+  --ds-btn-bg-hover: var(--ds-panel-2);
+  --ds-btn-edge-hover: var(--ds-text);
+  --ds-btn-bg-active: var(--ds-panel-hover);
+  --ds-btn-primary-bg: var(--ds-accent);
+  --ds-btn-primary-text: var(--ds-accent-ink);
+  --ds-btn-primary-edge: var(--ds-accent-edge);
+  --ds-btn-primary-bg-hover: var(--ds-accent-hover);
+  --ds-btn-primary-bg-active: var(--ds-accent-active);
+  --ds-btn-quiet-bg-hover: var(--ds-panel-2);
+  --ds-btn-danger-bg: var(--ds-danger);
+  --ds-btn-danger-text: var(--ds-on-danger);
+  --ds-btn-danger-bg-hover: var(--ds-danger-hover);
+  --ds-btn-disabled-bg: var(--ds-panel-2);
+  --ds-btn-disabled-text: var(--ds-muted);
+  --ds-btn-disabled-edge: var(--ds-border);
 
   /* States: always with a word (and an icon where there is room). */
   --ds-success: light-dark(#2b7247, #6cc48d);
@@ -77,17 +115,22 @@
   --ds-info-soft: light-dark(rgba(31, 106, 134, 0.10), rgba(111, 193, 221, 0.16));
   --ds-warn-soft: light-dark(rgba(138, 90, 0, 0.12), rgba(224, 168, 75, 0.16));
   --ds-danger-soft: light-dark(rgba(179, 38, 30, 0.10), rgba(240, 138, 132, 0.16));
-  --ds-skeleton: light-dark(rgba(20, 20, 20, 0.07), rgba(238, 241, 235, 0.08));
-  --ds-skeleton-shine: light-dark(rgba(20, 20, 20, 0.03), rgba(238, 241, 235, 0.04));
-  --ds-media-bg: light-dark(#e1e5e0, #0b0d0b);
-  --ds-viewer-bg: rgba(8, 10, 8, 0.94);
+  --ds-skeleton: light-dark(rgba(14, 17, 22, 0.07), rgba(242, 244, 247, 0.08));
+  --ds-skeleton-shine: light-dark(rgba(14, 17, 22, 0.03), rgba(242, 244, 247, 0.04));
+  --ds-media-bg: light-dark(#e9ecf0, #0b0d10);
+  /* A photo studio (Home's Car lineup picture): light in both themes, as a picture is. */
+  --ds-stage-sky: #eef0f3;
+  --ds-stage-floor: #dfe3e8;
+  --ds-stage-ink: #5b6472;
+  --ds-stage-shadow: rgba(14, 17, 22, 0.28);
+  --ds-viewer-bg: rgba(8, 10, 13, 0.94);
   --ds-on-media: #ffffff;
-  --ds-media-shade: rgba(8, 10, 8, 0.56);
+  --ds-media-shade: rgba(8, 10, 13, 0.56);
 
   /* Elevation: three steps, plus the focus halo. */
-  --ds-shadow-1: 0 1px 2px light-dark(rgba(20, 20, 20, 0.05), rgba(0, 0, 0, 0.35));
-  --ds-shadow-2: 0 8px 24px light-dark(rgba(20, 20, 20, 0.12), rgba(0, 0, 0, 0.45));
-  --ds-shadow-3: 0 18px 40px light-dark(rgba(20, 20, 20, 0.18), rgba(0, 0, 0, 0.6));
+  --ds-shadow-1: 0 1px 2px light-dark(rgba(14, 17, 22, 0.06), rgba(0, 0, 0, 0.35));
+  --ds-shadow-2: 0 8px 24px light-dark(rgba(14, 17, 22, 0.10), rgba(0, 0, 0, 0.45));
+  --ds-shadow-3: 0 18px 40px light-dark(rgba(14, 17, 22, 0.16), rgba(0, 0, 0, 0.6));
   --ds-shadow-focus: 0 0 0 3px var(--ds-accent-soft);
 }
 
@@ -149,12 +192,19 @@
   --ds-dur-loop: 1.4s;
   --ds-ease: cubic-bezier(0.22, 1, 0.36, 1);
 
-  /* Layers, lowest first. Tailwind's z-50 (shadcn popovers) sits between
-     dropdown and overlay. */
+  /* Layers, lowest first: the page (base, raised, sticky), the shell's
+     panels (the navigation, the secondary panel, the settings), then what
+     floats over them: menus (dropdown), drawers, dialogs (modal) and toasts.
+     A menu or drawer renders in a portal at the end of the page
+     (components/ds/layer.tsx), so no panel's own layer can hold it under
+     another panel. Tailwind's z-50 (shadcn popovers) sits between dropdown
+     and drawer. */
   --ds-z-base: 1;
   --ds-z-raised: 2;
   --ds-z-sticky: 20;
+  --ds-z-panel: 30;
   --ds-z-dropdown: 40;
+  --ds-z-drawer: 60;
   --ds-z-overlay: 60;
   --ds-z-modal: 70;
   --ds-z-toast: 80;
@@ -180,7 +230,11 @@
   --ds-bp-small-phone: 360px;
   --ds-page-max: 1440px;
   --ds-rail-w: 72px;
-  --ds-settings-w: 340px;
+  /* The settings panel: wide enough for a label column and a field column. */
+  --ds-settings-w: 368px;
+  --ds-settings-label-w: 112px;
+  /* The secondary panel (References, Brand, Elements, Uploads). */
+  --ds-panel-w: 360px;
   --ds-topbar-h: 56px;
   --ds-phone-nav-h: 64px;
   --ds-measure: 68ch;
