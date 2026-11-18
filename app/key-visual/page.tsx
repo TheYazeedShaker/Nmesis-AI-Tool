@@ -357,8 +357,9 @@ export default function Studio(){
   <SaveToProject folders={project.folders} folderId={ready?project.folderOf('visual',ready.id):null} disabled={!ready||!project.ready||!!ready.lineup} onSave={f=>{if(ready)void project.save('visual',ready.id,f)}}/>
   <span className="editor-bar-actions">
    {stage==='result'&&resultActions}
-   {ready&&<Button size="sm" kind="primary" icon={<Share2 aria-hidden="true"/>} onClick={()=>setShareOpen(true)}>Share</Button>}
+   {stage==='result'&&ready&&<Button size="sm" kind="primary" icon={<Share2 aria-hidden="true"/>} onClick={()=>setShareOpen(true)}>Share</Button>}
    <Menu label="More actions" trigger={<MoreHorizontal aria-hidden="true"/>} size="sm">
+    {ready&&<MenuItem icon={<Share2/>} onSelect={()=>setShareOpen(true)}>Share</MenuItem>}
     {ready&&<MenuItem icon={<Columns2/>} onSelect={()=>setCompareOpen('references')}>Compare with references</MenuItem>}
     {ready&&<MenuItem icon={<ImagePlus/>} disabled={resultBusy||preparing} onSelect={()=>applyAsInspiration(ready)}>Use as inspiration</MenuItem>}
     {ready&&ready.sourceId&&ready.moodId&&!ready.lineup&&can('studio.smart_reference')&&<MenuItem icon={<Sparkles/>} disabled={busy||areaBusy} onSelect={()=>router.push('/nano-lab?visual='+ready.id)}>Smart reference lab</MenuItem>}
@@ -448,7 +449,8 @@ export default function Studio(){
  useEffect(()=>{
   const car=liveConfiguratorUrl(configurator)?configurator.name:'';
   const wanted=car+'|'+pickCount;
-  if(!smartPick||!car||handAdded||pickedNow>0||pickTried.current.has(wanted))return;
+  // Only for someone who can make work now: the photo library is not part of a closed or read-only Studio.
+  if(!smartPick||!car||!mayChange||handAdded||pickedNow>0||pickTried.current.has(wanted))return;
   pickTried.current.add(wanted);let live=true;
   void (async()=>{
    setSmartState({kind:'picking'});
@@ -464,7 +466,7 @@ export default function Studio(){
    }catch(e){if(live){setSmartState({kind:'ready'});console.warn('[smart pick] no photos',e instanceof Error?e.message:e)}}
   })();
   return()=>{live=false};
- },[smartPick,pickCount,configurator,handAdded,pickedNow]);
+ },[smartPick,pickCount,configurator,handAdded,pickedNow,mayChange]);
 
  const notices=<>
   <AccountNotices variant="ds"/>

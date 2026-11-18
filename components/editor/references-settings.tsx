@@ -41,7 +41,7 @@ export function ReferencesSettings({items,onAdd,onFile,onRemove,busy,error,smart
   {busy&&<p className="ds-help" role="status">{busy}</p>}
   {error&&<p className="ds-error" role="alert">{error}</p>}
   <div className="editor-row">
-   <Button size="sm" icon={<ImagePlus aria-hidden="true"/>} disabled={disabled||items.length>=TRAY_LIMIT} aria-controls="studio-panel" onClick={onAdd}>Add references</Button>
+   <Button size="sm" icon={<ImagePlus aria-hidden="true"/>} disabled={disabled||items.length>=TRAY_LIMIT} onClick={onAdd}>Add references</Button>
    {items.length>0&&<Button size="sm" kind="quiet" icon={<Upload aria-hidden="true"/>} disabled={disabled||!!busy||items.length>=TRAY_LIMIT} onClick={()=>file.current?.click()}>Upload</Button>}
    <span className="ds-muted editor-ref-count">{items.length} / {TRAY_LIMIT}</span>
   </div>

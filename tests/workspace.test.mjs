@@ -74,7 +74,8 @@ test('touch sizes never squeeze words: no fixed width from a size token on a con
   assert.match(read('app/design-system.css'), /\.ds-btn, \.ds-chip, \.ds-badge, \.ds-segmented, \.ds-meter \{ flex-shrink: 0; \}/);
   assert.match(read('app/design-system.css'), /\.ds-canvas-bar, \.ds-toolbar, \.ds-filters, \.ds-row \{ flex-wrap: wrap;/);
   // The editor fills what is left (a banner never pushes Generate off the screen).
-  assert.match(read('app/editor.css'), /\.workspace > \.ds-main\.bleed > \.ds-editor \{ flex: 1 1 auto; height: auto; min-height: 0; \}/);
+  // main sits inside the shell's page column (components/workspace/frame.tsx), not directly in .workspace.
+  assert.match(read('app/editor.css'), /\.workspace \.ds-main\.bleed > \.ds-editor \{ flex: 1 1 auto; height: auto; min-height: 0; \}/);
   // And check:ui counts controls whose words spill out of their box (ratcheted).
   assert.match(read('scripts/ui/checks.mjs'), /out\.spilling\.push/);
   assert.match(read('scripts/ui/ratchet.mjs'), /const RATCHETED = \['pagesZoomedOutOnPhones', 'editorBand', 'fixedOverSettings', 'controlsSpilling',/);

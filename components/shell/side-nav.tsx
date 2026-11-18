@@ -34,7 +34,7 @@ function NavItems({current,onGo}:{current?:StudioPage;onGo?:()=>void}){
  return <ul className="studio-side-list">
   {NAV.map(p=><li key={p.key}>{'href' in p
    ?<Link className="studio-side-item" href={p.href} aria-current={current&&p.pages.includes(current)?'page':undefined} onClick={onGo}>{hide(p.icon)}<span className="studio-side-word">{p.label}</span></Link>
-   :<button type="button" className="studio-side-item" aria-pressed={panel===p.panel} aria-controls="studio-panel" onClick={()=>{onGo?.();togglePanel(p.panel)}}>{hide(p.icon)}<span className="studio-side-word">{p.label}</span></button>}</li>)}
+   :<button type="button" className="studio-side-item" aria-pressed={panel===p.panel} aria-controls={panel===p.panel?'studio-panel':undefined} onClick={()=>{onGo?.();togglePanel(p.panel)}}>{hide(p.icon)}<span className="studio-side-word">{p.label}</span></button>}</li>)}
  </ul>;
 }
 
@@ -101,8 +101,8 @@ function AccountButton({account,compact,onHelp}:{account:AccountSummary;compact:
  React.useEffect(()=>{if(!open)return;const away=(e:PointerEvent)=>{if(root.current&&!root.current.contains(e.target as Node))close(false)};document.addEventListener('pointerdown',away);return()=>document.removeEventListener('pointerdown',away)},[open,close]);
  return <div ref={root} className="studio-account" onKeyDown={e=>{if(e.key==='Escape'&&open){e.stopPropagation();close()}}}>
   {open&&<div id={`${id}-account`} role="dialog" aria-label="Account" className="studio-account-pop"><AccountMenuBody account={account} onClose={()=>close(false)} onHelp={onHelp}/></div>}
-  <button ref={button} type="button" className="studio-side-item studio-account-button" aria-expanded={open} aria-controls={open?`${id}-account`:undefined} aria-label={`Account: ${account.user.name||account.user.email}`} onClick={()=>setOpen(o=>!o)}>
-   <Avatar account={account}/>{!compact&&<span className="studio-side-word studio-account-label"><b className="ds-truncate">{account.user.name||account.user.email}</b><span className="ds-truncate ds-muted">{workName(account)}</span></span>}
+  <button ref={button} type="button" className="studio-side-item studio-account-button" aria-expanded={open} aria-controls={open?`${id}-account`:undefined} aria-label={compact?`Account: ${account.user.name||account.user.email}`:undefined} onClick={()=>setOpen(o=>!o)}>
+   <Avatar account={account}/>{!compact&&<span className="studio-side-word studio-account-label"><b className="ds-truncate" title={account.user.name||account.user.email}>{account.user.name||account.user.email}</b><span className="ds-truncate ds-muted" title={workName(account)}>{workName(account)}</span><span className="ds-sr-only">, account</span></span>}
   </button>
  </div>;
 }

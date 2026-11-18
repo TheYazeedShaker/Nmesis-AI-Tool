@@ -157,3 +157,20 @@ test('no band under the page: the editor fills the window, the old dark body nev
   assert.match(css, /\.studio-frame \.ds-main \{ padding-bottom: var\(--ds-space-32\); \}/);
   assert.match(read('components/ds/editor.tsx'), /data-rail=\{tools\.length \? undefined : 'none'\}/);
 });
+
+test('accessibility of the shell (check:ui on PR 42): references point only at what exists, names include what is seen, truncated names say themselves in full', () => {
+  const nav = read('components/shell/side-nav.tsx');
+  // aria-controls names the panel only while it is on the page (an id that does not exist is an invalid value).
+  assert.match(nav, /aria-controls=\{panel===p\.panel\?'studio-panel':undefined\}/);
+  assert.doesNotMatch(read('components/editor/references-settings.tsx'), /aria-controls=/);
+  // The account button: its visible name and company are its name; a label only when collapsed (just the avatar shows).
+  assert.match(nav, /aria-label=\{compact\?`Account: \$\{account\.user\.name\|\|account\.user\.email\}`:undefined\}/);
+  assert.match(nav, /<b className="ds-truncate" title=\{account\.user\.name\|\|account\.user\.email\}>/);
+  assert.match(nav, /<span className="ds-truncate ds-muted" title=\{workName\(account\)\}>/);
+  // The editor's own rules no longer assume main sits directly in the frame: phones size the editor to its content (no layout shift).
+  const editor = read('app/editor.css');
+  assert.doesNotMatch(editor, /\.workspace > \.ds-main\.bleed|:has\(> \.ds-main\.bleed\)/);
+  assert.match(read('app/side-nav.css'), /\.studio-frame \.ds-main\.bleed > \.ds-editor \{ grid-template-rows: auto auto; min-height: 0; \}/);
+  // Smart pick asks the photo library only for someone who can make work now.
+  assert.match(read('app/key-visual/page.tsx'), /if\(!smartPick\|\|!car\|\|!mayChange\|\|handAdded/);
+});

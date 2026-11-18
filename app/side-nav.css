@@ -142,7 +142,8 @@ a.studio-account-row:hover, button.studio-account-row:hover { background: var(--
   .studio-frame .ds-main { padding-bottom: var(--ds-space-32); }
   .studio-frame .ds-main.bleed { padding-bottom: 0; }
   .studio-frame:has(.ds-main.bleed) { height: auto; min-height: 100dvh; overflow: visible; }
-  .studio-frame .ds-main.bleed > .ds-editor { grid-template-rows: minmax(0, 1fr) auto; min-height: calc(100dvh - var(--ds-topbar-h)); }
+  /* The editor is as tall as its content on phones (as before the shell): nothing below it moves when the work loads. */
+  .studio-frame .ds-main.bleed > .ds-editor { grid-template-rows: auto auto; min-height: 0; }
   .ds-editor[data-rail="none"], .ds-editor[data-rail="none"][data-settings="closed"] { grid-template-columns: minmax(0, 1fr); }
   .studio-side-drawer .studio-side-item { flex-direction: row; justify-content: flex-start; gap: var(--ds-space-12); min-height: var(--ds-tap-min); padding: 0 var(--ds-space-12); font-size: var(--ds-text-md); text-align: left; }
   .studio-side-drawer .studio-side-list { margin-bottom: var(--ds-space-8); }
