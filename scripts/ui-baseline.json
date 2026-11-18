@@ -24,6 +24,7 @@
     "menusUnderPanels": 0
   },
   "byScreen": {
+    "account-menu": {"focusWithoutIndicator":2},
     "choose-password": {"axeSerious":2},
     "company": {},
     "company-switcher": {},
