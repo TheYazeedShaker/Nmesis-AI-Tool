@@ -25,7 +25,7 @@ import {InspirationMatch} from '@/components/inspiration-match';
 import {DropZone} from '@/components/ds/drop-zone';
 import {ReferencesSettings} from '@/components/editor/references-settings';
 import {addReference,clearPicked,removeReference,updateReference,useReferenceTray,type TrayItem} from '@/lib/reference-tray';
-import {openPanel,setShellCar} from '@/components/shell/shell-state';
+import {openPanel} from '@/components/shell/shell-state';
 import {liveConfiguratorUrl} from '@/lib/configurators';
 import {toolOpen} from '@/lib/tools';
 import {SharePanel} from '@/components/share/share-panel';
@@ -82,7 +82,7 @@ export default function Studio(){
  const account=useAccount();const showProvider=providerNames(account);const w=(text:string)=>showProvider?text:plainProviderText(text);const can=(key:Parameters<typeof hasFeature>[1])=>hasFeature(account,key);
  const [configurators,setConfigurators]=useState<Configurator[]>(CONFIGURATORS);const [configurator,setConfigurator]=useState<Configurator>(CONFIGURATORS[0]);// Home sends ?car=<name> ("Start from your cars") and ?brief=<words> ("What do you want to make?").
  useConfiguratorPresets(list=>{const asked=new URLSearchParams(location.search),wanted=asked.get('car'),first=(wanted&&list.find(c=>c.name===wanted))||list[0],words=asked.get('brief');if(words)setBrief(words.slice(0,600));setConfigurators(mergePresets(list));setConfigurator(c=>isDemoConfigurator(c)||wanted?first:c);setView(v=>v.id===VIEWS[0].id||wanted?startView(first):v)});const [visualCount,setVisualCount]=useState(1);const [captureNotice,setCaptureNotice]=useState('');const [imageUrl,setImageUrl]=useState('');const [importingImage,setImportingImage]=useState(false);const [cropRatio,setCropRatio]=useState(16/9);
- const tray=useReferenceTray();const [smartPick,setSmartPick]=useState(true);const [pickCount,setPickCount]=useState(3);const [smartState,setSmartState]=useState<{kind:'ready'|'picking'|'none'|'unavailable'}>({kind:'ready'});const pickTried=useRef(new Set<string>());
+ const tray=useReferenceTray();const [smartPick,setSmartPick]=useState(true);const [pickCount,setPickCount]=useState(1);const [smartState,setSmartState]=useState<{kind:'ready'|'picking'|'none'|'unavailable'}>({kind:'ready'});const pickTried=useRef(new Set<string>());
  const savedViews=useRef<Record<string,View[]>>({});const [view,setView]=useState<View>(VIEWS[0]);const [mode,setMode]=useState('live');const [brief,setBrief]=useState(DEFAULT_BRIEF);const [referenceMode,setReferenceMode]=useState<ReferenceMode>('creative');const [smartPriority,setSmartPriority]=useState<SmartPriority|null>(null);const [smartPlan,setSmartPlan]=useState<SmartPlan|null>(null);const [smartStatus,setSmartStatus]=useState('');
  const [connectionOpen,setConnectionOpen]=useState(false);const [status,setStatus]=useState<Status|null>(null);const [error,setError]=useState('');const [mood,setMood]=useState<{src:string;name:string}|null>(null);const [pin,setPin]=useState('');
  const [moodUpload,setMoodUpload]=useState('');const [moodUploadError,setMoodUploadError]=useState('');const moodFile=useRef<File|null>(null);const moodAbort=useRef<AbortController|null>(null);
@@ -441,8 +441,6 @@ export default function Studio(){
    </div>
   </Fold>
  </>;
- // The References panel searches for the car on screen (never the placeholder).
- useEffect(()=>{setShellCar(liveConfiguratorUrl(configurator)?configurator.name:'')},[configurator]);
  // Smart pick: with no reference added by hand, photos of the car from the
  // photo library (lib/references), as many as asked; once per car and number.
  const handAdded=tray.some(t=>!t.picked),pickedNow=tray.filter(t=>t.picked).length;

@@ -119,8 +119,9 @@ test('the account menu: name (from the profile), email, avatar, company and memb
   for (const words of ['Your account', 'Settings', 'Theme', 'Help', 'Plans and credits', 'Log out', 'members']) assert.ok(nav.includes(words), words);
   assert.match(nav, /fetch\('\/api\/company\/team'/, 'member count from the team every member may read');
   assert.match(nav, /<PlaceList account=\{account\}/, 'the same company switch as before');
-  // The navigation: Home, Projects, References, Brand, Uploads; collapsible and remembered.
-  assert.deepEqual([...nav.matchAll(/\{key:'(\w+)',label:'([^']+)'/g)].map((m) => m[2]), ['Home', 'Projects', 'References', 'Brand', 'Uploads']);
+  // The navigation draws lib/shell-nav.ts (tests/shell-nav.test.mjs); collapsible and remembered.
+  assert.match(nav, /navItems\(current\)\.map/);
+  assert.match(nav, /navSelection\(current,panel\)/);
   assert.match(nav, /useRememberedOpen\('studio-nav',true\)/);
   assert.match(nav, /aria-label=\{expanded\?'Collapse navigation':'Expand navigation'\}/);
 });
@@ -142,8 +143,8 @@ test('Key visual settings: one column in the beginner order, everything else und
   const advanced = block.slice(block.indexOf('<Fold name="kv-advanced"'));
   for (const piece of ['<PromptSettings label="Your idea (optional)"', '<SettingsSection title="Art direction"', 'label="Pinterest pin link"', '{showProvider&&<SettingsSection title="Image generator"']) assert.ok(advanced.includes(piece), piece);
   assert.doesNotMatch(advanced, /defaultOpen/);
-  // Smart pick is on by default, with how many; the cost line follows the price live.
-  assert.match(kv, /const \[smartPick,setSmartPick\]=useState\(true\);const \[pickCount,setPickCount\]=useState\(3\);/);
+  // Smart pick is on by default and picks one photo (still adjustable); the cost line follows the price live.
+  assert.match(kv, /const \[smartPick,setSmartPick\]=useState\(true\);const \[pickCount,setPickCount\]=useState\(1\);/);
   assert.match(kv, /const costLine=[\s\S]*This will use <b>\{creditWords\(cost\)\}<\/b>/);
   // Several references: visual i takes reference i, unless a smart prompt plans one picture.
   assert.match(kv, /moodId:moodIds\[i%moodIds\.length\]/);
@@ -161,7 +162,7 @@ test('no band under the page: the editor fills the window, the old dark body nev
 test('accessibility of the shell (check:ui on PR 42): references point only at what exists, names include what is seen, truncated names say themselves in full', () => {
   const nav = read('components/shell/side-nav.tsx');
   // aria-controls names the panel only while it is on the page (an id that does not exist is an invalid value).
-  assert.match(nav, /aria-controls=\{panel===p\.panel\?'studio-panel':undefined\}/);
+  assert.match(nav, /aria-controls=\{on\?'studio-panel':undefined\}/);
   assert.doesNotMatch(read('components/editor/references-settings.tsx'), /aria-controls=/);
   // The account button: its visible name and company are its name; a label only when collapsed (just the avatar shows).
   assert.match(nav, /aria-label=\{compact\?`Account: \$\{account\.user\.name\|\|account\.user\.email\}`:undefined\}/);

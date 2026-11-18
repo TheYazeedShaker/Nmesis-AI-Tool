@@ -25,9 +25,26 @@ export function loadAccount(){
 }
 /** Whether the account has been answered on this page (a page opened from another one in the Studio knows it at once). */
 export const accountKnown=()=>last!==undefined;
+// Every part on the page that shows the account, so a reload redraws them all.
+const watchers=new Set<(a:AccountSummary)=>void>();
+/** Ask /api/me again after the person changed something of their own (their
+ *  name), and redraw every part that shows the account. `saved` is what the
+ *  server just confirmed: it shows at once, and is laid over the answer too,
+ *  because the server reuses a person's context for a few seconds
+ *  (lib/studio-context.ts CONTEXT_REUSE_MS) and may still answer with the old
+ *  value. A failed reload keeps the account already shown. */
+export function reloadAccount(saved?:Partial<AccountSummary['user']>){
+ const lay=(a:AccountSummary):AccountSummary=>saved?{...a,user:{...a.user,...saved}}:a;
+ const show=(a:AccountSummary)=>{last=a;for(const tell of watchers)tell(a)};
+ if(last&&saved)show(lay(last));
+ const before=last;pending=undefined;
+ const next=loadAccount().then(a=>{const out=a?lay(a):before??null;if(out)show(out);return out});
+ pending=next;
+ return next;
+}
 export function useAccount(){
  const [account,setAccount]=useState<AccountSummary|null>(()=>last??null);
- useEffect(()=>{let live=true;void loadAccount().then(a=>{if(live)setAccount(a)});return()=>{live=false}},[]);
+ useEffect(()=>{let live=true;const tell=(a:AccountSummary)=>{if(live)setAccount(a)};watchers.add(tell);void loadAccount().then(a=>{if(live)setAccount(a)});return()=>{live=false;watchers.delete(tell)}},[]);
  return account;
 }
 // Until the account arrives a tool stays visible; the server refuses it anyway.

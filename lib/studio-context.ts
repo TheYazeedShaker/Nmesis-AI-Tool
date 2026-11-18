@@ -35,5 +35,7 @@ export async function getStudioContext(deps:{user?:SessionUser|null;directory?:D
  const resolve=()=>resolveContext({user:{id:user.id,email:user.email,aal:user.aal,name:user.name},chosenOrg:chosen,chosenBrand:brand,directory});
  const read=()=>deps.directory?resolve():recent(`${user.id}|${user.aal||''}|${chosen||''}|${brand||''}`,resolve);
  const resolved=timing?await timing.time('account',read):await read();
- return resolved.ok?resolved:{ok:false,problem:resolved.reason};
+ // The name comes from this request's verified session, never from the reused context: a name saved
+ // on the Account page shows at once (PATCH /api/account/profile).
+ return resolved.ok?{...resolved,ctx:{...resolved.ctx,user:{...resolved.ctx.user,name:user.name}}}:{ok:false,problem:resolved.reason};
 }

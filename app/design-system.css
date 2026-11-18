@@ -21,6 +21,8 @@
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
 }
+/* A layer's host (components/ds/layer.tsx): the theme scope, nothing drawn. */
+.ds-app.ds-layer { min-height: 0; background: none; }
 .ds-app *, .ds-app *::before, .ds-app *::after { box-sizing: border-box; }
 .ds-app :where(h1, h2, h3, h4, p, ul, ol, figure) { margin: 0; }
 .ds-app :where(ul, ol) { padding: 0; list-style: none; }
@@ -282,7 +284,11 @@
 .ds-fold-body { padding: 0 var(--ds-space-16) var(--ds-space-16); }
 
 /* ── Form field and controls ───────────────────────────────────────────── */
+/* One field (components/ds/field.tsx): the label, 8px, the control, 4px, the help
+   or error. Inside the settings panel a field is a row of the panel's grid: the
+   label column, then the field column (see "Editor" below). */
 .ds-field { display: flex; flex-direction: column; gap: var(--ds-space-4); min-width: 0; }
+.ds-field > .ds-label { margin-bottom: var(--ds-space-4); }
 .ds-label { font-weight: var(--ds-weight-medium); color: var(--ds-text); font-size: var(--ds-text-base); }
 .ds-req { color: var(--ds-muted); font-weight: var(--ds-weight-regular); }
 .ds-help { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
@@ -296,6 +302,7 @@
 .ds-count { color: var(--ds-muted); font-size: var(--ds-text-sm); font-variant-numeric: var(--ds-numeric); margin-left: auto; }
 .ds-count[data-over="true"] { color: var(--ds-danger); }
 
+/* Every text control: the design system's Input, Select and Textarea. */
 .ds-input, .ds-select, .ds-textarea, .ds-combo-input {
   width: 100%; min-height: var(--ds-control-h); padding: 0 var(--ds-space-12);
   border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius-md);
@@ -310,7 +317,17 @@
   outline: none; border-color: var(--ds-ring); box-shadow: 0 0 0 var(--ds-border-width) var(--ds-ring), var(--ds-shadow-focus);
 }
 .ds-input[aria-invalid="true"], .ds-select[aria-invalid="true"], .ds-textarea[aria-invalid="true"], .ds-combo-input[aria-invalid="true"] { border-color: var(--ds-danger); }
-.ds-input:disabled, .ds-select:disabled, .ds-textarea:disabled { opacity: 0.55; cursor: not-allowed; }
+/* A bare control a page forgets to dress (no class at all) gets the same box,
+   so a field without inner padding cannot come back. One class of specificity:
+   any component rule on its own control (the Home search, a combobox) wins. */
+.ds-app :where(input:not([class], [type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="hidden"], [type="submit"], [type="button"], [type="reset"], [type="image"]), select:not([class]), textarea:not([class])) {
+  width: 100%; min-height: var(--ds-control-h); padding: 0 var(--ds-space-12);
+  border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius-md);
+  background: var(--ds-panel); color: var(--ds-text); font-size: var(--ds-text-base); line-height: var(--ds-leading-base);
+}
+.ds-app :where(textarea:not([class])) { padding: var(--ds-space-8) var(--ds-space-12); }
+/* Unavailable: a quiet surface; the words stay readable (4.5:1). */
+.ds-input:disabled, .ds-select:disabled, .ds-textarea:disabled, .ds-affix:has(> input:disabled) { background-color: var(--ds-panel-2); color: var(--ds-muted); border-color: var(--ds-border); cursor: not-allowed; }
 .ds-select {
   appearance: none; cursor: pointer; padding-right: var(--ds-space-32);
   background-image: linear-gradient(45deg, transparent 50%, var(--ds-muted) 50%), linear-gradient(135deg, var(--ds-muted) 50%, transparent 50%);
@@ -403,28 +420,38 @@
 .ds-btn {
   position: relative; display: inline-flex; align-items: center; justify-content: center; gap: var(--ds-space-8);
   min-height: var(--ds-control-h); padding: 0 var(--ds-space-16);
-  border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius-pill);
-  background: var(--ds-panel); color: var(--ds-text); cursor: pointer; text-decoration: none; white-space: nowrap;
+  border: var(--ds-border-width) solid var(--ds-btn-edge); border-radius: var(--ds-radius-pill);
+  background: var(--ds-btn-bg); color: var(--ds-btn-text); cursor: pointer; text-decoration: none; white-space: nowrap;
   font-size: var(--ds-text-base); line-height: var(--ds-leading-base); font-weight: var(--ds-weight-semibold);
   transition: background-color var(--ds-dur-fast) var(--ds-ease), border-color var(--ds-dur-fast) var(--ds-ease), transform var(--ds-dur-fast) var(--ds-ease);
 }
 .ds-btn svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; }
-.ds-btn:hover { background: var(--ds-panel-2); border-color: var(--ds-text); }
-.ds-btn:active { transform: translateY(1px); }
-.ds-btn:disabled, .ds-btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; transform: none; }
-.ds-btn.primary { background: var(--ds-accent); color: var(--ds-accent-ink); border-color: var(--ds-accent-edge); }
-.ds-btn.primary:hover { background: var(--ds-accent-hover); }
+/* Every kind takes its fill, label and edge from the --ds-btn-* tokens, in every
+   state; the label never fades (tests/contrast.test.mjs checks each pair in both
+   themes). Unavailable is a quiet surface with the muted ink, not a faded fill. */
+.ds-btn:hover { background: var(--ds-btn-bg-hover); border-color: var(--ds-btn-edge-hover); }
+.ds-btn:active { background: var(--ds-btn-bg-active); transform: translateY(1px); }
+.ds-btn.primary { background: var(--ds-btn-primary-bg); color: var(--ds-btn-primary-text); border-color: var(--ds-btn-primary-edge); }
+.ds-btn.primary:hover { background: var(--ds-btn-primary-bg-hover); color: var(--ds-btn-primary-text); border-color: var(--ds-btn-primary-edge); }
+.ds-btn.primary:active { background: var(--ds-btn-primary-bg-active); }
 .ds-btn.quiet { background: transparent; border-color: transparent; }
-.ds-btn.quiet:hover { background: var(--ds-panel-2); border-color: transparent; }
-.ds-btn.danger { background: var(--ds-danger); color: var(--ds-on-danger); border-color: var(--ds-danger); }
-.ds-btn.danger:hover { background: var(--ds-danger-hover); border-color: var(--ds-danger-hover); }
+.ds-btn.quiet:hover { background: var(--ds-btn-quiet-bg-hover); border-color: transparent; }
+.ds-btn.danger { background: var(--ds-btn-danger-bg); color: var(--ds-btn-danger-text); border-color: var(--ds-btn-danger-bg); }
+.ds-btn.danger:hover { background: var(--ds-btn-danger-bg-hover); color: var(--ds-btn-danger-text); border-color: var(--ds-btn-danger-bg-hover); }
 .ds-btn.danger-quiet { background: transparent; color: var(--ds-danger); border-color: transparent; }
 .ds-btn.danger-quiet:hover { background: var(--ds-danger-soft); }
+.ds-btn:is(:disabled, [aria-disabled="true"]), .ds-btn:is(:disabled, [aria-disabled="true"]):is(:hover, :active) {
+  background: var(--ds-btn-disabled-bg); color: var(--ds-btn-disabled-text); border-color: var(--ds-btn-disabled-edge);
+  cursor: not-allowed; transform: none;
+}
+.ds-btn.quiet:is(:disabled, [aria-disabled="true"]) { background: transparent; border-color: transparent; }
+/* Busy keeps its kind's colours (the words stay; a spinner joins them). */
+.ds-btn.primary[aria-busy="true"] { background: var(--ds-btn-primary-bg); color: var(--ds-btn-primary-text); border-color: var(--ds-btn-primary-edge); }
 .ds-btn.sm { min-height: var(--ds-control-h-sm); padding: 0 var(--ds-space-12); font-size: var(--ds-text-sm); }
 .ds-btn.icon { width: var(--ds-control-h); padding: 0; }
 .ds-btn.icon.sm { width: var(--ds-control-h-sm); }
 .ds-btn.block { width: 100%; }
-.ds-btn-meta { font-weight: var(--ds-weight-regular); opacity: 0.8; font-variant-numeric: var(--ds-numeric); }
+.ds-btn-meta { font-weight: var(--ds-weight-regular); font-variant-numeric: var(--ds-numeric); }
 /* Busy: the words stay (so nothing jumps); a spinner joins them. */
 .ds-btn[aria-busy="true"] { cursor: progress; }
 .ds-spinner {
@@ -631,7 +658,7 @@
 }
 .ds-list-row + .ds-list-row { border-top: var(--ds-border-width) solid var(--ds-border); }
 .ds-list-row:hover { background: var(--ds-panel-2); }
-.ds-list-row[data-selected="true"] { background: var(--ds-accent-soft); }
+.ds-list-row[data-selected="true"] { background: var(--ds-selected-bg); box-shadow: inset var(--ds-space-4) 0 0 var(--ds-selected-mark); }
 .ds-list-thumb { width: var(--ds-space-48); height: var(--ds-space-40); border-radius: var(--ds-radius-sm); background: var(--ds-media-bg); overflow: hidden; }
 .ds-list-thumb > img { width: 100%; height: 100%; object-fit: cover; }
 @media (max-width: 480px) { .ds-list-row { grid-template-columns: auto var(--ds-space-40) minmax(0, 1fr) auto; } .ds-list-row > .ds-list-hide-phone { display: none; } }
@@ -729,6 +756,7 @@
   background: var(--ds-panel); border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius-pill);
   box-shadow: var(--ds-shadow-2);
 }
+.ds-ask-input { min-width: 0; }
 .ds-ask > svg { width: var(--ds-icon-lg); height: var(--ds-icon-lg); color: var(--ds-muted); flex: none; }
 .ds-ask > input { flex: 1 1 auto; min-width: 0; border: 0; background: transparent; font-size: var(--ds-text-lg); line-height: var(--ds-leading-lg); color: var(--ds-text); min-height: var(--ds-control-h); }
 .ds-ask > input::placeholder { color: var(--ds-muted-2); }
@@ -754,6 +782,17 @@
 .ds-tool-foot { display: flex; align-items: center; gap: var(--ds-space-8); flex-wrap: wrap; padding: var(--ds-space-4) var(--ds-space-4) 0; }
 .ds-tool[data-locked="true"] .ds-tool-art { opacity: 0.55; }
 .ds-tool[data-locked="true"]:hover { transform: none; box-shadow: none; }
+/* The tool tile (components/ds/tool-tile.tsx): picture, one-line name, one line,
+   badge; active and locked are the same size. A locked tile greys its picture
+   only: its words keep their contrast. */
+.ds-tool-art-box { position: relative; display: block; }
+.ds-tool-art-box > .ds-tool-art { margin-bottom: 0; }
+.ds-tool-text { display: flex; flex-direction: column; gap: var(--ds-space-2); min-width: 0; padding-top: var(--ds-space-8); }
+.ds-tool-text > .ds-tool-name { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ds-tool > .ds-tool-foot { margin-top: auto; }
+.ds-tool[data-locked="true"] { cursor: default; }
+.ds-tool[data-locked="true"] .ds-tool-art { opacity: 1; filter: grayscale(1); }
+.ds-tool[data-locked="true"] .ds-tool-art > img { opacity: 0.6; }
 .ds-scroller { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(180px, 220px); gap: var(--ds-space-16); overflow-x: auto; padding-bottom: var(--ds-space-8); scroll-snap-type: x proximity; }
 .ds-scroller > * { scroll-snap-align: start; }
 @media (max-width: 480px) { .ds-scroller { grid-auto-columns: minmax(148px, 70%); gap: var(--ds-space-8); } }
@@ -776,7 +815,7 @@
 .ds-folder svg { width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-muted); flex: none; }
 .ds-folder:hover { background: var(--ds-panel-2); }
 .ds-folder[aria-current="page"] { background: var(--ds-panel-hover); font-weight: var(--ds-weight-semibold); }
-.ds-folder[data-drop="true"] { border-color: var(--ds-ring); border-style: dashed; background: var(--ds-accent-soft); }
+.ds-folder[data-drop="true"] { border-color: var(--ds-ring); border-style: dashed; background: var(--ds-selected-bg); }
 .ds-folder.sub { padding-left: var(--ds-space-32); }
 .ds-folder-count { margin-left: auto; color: var(--ds-muted); font-size: var(--ds-text-sm); font-variant-numeric: var(--ds-numeric); }
 .ds-folder-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: var(--ds-space-12); }
@@ -847,6 +886,16 @@
 .ds-editor-settings { display: flex; flex-direction: column; min-height: 0; background: var(--ds-panel); border-left: var(--ds-border-width) solid var(--ds-border); }
 .ds-settings-head { display: flex; align-items: center; gap: var(--ds-space-8); padding: var(--ds-space-12) var(--ds-space-16); border-bottom: var(--ds-border-width) solid var(--ds-border); }
 .ds-settings-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--ds-space-16); display: flex; flex-direction: column; gap: var(--ds-space-16); }
+/* The settings panel's grid: one label column (--ds-settings-label-w) and one
+   field column, on one spacing scale (16 between sections, 12 between rows,
+   4 between a control and its help). A field is a row; a picture, a drop zone,
+   a list, a long text box, a group of choices and a field with its own button row
+   take the full width. */
+.ds-settings-body .ds-field:has(> .ds-select, > .ds-input, > .ds-affix) {
+  display: grid; grid-template-columns: var(--ds-settings-label-w) minmax(0, 1fr); align-items: center; column-gap: var(--ds-space-12); row-gap: var(--ds-space-4);
+}
+.ds-settings-body .ds-field:has(> .ds-select, > .ds-input, > .ds-affix) > .ds-label { grid-column: 1; margin-bottom: 0; }
+.ds-settings-body .ds-field:has(> .ds-select, > .ds-input, > .ds-affix) > :not(.ds-label) { grid-column: 2; }
 /* The one primary Generate, always at the bottom of the settings, with its
    cost on it before it is pressed. */
 .ds-generate { padding: var(--ds-space-12) var(--ds-space-16) var(--ds-space-16); border-top: var(--ds-border-width) solid var(--ds-border); display: flex; flex-direction: column; gap: var(--ds-space-8); }

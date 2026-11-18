@@ -112,11 +112,11 @@
 .nmesis-provides svg{color:var(--primary);flex-shrink:0;margin-top:2px}
 .nmesis-provides span{display:grid;gap:4px}.nmesis-provides small{color:var(--muted-foreground);font-size:13px}.nmesis-provides a{color:inherit}
 .nmesis-provides .keys-ignored{color:#f3e2b5}
-.account-page{max-width:1040px;margin:0 auto;padding:40px 4% 80px;display:grid;gap:22px}
-.account-page h1{font-size:clamp(24px,2.6vw,34px)}
-.account-page section{border:1px solid var(--border);background:var(--card);border-radius:8px;padding:22px 24px;display:grid;gap:14px}
-.account-page h2{font-size:17px}
-.account-page .helper{color:var(--muted-foreground);font-size:14px}
+
+
+
+
+
 .usage-totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
 .usage-totals div{border:1px solid var(--border);border-radius:8px;padding:14px;display:grid;gap:4px}
 .usage-totals b{font-size:26px;font-variant-numeric:tabular-nums}.usage-totals span{color:var(--muted-foreground);font-size:13px}
@@ -129,4 +129,4 @@
 .support-toggle{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .support-state{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);font-size:13px}
 .support-state.on{border-color:#4f8a5c;color:#b9e6c3}
-@media(max-width:800px){.credit-meter .credit-bar{display:none}.credit-meter .credit-numbers{font-size:11px}.account-page{padding:24px 5% 60px}.account-page section{padding:16px}}
+@media(max-width:800px){.credit-meter .credit-bar{display:none}.credit-meter .credit-numbers{font-size:11px}}

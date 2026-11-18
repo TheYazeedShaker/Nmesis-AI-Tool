@@ -45,6 +45,8 @@ export const SCREENS = [
   { id: 'folder', path: `/projects/${FOLDER_ID}`, roles: ['owner', 'viewer'], full: ['owner'] },
   { id: 'settings', path: '/key-visual', action: 'settings', roles: ['owner', 'enterprise', 'viewer'] },
   { id: 'company-switcher', path: '/', action: 'switcher', roles: ['owner', 'staff'] },
+  // The layers (feat/studio-foundations): References open, then the account menu over it (1440 and 390).
+  { id: 'account-menu', path: '/key-visual', action: 'account-over-panel', roles: ['owner'] },
   { id: 'lineup', path: '/lineup', roles: ['owner', 'starter', 'viewer'], full: ['owner'] },
   { id: 'films', path: '/films', roles: ['enterprise', 'owner'], full: ['enterprise'] },
   { id: 'swap', path: '/swap', roles: ['enterprise', 'owner'], full: ['enterprise'] },

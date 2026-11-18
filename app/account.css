@@ -1,0 +1,37 @@
+/* Your account (components/shell/account-page.tsx). Tokens only.
+   Five cards built from the shared section card: two columns from 1024px up
+   (profile and company first), one column below. */
+
+.account-page { display: flex; flex-direction: column; gap: var(--ds-space-24); min-width: 0; }
+.account-page .ds-page-head { margin-bottom: 0; }
+
+.account-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ds-space-16); min-width: 0; }
+@media (min-width: 1024px) {
+  .account-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-24); }
+}
+
+/* A card fills its row's height; what it links to sits at its foot. */
+.account-card { display: flex; flex-direction: column; }
+.account-card > .ds-section-body { flex: 1 1 auto; display: flex; flex-direction: column; gap: var(--ds-space-16); }
+.account-foot { margin-top: auto; }
+.account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); min-width: 0; }
+
+/* Who is signed in: a larger avatar, the name and the email. */
+.account-who { display: flex; align-items: center; gap: var(--ds-space-12); min-width: 0; }
+.account-who .ds-avatar { width: var(--ds-space-48); height: var(--ds-space-48); font-size: var(--ds-text-lg); }
+.account-names { display: flex; flex-direction: column; gap: var(--ds-space-2); flex: 1 1 auto; min-width: 0; line-height: var(--ds-leading-sm); }
+.account-name { font-size: var(--ds-text-md); line-height: var(--ds-leading-md); }
+b.account-name { color: var(--ds-text-strong); font-weight: var(--ds-weight-semibold); }
+.account-name-form { display: flex; flex-direction: column; gap: var(--ds-space-12); max-width: var(--ds-measure); min-width: 0; }
+
+/* Facts: a label, then its value. */
+.account-facts { display: flex; flex-direction: column; gap: var(--ds-space-12); margin: 0; min-width: 0; }
+.account-fact { display: flex; flex-direction: column; gap: var(--ds-space-2); min-width: 0; }
+.account-fact dt { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.account-fact dd { margin: 0; color: var(--ds-text-strong); overflow-wrap: anywhere; min-width: 0; }
+.account-sub { display: block; margin-top: var(--ds-space-2); }
+.account-email { font-weight: var(--ds-weight-semibold); overflow-wrap: anywhere; }
+
+/* A value still loading: a line the height of the text it stands for. */
+.account-skel { display: block; width: var(--ds-space-64); margin-block: var(--ds-space-4); }
+.account-skel.short { width: var(--ds-space-40); }

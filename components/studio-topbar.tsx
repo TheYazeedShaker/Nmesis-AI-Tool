@@ -1,4 +1,5 @@
 'use client';
+import type {NavPage} from '@/lib/shell-nav';
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import Link from 'next/link';
 import {Aperture,BarChart3,Building2,Check,ChevronDown,ChevronsUpDown,Clapperboard,Eye,Film,FolderOpen,Home,ImageIcon,LayoutGrid,Layers,Lock,LogOut,Menu,Replace,Settings,Shapes} from 'lucide-react';
@@ -25,7 +26,8 @@ import type {CreditOverview} from '@/lib/credits/usage';
 // as soon as the account is known, with a skeleton of the meter's own size in
 // the meter's place until the credits arrive.
 
-export type StudioPage='home'|'library'|'projects'|'brand'|'account'|'visuals'|'lineup'|'storyboard'|'films'|'swap'|'usage'|'company'|'lab';
+/** The pages a frame shows: the same list as lib/shell-nav.ts NavPage. */
+export type StudioPage=NavPage;
 type Tool={key:StudioPage;href:string;label:string;icon:React.ReactNode;feature?:FeatureKey};
 // The places: the same for everybody.
 export const STUDIO_PLACES:Tool[]=[

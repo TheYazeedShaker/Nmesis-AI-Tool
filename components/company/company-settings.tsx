@@ -13,6 +13,7 @@ import type {SupportState} from '@/lib/support-access';
 import {AskNmesisButton} from './ask-nmesis';
 import {NotificationsSection} from './notifications';
 import {OwnKeysSection} from './own-keys';
+import {SettingsNav} from './settings-nav';
 import {SupportSection} from './support';
 import {TeamSection} from './team';
 import {api} from './api';
@@ -79,6 +80,7 @@ export function CompanySettingsView(){
  const o=overview.value,owner=!!o?.canEdit;
  const lede=!o?'':o.internal?'Nmesis’s own workspace. Its team and plan are managed in the Nmesis admin.':o.canEdit?'Your team, your plan and who Nmesis may help. You can change them as an owner.':o.viewingAs?'Read-only: you are viewing with support access.':'You can read these settings; your company’s owners change them.';
  return <div className="settings-page">
+   <SettingsNav current="company"/>
    <PageHeader eyebrow="Company settings" title={o?.company||account?.org.name||'Your company'} lede={lede}/>
    {overview.problem&&!o?<State kind="error" title="Company settings didn’t load" actions={<Button onClick={overview.retry}>Try again</Button>}>{overview.problem}</State>
     :!o?<Loading label="Loading company settings" className="ds-stack"><SkeletonPanel/><SkeletonPanel/></Loading>

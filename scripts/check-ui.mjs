@@ -181,6 +181,20 @@ async function act(page, action) {
   if (action === 'settings') return click('summary[aria-label="Studio settings"]');
   // The switcher in the top bar; below 768px the companies are in the menu (Phase 2b).
   if (action === 'switcher') return (await page.locator('button.studio-switcher:visible').count()) ? click('button.studio-switcher:visible') : click('button[aria-label="Menu"]:visible');
+  // References open, then the account menu (on phones: the menu drawer, opened again over the panel sheet).
+  if (action === 'account-over-panel') {
+    const settle = () => page.waitForTimeout(400);
+    if (await page.locator('nav[aria-label="Main"] button:has-text("References"):visible').count()) {
+      if (!(await click('nav[aria-label="Main"] button:has-text("References"):visible'))) return false;
+      await settle();
+      return click('.studio-account-button:visible');
+    }
+    if (!(await click('button[aria-label="Menu"]:visible'))) return false;
+    await settle();
+    if (!(await click('dialog[open] button:has-text("References")'))) return false;
+    await settle();
+    return click('button[aria-label="Menu"]:visible');
+  }
   return false;
 }
 

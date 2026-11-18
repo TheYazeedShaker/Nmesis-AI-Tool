@@ -2,9 +2,20 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-18 (Studio shell, Canva-level simplicity: `feat/studio-shell`)
+**Last updated:** 2026-11-18 (Studio design foundations: `feat/studio-foundations`)
 
-**Latest (2026-11-18, Studio shell, `feat/studio-shell`, PR 1 of 2):**
+**Latest (2026-11-18, Studio design foundations, `feat/studio-foundations`):** the owner's 17 fixes, made in shared tokens, layout and components (no page-level patches).
+- **Palette:** one cool neutral scale (`--ds-neutral-*`, light and dark) replaces the green-grey brand neutrals; the lime is for the main action and selection marks only (selection is `--ds-selected-*`). `tests/contrast.test.mjs` checks every text/background pair and every button label in every state, both themes, from `app/tokens.css` (`node scripts/design/contrast.mjs` prints the table).
+- **Buttons:** every kind and state reads `--ds-btn-*`; unavailable is a quiet surface with the muted ink (it used to fade the whole button to half opacity, which made Generate and Start unreadable).
+- **Shell:** `lib/shell-nav.ts` decides the navigation (pages only outside tools: Home, Projects, Uploads, Settings; inside Key visual and Car lineup also References, Brand, Elements and Uploads as panels) and its one selected item; navigating closes the panel (`navigated` in `components/shell/shell-state.ts`). One secondary-panel slot; the settings panel is 368px with a label column and a field column.
+- **Layers:** z-index scale tokens (base, panel, dropdown, drawer, modal, toast); menus render in a portal (`components/ds/layer.tsx`). check:ui counts any open menu that is covered (`menusUnderPanels`, new screen `account-menu`).
+- **Forms and tiles:** one field style with inner padding and label spacing, and a guard for bare controls; one tool tile (`components/ds/tool-tile.tsx`), active and locked the same size.
+- **References:** never prefilled; empty search with the hint, and a curated grid per tool until the person searches. One "use as reference" action (`addAsReference`) for every panel and tool: in Car lineup it makes the photo the inspiration (`lib/lineup-reference.ts`). Smart pick picks one photo by default.
+- **Brand** is a panel (logos, colours, fonts to click); the editor moved to Settings → Brand kit (`/company/brand`; `/brand` redirects). **Elements** panel (category bar and grid; shows and filters only). **Uploads** is a page outside tools (`/uploads`).
+- **Home:** the five tools in one row of equal tiles, Car lineup as a lineup picture (the company's cars on one ground line), How it works as a numbered step strip. **Account** page: profile (edit name, `PATCH /api/account/profile`), company, theme, password and security, plan and credits.
+- No hosted system was touched; no migration in this PR.
+
+**Earlier (2026-11-18, Studio shell, `feat/studio-shell`, PR 1 of 2, merged):**
 - **Car view bug:** the car view showed the browser's own error page (a torn-page icon) above "Use this view". The frame loaded the placeholder configurator, whose address does not exist, while the company's cars were loading and whenever none came back; the browser fires `load` for its own error page, so the 10 s check never caught it. Now only a real car's page is loaded (`liveConfiguratorUrl`), the frame says "Loading your cars…" or "No car to show here yet", and a car left out of the list is said in the server log (counts only), e.g. when `CONFIGURATOR_ORIGIN` is not set. Test: `tests/car-view.test.mjs`. The configurator's #55–#57 changed neither its addresses nor its framing.
 - **Tools:** one flag list, `lib/tools.ts` (`OPEN_TOOLS`): Key visual and Car lineup are open; Story, Film and Replace car show on Home and in Create as "Coming soon" (visible, not links) and their pages go Home (`proxy.ts`). Unlocking a tool is adding its id. Their APIs and code are unchanged.
 - **Shell:** the top bar is replaced by a left navigation (icon and label, collapsible, remembered): Home, Projects (the library), References, Brand, Uploads, and the account at the bottom (name, email, avatar; the company with its member count and a switch; Your account, Settings, Theme light/dark/system, Help, Plans and credits, Log out). References and Uploads open a panel beside it. Phones: a slim bar and a drawer. The editor's own tool rail is gone (one navigation). `components/shell/`, `app/side-nav.css`.
@@ -214,6 +225,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 
 ## Decisions made (must be remembered)
 
+- **Own profile (owner, 2026-11-18):** every role, viewers included, may edit their own name and avatar, and nothing else: their sign-in profile, never company data. A paused Studio does not stop it. One route carries the exemption (`ownProfile` on `/api/account/profile` in `lib/accounts/plan.ts`), and `tests/account-profile.test.mjs` holds that it stays the only one. Staff viewing a client company stay read-only there. There is no avatar upload yet (the avatar is the initials); when one comes, it goes through the same route.
 - **Provider names (owner, F-050, 2026-11-15):** clients never see provider or model names on cards or in the library: the tool ("Key visual") and at most "Standard" / "High detail". Staff, and companies using their own keys, see the provider in the item's details.
 - **Design direction (owner, 2026-11-15):** every change uses the Phase 0 design system and the approved wireframes, in the Nmesis theme. Phase 2b builds the new app shell and moves every screen to the new components, without re-laying out Home, the library or the tool screens (only their safety, accessibility and behaviour findings). Phase 3 group 1 rebuilds Home, projects and folders and the library to the wireframes; group 2 rebuilds the editor for all tools. Before each Phase 3 group, post the screens at 1440 and 390 next to the matching wireframe.
 - **check:ui ratchet (owner, 2026-11-15):** focus-without-indicator stays in the ratchet with a tolerance of ±5.
@@ -298,7 +310,9 @@ _Carried_
 
 ## Next session — start here
 
-0. Studio shell (PR 1 of 2, `feat/studio-shell`):
+0. Studio design foundations (`feat/studio-foundations`): owner reviews the PR. No owner steps of its own. Then PR 2, `feat/studio-editor` (the canvas editor), from `development`; Elements adds to the picture there, and Brand colours and fonts apply to a selection there.
+
+0a. Studio shell (PR 1 of 2, `feat/studio-shell`, merged):
    - Owner: review the PR; then run `npm run db:migrate` (0010 brand kits, 0011 shares), set `UNSPLASH_ACCESS_KEY` per environment (`docs/references.md`) and `CRON_SECRET` for Production (`docs/s3-setup.md` section 7), and redeploy;
    - if the car view still shows a blank or broken frame on a deployment, check the server log for "Configurators left out" (`CONFIGURATOR_ORIGIN` per environment);
    - then PR 2, `feat/studio-editor` (the canvas editor), from `development` after PR 1 is merged.

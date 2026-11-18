@@ -59,7 +59,9 @@ test('Home: each tool card shows its sample in a fixed box (lazy, sized, no layo
  assert.match(pages,/sample:toolSample\(FEATURE_TOOL\[feature\],work,cars,i\)\.src/);
  assert.match(pages,/cars=presets\.filter\(c=>!isDemoConfigurator\(c\)\)/);
  assert.match(home,/<SamplePicture src=\{tool\.sample\} className="ds-tool-art" fallback=\{tool\.icon\}\/>/);
- assert.equal((home.match(/<ToolArt tool=\{t\}\/>/g)||[]).length,2,'locked and open cards alike');
+ // One tile component for locked and open tools alike (components/ds/tool-tile.tsx), so both are one size.
+ assert.equal((home.match(/<ToolArt tool=\{t\}\/>/g)||[]).length,1);
+ assert.match(home,/<ToolTile name=\{t\.name\} line=\{t\.line\} href=\{t\.locked\?undefined:t\.href\} locked=\{t\.locked\} soon=\{t\.soon\} cost=\{t\.cost\} art=\{<ToolArt tool=\{t\}\/>\}\/>/);
  assert.match(pic,/<img src=\{shown\} alt="" width=\{320\} height=\{200\} loading="lazy" decoding="async"/);
  assert.match(read('app/design-system.css'),/\.ds-tool-art \{ aspect-ratio: 16 \/ 10;/);
  assert.match(css,/\.ds-tool-art > img \{ width: 100%; height: 100%; object-fit: cover;/);
