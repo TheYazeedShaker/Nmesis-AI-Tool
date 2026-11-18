@@ -141,11 +141,31 @@ test('staff viewing a company are refused, and nothing reaches Supabase',async()
  assert.equal(home.status,200,home.text);assert.equal(metadata(STAFF).full_name,'Demo Staff');
 });
 
-test('viewers are refused by the shared write rule (lib/accounts/plan.ts checkRoute)',async()=>{
+test('every role may change its own name, viewers included (owner, 2026-11-18): their own profile, not company data',async()=>{
  as(VIEWER);
- const r=await patch({name:'Demo Viewer'});
- assert.equal(r.status,403,r.text);
- assert.deepEqual(supabaseCalls(),[]);
+ const r=await patch({name:'Demo Viewer',userId:OWNER.id});
+ assert.equal(r.status,200,r.text);assert.deepEqual(r.body,{name:'Demo Viewer'});
+ const sent=supabaseCalls();
+ assert.equal(sent.length,1);
+ assert.equal(sent[0].path,'/auth/v1/admin/users/'+VIEWER.id,'the viewer’s own profile, never an id from the body');
+ assert.equal(metadata(VIEWER).full_name,'Demo Viewer');
+ assert.notEqual(metadata(OWNER).full_name,'Demo Viewer','nobody else changed');
+});
+
+test('the exemption is one route only: viewers and a paused Studio still change no company data',async()=>{
+ const plan=await import('@/lib/accounts/plan.ts');
+ // Exactly one rule may skip the role and Studio checks, and it is this one.
+ assert.deepEqual(plan.ROUTE_FEATURES.filter(r=>r.ownProfile).map(r=>[String(r.path),r.methods]),[[String(/^\/api\/account\/profile$/),['PATCH']]]);
+ const open=FULL,paused={...FULL,status:'cancelled',features:{}};
+ assert.equal(plan.workspaceState(paused).open,false,'the paused fixture is a paused Studio');
+ for(const role of ['owner','creator','viewer'])for(const entitlements of [open,paused]){
+  assert.equal(plan.checkRoute({role,entitlements},PATH,'PATCH').ownProfile,true,`${role}, ${entitlements===open?'open':'paused'}: own name`);
+ }
+ // Company data stays closed to viewers, and to everyone while the Studio is paused.
+ for(const [path,method] of [['/api/brand-kit','PUT'],['/api/assets','POST'],['/api/visuals','POST'],['/api/company/team','POST']]){
+  assert.throws(()=>plan.checkRoute({role:'viewer',entitlements:open},path,method),e=>e instanceof plan.PlanError&&e.status===403,`viewer ${method} ${path}`);
+  assert.throws(()=>plan.checkRoute({role:'owner',entitlements:paused},path,method),e=>e instanceof plan.PlanError,`paused ${method} ${path}`);
+ }
 });
 
 test('signed out, or from another site: refused before the body is read',async()=>{
@@ -234,17 +254,17 @@ test('the account page: five cards in order, each from the shared card', () => {
  assert.doesNotMatch(html,/studio-account-page|studio-fact/);
 });
 
-test('the account page: who may not change their name sees it read-only, and says why', () => {
+test('the account page: every role may edit its own name; only staff viewing a company see it read-only', () => {
  const staff=drawPage({account:{...SUMMARY,staff:true,viewingAs:true,role:'viewer'}});
  assert.doesNotMatch(staff,/Edit your name/);
  assert.match(staff,/<dt>Your role<\/dt><dd>Staff \(read-only\)<\/dd>/);
  assert.match(staff,/You are viewing this company as Nmesis staff, so your name is read-only here\./);
  const viewer=drawPage({account:{...SUMMARY,role:'viewer'}});
- assert.doesNotMatch(viewer,/Edit your name/);
+ assert.match(viewer,/Edit your name/);
  assert.match(viewer,/<dt>Your role<\/dt><dd>Viewer<\/dd>/);
- assert.match(viewer,/Your role is viewer, so your name is read-only here\./);
+ assert.doesNotMatch(viewer,/read-only/);
  const paused=drawPage({account:{...SUMMARY,workspace:{open:false,noPlan:false,libraryOpen:true,libraryUntil:null}}});
- assert.doesNotMatch(paused,/Edit your name/);
+ assert.match(paused,/Edit your name/);
  assert.match(paused,/<dt>Plan<\/dt><dd>Enterprise \(ended\)<\/dd>/);
  const creator=drawPage({account:{...SUMMARY,role:'creator',user:{email:'demo.person@example.test',name:null}}});
  assert.match(creator,/Edit your name/);

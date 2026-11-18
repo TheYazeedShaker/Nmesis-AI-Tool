@@ -23,13 +23,12 @@ const ROLE={owner:'Owner',creator:'Creator',viewer:'Viewer'} as const;
 const NAME_MAX=80;
 const SAVE_TIMEOUT_MS=20_000;
 
-// Why the name is read-only here, or null when it may change. The server
-// refuses the same people: staff viewing a company, viewers, and a company
-// whose Studio is paused (lib/accounts/plan.ts checkRoute).
+// Why the name is read-only here, or null when it may change. Your name is
+// yours, not company data: every role may change it, viewers included, and a
+// paused Studio doesn't stop it (ownProfile in lib/accounts/plan.ts). Only
+// staff viewing a company are read-only there, as the server says.
 function nameLock(a:AccountSummary):string|null{
  if(a.viewingAs)return 'You are viewing this company as Nmesis staff, so your name is read-only here.';
- if(a.role==='viewer')return 'Your role is viewer, so your name is read-only here.';
- if(!a.workspace.open)return 'Your company’s Studio is paused, so your name can’t be changed right now.';
  return null;
 }
 // The same rule as the server, so the common mistakes are said without a round trip.
