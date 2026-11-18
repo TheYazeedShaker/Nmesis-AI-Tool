@@ -87,9 +87,11 @@ test('clients choose Quality only: engine and model live under Advanced, for sta
   assert.doesNotMatch(src,/SettingsSection title="(Engine|Model|Video connection)"/,f);
   assert.doesNotMatch(src,/Connections and usage|Connection and settings<\/a>/,f);
  }
- assert.match(read('app/key-visual/page.tsx'),/<Advanced name="visuals"><VisualsEngine /);
+ // Key visual: one closed Advanced section holds everything past the beginner's settings; the engine only for staff and own keys.
+ assert.match(read('app/key-visual/page.tsx'),/<Fold name="kv-advanced"[\s\S]*\{showProvider&&<SettingsSection title="Image generator" id="kv-engine-title"><VisualsEngine /);
  assert.match(read('app/key-visual/page.tsx'),/<Advanced name="visuals-refine"><VisualsEngine /);
- assert.match(read('app/lineup/page.tsx'),/<Advanced name="lineup"><LineupEngine /);
+ // Car lineup: the same closed Advanced (layout, your words; the engine only for staff and own keys).
+ assert.match(read('app/lineup/page.tsx'),/<Fold name="lineup-advanced"[\s\S]*\{names&&<SettingsSection title="Image generator" id="lineup-engine-title"><LineupEngine /);
  assert.match(read('app/films/page.tsx'),/<Advanced name="film" /);
  assert.match(read('app/swap/page.tsx'),/<Advanced name="swap" summary="Video connection"><SwapConnectionSection /);
  assert.match(read('components/editor/storyboard-settings.tsx'),/<Advanced name="story" /);

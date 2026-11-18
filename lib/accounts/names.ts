@@ -13,3 +13,5 @@ export function initialsOf(name:string){
  const w=name.trim().split(/\s+/).filter(Boolean);
  return (w.length>1?w[0][0]+w[1][0]:(w[0]||'?').slice(0,2)).toUpperCase();
 }
+// The person's own name from their sign-in profile (user_metadata): full_name or name, trimmed to a sensible length; anything else is no name.
+export function profileName(meta:unknown):string|undefined{const m=(meta||{}) as Record<string,unknown>;const v=typeof m.full_name==='string'?m.full_name:typeof m.name==='string'?m.name:'';const t=v.replace(/\s+/g,' ').trim().slice(0,80);return t||undefined}

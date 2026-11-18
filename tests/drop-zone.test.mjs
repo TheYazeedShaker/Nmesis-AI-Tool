@@ -153,12 +153,15 @@ test('every tool adds pictures through the drop zone; the old paste box is gone'
     assert.match(s, /<DropZone /, f);
     assert.doesNotMatch(s, /clipboard-image-input|ClipboardImageInput/, f);
   }
-  for (const f of ['app/key-visual/page.tsx', 'app/lineup/page.tsx']) assert.match(read(f), /<InspirationCard /, f);
+  assert.match(read('app/lineup/page.tsx'), /<InspirationCard /, 'app/lineup/page.tsx');
+  // Key visual: References (components/editor/references-settings.tsx) holds the inspiration pictures, through the same drop zone.
+  assert.match(read('app/key-visual/page.tsx'), /<ReferencesSettings /);
+  assert.match(read('components/editor/references-settings.tsx'), /<DropZone /);
 });
 
 test('the settings say what happens in plain words; the share prompt is explained only just before the browser asks', () => {
   const kv = read('app/key-visual/page.tsx');
-  assert.match(kv, /'Turn the car to the angle you want\. Generate takes a picture of this view\.'/);
+  assert.match(kv, /'Turn the car in the configurator\. Generate takes a picture of that view\.'/);
   for (const f of ['app/key-visual/page.tsx', 'app/lineup/page.tsx', 'app/swap/page.tsx', 'app/films/page.tsx', 'app/storyboard/page.tsx', 'components/editor/lineup-capture.tsx', 'components/editor/storyboard-car.tsx', 'components/editor/swap-parts.tsx']) {
     assert.doesNotMatch(read(f), /isolated capture|share This Tab|choose This Tab/, f);
   }

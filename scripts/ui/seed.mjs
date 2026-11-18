@@ -117,7 +117,7 @@ export async function seedAccounts(adminUrl, auth) {
   try {
     for (const p of Object.values(PEOPLE)) {
       await admin`insert into auth.users(id,email,raw_user_meta_data) values (${p.id}, ${p.email}, ${admin.json({ full_name: p.name })})`;
-      auth.addUser(p.email, PASSWORD, { nmesis_password_set: true }, { id: p.id, aal: p.staff ? 'aal2' : 'aal1' });
+      auth.addUser(p.email, PASSWORD, { nmesis_password_set: true }, { id: p.id, aal: p.staff ? 'aal2' : 'aal1', name: p.name });
     }
     for (const o of Object.values(ORGS)) {
       await admin`insert into accounts.organisations(id,name,kind,status) values (${o.id}, ${o.name}, ${o.kind}, ${o.ended ? 'ended' : 'active'})`;

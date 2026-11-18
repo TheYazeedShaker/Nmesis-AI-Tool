@@ -67,8 +67,10 @@ function Note({ds,kind,icon,children}:{ds:boolean;kind:'info'|'warn';icon:React.
   :<div className={kind==='warn'?'workspace-closed':'viewing-as'} role="status">{icon}<span>{children}</span></div>;
 }
 // variant 'ds' (the rebuilt screens): the same notices as design-system banners.
-export function AccountNotices({variant}:{variant?:'ds'}={}){
- const account=useAccount(),settled=useNoticesSettled(),space=useRememberedSpace(variant||'plain');
+// credits false (Home): no credit banner; the page says the credits left in its own line.
+export function AccountNotices({variant,credits=true}:{variant?:'ds';credits?:boolean}={}){
+ const kind=(variant||'plain')+(credits?'':'-nocredits');
+ const account=useAccount(),settled=useNoticesSettled(),space=useRememberedSpace(kind);
  // A deep link (/?org=…) the server refused, or could not open, lands here once.
  const [opened]=useState(()=>typeof window==='undefined'?null:new URLSearchParams(window.location.search).get('opened'));
  const box=useRef<HTMLDivElement>(null);
@@ -76,11 +78,11 @@ export function AccountNotices({variant}:{variant?:'ds'}={}){
  // banner that arrives later (the credits) is remembered too.
  useLayoutEffect(()=>{
   const el=box.current;if(!settled||!account||!el)return;
-  const remember=()=>rememberNoticeSpace(window.innerWidth,el.offsetHeight,undefined,variant||'plain');
+  const remember=()=>rememberNoticeSpace(window.innerWidth,el.offsetHeight,undefined,kind);
   remember();
   if(typeof ResizeObserver==='undefined')return;
   const watch=new ResizeObserver(remember);watch.observe(el);return()=>watch.disconnect();
- },[settled,account,variant]);
+ },[settled,account,kind]);
  if(!settled)return space===null?<div className="notices-pending" aria-hidden="true"/>:<div className="studio-notices" aria-hidden="true" style={noticeSpace(space)}/>;
  if(!account)return null;
  const w=account.workspace,ds=variant==='ds';
@@ -90,7 +92,7 @@ export function AccountNotices({variant}:{variant?:'ds'}={}){
   {opened==='failed'&&<Note ds={ds} kind="info" icon={<Info size={16}/>}>That company link could not be opened. Try it again, or choose the company here.</Note>}
   {account.viewingAs&&<Note ds={ds} kind="info" icon={<Eye size={16}/>}>Viewing as <b>{staffLabel(account.brand,account.org)}</b> with support access{account.supportUntil?` until ${new Date(account.supportUntil).toLocaleString()}`:''}. Read-only; every opening is logged and the company’s owner can see it.</Note>}
   {!w.open&&w.noPlan&&<Note ds={ds} kind="warn" icon={<Lock size={16}/>}>Your Studio isn’t part of your plan yet. Ask Nmesis.</Note>}
-  {w.open&&<CreditBanner variant={variant}/>}
+  {w.open&&credits&&<CreditBanner variant={variant}/>}
   {!w.open&&!w.noPlan&&<Note ds={ds} kind="warn" icon={<Lock size={16}/>}>{w.libraryOpen?'Your company’s Studio subscription is not active, so new work is paused.'+(w.libraryUntil?` Your library stays viewable until ${w.libraryUntil}.`:' Your library stays viewable.'):'Your company’s Studio subscription has ended and its library is no longer available here.'} Ask Nmesis to reopen it.</Note>}
   {w.open&&account.role==='viewer'&&!account.viewingAs&&<Note ds={ds} kind="info" icon={<Info size={16}/>}>You can look at your company’s work. Ask your company’s owner for creator access to make new work.</Note>}
  </div>;

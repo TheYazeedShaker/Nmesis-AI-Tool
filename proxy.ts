@@ -1,15 +1,19 @@
 import {NextResponse,type NextRequest} from 'next/server';
 import {createServerClient} from '@supabase/ssr';
 import {GALLERY_PATH,galleryOpenWithoutSignIn} from '@/lib/ds/gallery-access';
+import {closedToolAt} from '@/lib/tools';
 // Workspace pages only (API routes verify the session themselves). Refreshes the
 // Supabase session cookies, sends a signed-out visitor to sign in, and holds a
 // person at "Choose your password" while that card is owed (set by the server
 // after an invitation or recovery link). A deep link to a company's workspace
 // (/?org=<id>, from the admin) goes to /auth/open, which checks it on the server.
-const PUBLIC=/^\/(signin(\/.*)?|auth\/.*)$/;
+// /view/<token>: a public view link (lib/shares), checked against its expiry and switch on every request.
+const PUBLIC=/^\/(signin(\/.*)?|auth\/.*|view\/[A-Za-z0-9_-]{20,80})$/;
 export async function proxy(request:NextRequest){
  const path=request.nextUrl.pathname;
  if(PUBLIC.test(path))return NextResponse.next();
+ // A tool that is not open yet (lib/tools.ts): its pages go Home, where it shows as Coming soon.
+ if(closedToolAt(path)){const to=request.nextUrl.clone();to.pathname='/';to.search='';return NextResponse.redirect(to,303)}
  // Local next dev only, with STUDIO_DESIGN_GALLERY=open (never on a deployment).
  if(GALLERY_PATH.test(path)&&galleryOpenWithoutSignIn())return NextResponse.next();
  const url=(process.env.SUPABASE_URL||'').trim().replace(/\/+$/,''),key=(process.env.SUPABASE_PUBLISHABLE_KEY||'').trim();

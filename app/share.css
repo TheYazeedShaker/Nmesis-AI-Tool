@@ -1,0 +1,47 @@
+/* share: see the component that uses it. Tokens only (docs/design-system.md). */
+
+/* ── The Share panel (components/share/share-panel.tsx) ─────────────────── */
+/* Plain sections, one after another, a hairline between them: no boxes in boxes. */
+.share-panel .ds-dialog-body { gap: var(--ds-space-16); }
+.share-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.share-section { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.share-section + .share-section { padding-top: var(--ds-space-16); border-top: var(--ds-border-width) solid var(--ds-border); }
+.share-heading {
+  margin: 0;
+  font-size: var(--ds-text-md); line-height: var(--ds-leading-md);
+  font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong);
+}
+.share-note { margin: 0; color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); max-width: var(--ds-measure); }
+.share-strong { color: var(--ds-text-strong); font-weight: var(--ds-weight-semibold); }
+
+.share-people { display: flex; flex-direction: column; gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; }
+.share-person { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--ds-space-12); min-width: 0; }
+.share-person-who { display: flex; flex-direction: column; min-width: 0; }
+.share-person-name { color: var(--ds-text); font-size: var(--ds-text-base); line-height: var(--ds-leading-base); }
+.share-you { color: var(--ds-muted); }
+.share-person-role { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.share-person-can { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); text-align: end; }
+
+.share-access { margin: 0; }
+.share-link-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ds-space-8); min-width: 0; }
+.share-link-row .share-link-input { flex: 1 1 0%; width: auto; min-width: 0; font-family: var(--ds-font-mono); font-size: var(--ds-text-sm); }
+.share-download { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--ds-space-12); min-width: 0; }
+.share-download > .ds-field { flex: 1 1 auto; min-width: 0; }
+
+/* ── The public view page (app/view/[token]) ────────────────────────────── */
+.share-view { display: flex; align-items: center; justify-content: center; padding: var(--ds-space-32) var(--ds-space-16); }
+.share-view-figure { display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-16); margin: 0; width: 100%; max-width: var(--ds-page-max); min-width: 0; }
+.share-view-img { max-width: 100%; max-height: calc(100dvh - var(--ds-space-64) * 3); width: auto; height: auto; object-fit: contain; border-radius: var(--ds-radius-md); background: var(--ds-media-bg); box-shadow: var(--ds-shadow-2); }
+.share-view-caption { display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-4); text-align: center; min-width: 0; }
+.share-view-title {
+  font-family: var(--ds-font-display); font-size: var(--ds-text-xl); line-height: var(--ds-leading-xl);
+  font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); overflow-wrap: anywhere;
+}
+.share-view-from { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.share-view-gone { max-width: var(--ds-measure); color: var(--ds-text); font-size: var(--ds-text-md); line-height: var(--ds-leading-md); text-align: center; }
+
+@media (max-width: 480px) {
+  .share-download > .ds-field { flex-basis: 100%; }
+  .share-person { grid-template-columns: auto minmax(0, 1fr); }
+  .share-person-can { grid-column: 2; text-align: start; }
+}

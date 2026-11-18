@@ -71,7 +71,7 @@ test('Create is a menu of the five tools, to the editor’s pages, with plan chi
   // Viewers, staff viewing a client and Deleted: no Create.
   assert.match(lib, /actions=\{!deletedView&&!readOnly&&createButton\}/);
   // The tools in the editor's order, to the editor's pages.
-  const create = [...pages.matchAll(/\{key:'\w+',label:'(New [^']+)',href:([^,]+),icon:<\w+\/>,feature:'([\w.]+)'\}/g)].map((m) => ({label: m[1], href: m[2], feature: m[3]}));
+  const create = [...pages.matchAll(/\{tool:'\w+',key:'\w+',label:'(New [^']+)',href:([^,]+),icon:<\w+\/>,feature:'([\w.]+)'\}/g)].map((m) => ({label: m[1], href: m[2], feature: m[3]}));
   assert.deepEqual(create.map((t) => t.label), ['New key visual', 'New line-up', 'New film', 'New swap', 'New story']);
   const tools = [...editor.matchAll(/\{id:'\w+',label:'[^']+',href:([^,]+),icon:/g)].map((m) => m[1]);
   assert.deepEqual(create.map((t) => t.href), tools);
