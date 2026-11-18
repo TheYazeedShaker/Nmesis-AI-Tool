@@ -68,7 +68,8 @@ export function EditorScreen({tool,onTool,bar,stage,history,jobs,settings,cost,v
  // whatever it has (a status that failed never hides the editor).
  const [late,setLate]=React.useState(false);
  React.useEffect(()=>{if(!loading)return;const t=setTimeout(()=>setLate(true),LOADING_HOLD_MS);return()=>clearTimeout(t)},[loading]);
- return <EditorLayout loading={!!loading&&!late} name={`editor-${tool}`} tools={EDITOR_TOOLS.map(t=>({id:t.id,label:t.label,icon:t.icon}))} tool={tool} onTool={id=>onTool(id as EditorTool)}
+ // One navigation: the Studio's left navigation (components/shell) replaces the editor's own tool rail; tools open from Home.
+ return <EditorLayout loading={!!loading&&!late} name={`editor-${tool}`} tools={[]} tool={tool} onTool={id=>onTool(id as EditorTool)}
   canvasBar={bar}
   canvas={<div className="editor-stage"><div className="editor-stage-main">{stage}</div><div className="editor-stage-history">{history}</div></div>}
   jobs={jobs}

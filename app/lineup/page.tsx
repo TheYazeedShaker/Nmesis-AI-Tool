@@ -1,7 +1,8 @@
 'use client';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
-import {AlertTriangle,Columns2,Download,Loader2,MoreHorizontal,RefreshCw,RotateCcw,Scissors,Wand2,X} from 'lucide-react';
+import {AlertTriangle,Columns2,Download,Loader2,MoreHorizontal,RefreshCw,RotateCcw,Scissors,Share2,Wand2,X} from 'lucide-react';
+import {SharePanel} from '@/components/share/share-panel';
 import {useBackoffPoll} from '@/lib/use-backoff-poll';
 import {AccountNotices,PlanGate,hasFeature,providerNames,useAccount} from '@/components/studio-account';
 import {studioFetch} from '@/lib/studio-fetch';
@@ -27,8 +28,9 @@ import {State} from '@/components/ds/feedback';
 import {Menu,MenuItem} from '@/components/ds/menu';
 import {useToast} from '@/components/ds/toast';
 import {WorkspaceFrame} from '@/components/workspace/frame';
-import {Advanced,EDITOR_TOOLS,EditorScreen,type GenerateBlocker} from '@/components/editor/editor-screen';
-import {CostBadge,PromptSettings,SaveToProject,VersionHistory,type Version} from '@/components/editor/parts';
+import {EDITOR_TOOLS,EditorScreen,type GenerateBlocker} from '@/components/editor/editor-screen';
+import {CostBadge,CostLine,PromptSettings,SaveToProject,SettingsSection,VersionHistory,type Version} from '@/components/editor/parts';
+import {Fold} from '@/components/ds/layout';
 import {useProject} from '@/components/editor/use-project';
 import {InspirationCard} from '@/components/editor/inspiration-card';
 import {LineupCarDialog} from '@/components/editor/lineup-capture';
@@ -56,6 +58,7 @@ function LineupStudio(){
  const [cars,setCars]=useState<LineupCar[]>([]),[layout,setLayout]=useState<Lineup['layout']>('inspiration'),[heroId,setHeroId]=useState(''),[strictReference,setStrictReference]=useState(false),[refineStrict,setRefineStrict]=useState(false),[compare,setCompare]=useState(false),[expert,setExpert]=useState(false),[captureId,setCaptureId]=useState(''),[libraryId,setLibraryId]=useState('');
  // Cars still on the placeholder (no views yet) move to the deployment's presets once they load.
  const presets=useConfiguratorPresets(list=>{if(!isDemoConfigurator(list[0]))setCars(p=>p.map((c,i)=>!c.views.length&&isDemoConfigurator({url:c.configurator})?{...c,name:(list[i<2?i:0]||list[0]).name,configurator:(list[i<2?i:0]||list[0]).url}:c))});
+ const [shareOpen,setShareOpen]=useState(false);
  const [pin,setPin]=useState(''),[mood,setMood]=useState<{id:string;name:string;pin:string}|null>(null),[brief,setBrief]=useState(''),[provider,setProvider]=useState<ImageProvider>('openai'),[model,setModel]=useState<string>(OPENAI_IMAGE_MODEL),[size,setSize]=useState('2048x1152');
  const [visuals,setVisuals]=useState<Visual[]>([]),[currentId,setCurrentId]=useState<string|null>(null),[view,setView]=useState<'setup'|'result'>('setup'),[refineCar,setRefineCar]=useState(''),[refinement,setRefinement]=useState(''),[refineOpen,setRefineOpen]=useState(false),[areaOpen,setAreaOpen]=useState(false),[connected,setConnected]=useState(false),[status,setStatus]=useState<{known:boolean;ownKeys:boolean}>({known:false,ownKeys:false}),[ready,setReady]=useState(false),[busy,setBusy]=useState(''),[error,setError]=useState(''),[downloading,setDownloading]=useState(false);
  const [moodError,setMoodError]=useState(''),[pinError,setPinError]=useState('');
@@ -127,6 +130,7 @@ function LineupStudio(){
     {selected.lineup&&<Button size="sm" kind="quiet" icon={<Wand2 aria-hidden="true"/>} disabled={!!busy} onClick={()=>setRefineOpen(true)}>Refine a car{cost!==null&&<span className="ds-btn-meta">· {creditWords(cost)}</span>}</Button>}
     {canArea&&<Button size="sm" kind="quiet" icon={<Scissors aria-hidden="true"/>} disabled={!!busy} onClick={()=>setAreaOpen(true)}>Area edit{areaCost&&<span className="ds-btn-meta">· {areaCost}</span>}</Button>}
     <IconButton label="Download" size="sm" busy={downloading} onClick={()=>void save(selected)}><Download aria-hidden="true"/></IconButton>
+    {selected.status==='ready'&&<Button size="sm" kind="primary" icon={<Share2 aria-hidden="true"/>} onClick={()=>setShareOpen(true)}>Share</Button>}
    </>}
    <Menu label="More for this line-up" trigger={<MoreHorizontal aria-hidden="true"/>} size="sm">
     {selected&&showResult&&selected.moodId&&<MenuItem icon={<Columns2/>} onSelect={()=>setCompare(c=>!c)}>{compare?'Show generated lineup':'Compare with reference'}</MenuItem>}
@@ -144,9 +148,10 @@ function LineupStudio(){
   :<State kind={shown.status==='failed'?'error':'empty'} icon={shown.status==='failed'?undefined:<Loader2 className="ds-spin-icon"/>} title={shown.status==='failed'?'Could not finish':'Creating your lineup…'}
     actions={shown.provider==='higgsfield'?<Button size="sm" disabled={!!busy} onClick={()=>checkOriginal(shown)}>Check original request</Button>:undefined}>{say(shown.error||'Aligning cars, light and atmosphere.')}</State>;
 
+ // The settings, one column, for someone new: the cars, the inspiration, Quality,
+ // what it will use; the layout, your words and the engine under Advanced (closed).
  const settings=<fieldset className="editor-lineup-fields" disabled={!!busy}>
   <LineupCars cars={cars} heroId={heroId} strict={strictReference} ready={ready} onEdit={setCaptureId} onSaved={setLibraryId} onHero={chooseHero} onMove={moveCar} onRemove={removeCar} onAdd={addCar}/>
-  <LineupLayout cars={cars} layout={layout} strict={strictReference} expert={expert} onLayout={chooseLayout} onExpert={setExpert} onPlace={update}/>
   <div className="ds-contents" onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!busy)void addMood(file,'Adding inspiration…')}}}>
   <InspirationCard id="lineup-inspiration-title" help="Its cars are replaced by yours: the picture sets the staging, light and atmosphere."
    mood={<><b>What’s the mood?</b> A line-up picture for the staging, or a place for the light.</>}
@@ -156,12 +161,17 @@ function LineupStudio(){
    <LineupReferenceSwitch active={strictReference} onChange={active=>{setStrictReference(active);if(active)setLayout('inspiration')}}/>
   </InspirationCard>
   </div>
-  <PromptSettings label="Anything else? (optional)" value={brief} onChange={setBrief} max={2000} inspiration={false} placeholder="A mountain overlook at sunset. Keep every car visible, with warm light from the right…"/>
-  <LineupQuality o={o} provider={provider} model={model} size={size} onSize={setSize} names={names}>
-   <Advanced name="lineup"><LineupEngine names={names} provider={provider} model={model} size={size}
-    onProvider={p=>{setProvider(p);setModel(p==='openai'?OPENAI_IMAGE_MODEL:HIGGSFIELD_IMAGE_MODELS[0].id);setSize('2048x1152')}}
-    onModel={m=>{setModel(m);if(provider==='higgsfield'&&!higgsImageModel(m).max4k&&size==='3840x2160')setSize('2048x1152')}} onSize={setSize}/></Advanced>
-  </LineupQuality>
+  <LineupQuality o={o} provider={provider} model={model} size={size} onSize={setSize} names={names}/>
+  <CostLine cost={cost} own={billing||null}/>
+  <Fold name="lineup-advanced" title="Advanced" summary={['Layout',brief.trim()?'your words':'your idea',names?'image generator, model and size':''].filter(Boolean).join(' · ')} className="editor-advanced">
+   <div className="ds-stack">
+    <LineupLayout cars={cars} layout={layout} strict={strictReference} expert={expert} onLayout={chooseLayout} onExpert={setExpert} onPlace={update}/>
+    <PromptSettings label="Anything else? (optional)" value={brief} onChange={setBrief} max={2000} inspiration={false} placeholder="A mountain overlook at sunset. Keep every car visible, with warm light from the right…"/>
+    {names&&<SettingsSection title="Image generator" id="lineup-engine-title"><LineupEngine names={names} provider={provider} model={model} size={size}
+     onProvider={p=>{setProvider(p);setModel(p==='openai'?OPENAI_IMAGE_MODEL:HIGGSFIELD_IMAGE_MODELS[0].id);setSize('2048x1152')}}
+     onModel={m=>{setModel(m);if(provider==='higgsfield'&&!higgsImageModel(m).max4k&&size==='3840x2160')setSize('2048x1152')}} onSize={setSize}/></SettingsSection>}
+   </div>
+  </Fold>
  </fieldset>;
 
  const jobs=busy||error?<div className="ds-stack">
@@ -176,6 +186,7 @@ function LineupStudio(){
   <EditorScreen tool="lineup" loading={!status.known} onTool={t=>{if(t!=='lineup')router.push(EDITOR_TOOLS.find(x=>x.id===t)?.href||'/')}}
    bar={bar} stage={stage} history={<VersionHistory versions={versions} current={showResult?currentId:null} onPick={id=>{const v=visuals.find(x=>x.id===id);if(v)pick(v)}}/>}
    jobs={jobs} settings={settings} cost={cost} busy={!!busy} blocked={blocked} payer={provider} disabled={!ready||!status.known||!!issue||(!mood&&!pin.trim())} onGenerate={()=>void generate()} note={note}/>
+  {selected&&selected.status==='ready'&&<SharePanel open={shareOpen} onClose={()=>setShareOpen(false)} item={{kind:'visual',id:selected.id,title:selected.title,src:selected.src,mine:selected.mine!==false}}/>}
   {editCar&&editConfig&&<LineupCarDialog key={editCar.id} car={editCar} index={cars.indexOf(editCar)} config={editConfig} onPatch={patch=>update(editCar.id,patch)} onClose={()=>setCaptureId('')}/>}
   {libraryId&&<LineupSavedDialog saved={Array.from(savedMap.values())} cars={cars} targetId={libraryId} onClose={()=>setLibraryId('')} onPick={c=>{update(libraryId,{name:c.name,configurator:c.configurator,finish:c.finish,views:c.views.slice(0,2)});setLibraryId('')}}/>}
   {refineOpen&&selected?.lineup&&<LineupRefineDialog visual={selected} strict={refineStrict} onStrict={setRefineStrict} carId={refineCar} onCar={setRefineCar} text={refinement} onText={setRefinement} cost={cost} note={billing} onClose={()=>setRefineOpen(false)} onRefine={()=>{setRefineOpen(false);void generate(selected)}}/>}

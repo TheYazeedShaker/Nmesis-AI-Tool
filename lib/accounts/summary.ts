@@ -6,7 +6,7 @@ import type {StudioDatabase} from '@/lib/portable/database';
 // route still decides for itself.
 export function accountSummary(ctx:StudioContext,now=Date.now()){
  return {
-  user:{email:ctx.user.email},
+  user:{email:ctx.user.email,name:ctx.user.name??null},
   // The company's legal name: shown only in Company settings, Usage and billing.
   org:{id:ctx.org.id,name:ctx.org.name},
   // What its people work as everywhere else (the top bar, the switcher, Home, titles).

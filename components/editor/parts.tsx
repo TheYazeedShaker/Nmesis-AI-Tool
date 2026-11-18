@@ -23,6 +23,11 @@ export function CostBadge({credits,used}:{credits:number|null;used?:boolean}){
  return <Badge icon={<Coins aria-hidden="true"/>}>{used?`Used ${creditWords(credits)}`:creditWords(credits)}</Badge>;
 }
 
+/** What Generate will use, live, just above it: the credits (× how many), or the company's own-key words. */
+export function CostLine({cost,count=1,unit=null,own=null}:{cost:number|null;count?:number;unit?:number|null;own?:string|null}){
+ return <p className="editor-cost-line" aria-live="polite">{own?own:cost===null?'The credits show here once the price is known.':<>This will use <b>{creditWords(cost)}</b>{count>1&&typeof unit==='number'?<> ({count} × {creditWords(unit)})</>:null}.</>}</p>;
+}
+
 export function SettingsSection({title,children,id}:{title:string;children:React.ReactNode;id?:string}){
  return <section className="editor-section" aria-labelledby={id}><h3 className="editor-section-title" id={id}>{title}</h3>{children}</section>;
 }
@@ -30,19 +35,21 @@ export function SettingsSection({title,children,id}:{title:string;children:React
 /** Car, colour, trim and view. With today's configurator the colour, trim and
  *  view are chosen inside it (`controlsInEditor` false); with remote control
  *  they are set from here. */
-export function CarSettings({cars,car,onCar,options,state,onColour,onTrim,onView,controlsInEditor,idPrefix='car'}:{
+export function CarSettings({cars,car,onCar,options,state,onColour,onTrim,onView,controlsInEditor,idPrefix='car',title='Car',children}:{
  cars:string[];car:string;onCar:(c:string)=>void;options:ConfiguratorOptions;state:{colour?:string;trim?:string;view?:string};
- onColour:(id:string)=>void;onTrim:(id:string)=>void;onView:(id:string)=>void;controlsInEditor:boolean;idPrefix?:string}){
- return <SettingsSection title="Car" id={`${idPrefix}-title`}>
+ onColour:(id:string)=>void;onTrim:(id:string)=>void;onView:(id:string)=>void;controlsInEditor:boolean;idPrefix?:string;
+ /** "Car and view": the page's own view controls follow the car, in the same section. */title?:string;children?:React.ReactNode}){
+ return <SettingsSection title={title} id={`${idPrefix}-title`}>
   <CarChoicePicture car={car}/>
-  <Field label="Car" help="From your company’s configurators."><Select value={car} onChange={e=>onCar(e.target.value)}>{cars.map(c=><option key={c}>{c}</option>)}</Select></Field>
+  <Field label="Car"><Select value={car} onChange={e=>onCar(e.target.value)}>{cars.map(c=><option key={c}>{c}</option>)}</Select></Field>
   {controlsInEditor&&options.colours.length>0&&<fieldset className="editor-swatches"><legend className="ds-label">Colour</legend>
    {options.colours.map(c=><label key={c.id} className="editor-swatch" title={c.name}><input className="editor-choice-input" type="radio" name={`${idPrefix}-colour`} checked={state.colour===c.id} onChange={()=>onColour(c.id)}/><span className="editor-swatch-chip" style={{background:c.swatch}} aria-hidden="true"/><span className="ds-sr-only">{c.name}</span></label>)}
    <span className="ds-help editor-swatch-name">{options.colours.find(c=>c.id===state.colour)?.name||'Choose a colour'}</span>
   </fieldset>}
   {controlsInEditor&&options.trims.length>0&&<Field label="Trim"><Select value={state.trim} onChange={e=>onTrim(e.target.value)}>{options.trims.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</Select></Field>}
   {controlsInEditor&&options.views.length>0&&<ChoiceChips legend="View" name={`${idPrefix}-view`} choices={options.views} value={state.view} onChange={onView}/>}
-  {!controlsInEditor&&<p className="ds-help">Choose the colour, trim and view in the configurator, then press Use this view.</p>}
+  {!controlsInEditor&&!children&&<p className="ds-help">Choose the colour, trim and view in the configurator, then press Use this view.</p>}
+  {children}
  </SettingsSection>;
 }
 

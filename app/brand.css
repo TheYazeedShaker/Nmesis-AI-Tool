@@ -1,0 +1,64 @@
+/* ─── The Brand page ──────────────────────────────────────────────────────
+   components/brand/brand-kit.tsx: the company's logos, colours, fonts and
+   voice. Built on the design system (app/design-system.css), light and dark.
+   Tokens only (docs/design-system.md). A swatch's own colour is data, set
+   inline from the saved hex value. */
+
+.brand-page { display: flex; flex-direction: column; gap: var(--ds-space-24); max-width: var(--ds-page-max); min-width: 0; }
+.brand-page .ds-page-head { margin-bottom: 0; }
+.brand-form { display: flex; flex-direction: column; gap: var(--ds-space-24); min-width: 0; }
+.brand-line { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); max-width: var(--ds-measure); }
+.brand-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(24rem, 100%), 1fr)); gap: var(--ds-space-24); min-width: 0; }
+
+/* Logos: whole (contain) on a checkerboard that shows transparency. The element
+   carries data-theme="light", so the checkerboard is light in both themes. */
+.brand-logo-media { background: repeating-conic-gradient(var(--ds-panel-2) 0 25%, var(--ds-panel-3) 0 50%) 0 0 / var(--ds-space-16) var(--ds-space-16); }
+.ds-tile-media.brand-logo-media > img { object-fit: contain; padding: var(--ds-space-16); }
+
+/* Colours being edited: picker, hex, name, remove; on a phone the name goes under. */
+.brand-colours { display: flex; flex-direction: column; gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; min-width: 0; max-width: var(--ds-measure); }
+.brand-colour { display: flex; flex-direction: column; gap: var(--ds-space-4); min-width: 0; }
+.brand-colour-row {
+  display: grid; align-items: center; gap: var(--ds-space-8); min-width: 0;
+  grid-template-columns: var(--ds-control-h) minmax(0, 8rem) minmax(0, 1fr) auto;
+  grid-template-areas: "pick hex name remove";
+}
+.brand-colour-pick {
+  grid-area: pick; width: var(--ds-control-h); height: var(--ds-control-h); padding: var(--ds-space-2); cursor: pointer;
+  border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius-md); background: var(--ds-panel);
+}
+.brand-colour-pick:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.brand-colour-pick::-webkit-color-swatch-wrapper { padding: 0; }
+.brand-colour-pick::-webkit-color-swatch { border: 0; border-radius: var(--ds-radius-sm); }
+.brand-colour-pick::-moz-color-swatch { border: 0; border-radius: var(--ds-radius-sm); }
+.brand-colour-hex { grid-area: hex; font-family: var(--ds-font-mono); text-transform: uppercase; }
+.brand-colour-name { grid-area: name; }
+.brand-colour-row > .ds-btn { grid-area: remove; }
+@media (max-width: 480px) {
+  .brand-colour-row { grid-template-columns: var(--ds-control-h) minmax(0, 1fr) auto; grid-template-areas: "pick hex remove" ". name name"; }
+}
+
+/* Colours, read-only. */
+.brand-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), 1fr)); gap: var(--ds-space-12); margin: 0; padding: 0; list-style: none; min-width: 0; }
+.brand-swatch { display: flex; align-items: center; gap: var(--ds-space-12); min-width: 0; }
+.brand-swatch-chip { flex: none; width: var(--ds-space-40); height: var(--ds-space-40); border-radius: var(--ds-radius-md); border: var(--ds-border-width) solid var(--ds-border); }
+.brand-swatch-text { display: flex; flex-direction: column; min-width: 0; }
+.brand-swatch-text b { font-weight: var(--ds-weight-medium); color: var(--ds-text); }
+.brand-hex { font-family: var(--ds-font-mono); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); color: var(--ds-muted); }
+
+/* Fonts and voice, read-only. */
+.brand-facts { display: flex; flex-direction: column; gap: var(--ds-space-12); margin: 0; }
+.brand-facts > div { display: flex; justify-content: space-between; gap: var(--ds-space-16); min-width: 0; }
+.brand-facts dt { color: var(--ds-muted); }
+.brand-facts dd { margin: 0; font-weight: var(--ds-weight-medium); color: var(--ds-text); text-align: right; }
+.brand-voice { color: var(--ds-text); font-size: var(--ds-text-md); line-height: var(--ds-leading-md); max-width: var(--ds-measure); overflow-wrap: anywhere; }
+
+/* The save bar: a plain row, which sticks to the bottom while there are unsaved changes. */
+.brand-save { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ds-space-8) var(--ds-space-16); min-width: 0; padding: var(--ds-space-12) var(--ds-space-16); border: var(--ds-border-width) solid transparent; border-radius: var(--ds-radius); }
+.brand-save-state { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.brand-save .ds-error { flex-basis: 100%; order: 3; }
+.brand-save[data-dirty="true"] {
+  position: sticky; bottom: var(--ds-space-16); z-index: var(--ds-z-sticky);
+  background: var(--ds-panel); border-color: var(--ds-border); box-shadow: var(--ds-shadow-2);
+}
+.brand-save[data-dirty="true"] .brand-save-state { color: var(--ds-text); }

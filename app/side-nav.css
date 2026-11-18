@@ -1,0 +1,166 @@
+/* The Studio's frame (components/workspace/frame.tsx, components/shell/*):
+   the left navigation, its side panel, the account menu and the page column.
+   Tokens only (docs/design-system.md). */
+
+/* ── Frame: navigation | panel | page ─────────────────────────────────── */
+.ds-shell.studio-frame { flex-direction: row; align-items: stretch; min-height: 100dvh; }
+.studio-frame-page { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.studio-frame-page > .ds-main { flex: 1 1 auto; }
+/* The page's own background reaches the bottom of the window: nothing else
+   (the old dark body) can show under the content. */
+body:has(> .ds-shell), body:has(.studio-frame) { background: var(--ds-bg); }
+
+/* The editor: the frame is exactly the window, the editor fills what is left
+   under the notices, and its row never grows past it (the canvas and the
+   settings scroll inside). This removes the dark band that showed under tool
+   pages when a notice pushed the editor past the window. */
+.studio-frame:has(.ds-main.bleed) { height: 100dvh; min-height: 0; overflow: hidden; }
+.studio-frame:has(.ds-main.bleed) .studio-frame-page { min-height: 0; }
+.studio-frame .ds-main.bleed { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+.studio-frame .ds-main.bleed > .ds-editor { flex: 1 1 auto; height: auto; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+/* One navigation: the editor's own tool rail is gone (EditorLayout draws none when given no tools). */
+.ds-editor[data-rail="none"] { grid-template-columns: minmax(0, 1fr) var(--ds-settings-w); }
+.ds-editor[data-rail="none"][data-settings="closed"] { grid-template-columns: minmax(0, 1fr) 0; }
+
+/* ── The navigation ───────────────────────────────────────────────────── */
+.studio-side {
+  --studio-side-w: 84px;
+  position: sticky; top: 0; flex: none; width: var(--studio-side-w); height: 100dvh;
+  display: flex; flex-direction: column; gap: var(--ds-space-8);
+  padding: var(--ds-space-12) var(--ds-space-8);
+  background: var(--ds-panel); border-right: var(--ds-border-width) solid var(--ds-border);
+  overflow-y: auto; z-index: var(--ds-z-raised);
+}
+.studio-side[data-expanded] { --studio-side-w: 232px; padding: var(--ds-space-12); }
+.studio-side-head { display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-8); padding-bottom: var(--ds-space-8); }
+.studio-side[data-expanded] .studio-side-head { flex-direction: row; justify-content: space-between; }
+.studio-side-brand {
+  display: inline-flex; align-items: center; gap: var(--ds-space-8); min-width: 0; min-height: var(--ds-tap-min);
+  color: var(--ds-text-strong); text-decoration: none; font-family: var(--ds-font-display); font-weight: var(--ds-weight-semibold);
+  font-size: var(--ds-text-sm); letter-spacing: var(--ds-tracking-label); white-space: nowrap;
+}
+.studio-side-toggle { flex: none; }
+.studio-side-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ds-space-4); }
+.studio-side-item {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--ds-space-4);
+  width: 100%; min-height: var(--ds-space-64); padding: var(--ds-space-8) var(--ds-space-4);
+  border: 0; border-radius: var(--ds-radius-md); background: transparent; color: var(--ds-muted);
+  font: inherit; font-size: var(--ds-text-2xs); line-height: var(--ds-leading-2xs); font-weight: var(--ds-weight-medium);
+  text-decoration: none; text-align: center; cursor: pointer;
+}
+.studio-side-item > svg { width: var(--ds-icon-lg); height: var(--ds-icon-lg); flex: none; }
+.studio-side-item:hover { background: var(--ds-panel-2); color: var(--ds-text); }
+.studio-side-item[aria-current="page"], .studio-side-item[aria-pressed="true"] { background: var(--ds-panel-hover); color: var(--ds-text-strong); }
+.studio-side-item:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: calc(var(--ds-focus-width) * -1); }
+.studio-side[data-expanded] .studio-side-item {
+  flex-direction: row; justify-content: flex-start; gap: var(--ds-space-12); min-height: var(--ds-tap-min);
+  padding: var(--ds-space-8) var(--ds-space-12); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); text-align: left;
+}
+.studio-side-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.studio-side-credits { display: flex; padding: 0 var(--ds-space-4); }
+.studio-side-credits .ds-meter { width: 100%; }
+
+/* ── The account (bottom of the navigation) ───────────────────────────── */
+.studio-account { position: relative; }
+.studio-avatar { flex: none; background: var(--ds-accent); color: var(--ds-accent-ink); font-weight: var(--ds-weight-semibold); font-size: var(--ds-text-xs); }
+.studio-account-button { padding: var(--ds-space-8); }
+.studio-side[data-expanded] .studio-account-button { padding: var(--ds-space-8); }
+.studio-account-label, .studio-account-names { display: flex; flex-direction: column; min-width: 0; line-height: var(--ds-leading-sm); }
+.studio-account-label b, .studio-account-names b { color: var(--ds-text-strong); font-weight: var(--ds-weight-semibold); }
+/* Fixed, so the navigation column (which scrolls) never clips it. */
+.studio-account-pop {
+  position: fixed; left: var(--ds-space-8); bottom: calc(var(--ds-space-64) + var(--ds-space-8)); z-index: var(--ds-z-dropdown);
+  width: 320px; max-height: calc(100dvh - var(--ds-space-64)); overflow-y: auto;
+  background: var(--ds-panel); color: var(--ds-text); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-lg); box-shadow: var(--ds-shadow-3);
+}
+.studio-account-body { display: flex; flex-direction: column; gap: var(--ds-space-4); padding: var(--ds-space-12); }
+.studio-account-who, .studio-account-company { display: flex; align-items: center; gap: var(--ds-space-12); padding: var(--ds-space-8); min-width: 0; }
+.studio-account-company { border-top: var(--ds-border-width) solid var(--ds-border); border-bottom: var(--ds-border-width) solid var(--ds-border); }
+.studio-account-company .studio-account-names { flex: 1 1 auto; }
+.studio-account-links { display: flex; flex-direction: column; gap: var(--ds-space-2); padding-top: var(--ds-space-4); }
+.studio-account-links form { display: contents; }
+.studio-account-row {
+  display: flex; align-items: center; gap: var(--ds-space-12); width: 100%; min-height: var(--ds-tap-min); padding: 0 var(--ds-space-8);
+  border: 0; border-radius: var(--ds-radius-md); background: transparent; color: var(--ds-text);
+  font: inherit; font-size: var(--ds-text-sm); text-align: left; text-decoration: none; cursor: pointer;
+}
+a.studio-account-row:hover, button.studio-account-row:hover { background: var(--ds-panel-2); }
+.studio-account-row > svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; color: var(--ds-muted); }
+.studio-account-grow { flex: 1 1 auto; min-width: 0; }
+.studio-account-theme { justify-content: space-between; flex-wrap: wrap; cursor: default; }
+.studio-theme > button { padding: 0 var(--ds-space-8); gap: var(--ds-space-4); }
+.studio-theme > button svg { width: var(--ds-icon); height: var(--ds-icon); }
+
+/* ── The side panel (References, Uploads) ─────────────────────────────── */
+.studio-panel {
+  position: sticky; top: 0; flex: none; width: 360px; height: 100dvh;
+  display: flex; flex-direction: column; background: var(--ds-panel); border-right: var(--ds-border-width) solid var(--ds-border);
+  z-index: var(--ds-z-raised);
+}
+.studio-panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--ds-space-8); padding: var(--ds-space-12) var(--ds-space-16); border-bottom: var(--ds-border-width) solid var(--ds-border); }
+.studio-panel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--ds-space-16); }
+.studio-pick-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-8); }
+.studio-pick {
+  position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; padding: 0; overflow: hidden;
+  border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-media-bg); cursor: pointer;
+}
+.studio-pick img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.studio-pick[aria-pressed="true"] { outline: var(--ds-focus-width) solid var(--ds-accent); outline-offset: calc(var(--ds-focus-width) * -1); }
+.studio-pick:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.studio-pick-tick {
+  position: absolute; top: var(--ds-space-8); right: var(--ds-space-8); display: grid; place-items: center;
+  width: var(--ds-space-24); height: var(--ds-space-24); border-radius: var(--ds-radius-round); background: var(--ds-accent); color: var(--ds-accent-ink);
+}
+.studio-pick-tick svg { width: var(--ds-icon); height: var(--ds-icon); }
+
+/* ── How it works (Home, Help) ────────────────────────────────────────── */
+.studio-how { display: flex; flex-direction: column; gap: var(--ds-space-12); }
+.studio-how-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--ds-space-12); counter-reset: step; }
+.studio-how-step { display: flex; align-items: flex-start; gap: var(--ds-space-12); min-width: 0; padding: var(--ds-space-12); border-radius: var(--ds-radius-md); background: var(--ds-panel-2); }
+.studio-how-mark { display: grid; place-items: center; flex: none; width: var(--ds-space-32); height: var(--ds-space-32); border-radius: var(--ds-radius-round); background: var(--ds-accent-soft); color: var(--ds-text-strong); }
+.studio-how-mark svg { width: var(--ds-icon); height: var(--ds-icon); }
+.studio-how-text { display: flex; flex-direction: column; gap: var(--ds-space-2); min-width: 0; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.studio-how-text b { color: var(--ds-text-strong); font-weight: var(--ds-weight-semibold); }
+.ds-dialog .studio-how-steps { grid-template-columns: minmax(0, 1fr); }
+
+/* ── Phones: a slim bar, the navigation in a drawer ───────────────────── */
+.studio-phonebar { display: none; }
+@media (max-width: 1024px) {
+  .studio-how-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-panel { width: 320px; }
+}
+@media (max-width: 768px) {
+  .ds-shell.studio-frame { flex-direction: column; }
+  .studio-side { display: none; }
+  .studio-phonebar {
+    position: sticky; top: 0; z-index: var(--ds-z-sticky); display: flex; align-items: center; gap: var(--ds-space-8);
+    min-height: var(--ds-topbar-h); padding: 0 var(--ds-space-16); background: var(--ds-panel); border-bottom: var(--ds-border-width) solid var(--ds-border);
+  }
+  .studio-phonebar .studio-side-credits { padding: 0; }
+  .studio-phonebar .studio-side-credits .ds-meter { width: auto; }
+  /* No phone navigation bar under the page any more: no room held for one. */
+  .studio-frame .ds-main { padding-bottom: var(--ds-space-32); }
+  .studio-frame .ds-main.bleed { padding-bottom: 0; }
+  /* Phones, as before the shell: the editor is the window under the slim bar, the canvas scrolls inside
+     itself and Generate keeps its own row at the bottom, so it never moves when the work loads. */
+  .studio-frame .ds-main.bleed > .ds-editor { grid-template-rows: minmax(0, 1fr) auto; min-height: 0; }
+  /* The stage keeps its own height and the version strip takes the room left under it: when the versions
+     arrive they fill that room, and nothing above or below them moves (check:ui layout shift). Without the
+     old tool strip there is spare room on phones; before, the stage stretched into it and gave it back. */
+  .studio-frame .ds-canvas-stage > .editor-stage > .editor-stage-main { flex: 0 0 auto; }
+  .studio-frame .ds-canvas-stage > .editor-stage > .editor-stage-history { flex: 1 0 auto; }
+  .ds-editor[data-rail="none"], .ds-editor[data-rail="none"][data-settings="closed"] { grid-template-columns: minmax(0, 1fr); }
+  .studio-side-drawer .studio-side-item { flex-direction: row; justify-content: flex-start; gap: var(--ds-space-12); min-height: var(--ds-tap-min); padding: 0 var(--ds-space-12); font-size: var(--ds-text-md); text-align: left; }
+  .studio-side-drawer .studio-side-list { margin-bottom: var(--ds-space-8); }
+  .studio-side-drawer .studio-account-body { padding: var(--ds-space-8) 0 0; border-top: var(--ds-border-width) solid var(--ds-border); }
+  .studio-how-steps { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Your account (components/shell/account-page.tsx) ─────────────────── */
+.studio-account-page { max-width: 720px; }
+.studio-facts { display: flex; flex-direction: column; gap: var(--ds-space-12); margin: 0; }
+.studio-fact { display: flex; flex-direction: column; gap: var(--ds-space-2); }
+.studio-fact dd { margin: 0; color: var(--ds-text-strong); }
+.studio-fact-who { flex-direction: row; align-items: center; gap: var(--ds-space-12); }
+/* The References and Uploads panel as a drawer on phones: its body scrolls (the dialog's), nothing inside it does. */
+.studio-panel-drawer .refs-grid, .studio-panel-drawer .studio-pick-grid { overflow: visible; }

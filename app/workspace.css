@@ -102,3 +102,26 @@
 /* A car's real picture fills its 16:9 box (Phase 3 polish). */
 .ds-car-art { overflow: hidden; }
 .ds-car-art > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Home (the shell pass): a greeting, the two open tools large, the others
+   smaller as "Coming soon", how it works, work to continue (a grid of at most
+   six, never a carousel) and the credits left. */
+.workspace-greeting { color: var(--ds-muted); font-size: var(--ds-text-md); line-height: var(--ds-leading-md); font-weight: var(--ds-weight-medium); }
+.workspace-home .ds-tools.workspace-tools-open { grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); max-width: 880px; }
+.workspace-home .workspace-tools-open .ds-tool-name { font-size: var(--ds-text-lg); line-height: var(--ds-leading-lg); }
+.workspace-home .ds-tools.workspace-tools-soon { margin-top: var(--ds-space-16); grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); }
+.workspace-home .ds-tool[data-soon] { cursor: default; box-shadow: none; transform: none; opacity: 0.72; }
+.workspace-home .ds-tool[data-soon] .ds-tool-art { aspect-ratio: 16 / 7; }
+.workspace-lineup-art { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: var(--ds-space-4); padding: var(--ds-space-8); }
+.workspace-lineup-art > .workspace-lineup-car { display: grid; place-items: center; aspect-ratio: 4 / 3; border-radius: var(--ds-radius-sm); overflow: hidden; background: var(--ds-panel-2); color: var(--ds-muted); }
+.workspace-lineup-art > .workspace-lineup-car:nth-child(2) { transform: translateY(calc(var(--ds-space-8) * -1)) scale(1.08); z-index: 1; box-shadow: var(--ds-shadow-1); }
+.workspace-lineup-car > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.workspace-lineup-car > svg { width: var(--ds-space-24); height: var(--ds-space-24); }
+.workspace-continue { grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); }
+.workspace-credits { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ds-space-8); color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-variant-numeric: var(--ds-numeric); }
+.workspace-credits > svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; }
+.workspace-credits b { color: var(--ds-text-strong); font-weight: var(--ds-weight-semibold); }
+@media (max-width: 480px) {
+  .workspace-home .ds-tools.workspace-tools-open { grid-template-columns: minmax(0, 1fr); }
+  .workspace-home .ds-tools.workspace-tools-soon { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

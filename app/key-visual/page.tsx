@@ -2,7 +2,7 @@
 import {LiveFrame} from '@/components/editor/live-frame';
 import {useState,useRef,useEffect,useCallback,useId} from 'react';
 import {useRouter} from 'next/navigation';
-import {Camera,Crop,Download,ExternalLink,Film,FileJson,FolderSync,ImagePlus,KeyRound,Monitor,MoreHorizontal,RefreshCw,RotateCw,Scissors,Sparkles,Trash2,Upload,Wand2,X,ZoomIn,Columns2,Info,LogIn,ChartNoAxesColumn} from 'lucide-react';
+import {Camera,Crop,Download,ExternalLink,Film,FileJson,FolderSync,ImagePlus,KeyRound,Monitor,MoreHorizontal,RefreshCw,RotateCw,Scissors,Sparkles,Trash2,Upload,Wand2,X,ZoomIn,Columns2,Info,LogIn,ChartNoAxesColumn,Share2} from 'lucide-react';
 import {useBackoffPoll} from '@/lib/use-backoff-poll';
 import {studioFetch} from '@/lib/studio-fetch';
 import {importPinterestReference} from '@/lib/pinterest-client';
@@ -20,10 +20,15 @@ import {RefinementReferences,type RefinementReference} from '@/components/refine
 import {AreaEditor} from '@/components/area-editor';
 import {submitSmartImage} from '@/lib/smart-reference-client';
 import {SmartControls,SmartPlanView,SmartReviewView} from '@/components/smart-reference';
-import {SMART_OPTIONS,type SmartPriority,type SmartPlan} from '@/lib/smart-reference';
+import type {SmartPriority,SmartPlan} from '@/lib/smart-reference';
 import {InspirationMatch} from '@/components/inspiration-match';
 import {DropZone} from '@/components/ds/drop-zone';
-import {InspirationCard} from '@/components/editor/inspiration-card';
+import {ReferencesSettings} from '@/components/editor/references-settings';
+import {addReference,clearPicked,removeReference,updateReference,useReferenceTray,type TrayItem} from '@/lib/reference-tray';
+import {openPanel,setShellCar} from '@/components/shell/shell-state';
+import {liveConfiguratorUrl} from '@/lib/configurators';
+import {toolOpen} from '@/lib/tools';
+import {SharePanel} from '@/components/share/share-panel';
 import {UpscalePanel} from '@/components/upscale-panel';
 import {upscaleModel} from '@/lib/upscale-models';
 import {OPENAI_IMAGE_MODEL,OPENAI_IMAGE_MODELS,higgsImageModel,HIGGSFIELD_IMAGE_MODELS,HIGGSFIELD_IMAGE_MODEL,imageSettings,refinementReferenceLimit,type ImageProvider,type HiggsBudget} from '@/lib/image-models';
@@ -39,7 +44,7 @@ import {Button,IconButton,buttonClass} from '@/components/ds/button';
 import {Banner} from '@/components/ds/shell';
 import {State} from '@/components/ds/feedback';
 import {Dialog} from '@/components/ds/dialog';
-import {Field,Input,Select,Textarea} from '@/components/ds/field';
+import {Field,Input,Textarea} from '@/components/ds/field';
 import {Fold} from '@/components/ds/layout';
 import {Menu,MenuItem,MenuSeparator} from '@/components/ds/menu';
 import {useToast,type ToastKind} from '@/components/ds/toast';
@@ -77,6 +82,7 @@ export default function Studio(){
  const account=useAccount();const showProvider=providerNames(account);const w=(text:string)=>showProvider?text:plainProviderText(text);const can=(key:Parameters<typeof hasFeature>[1])=>hasFeature(account,key);
  const [configurators,setConfigurators]=useState<Configurator[]>(CONFIGURATORS);const [configurator,setConfigurator]=useState<Configurator>(CONFIGURATORS[0]);// Home sends ?car=<name> ("Start from your cars") and ?brief=<words> ("What do you want to make?").
  useConfiguratorPresets(list=>{const asked=new URLSearchParams(location.search),wanted=asked.get('car'),first=(wanted&&list.find(c=>c.name===wanted))||list[0],words=asked.get('brief');if(words)setBrief(words.slice(0,600));setConfigurators(mergePresets(list));setConfigurator(c=>isDemoConfigurator(c)||wanted?first:c);setView(v=>v.id===VIEWS[0].id||wanted?startView(first):v)});const [visualCount,setVisualCount]=useState(1);const [captureNotice,setCaptureNotice]=useState('');const [imageUrl,setImageUrl]=useState('');const [importingImage,setImportingImage]=useState(false);const [cropRatio,setCropRatio]=useState(16/9);
+ const tray=useReferenceTray();const [smartPick,setSmartPick]=useState(true);const [pickCount,setPickCount]=useState(3);const [smartState,setSmartState]=useState<{kind:'ready'|'picking'|'none'|'unavailable'}>({kind:'ready'});const pickTried=useRef(new Set<string>());
  const savedViews=useRef<Record<string,View[]>>({});const [view,setView]=useState<View>(VIEWS[0]);const [mode,setMode]=useState('live');const [brief,setBrief]=useState(DEFAULT_BRIEF);const [referenceMode,setReferenceMode]=useState<ReferenceMode>('creative');const [smartPriority,setSmartPriority]=useState<SmartPriority|null>(null);const [smartPlan,setSmartPlan]=useState<SmartPlan|null>(null);const [smartStatus,setSmartStatus]=useState('');
  const [connectionOpen,setConnectionOpen]=useState(false);const [status,setStatus]=useState<Status|null>(null);const [error,setError]=useState('');const [mood,setMood]=useState<{src:string;name:string}|null>(null);const [pin,setPin]=useState('');
  const [moodUpload,setMoodUpload]=useState('');const [moodUploadError,setMoodUploadError]=useState('');const moodFile=useRef<File|null>(null);const moodAbort=useRef<AbortController|null>(null);
@@ -90,7 +96,7 @@ export default function Studio(){
  const [trashOpen,setTrashOpen]=useState(false),[deletedVisuals,setDeletedVisuals]=useState<Visual[]>([]),[trashLoading,setTrashLoading]=useState(false),[trashError,setTrashError]=useState(''),[managingVisual,setManagingVisual]=useState('');
  // The editor: what the canvas shows, the version in it, and the result's own dialogs.
  const [stage,setStage]=useState<Stage>('car');const [currentId,setCurrentId]=useState<string|null>(null);const [refineOpen,setRefineOpen]=useState(false);const [compareOpen,setCompareOpen]=useState<false|'references'|'original'>(false);
- const [creatingFilm,setCreatingFilm]=useState(false);const [refinement,setRefinement]=useState('');const [refinementImages,setRefinementImages]=useState<RefinementReference[]>([]);const [readingReferences,setReadingReferences]=useState(false);const refinementOwner=useRef('');const imagePollIndex=useRef(0);const [upscaleOpen,setUpscaleOpen]=useState(false);const [areaOpen,setAreaOpen]=useState(false);const [areaBusy,setAreaBusy]=useState(false);
+ const [creatingFilm,setCreatingFilm]=useState(false);const [shareOpen,setShareOpen]=useState(false);const [refinement,setRefinement]=useState('');const [refinementImages,setRefinementImages]=useState<RefinementReference[]>([]);const [readingReferences,setReadingReferences]=useState(false);const refinementOwner=useRef('');const imagePollIndex=useRef(0);const [upscaleOpen,setUpscaleOpen]=useState(false);const [areaOpen,setAreaOpen]=useState(false);const [areaBusy,setAreaBusy]=useState(false);
  const iframeRef=useRef<HTMLIFrameElement>(null);const uploadRef=useRef<HTMLInputElement>(null);const cropImage=useRef<HTMLImageElement>(null);const dragStart=useRef<{x:number;y:number}|null>(null);const assets=useRef(new Map<string,Asset>());const originals=useRef(new Map<string,string>());const pendingAssets=useRef(new Map<string,Promise<Asset>>());const working=useRef(false);
  useEffect(()=>{setSmartPlan(null)},[view.src,mood?.src,brief,provider,imageModel,size,smartPriority]);
  const current=useRef({view,brief,results,configurator,visualCount});current.current={view,brief,results,configurator,visualCount};
@@ -112,7 +118,7 @@ export default function Studio(){
  useEffect(()=>{if(!pin.trim()||!status?.storage)return;const timer=setTimeout(()=>{void importPin(pin).catch(()=>undefined)},650);return()=>clearTimeout(timer)},[pin,status?.storage]);
  async function autoGenerate(){
   if(preparingRef.current||working.current||moodUpload||moodUploadError||cropSrc)return;
-  if(provider==='openai'&&!status?.generation){setConnectionOpen(true);return}if(provider==='google'&&!googleReady){if(googleConnection?.ownKeys)setGoogleOpen(true);else setError(w('Nano Banana isn’t available in your Studio right now. Ask Nmesis.'));return}if(provider==='higgsfield'&&!higgsConnected){setError(w('Connect Higgsfield in Film studio first.'));return}if(!pin.trim()&&!mood){setError('Add an inspiration image or Pinterest pin link first.');return}
+  if(provider==='openai'&&!status?.generation){setConnectionOpen(true);return}if(provider==='google'&&!googleReady){if(googleConnection?.ownKeys)setGoogleOpen(true);else setError(w('Nano Banana isn’t available in your Studio right now. Ask Nmesis.'));return}if(provider==='higgsfield'&&!higgsConnected){setError(w('Connect Higgsfield in Film studio first.'));return}if(!pin.trim()&&!mood&&!tray.length){setError('Add a reference first: a photo that shows the look you want.');return}
   preparingRef.current=true;setPreparing(true);setError('');const version=captureVersion.current;
   try{
    let chosen=view;
@@ -139,16 +145,16 @@ export default function Studio(){
     setView(chosen);savedViews.current[configurator.id]=[chosen,...(savedViews.current[configurator.id]||[])].slice(0,6);
    }
    if(!chosen.src)throw new Error('Choose a car reference first.');
-   const inspiration=pin.trim()?await importPin(pin):mood;if(!inspiration)throw new Error('Add an inspiration reference first.');
+   const moods=pin.trim()?[await importPin(pin)]:tray.length?await Promise.all(tray.map(resolveReference)):mood?[mood]:[];if(!moods.length)throw new Error('Add a reference first: a photo that shows the look you want.');
    if(version!==captureVersion.current)throw new Error('The vehicle changed. Choose its angle and generate again.');
-   await generate(undefined,{view:chosen,mood:inspiration});
+   await generate(undefined,{view:chosen,mood:moods[0],moods});
   }catch(e){stopSharing();const name=(e as Error).name;setError(name==='NotAllowedError'?'Sharing was cancelled. Click Generate again and choose this tab, so the Studio can take the picture.':name==='InvalidStateError'?'Bring this studio tab to the front, then click Generate again.':(e as Error).message)}
   finally{preparingRef.current=false;setPreparing(false)}
  }
  // In live mode the configurator must be on screen to be captured: show it first.
  function startGenerate(){if(mode==='live'&&stage!=='car'){setStage('car');setAreaOpen(false);requestAnimationFrame(()=>requestAnimationFrame(()=>void autoGenerate()));return}void autoGenerate()}
 
- function chooseConfigurator(c:Configurator){stopSharing();captureVersion.current++;setConfigurator(c);setView(savedViews.current[c.id]?.[0]||startView(c));setMode('live');setStage('car');setCaptureTitle('Custom view');setCaptureFinish('Selected configurator finish');setCropSrc('');setCaptureOpen(false);setCaptureNotice('');setImageUrl('');setError('');setDirections(localDirections(brief,'selected vehicle view'));setDirection(0)}
+ function chooseConfigurator(c:Configurator){stopSharing();clearPicked();captureVersion.current++;setConfigurator(c);setView(savedViews.current[c.id]?.[0]||startView(c));setMode('live');setStage('car');setCaptureTitle('Custom view');setCaptureFinish('Selected configurator finish');setCropSrc('');setCaptureOpen(false);setCaptureNotice('');setImageUrl('');setError('');setDirections(localDirections(brief,'selected vehicle view'));setDirection(0)}
  const refreshStatus=useCallback(async()=>{try{const r=await studioFetch('/api/status');if(r.status===401){setStatus({generation:false,storage:false,signedOut:true});return}setStatus(await responseJson(r))}catch{setError('Studio connection is unavailable. Your draft is still here.')}},[]);
  const refreshGoogle=useCallback(async()=>{try{setGoogleConnection(await responseJson(await studioFetch('/api/google/connection')))}catch{setGoogleConnection(null)}},[]);
  useEffect(()=>{void refreshGoogle()},[refreshGoogle]);
@@ -167,6 +173,14 @@ export default function Studio(){
   // A tool the browser refuses is simply not offered; the screen works without it.
   tools.forEach(tool=>Promise.resolve(context.registerTool?.(tool,{signal:lifecycle.signal})).catch(()=>undefined));return()=>lifecycle.abort();
  },[]);
+ async function resolveReference(item:TrayItem):Promise<{src:string;name:string}>{
+  if(item.assetId)return {src:'/api/assets/'+item.assetId,name:item.name};
+  if(item.provider==='unsplash'){
+   const d=await responseJson(await studioFetch('/api/references/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:item.provider,id:item.key.slice(item.provider.length+1)}),signal:AbortSignal.timeout(45_000)}));
+   updateReference(item.key,{assetId:d.id});return {src:'/api/assets/'+d.id,name:item.name};
+  }
+  return {src:(await ensureAsset(item.src)).url,name:item.name};
+ }
  async function ensureAsset(src:string):Promise<Asset>{
   const known=assets.current.get(src);if(known)return known;if(src.startsWith('/api/assets/'))return{id:src.split('?')[0].split('/').pop()!,url:src};
   const pending=pendingAssets.current.get(src);if(pending)return pending;
@@ -177,14 +191,16 @@ export default function Studio(){
  async function createLaunchFilm(){if(!shown||creatingFilm)return;setCreatingFilm(true);try{const source=await ensureAsset(shown.src);const d=await responseJson(await studioFetch('/api/films',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceId:source.id,title:shown.title,vehicle:shown.vehicle||configurator.name})}));router.push('/films?id='+d.film.id)}catch(e){say((e as Error).message,'bad')}finally{setCreatingFilm(false)}}
  async function receiveMood(file?:File){
   if(!file)return;try{validateClipboardImage(file)}catch(e){setError((e as Error).message);return}
-  updatePin('');const version=pinVersion.current,controller=new AbortController();moodAbort.current=controller;moodFile.current=file;
+  const version=pinVersion.current,controller=new AbortController();moodAbort.current=controller;moodFile.current=file;
   // Display the local file immediately, before reading, encoding or sending any bytes.
-  setMood({src:URL.createObjectURL(file),name:file.name});setMoodUpload('Preparing image…');setError('');
+  setMoodUpload('Preparing image…');setError('');
   try{
    if(!status?.storage)throw new Error('Image storage is not connected yet. Wait a moment, then retry.');
-   const asset=await uploadReference(file,file,{signal:controller.signal,onStage:stage=>{if(version===pinVersion.current)setMoodUpload(stage)}});
+   const asset=await uploadReference(file,file,{signal:controller.signal,upload:true,onStage:stage=>{if(version===pinVersion.current)setMoodUpload(stage)}});
    if(version!==pinVersion.current)return;
-   setMood({src:asset.url,name:file.name});moodFile.current=null;say('Inspiration ready. Original saved.','ok');
+   setMood(null);moodFile.current=null;
+   if(!addReference({key:'upload:'+asset.id,src:asset.url,thumb:asset.url+'?thumb=1',name:file.name.slice(0,100)||'Your upload',provider:'upload',assetId:asset.id}))say('You have the most references you can use. Remove one first.','bad');
+   else say('Reference added. Original saved.','ok');
   }catch(e){if(version===pinVersion.current&&(e as Error).name!=='AbortError')setMoodUploadError((e as Error).name==='TimeoutError'?'Upload took too long. Your preview is still here—retry saving it.':(e as Error).message)}
   finally{if(version===pinVersion.current)setMoodUpload('')}
  }
@@ -203,23 +219,27 @@ export default function Studio(){
  async function importImage(){setImportingImage(true);setCaptureNotice('');const version=captureVersion.current;try{const file=await imageFromUrl(imageUrl);if(version===captureVersion.current)await receiveCapture(file)}catch(e){setCaptureNotice((e as Error).message)}finally{setImportingImage(false)}}
  async function applyCrop(){const img=cropImage.current;if(capturing||!img||!img.complete||!img.naturalWidth||crop.w<.02||crop.h<.02){say('Select a larger area of the image.','bad');return}setCapturing(true);const version=captureVersion.current;try{const c=document.createElement('canvas');const w=img.naturalWidth*crop.w,h=img.naturalHeight*crop.h;c.width=Math.round(w);c.height=Math.round(h);c.getContext('2d')!.drawImage(img,img.naturalWidth*crop.x,img.naturalHeight*crop.y,w,h,0,0,c.width,c.height);const src=c.toDataURL('image/png');originals.current.set(src,cropSrc);const asset=status?.storage?await ensureAsset(src):null;if(version!==captureVersion.current)return;const captured={id:crypto.randomUUID(),src:asset?.url||src,title:captureTitle.trim()||'Custom view',finish:captureFinish.trim()||'Selected configurator finish'};savedViews.current[configurator.id]=[captured,...(savedViews.current[configurator.id]||[])].slice(0,6);chooseView(captured);setCropSrc('');say('Car reference saved. Your original screenshot is kept.','ok')}catch(e){say((e as Error).message,'bad')}finally{setCapturing(false)}}
  function cropPoint(e:React.PointerEvent<HTMLDivElement>){const b=e.currentTarget.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-b.left)/b.width)),y:Math.max(0,Math.min(1,(e.clientY-b.top)/b.height))}}
- async function generate(parent?:Visual,prepared?:{view:View;mood:{src:string;name:string}}){const productView=prepared?.view||view;const moodReference=prepared?.mood||mood;if(working.current)return;if(!parent&&!productView.src){setError('Add a picture of the car before generating.');return}if(provider==='google'&&!googleReady){if(googleConnection?.ownKeys)setGoogleOpen(true);else setError(w('Nano Banana isn’t available in your Studio right now. Ask Nmesis.'));return}if(!(provider==='openai'?status?.generation:provider==='google'?googleConnection?.connected:higgsConnected)){setError(provider==='openai'?w('Connect OpenAI to generate with ChatGPT.'):w('Connect Higgsfield in Film studio to use this generator.'));return}if(!parent&&!moodReference){setError('Add an inspiration image or Pinterest pin link first.');return}if(parent&&!refinement.trim()){say('Describe what you would like to change.','bad');return}if(parent&&(readingReferences||refinementImages.length>refinementReferenceLimit(provider,imageModel))){say('Wait for your references to load, or choose a model that supports them.','bad');return}
+ async function generate(parent?:Visual,prepared?:{view:View;mood:{src:string;name:string};moods?:{src:string;name:string}[]}){const productView=prepared?.view||view;const moodReference=prepared?.mood||mood;if(working.current)return;if(!parent&&!productView.src){setError('Add a picture of the car before generating.');return}if(provider==='google'&&!googleReady){if(googleConnection?.ownKeys)setGoogleOpen(true);else setError(w('Nano Banana isn’t available in your Studio right now. Ask Nmesis.'));return}if(!(provider==='openai'?status?.generation:provider==='google'?googleConnection?.connected:higgsConnected)){setError(provider==='openai'?w('Connect OpenAI to generate with ChatGPT.'):w('Connect Higgsfield in Film studio to use this generator.'));return}if(!parent&&!moodReference){setError('Add an inspiration image or Pinterest pin link first.');return}if(parent&&!refinement.trim()){say('Describe what you would like to change.','bad');return}if(parent&&(readingReferences||refinementImages.length>refinementReferenceLimit(provider,imageModel))){say('Wait for your references to load, or choose a model that supports them.','bad');return}
  working.current=true;setBusy(true);setCompleted(0);setError('');const originalRefinement=refinement;const originalReferences=parent?[...refinementImages]:[];const count=generationCount(visualCount,!!parent);setJobCount(count);
  try{
   const product=parent?.sourceId?{id:parent.sourceId}:await ensureAsset(productView.src);const inspiration=parent?.moodId?{id:parent.moodId}:await ensureAsset(moodReference!.src);
   const refinementReferenceIds:string[]=[];for(const reference of originalReferences)refinementReferenceIds.push((await ensureAsset(reference.src)).id);
   const generationBrief=!parent&&smartPriority&&provider!=='higgsfield'?(brief===DEFAULT_BRIEF?'Create a premium automotive photograph using the supplied car and inspiration.':brief):referenceMode==='match-inspiration'?(parent?.brief||(brief===DEFAULT_BRIEF?'Match the inspiration faithfully.':brief)):parent?.brief||(brief===DEFAULT_BRIEF?brief:DEFAULT_BRIEF+' Additional direction: '+brief);
+  // With several references and no smart prompt (which plans one picture), visual i takes reference i (in turn).
+  const moodIds=parent||(smartPriority&&provider!=='higgsfield')||!prepared?.moods||prepared.moods.length<2?[inspiration.id]:await Promise.all(prepared.moods.map(async m=>(await ensureAsset(m.src)).id));
   let planned:SmartPlan|undefined;if(!parent&&smartPriority&&provider!=='higgsfield'){setSmartStatus('Analyzing references and preparing your prompt…');const d=await responseJson(await studioFetch('/api/smart-prompts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sourceId:product.id,moodId:inspiration.id,brief:generationBrief,provider,model:imageModel,size,priority:smartPriority})}));planned=d.plan;setSmartPlan(d.plan);setSmartStatus('Generating with your tailored prompt…')}
   const requests=Array.from({length:count},(_,i)=>({id:crypto.randomUUID(),title:parent?parent.title+' · refined':configurator.name+' · '+String(i+1).padStart(2,'0'),src:'',status:'pending' as const,createdAt:new Date().toISOString()}));
   // The new versions go to the front of the history; the first is shown while it is made.
   setResults(prev=>[...requests,...prev]);setCurrentId(requests[0].id);setStage('result');setAreaOpen(false);
-  await Promise.all(requests.map(async(job,i)=>{try{const payload={...job,smartPlanId:planned?.id,vehicle:parent?.vehicle||configurator.name,configurator:parent?.configurator||configurator.url,sourceId:product.id,moodId:inspiration.id,referenceMode,brief:generationBrief,finish:parent?.finish||productView.finish,angle:parent?.angle||productView.title,scene:brief,variant:i,size,provider,generate:provider==='higgsfield',model:imageModel,pin:parent?.pin||safePinterest(pin)||'',parentId:parent?.id,refinementReferenceIds:parent?refinementReferenceIds:undefined,refinement:parent?originalRefinement:undefined};const data=provider!=='higgsfield'?await submitSmartImage(provider==='google'?'/api/google/generate':'/api/generate',payload):await responseJson(await studioFetch(provider==='higgsfield'?'/api/image-jobs':provider==='google'?'/api/google/generate':'/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));setResults(prev=>prev.map(x=>x.id===job.id?data.visual:x));if(planned&&data.visual.status==='ready'){setSmartStatus('Image saved. Checking car details and inspiration…');try{const checked=await responseJson(await studioFetch('/api/smart-review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:job.id})}));setResults(prev=>prev.map(x=>x.id===job.id?checked.visual:x))}catch(e){setResults(prev=>prev.map(x=>x.id===job.id?{...x,smartReview:{status:'failed',error:(e as Error).message}}:x))}}}catch(e){setResults(prev=>prev.map(x=>x.id===job.id?{...x,status:'failed',error:(e as Error).message}:x))}finally{setCompleted(n=>n+1)}}));
+  await Promise.all(requests.map(async(job,i)=>{try{const payload={...job,smartPlanId:planned?.id,vehicle:parent?.vehicle||configurator.name,configurator:parent?.configurator||configurator.url,sourceId:product.id,moodId:moodIds[i%moodIds.length],referenceMode,brief:generationBrief,finish:parent?.finish||productView.finish,angle:parent?.angle||productView.title,scene:brief,variant:i,size,provider,generate:provider==='higgsfield',model:imageModel,pin:parent?.pin||safePinterest(pin)||'',parentId:parent?.id,refinementReferenceIds:parent?refinementReferenceIds:undefined,refinement:parent?originalRefinement:undefined};const data=provider!=='higgsfield'?await submitSmartImage(provider==='google'?'/api/google/generate':'/api/generate',payload):await responseJson(await studioFetch(provider==='higgsfield'?'/api/image-jobs':provider==='google'?'/api/google/generate':'/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}));setResults(prev=>prev.map(x=>x.id===job.id?data.visual:x));if(planned&&data.visual.status==='ready'){setSmartStatus('Image saved. Checking car details and inspiration…');try{const checked=await responseJson(await studioFetch('/api/smart-review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:job.id})}));setResults(prev=>prev.map(x=>x.id===job.id?checked.visual:x))}catch(e){setResults(prev=>prev.map(x=>x.id===job.id?{...x,smartReview:{status:'failed',error:(e as Error).message}}:x))}}}catch(e){setResults(prev=>prev.map(x=>x.id===job.id?{...x,status:'failed',error:(e as Error).message}:x))}finally{setCompleted(n=>n+1)}}));
  }catch(e){setError((e as Error).message)}finally{working.current=false;setBusy(false);setSmartStatus('');refreshCredits()}}
  function applyAsInspiration(visual:Visual){
   if(working.current||busy||areaBusy||preparing||readingReferences||managingVisual)return;
-  updatePin('');setMood({src:visual.src,name:visual.title});setAreaOpen(false);setUpscaleOpen(false);setRefineOpen(false);setStage('car');setError('');
-  say('Image selected as inspiration. Choose your car and generate when ready.','ok');
-  requestAnimationFrame(()=>document.getElementById('kv-inspiration-title')?.scrollIntoView({behavior:'smooth',block:'start'}));
+  const assetId=/^\/api\/assets\/([a-z0-9-]{8,80})/.exec(visual.src)?.[1];
+  if(!assetId||!addReference({key:'visual:'+visual.id,src:visual.src,name:visual.title||'Your visual',provider:'upload',assetId})){say('Remove a reference first, then use this one.','bad');return}
+  setAreaOpen(false);setUpscaleOpen(false);setRefineOpen(false);setStage('car');setError('');
+  say('Added to your references. Choose your car and generate when ready.','ok');
+  requestAnimationFrame(()=>document.getElementById('kv-references-title')?.scrollIntoView({behavior:'smooth',block:'start'}));
  }
  async function openDeleted(){setTrashOpen(true);setTrashLoading(true);setTrashError('');try{const d=await responseJson(await studioFetch('/api/visuals?deleted=1'));setDeletedVisuals(d.visuals);setTrashError(d.warning||'')}catch(e){setTrashError((e as Error).message)}finally{setTrashLoading(false)}}
  async function restoreDeleted(visual:Visual){if(working.current)return;working.current=true;setManagingVisual(visual.id);setTrashError('');try{await responseJson(await studioFetch('/api/visuals/'+visual.id,{method:'POST'}));setDeletedVisuals(prev=>prev.filter(v=>v.id!==visual.id));await refreshResults();say('Image restored.','ok')}catch(e){setTrashError((e as Error).message);say((e as Error).message,'bad')}finally{working.current=false;setManagingVisual('')}}
@@ -324,7 +344,8 @@ export default function Studio(){
   {can('studio.area_edit')?<Button size="sm" kind="quiet" aria-pressed={areaOpen} icon={<Scissors aria-hidden="true"/>} disabled={areaBusy||readingReferences||busy} onClick={()=>{setAreaOpen(!areaOpen);setUpscaleOpen(false)}}>Area edit {meta(areaCost)}</Button>:<span className="ds-row">Area edit <UpsellChip feature="studio.area_edit" account={account}/></span>}
   {can('studio.upscale')?<Button size="sm" kind="quiet" icon={<ZoomIn aria-hidden="true"/>} disabled={areaBusy||readingReferences||busy} onClick={()=>{setUpscaleOpen(true);setAreaOpen(false)}}>Upscale {meta(upscaleFrom,true)}</Button>:<span className="ds-row">Upscale <UpsellChip feature="studio.upscale" account={account}/></span>}
   <Button size="sm" kind="quiet" icon={<Wand2 aria-hidden="true"/>} disabled={busy||areaBusy} onClick={openRefine}>Refine {meta(refineUnit)}</Button>
-  <Button size="sm" kind="quiet" icon={<Film aria-hidden="true"/>} busy={creatingFilm} disabled={areaBusy||readingReferences||busy} onClick={()=>void createLaunchFilm()}>Launch film</Button>
+  {/* Film is Coming soon (lib/tools.ts): its button shows again when the tool opens. */}
+  {toolOpen('films')&&<Button size="sm" kind="quiet" icon={<Film aria-hidden="true"/>} busy={creatingFilm} disabled={areaBusy||readingReferences||busy} onClick={()=>void createLaunchFilm()}>Launch film</Button>}
   <ImageDownload key={ready.id} src={ready.src} name={ready.title} label="Download" className={buttonClass({kind:'quiet',size:'sm'})}/>
  </>;
  const bar=<>
@@ -336,7 +357,9 @@ export default function Studio(){
   <SaveToProject folders={project.folders} folderId={ready?project.folderOf('visual',ready.id):null} disabled={!ready||!project.ready||!!ready.lineup} onSave={f=>{if(ready)void project.save('visual',ready.id,f)}}/>
   <span className="editor-bar-actions">
    {stage==='result'&&resultActions}
+   {stage==='result'&&ready&&<Button size="sm" kind="primary" icon={<Share2 aria-hidden="true"/>} onClick={()=>setShareOpen(true)}>Share</Button>}
    <Menu label="More actions" trigger={<MoreHorizontal aria-hidden="true"/>} size="sm">
+    {ready&&<MenuItem icon={<Share2/>} onSelect={()=>setShareOpen(true)}>Share</MenuItem>}
     {ready&&<MenuItem icon={<Columns2/>} onSelect={()=>setCompareOpen('references')}>Compare with references</MenuItem>}
     {ready&&<MenuItem icon={<ImagePlus/>} disabled={resultBusy||preparing} onSelect={()=>applyAsInspiration(ready)}>Use as inspiration</MenuItem>}
     {ready&&ready.sourceId&&ready.moodId&&!ready.lineup&&can('studio.smart_reference')&&<MenuItem icon={<Sparkles/>} disabled={busy||areaBusy} onSelect={()=>router.push('/nano-lab?visual='+ready.id)}>Smart reference lab</MenuItem>}
@@ -354,12 +377,10 @@ export default function Studio(){
  </>;
 
  const saved=savedViews.current[configurator.id]||[];
- const howMany=<Field label="How many"><Select value={String(visualCount)} disabled={lock} onChange={e=>setVisualCount(Number(e.target.value))}><option value="1">1 visual</option><option value="3">3 visuals</option></Select></Field>;
  // Staff and companies with their own keys: the engine, its model and exact size, and who pays for it.
  const paidBy=provider==='google'?(googleConnection?.connected?'Uses your company’s Google key: 0 credits.':googleReady?'Nano Banana is provided by Nmesis; each image costs credits.':'')
   :provider==='higgsfield'?(higgsConnection?.connected?'Uses your company’s Higgsfield key: 0 credits.':higgsConnected?'Higgsfield is provided by Nmesis; each image costs credits.':'')
   :status?.generation?(status.personalKey?'Uses your company’s OpenAI key: 0 credits.':'Provided by Nmesis; each image costs credits.'):'';
- const advanced=<Advanced name="visuals"><VisualsEngine provider={provider} model={imageModel} size={size} onProvider={chooseImageProvider} onModel={chooseImageModel} onSize={setSize} disabled={lock}/>{paidBy&&<p className="ds-help">{paidBy}</p>}</Advanced>;
  // Why Generate cannot run here (the account and credits are checked by the editor).
  const blocked:GenerateBlocker|null=status?.signedOut?{title:'Sign in to generate',body:'Your draft stays here.'}
   :!status?null
@@ -368,49 +389,84 @@ export default function Studio(){
    :{title:'AI generation isn’t set up for your Studio yet',body:'Ask Nmesis to set it up.'})
   :!status.storage?{title:'Saving pictures isn’t available right now',body:'Ask Nmesis.'}
   :null;
+ // The settings, one column, for someone new: Car and view, References,
+ // Quality, How many, what it will use, then everything else under Advanced (closed).
+ const quality=highAllowed&&!lock
+  ?<QualitySettings value={qualityOfSize(size)} onChange={chooseQuality} costs={qualityCosts}/>
+  :<VisualsQuality value={qualityOfSize(size)} onChange={chooseQuality} costs={qualityCosts} highAllowed={highAllowed} disabled={lock}/>;
+ const costLine=billing==='own key'||billing==='internal'?(costLabel(creditInfo,cost,provider)||'No credits are used.')
+  :cost===null?(costNote||'The credits show here once the price is known.')
+  :<>This will use <b>{creditWords(cost)}</b>{visualCount>1&&unit!==null?<> ({visualCount} × {creditWords(unit)})</>:null}.</>;
+ const yourIdea=brief===DEFAULT_BRIEF?'':brief;
+ const advancedSummary=[yourIdea?'Your idea: '+(yourIdea.length>40?yourIdea.slice(0,40)+'…':yourIdea):'Your idea',smartPriority?'smart prompt':'art direction',showProvider?'image generator, model and size':''].filter(Boolean).join(' · ');
  const settings=<>
-  <CarSettings cars={configurators.map(c=>c.name)} car={configurator.name} onCar={name=>{const c=configurators.find(x=>x.name===name);if(c&&!busy&&!capturing&&!preparing)chooseConfigurator(c)}} options={{colours:[],trims:[],views:[],frames:0}} state={{}} onColour={()=>undefined} onTrim={()=>undefined} onView={()=>undefined} controlsInEditor={false} idPrefix="kv-car"/>
-  <div className="ds-contents" onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!busy&&!preparing&&!capturing&&!cropSrc)void receiveCapture(file)}}}>
-   <SettingsSection title="Car view" id="kv-view-title">
-    <ChoiceChips legend="Car view source" name={sourceName} choices={[{id:'live',name:'Live configurator'},{id:'capture',name:'Captured view'}]} value={mode} onChange={v=>{if(!lock){setMode(v);setStage('car')}}}/>
-    <p className="ds-help">{mode==='live'?'Turn the car to the angle you want. Generate takes a picture of this view.':view.src?'Your picture of the car · '+view.title:'Add a picture of the car to begin.'}</p>
-    <div className="editor-row">
-     <Button size="sm" icon={<Monitor aria-hidden="true"/>} disabled={capturing||lock} onClick={()=>{setCaptureNotice('');setCaptureOpen(true)}}>Capture options</Button>
-     {sharing&&<Button size="sm" kind="quiet" onClick={stopSharing}>Stop sharing</Button>}
-    </div>
-    <DropZone name="car picture" label="Drop, paste or upload a picture of the car" hint="PNG, JPEG or WebP · up to 40 MB. You can crop it next."
-     value={mode==='capture'&&view.src?view.src:null} valueName={view.title} valueAlt={view.title} valueMeta={view.finish}
-     onFile={readCapture} disabled={lock||capturing||!!cropSrc}/>
-    <div className="editor-row">
-     <a className="ds-link" href={configurator.url} target="_blank" rel="noreferrer">Open in a separate tab <ExternalLink aria-hidden="true"/></a>
-     {mode==='capture'&&view.src.startsWith('/api/assets/')&&<a className="ds-link" href={view.src+'?original=1&download=1'} download>Original image</a>}
-    </div>
-    {saved.length>0&&<div className="ds-stack"><span className="ds-label">Saved angles <span className="ds-muted">{saved.length}</span></span>
+  <CarSettings title="Car and view" cars={configurators.map(c=>c.name)} car={configurator.name} onCar={name=>{const c=configurators.find(x=>x.name===name);if(c&&!busy&&!capturing&&!preparing)chooseConfigurator(c)}} options={{colours:[],trims:[],views:[],frames:0}} state={{}} onColour={()=>undefined} onTrim={()=>undefined} onView={()=>undefined} controlsInEditor={false} idPrefix="kv-car">
+   <div className="ds-contents" onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!busy&&!preparing&&!capturing&&!cropSrc)void receiveCapture(file)}}}>
+    <ChoiceChips legend="View" name={sourceName} choices={[{id:'live',name:'Live configurator'},{id:'capture',name:'Your picture'}]} value={mode} onChange={v=>{if(!lock){setMode(v);setStage('car')}}}/>
+    <p className="ds-help">{mode==='live'?'Turn the car in the configurator. Generate takes a picture of that view.':view.src?'Your picture of the car · '+view.title:'Add a picture of the car.'}</p>
+    {mode==='capture'&&<DropZone name="car picture" label="Drop, paste or upload a picture of the car" hint="PNG, JPEG or WebP · up to 40 MB. You can crop it next."
+     value={view.src||null} valueName={view.title} valueAlt={view.title} valueMeta={view.finish}
+     onFile={readCapture} disabled={lock||capturing||!!cropSrc}/>}
+    {mode==='capture'&&saved.length>0&&<div className="ds-stack"><span className="ds-label">Saved angles <span className="ds-muted">{saved.length}</span></span>
      <ul className="editor-visuals-angles" aria-label="Saved angles">{saved.map(v=><li key={v.id}><button type="button" className="editor-visuals-angle" aria-pressed={view.id===v.id&&mode==='capture'} disabled={lock} onClick={()=>chooseView(v)}><span className="editor-visuals-thumb">{/* eslint-disable-next-line @next/next/no-img-element -- private media */}
 <img crossOrigin="anonymous" src={v.src} alt="" loading="lazy"/></span><span className="ds-truncate">{v.title}</span></button></li>)}</ul></div>}
-   </SettingsSection>
-  </div>
+    {mode==='live'&&<div className="editor-row">
+     <Button size="sm" kind="quiet" icon={<Monitor aria-hidden="true"/>} disabled={capturing||lock} onClick={()=>{setCaptureNotice('');setCaptureOpen(true)}}>More ways to add the car</Button>
+     {sharing&&<Button size="sm" kind="quiet" onClick={stopSharing}>Stop sharing</Button>}
+    </div>}
+   </div>
+  </CarSettings>
   <div className="ds-contents" onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!lock)void receiveMood(file)}}}>
-   <InspirationCard id="kv-inspiration-title" help="A picture that shows the look you want: the place, the light, the framing."
-    mood={<><b>What’s the mood?</b> Add a location, lighting or composition reference.</>}
-    picture={{value:mood?.src||null,name:mood?.name,onFile:receiveMood,onRemove:()=>updatePin(''),disabled:lock,
-     busy:moodUpload||false,error:moodUploadError||undefined,
-     extra:<>{mood?.src.startsWith('/api/assets/')&&<a className="ds-link" href={mood.src+'?original=1&download=1'} download>Original</a>}
-      {moodUploadError&&<span><Button size="sm" kind="quiet" disabled={lock} onClick={()=>void receiveMood(moodFile.current||undefined)}>Retry upload</Button></span>}</>}}
-    link={{value:pin,onChange:updatePin,onAdd:()=>void importPin(pin).catch(()=>undefined/* shown as pinError */),busy:importingPin,error:pinError||undefined,disabled:lock,
-     status:importingPin?'Finding the largest Pinterest image…':undefined}}/>
+   <ReferencesSettings items={tray} onAdd={()=>openPanel('references')} onFile={file=>void receiveMood(file)} onRemove={removeReference}
+    busy={moodUpload||(importingPin?'Finding the largest Pinterest image…':'')} error={moodUploadError||pinError||undefined}
+    smart={smartPick} onSmart={on=>{setSmartPick(on);if(!on)clearPicked()}} count={pickCount} onCount={n=>{setPickCount(n);clearPicked()}} smartState={smartState} disabled={lock}/>
   </div>
-  <PromptSettings label="Your idea (optional)" value={brief===DEFAULT_BRIEF?'':brief} onChange={v=>setBrief(v.trim()?v:DEFAULT_BRIEF)} placeholder="Golden hour, a quiet city street, warm reflections…" max={2000} inspiration={false}/>
-  <SettingsSection title="Art direction" id="kv-direction-title">
-   <p className="ds-help">{smartPriority?'Smart prompt · '+(SMART_OPTIONS.find(o=>o.id===smartPriority)?.label||''):referenceMode==='match-inspiration'?'Match reference':'Creative freedom'}</p>
-   {provider!=='higgsfield'&&(can('studio.smart_reference')?<SmartControls value={smartPriority} onChange={setSmartPriority} disabled={lock}/>:<p className="ds-help">Smart references <UpsellChip feature="studio.smart_reference" account={account}/></p>)}
-   <InspirationMatch nanoBanana={provider==='google'} value={referenceMode} onChange={setReferenceMode} disabled={lock||provider!=='higgsfield'&&!!smartPriority}/>
-   {smartStatus&&<p className="ds-help" role="status">{smartStatus}</p>}{smartPlan&&<SmartPlanView plan={smartPlan}/>}
+  {quality}
+  <SettingsSection title="How many" id="kv-count-title">
+   <div className="ds-segmented editor-count" role="group" aria-label="How many visuals">{[1,3].map(n=><button key={n} type="button" aria-pressed={visualCount===n} disabled={lock} onClick={()=>setVisualCount(n)}>{n} {n===1?'visual':'visuals'}</button>)}</div>
   </SettingsSection>
-  {highAllowed&&!lock
-   ?<QualitySettings value={qualityOfSize(size)} onChange={chooseQuality} costs={qualityCosts}>{howMany}{advanced}</QualitySettings>
-   :<VisualsQuality value={qualityOfSize(size)} onChange={chooseQuality} costs={qualityCosts} highAllowed={highAllowed} disabled={lock}>{howMany}{advanced}</VisualsQuality>}
+  <p className="editor-cost-line" aria-live="polite">{costLine}</p>
+  <Fold name="kv-advanced" title="Advanced" summary={advancedSummary} className="editor-advanced">
+   <div className="ds-stack">
+    <PromptSettings label="Your idea (optional)" value={yourIdea} onChange={v=>setBrief(v.trim()?v:DEFAULT_BRIEF)} placeholder="Golden hour, a quiet city street, warm reflections…" max={2000} inspiration={false}/>
+    <SettingsSection title="Art direction" id="kv-direction-title">
+     {provider!=='higgsfield'&&(can('studio.smart_reference')?<SmartControls value={smartPriority} onChange={setSmartPriority} disabled={lock}/>:<p className="ds-help">Smart references <UpsellChip feature="studio.smart_reference" account={account}/></p>)}
+     <InspirationMatch nanoBanana={provider==='google'} value={referenceMode} onChange={setReferenceMode} disabled={lock||provider!=='higgsfield'&&!!smartPriority}/>
+     {smartStatus&&<p className="ds-help" role="status">{smartStatus}</p>}{smartPlan&&<SmartPlanView plan={smartPlan}/>}
+    </SettingsSection>
+    {can('studio.pinterest')&&<Field label="Pinterest pin link" help="Uses the pin’s picture as your main reference.">
+     <Input type="url" value={pin} disabled={lock} onChange={e=>updatePin(e.target.value)} placeholder="https://www.pinterest.com/pin/…"/>
+    </Field>}
+    {showProvider&&<SettingsSection title="Image generator" id="kv-engine-title"><VisualsEngine provider={provider} model={imageModel} size={size} onProvider={chooseImageProvider} onModel={chooseImageModel} onSize={setSize} disabled={lock}/>{paidBy&&<p className="ds-help">{paidBy}</p>}</SettingsSection>}
+   </div>
+  </Fold>
  </>;
+ // The References panel searches for the car on screen (never the placeholder).
+ useEffect(()=>{setShellCar(liveConfiguratorUrl(configurator)?configurator.name:'')},[configurator]);
+ // Smart pick: with no reference added by hand, photos of the car from the
+ // photo library (lib/references), as many as asked; once per car and number.
+ const handAdded=tray.some(t=>!t.picked),pickedNow=tray.filter(t=>t.picked).length;
+ useEffect(()=>{
+  const car=liveConfiguratorUrl(configurator)?configurator.name:'';
+  const wanted=car+'|'+pickCount;
+  // Only for someone who can make work now: the photo library is not part of a closed or read-only Studio.
+  if(!smartPick||!car||!mayChange||handAdded||pickedNow>0||pickTried.current.has(wanted))return;
+  pickTried.current.add(wanted);let live=true;
+  void (async()=>{
+   setSmartState({kind:'picking'});
+   try{
+    const r=await studioFetch('/api/references?q='+encodeURIComponent(car)+'&page=1',{signal:AbortSignal.timeout(15_000)});
+    const d=await r.json().catch(()=>({})) as {available?:boolean;photos?:{id:string;provider:'unsplash';thumb:string;src:string;alt?:string;credit?:TrayItem['credit']}[]};
+    if(!live)return;
+    if(d.available===false){setSmartState({kind:'unavailable'});return}
+    if(!r.ok){setSmartState({kind:'ready'});return}
+    const photos=(d.photos||[]).slice(0,pickCount);
+    for(const p of photos)addReference({key:p.provider+':'+p.id,src:p.src,thumb:p.thumb,name:p.alt||'Photo of '+car,provider:p.provider,credit:p.credit,picked:true});
+    setSmartState({kind:photos.length?'ready':'none'});
+   }catch(e){if(live){setSmartState({kind:'ready'});console.warn('[smart pick] no photos',e instanceof Error?e.message:e)}}
+  })();
+  return()=>{live=false};
+ },[smartPick,pickCount,configurator,handAdded,pickedNow,mayChange]);
 
  const notices=<>
   <AccountNotices variant="ds"/>
@@ -426,8 +482,8 @@ export default function Studio(){
    history={<>{historyError&&<p className="ds-error" role="alert">{historyError}</p>}<VersionHistory versions={versions} current={stage==='result'?shown?.id||null:null} onPick={pickVersion}/></>}
    settings={settings}
    cost={cost} verb={generateVerb} busy={lock} onGenerate={startGenerate} blocked={blocked} payer={provider}
-   disabled={!status||!!moodUpload||!!moodUploadError||!!cropSrc||(!pin.trim()&&!mood)}
-   note={<>{costNote&&<>{costNote}. </>}{mode==='live'?'Takes a picture of the car as it is shown, adds your references and generates.':'Uses the car reference shown above. Starts a paid generation.'}</>}/>
+   disabled={!status||!!moodUpload||!!cropSrc||(!pin.trim()&&!mood&&!tray.length)}
+   note={mode==='live'?'Takes a picture of the car as it is shown, adds your references and generates.':'Uses your picture of the car and your references.'}/>
 
   <Dialog open={trashOpen} onClose={()=>{if(!managingVisual)setTrashOpen(false)}} title="Deleted images">
    <p className="ds-help">Restore any image to your library. Original files stay available to existing edits and references.</p>
@@ -436,6 +492,7 @@ export default function Studio(){
 <img crossOrigin="anonymous" src={v.src} alt=""/></>}</span><b className="ds-truncate" title={v.title}>{v.title}</b><Button size="sm" busy={managingVisual===v.id} disabled={!!managingVisual&&managingVisual!==v.id} onClick={()=>void restoreDeleted(v)}>Restore image</Button></li>)}</ul>}
    {trashError&&<p role="alert" className="ds-error">{trashError}</p>}
   </Dialog>
+  {ready&&<SharePanel open={shareOpen} onClose={()=>setShareOpen(false)} item={{kind:'visual',id:ready.id,title:ready.title,src:ready.src,mine:ready.mine!==false}}/>}
   <GoogleConnection open={googleOpen} onOpenChange={setGoogleOpen} status={googleConnection} onUpdate={refreshGoogle}/>
   <ConnectionSettings open={connectionOpen} onOpenChange={setConnectionOpen} status={status} onUpdate={refreshStatus}/>
   <input hidden ref={uploadRef} type="file" accept="image/png,image/jpeg,image/webp" aria-label="Upload a car reference" onChange={e=>{void receiveCapture(e.target.files?.[0]);e.target.value=''}}/>

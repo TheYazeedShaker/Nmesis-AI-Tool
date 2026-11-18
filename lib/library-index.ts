@@ -33,6 +33,22 @@ export async function indexReady(db:Db,now=Date.now()){
  known={at:now,ready};return ready;
 }
 
+// Shares (migration 0011, lib/shares.ts): work set to "Only me" is listed for
+// its creator alone, and for Nmesis staff viewing with support access. Before
+// 0011 nothing can be private. `li` is the library_items alias; one argument:
+// the requester's prefix.
+let accessKnown:{at:number;ready:boolean}|undefined;
+export async function accessReady(db:Db,now=Date.now()){
+ if(accessKnown&&(accessKnown.ready||now-accessKnown.at<60_000))return accessKnown.ready;
+ let ready=true;
+ try{await db.prepare('SELECT item_id FROM work_access WHERE 1=0').bind().first()}
+ catch(e){if(!/work_access/i.test(e instanceof Error?e.message:String(e)))throw e;ready=false;console.info('Sharing waits for migration 0011.')}
+ accessKnown={at:now,ready};return ready;
+}
+export const NOT_HIDDEN="(li.owner=? OR NOT EXISTS (SELECT 1 FROM work_access wa WHERE wa.environment=li.environment AND wa.org_id=li.org_id AND wa.item_kind=li.kind AND wa.item_id=li.id AND wa.access='private'))";
+/** Whether this request hides others' "Only me" work: after 0011, unless staff are viewing with support access. */
+export async function hidesPrivate(db:Db,ctx:{account?:{viewingAs?:boolean}}){return !ctx.account?.viewingAs&&await accessReady(db)}
+
 /** The small WebP of a picture, made once: one read of the picture, one write. */
 export async function makeThumb(store:StudioBucket,owner:string,assetId:string):Promise<string|null>{
  const key=thumbKey(owner,assetId);

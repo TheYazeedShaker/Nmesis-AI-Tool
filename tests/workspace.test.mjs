@@ -22,8 +22,9 @@ test('Phase 3 group 1: Home, Library, Projects and a folder are routes; the key-
 
 test('the new screens follow light and dark; the tool screens keep their dark bar', () => {
   const frame = read('components/workspace/frame.tsx');
-  assert.match(frame, /<div className="ds-app ds-shell workspace">/);
-  assert.match(frame, /<StudioTopBar current=\{current\} theme="system"/);
+  // The shell: the left navigation and its panels, light, dark or the person's choice (lib/theme.ts).
+  assert.match(frame, /<div className="ds-app ds-shell workspace studio-frame" data-theme=\{themeAttribute\(theme\)\}>/);
+  assert.match(frame, /<SideNav current=\{current\}\/>/);
   // Phones use the top bar's menu: a fixed bottom bar covered the work under it (check:ui).
   assert.doesNotMatch(frame, /PhoneNav/);
   assert.match(read('components/studio-topbar.tsx'), /data-theme=\{theme==='dark'\?'dark':undefined\}/);
@@ -48,7 +49,7 @@ test('viewers, staff viewing a client and an ended plan look but do not change',
 
 test('no layout shift while the library loads: skeletons hold the space', () => {
   assert.match(read('components/workspace/pages.tsx'), /<SkeletonTile key=\{i\}\/>/);
-  assert.match(read('components/workspace/home.tsx'), /recent===null\?<div className="ds-scroller" aria-busy="true"/);
+  assert.match(read('components/workspace/home.tsx'), /shown===null\?<div className="ds-grid workspace-continue" aria-busy="true"/);
 });
 
 // Phase 3 group 2: a fixed width meant for icon buttons squeezed the text
@@ -73,7 +74,8 @@ test('touch sizes never squeeze words: no fixed width from a size token on a con
   assert.match(read('app/design-system.css'), /\.ds-btn, \.ds-chip, \.ds-badge, \.ds-segmented, \.ds-meter \{ flex-shrink: 0; \}/);
   assert.match(read('app/design-system.css'), /\.ds-canvas-bar, \.ds-toolbar, \.ds-filters, \.ds-row \{ flex-wrap: wrap;/);
   // The editor fills what is left (a banner never pushes Generate off the screen).
-  assert.match(read('app/editor.css'), /\.workspace > \.ds-main\.bleed > \.ds-editor \{ flex: 1 1 auto; height: auto; min-height: 0; \}/);
+  // main sits inside the shell's page column (components/workspace/frame.tsx), not directly in .workspace.
+  assert.match(read('app/editor.css'), /\.workspace \.ds-main\.bleed > \.ds-editor \{ flex: 1 1 auto; height: auto; min-height: 0; \}/);
   // And check:ui counts controls whose words spill out of their box (ratcheted).
   assert.match(read('scripts/ui/checks.mjs'), /out\.spilling\.push/);
   assert.match(read('scripts/ui/ratchet.mjs'), /const RATCHETED = \['pagesZoomedOutOnPhones', 'editorBand', 'fixedOverSettings', 'controlsSpilling',/);

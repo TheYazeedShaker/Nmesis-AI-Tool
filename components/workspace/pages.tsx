@@ -7,6 +7,9 @@ import {Clapperboard,Film,ImageIcon,Layers,Replace} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {SkeletonTile,State} from '@/components/ds/feedback';
 import {AccountNotices,hasFeature,planEnded,PLAN_ENDED_CHIP,useAccount} from '@/components/studio-account';
+import {useCredits} from '@/components/credits';
+import {COMING_SOON,toolOpen,type ToolId} from '@/lib/tools';
+import {dayDate} from '@/lib/ds/words';
 import {isDemoConfigurator,useConfiguratorPresets} from '@/lib/configurator-presets';
 import {FEATURE_TOOL,briefPlaceholder,toolSample} from '@/lib/tool-samples';
 import {KEY_VISUAL_HREF} from '@/components/studio-topbar';
@@ -22,26 +25,26 @@ import {asSamples} from './samples';
 // The rebuilt screens wired to the Studio (Phase 3): the library a page at a time.
 
 const canChange=(a:AccountSummary|null)=>!!a&&a.workspace.open&&a.role!=='viewer'&&!a.viewingAs;
-const TOOLS:(Omit<HomeTool,'locked'>&{feature:FeatureKey})[]=[
- {key:'kv',name:'Key visual',line:'One car, one scene, campaign-ready.',href:KEY_VISUAL_HREF,icon:<ImageIcon/>,feature:'studio.key_visuals'},
- {key:'lineup',name:'Car lineup',line:'Several cars together in one frame.',href:'/lineup',icon:<Layers/>,feature:'studio.lineups'},
- {key:'story',name:'Story studio',line:'Plan a film shot by shot.',href:'/storyboard',icon:<Clapperboard/>,feature:'studio.storyboards'},
- {key:'film',name:'Film',line:'A short film from your key visual.',href:'/films',icon:<Film/>,feature:'studio.film'},
- {key:'swap',name:'Replace car',line:'Put your car into an existing ad.',href:'/swap',icon:<Replace/>,feature:'studio.swap'},
+const TOOLS:(Omit<HomeTool,'locked'>&{feature:FeatureKey;tool:ToolId})[]=[
+ {tool:'visuals',key:'kv',name:'Key visual',line:'One car, one scene, campaign-ready.',href:KEY_VISUAL_HREF,icon:<ImageIcon/>,feature:'studio.key_visuals'},
+ {tool:'lineup',key:'lineup',name:'Car lineup',line:'Several cars together in one frame.',href:'/lineup',icon:<Layers/>,feature:'studio.lineups'},
+ {tool:'storyboard',key:'story',name:'Story studio',line:'Plan a film shot by shot.',href:'/storyboard',icon:<Clapperboard/>,feature:'studio.storyboards'},
+ {tool:'films',key:'film',name:'Film',line:'A short film from your key visual.',href:'/films',icon:<Film/>,feature:'studio.film'},
+ {tool:'swap',key:'swap',name:'Replace car',line:'Put your car into an existing ad.',href:'/swap',icon:<Replace/>,feature:'studio.swap'},
 ];
 
 // The library's Create menu: the five tools, in the editor's order and to the
 // editor's pages (EDITOR_TOOLS), each with its plan chip when the plan lacks it.
-const CREATE:{key:string;label:string;href:string;icon:React.ReactNode;feature:FeatureKey}[]=[
- {key:'kv',label:'New key visual',href:KEY_VISUAL_HREF,icon:<ImageIcon/>,feature:'studio.key_visuals'},
- {key:'lineup',label:'New line-up',href:'/lineup',icon:<Layers/>,feature:'studio.lineups'},
- {key:'film',label:'New film',href:'/films',icon:<Film/>,feature:'studio.film'},
- {key:'swap',label:'New swap',href:'/swap',icon:<Replace/>,feature:'studio.swap'},
- {key:'story',label:'New story',href:'/storyboard',icon:<Clapperboard/>,feature:'studio.storyboards'},
+const CREATE:{key:string;label:string;href:string;icon:React.ReactNode;feature:FeatureKey;tool:ToolId}[]=[
+ {tool:'visuals',key:'kv',label:'New key visual',href:KEY_VISUAL_HREF,icon:<ImageIcon/>,feature:'studio.key_visuals'},
+ {tool:'lineup',key:'lineup',label:'New line-up',href:'/lineup',icon:<Layers/>,feature:'studio.lineups'},
+ {tool:'films',key:'film',label:'New film',href:'/films',icon:<Film/>,feature:'studio.film'},
+ {tool:'swap',key:'swap',label:'New swap',href:'/swap',icon:<Replace/>,feature:'studio.swap'},
+ {tool:'storyboard',key:'story',label:'New story',href:'/storyboard',icon:<Clapperboard/>,feature:'studio.storyboards'},
 ];
 const planChip=(account:AccountSummary|null,feature:FeatureKey)=>hasFeature(account,feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[feature]}`;
 function createOptions(account:AccountSummary|null,onNewFolder:(name:string)=>void,folderIn?:string):CreateOptions{
- return {tools:CREATE.map(({feature,...t})=>({...t,locked:planChip(account,feature)})),onNewFolder,folderIn};
+ return {tools:CREATE.map(({feature,tool,...t})=>({...t,locked:toolOpen(tool)?planChip(account,feature):COMING_SOON})),onNewFolder,folderIn};
 }
 
 function Loading(){
@@ -53,16 +56,21 @@ function Problem({text,onRetry}:{text:string;onRetry:()=>void}){
 const libraryHref=(p:Place)=>p==='all'?'/library':`/library?in=${encodeURIComponent(p)}`;
 
 export function HomePage(){
- const account=useAccount(),lib=useLibraryPage('all',{limit:10});
+ const account=useAccount(),credits=useCredits(),lib=useLibraryPage('all',{limit:10});
  const presets=useConfiguratorPresets(),cars=presets.filter(c=>!isDemoConfigurator(c));
  // Each tool's picture: its latest finished work in the feed Home loads, else one of the company's cars.
  const work=lib.ready?asSamples(lib.items):[];
- const tools:HomeTool[]=TOOLS.map((t,i)=>({...t,sample:toolSample(FEATURE_TOOL[t.feature],work,cars,i).src,locked:hasFeature(account,t.feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[t.feature]}`}));
- return <WorkspaceFrame current="home" notices={<AccountNotices variant="ds"/>}>
+ // Car lineup: two or three different cars of the company side by side (neutral cars while they load).
+ const lineupCars=cars.length>=2?cars.slice(0,3).map(c=>c.picture):[undefined,undefined,undefined];
+ const tools:HomeTool[]=TOOLS.map(({tool,feature,...t},i)=>!toolOpen(tool)?{...t,locked:COMING_SOON,soon:true}
+  :{...t,sample:toolSample(FEATURE_TOOL[feature],work,cars,i).src,cars:tool==='lineup'?lineupCars:undefined,locked:hasFeature(account,feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[feature]}`});
+ const meter=credits&&!credits.unlimited?credits.meter:null;
+ const first=account?.user.name?.split(' ')[0];
+ return <WorkspaceFrame current="home" notices={<AccountNotices variant="ds" credits={false}/>}>
   {lib.problem&&!lib.ready?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:null}
-  <HomeScreen tools={tools} greeting={account?workName(account):undefined} placeholder={briefPlaceholder(cars,account?.brand?.id)}
+  <HomeScreen tools={tools} greeting={account?(first?`Welcome back, ${first}`:`Welcome to ${workName(account)}`):undefined} placeholder={briefPlaceholder(cars,account?.brand?.id)}
+   credits={meter?{left:meter.left,resetsOn:meter.resetsOn?dayDate(meter.resetsOn)||meter.resetsOn:null,href:credits?.usage?'/usage':undefined}:null}
    recent={lib.ready?lib.items.map(i=>({...i,href:i.kind==='image'?`/library?open=${encodeURIComponent(i.id)}`:i.href})):lib.problem?[]:null}
-   cars={presets.filter(c=>c.url.startsWith('https://')).map(c=>({name:c.name,href:`${KEY_VISUAL_HREF}?car=${encodeURIComponent(c.name)}`,picture:c.picture}))}
    onStart={brief=>location.assign(brief?`${KEY_VISUAL_HREF}?brief=${encodeURIComponent(brief)}`:KEY_VISUAL_HREF)}/>
  </WorkspaceFrame>;
 }

@@ -2,9 +2,22 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-17 (lists and leftovers: paged lists, sign-in on the design system, live configurator load, library fills itself, library follows its address)
+**Last updated:** 2026-11-18 (Studio shell, Canva-level simplicity: `feat/studio-shell`)
 
-**Latest (2026-11-17, `fix/lists-and-leftovers`):**
+**Latest (2026-11-18, Studio shell, `feat/studio-shell`, PR 1 of 2):**
+- **Car view bug:** the car view showed the browser's own error page (a torn-page icon) above "Use this view". The frame loaded the placeholder configurator, whose address does not exist, while the company's cars were loading and whenever none came back; the browser fires `load` for its own error page, so the 10 s check never caught it. Now only a real car's page is loaded (`liveConfiguratorUrl`), the frame says "Loading your cars…" or "No car to show here yet", and a car left out of the list is said in the server log (counts only), e.g. when `CONFIGURATOR_ORIGIN` is not set. Test: `tests/car-view.test.mjs`. The configurator's #55–#57 changed neither its addresses nor its framing.
+- **Tools:** one flag list, `lib/tools.ts` (`OPEN_TOOLS`): Key visual and Car lineup are open; Story, Film and Replace car show on Home and in Create as "Coming soon" (visible, not links) and their pages go Home (`proxy.ts`). Unlocking a tool is adding its id. Their APIs and code are unchanged.
+- **Shell:** the top bar is replaced by a left navigation (icon and label, collapsible, remembered): Home, Projects (the library), References, Brand, Uploads, and the account at the bottom (name, email, avatar; the company with its member count and a switch; Your account, Settings, Theme light/dark/system, Help, Plans and credits, Log out). References and Uploads open a panel beside it. Phones: a slim bar and a drawer. The editor's own tool rail is gone (one navigation). `components/shell/`, `app/side-nav.css`.
+- **No band under the page:** the editor's grid row grew past the window when a notice pushed it down, showing the old dark body under tool pages; and phones held room for a bottom bar that no longer exists. Both fixed in `app/side-nav.css`.
+- **Home:** a greeting, "What do you want to make?", the two open tools large (Car lineup shows two or three of the company's cars side by side), the others small as Coming soon, How it works (Pick → Add references → Generate → Edit and share), Continue where you left off (at most six), and the credits left. No banners, no carousels.
+- **Key visual settings:** one column for someone new: Car and view, References (added from the panel, Uploads or dropped; Smart pick on by default, with how many), Quality, How many, a live cost line, Generate; your idea, art direction, the Pinterest link and (staff, own keys) the engine under a closed Advanced. With several references, visual i takes reference i (each request is still one car and one inspiration; generation itself is unchanged). Car lineup follows the same order.
+- **Brand** (`/brand`, migration `0010_brand_kits.sql`): logos, colours, fonts, brand voice per company; owners and creators edit (`lib/accounts/can.ts`).
+- **References panel:** a provider interface (`lib/references`), Unsplash first (official API, attribution, download tracking, `UNSPLASH_ACCESS_KEY`), a Pinterest stub that stays off; no scraping. `docs/references.md`.
+- **Uploads:** the person's own uploads (an empty mark beside each asset, `lib/uploads.ts`), reusable as references.
+- **Share** (migration `0011_shares.sql`): access per piece of work (only me / company can view / company can edit), a signed-in link, a public view link (off by default, expiring, can be turned off), and downloads in PNG or JPG at a chosen size. The public page shows a copy at `public/<random>` (no company or person in its address), deleted when the link is turned off or replaced and swept after expiry (link changes, the page, and a daily Vercel Cron job with `CRON_SECRET`).
+- No hosted system was touched.
+
+**Earlier (2026-11-17, `fix/lists-and-leftovers`):**
 - Every list and log (Company settings: support openings, team, team changes, credit emails; every Usage table) shows 10 rows, then "1–10 of 47" with Previous / Next: one design-system component, `components/ds/list.tsx` (`DataTable`, `PagedList`, `Pager`).
 - Key visual → Smart reference prompt: a design-system card (title, one line of help, a switch; the three priorities as radios). The plan and check cards use tokens.
 - Live configurator (key visual, swap, line-up, story): one `LiveFrame`. Causes found: the iframe was server-drawn (its load could fire before React listened) and was loaded inside a hidden pane (0 × 0, stayed black). It is now created after mount and only once shown; after 10 s without a load it says "Couldn’t load the configurator" with Try again, and logs the cause (host only).
@@ -284,6 +297,11 @@ _Carried_
 - Lint debt (BACKLOG #4). Zod 3 advisory (GHSA-mrhx-c7xc-m3w5). `docs/VERIFICATION.md` describes the original export.
 
 ## Next session — start here
+
+0. Studio shell (PR 1 of 2, `feat/studio-shell`):
+   - Owner: review the PR; then run `npm run db:migrate` (0010 brand kits, 0011 shares), set `UNSPLASH_ACCESS_KEY` per environment (`docs/references.md`) and `CRON_SECRET` for Production (`docs/s3-setup.md` section 7), and redeploy;
+   - if the car view still shows a blank or broken frame on a deployment, check the server log for "Configurators left out" (`CONFIGURATOR_ORIGIN` per environment);
+   - then PR 2, `feat/studio-editor` (the canvas editor), from `development` after PR 1 is merged.
 
 1. Owner: review PR `design/finish-pass`.
 2. Owner (finish pass):

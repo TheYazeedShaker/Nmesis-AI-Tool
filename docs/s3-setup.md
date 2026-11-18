@@ -95,6 +95,15 @@ The top bar shows each brand's logo: the brand name icon its configurator shows.
 
 3. Redeploy. A brand whose configurator has no brand name icon at all keeps showing its name alone; that is expected, not an error (the logo route answers 204).
 
+## 7. Public view links (`public/`)
+
+A public view link (Share, `lib/shares.ts`) shows a copy of the picture at `public/<32 random hex characters>` in the environment's own bucket. The address names no company, person or piece of work. The Studio's IAM user (section 4) already covers it; nothing to add.
+
+The copy is deleted when the link is turned off or replaced, and after it expires by a sweep. The sweep runs when links are made or turned off, when someone opens a dead link, and daily on Production through Vercel Cron (`vercel.json`, `/api/cron/public-links`).
+
+1. **Daily job (Production).** In Vercel → Settings → Environment Variables, add `CRON_SECRET` for Production: a random string of at least 16 characters, marked Sensitive. Then redeploy. Vercel sends it with each cron call, and the route refuses every other caller. Without it, the daily job does nothing; the other sweeps still run.
+2. **Optional backstop, per bucket.** Add an S3 lifecycle rule that expires objects under the `public/` prefix after 31 days. That is one day past the longest link (30 days). Preview has no Vercel Cron, so this rule is the only scheduled cleanup there.
+
 ## Notes
 
 - Conditional writes: the studio creates lock and cache objects with `If-None-Match: *` and replaces them with `If-Match: <ETag>`. S3 answers `412 Precondition Failed` (or `409` for a concurrent conflicting write), which the studio treats as "not written", the same as before. `If-None-Match` with an ETag is not used (S3 accepts only `*`).

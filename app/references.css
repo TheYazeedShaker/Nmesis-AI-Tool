@@ -1,0 +1,54 @@
+/* The References panel (components/references/references-panel.tsx): a search,
+   a grid of photos with their credits, a tick on the ones in the tray.
+   Tokens only (docs/design-system.md). The panel is full width on a phone and
+   about 360px beside the navigation; the grid fits two columns in both. */
+.refs-panel { display: flex; flex-direction: column; gap: var(--ds-space-12); min-width: 0; }
+.refs-search { display: flex; align-items: center; gap: var(--ds-space-8); min-width: 0; }
+.refs-search > .ds-search { flex: 1 1 auto; }
+.refs-search > .ds-search > input::-webkit-search-cancel-button { cursor: pointer; }
+.refs-count {
+  margin: 0; color: var(--ds-muted);
+  font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-variant-numeric: var(--ds-numeric);
+}
+.refs-count[data-full="true"] { color: var(--ds-text); font-weight: var(--ds-weight-medium); }
+
+.refs-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(var(--ds-space-64) * 2), 1fr));
+  gap: var(--ds-space-12); margin: 0; padding: 0; list-style: none; min-width: 0;
+}
+.refs-tile { gap: var(--ds-space-4); }
+
+/* The photo is the button: one press adds it, a second takes it out. */
+.refs-pick {
+  position: relative; display: block; width: 100%; aspect-ratio: 4 / 3; margin: 0; padding: 0;
+  overflow: hidden; cursor: pointer; border-radius: var(--ds-radius);
+  border: var(--ds-border-width) solid var(--ds-border); background: var(--ds-media-bg);
+  transition: border-color var(--ds-dur-fast) var(--ds-ease);
+}
+.refs-pick:hover { border-color: var(--ds-border-strong); }
+.refs-pick:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.refs-pick[aria-pressed="true"] { border-color: var(--ds-accent-edge); box-shadow: 0 0 0 var(--ds-focus-width) var(--ds-accent); }
+.refs-pick > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.refs-tick {
+  position: absolute; top: var(--ds-space-8); right: var(--ds-space-8); z-index: var(--ds-z-raised);
+  display: inline-grid; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm);
+  border-radius: var(--ds-radius-round); border: var(--ds-border-width) solid var(--ds-accent-edge);
+  background: var(--ds-accent); color: var(--ds-accent-ink); box-shadow: var(--ds-shadow-1);
+}
+.refs-tick > svg { width: var(--ds-icon); height: var(--ds-icon); }
+
+/* "Photo by <name> on <library>": under every photo, always shown. */
+.refs-credit {
+  margin: 0; padding: 0 var(--ds-space-2); color: var(--ds-muted);
+  font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); overflow-wrap: anywhere;
+}
+.refs-credit-link { color: inherit; text-decoration: underline; text-underline-offset: 0.2em; }
+.refs-credit-link:hover { color: var(--ds-text); }
+.refs-credit-link:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); border-radius: var(--ds-radius-xs); }
+
+.refs-more { display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-12); padding-bottom: var(--ds-space-16); }
+.refs-more-grid { align-self: stretch; }
+.refs-sentinel { align-self: stretch; height: var(--ds-space-2); }
+.refs-more-error { display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-8); text-align: center; color: var(--ds-text); }
+.refs-more-error > p, .refs-end { margin: 0; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.refs-end { color: var(--ds-muted); text-align: center; }

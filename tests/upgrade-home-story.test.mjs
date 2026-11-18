@@ -56,7 +56,7 @@ test('a tool’s picture: its latest finished work, else one of the company’s 
 test('Home: each tool card shows its sample in a fixed box (lazy, sized, no layout shift), never the olive box', () => {
  const pages=read('components/workspace/pages.tsx'),home=read('components/workspace/home.tsx'),pic=read('components/workspace/car-picture.tsx'),css=read('app/workspace.css');
  assert.match(pages,/const work=lib\.ready\?asSamples\(lib\.items\):\[\];/);
- assert.match(pages,/sample:toolSample\(FEATURE_TOOL\[t\.feature\],work,cars,i\)\.src/);
+ assert.match(pages,/sample:toolSample\(FEATURE_TOOL\[feature\],work,cars,i\)\.src/);
  assert.match(pages,/cars=presets\.filter\(c=>!isDemoConfigurator\(c\)\)/);
  assert.match(home,/<SamplePicture src=\{tool\.sample\} className="ds-tool-art" fallback=\{tool\.icon\}\/>/);
  assert.equal((home.match(/<ToolArt tool=\{t\}\/>/g)||[]).length,2,'locked and open cards alike');
