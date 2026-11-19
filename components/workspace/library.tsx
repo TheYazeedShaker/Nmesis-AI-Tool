@@ -11,6 +11,7 @@ import {PageHeader} from '@/components/ds/layout';
 import {BulkBar,MediaGrid,MediaTile,Viewer} from '@/components/ds/media';
 import {Menu,MenuItem,MenuSeparator} from '@/components/ds/menu';
 import {emptyWords} from '@/lib/library-words';
+import {editorHref} from '@/components/canvas/open-in-editor';
 import type {Folder,WorkItem} from './items';
 
 // The one shared library (Phase 3, the approved wireframe): everything the
@@ -32,8 +33,12 @@ export type LibraryActions={
 };
 const TOOLS=['Key visual','Line-up','Film','Car swap','Story'] as const;
 
-/** What the canvas editor can open: a finished key visual or line-up picture. */
-const editable=(w:WorkItem)=>(w.tool==='Key visual'||w.tool==='Line-up')&&(w.kind===undefined||w.kind==='image')&&!w.status&&!w.deleted;
+/** Where Edit opens an item: the canvas editor, for a finished key visual or line-up that is not deleted;
+ *  null for anything else, which then has no Edit. A line-up's "Line-up" label is not a state. */
+export function editLink(w:WorkItem):string|null{
+ const finished=!w.status||w.status.kind==='quiet';
+ return (w.tool==='Key visual'||w.tool==='Line-up')&&finished&&!w.deleted?editorHref(w.ref.kind,w.ref.id):null;
+}
 export function FolderNav({folders,place,counts,hrefFor,label='Folders'}:{folders:Folder[];place:Place;counts:Counts;hrefFor:(p:Place)=>string;label?:string}){
  const top=folders.filter(f=>!f.parentId);
  const row=(p:Place,icon:React.ReactNode,name:string,count:number,sub?:boolean)=><Link key={p} className={'ds-folder'+(sub?' sub':'')} href={hrefFor(p)} aria-current={place===p?'page':undefined}>{icon}<span className="ds-truncate" title={name}>{name}</span><span className="ds-folder-count">{count.toLocaleString('en-US')}</span></Link>;
@@ -167,7 +172,7 @@ export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMo
    {create?.onNewFolder&&<NewFolderDialog key={naming?'open':'shut'} open={naming} folderIn={create.folderIn} onClose={()=>setNaming(false)} onSave={n=>{create.onNewFolder?.(n);setNaming(false)}}/>}
    <MoveDialog open={!!moving} folders={folders} count={moving?.length||0} onClose={()=>setMoving(null)} onMove={f=>{actions.onMove(moving||[],f);setMoving(null);setChosen(new Set())}}/>
    <Viewer items={items} index={open>=0?open:null} onIndex={i=>setOpenItem(items[i]?.id??null)} onClose={()=>setOpenItem(null)} onDownload={actions.onDownload?m=>actions.onDownload!(m as WorkItem):undefined}
-    onEdit={deletedView||readOnly?undefined:m=>router.push('/editor?visual='+encodeURIComponent(m.id))} canEdit={m=>editable(m as WorkItem)}
+    onEdit={deletedView||readOnly?undefined:m=>{const href=editLink(m as WorkItem);if(href)router.push(href)}} canEdit={m=>!!editLink(m as WorkItem)}
     onMove={deletedView||!canMove?undefined:m=>setMoving([m.id])} onDelete={deletedView||readOnly?undefined:m=>{setOpenItem(null);actions.onDelete([m.id])}}/>
   </div>
  </div>;
