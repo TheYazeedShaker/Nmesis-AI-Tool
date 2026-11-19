@@ -162,6 +162,17 @@ export function layoutChecks({ phone }) {
       if (c.bottom - pad - h.bottom > 8) out.editorBand.push({ el: 'under .editor-stage-history', gap: Math.round(c.bottom - pad - h.bottom) });
     }
   }
+  // The shell fills the window (fix/shell-height-and-critique): at the top of the page, the
+  // shell (.studio-frame) and its work area (.studio-frame-page) reach the bottom of the
+  // window, and the shell is never scrolled (that would show the background under the page).
+  out.shellShort = [];
+  const shell = document.querySelector('.studio-frame'), work = document.querySelector('.studio-frame-page');
+  if (shell && window.scrollY === 0) {
+    const s = shell.getBoundingClientRect(), w = work && visible(work) ? work.getBoundingClientRect() : null;
+    if (s.top > 1 || s.bottom < window.innerHeight - 1) out.shellShort.push({ el: 'shell', top: Math.round(s.top), bottom: Math.round(s.bottom), window: window.innerHeight });
+    if (w && w.bottom < window.innerHeight - 1) out.shellShort.push({ el: 'work area', bottom: Math.round(w.bottom), window: window.innerHeight });
+    if (shell.scrollTop > 0) out.shellShort.push({ el: 'shell scrolled', by: Math.round(shell.scrollTop) });
+  }
   // Layers (feat/studio-foundations): an open menu or drawer is drawn over everything,
   // never under a panel. Five points inside each open one (its middle and near
   // each corner) must hit the menu itself; whatever covers a point is named.

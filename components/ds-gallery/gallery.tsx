@@ -71,7 +71,7 @@ function Tokens() {
         {TEXT.map((t) => (
           <div key={t} className="ds-scale-row">
             <code>--ds-text-{t} · {TEXT_PX[t]}px</code>
-            <span className="ds-truncate" style={{ fontSize: `var(--ds-text-${t})`, lineHeight: `var(--ds-leading-${t})`, fontFamily: TEXT_PX[t] >= 16 ? 'var(--ds-font-display)' : undefined }}>Demo SUV key visual · 1,250 credits</span>
+            <span className="ds-truncate" title="Demo SUV key visual · 1,250 credits" style={{ fontSize: `var(--ds-text-${t})`, lineHeight: `var(--ds-leading-${t})`, fontFamily: TEXT_PX[t] >= 16 ? 'var(--ds-font-display)' : undefined }}>Demo SUV key visual · 1,250 credits</span>
           </div>
         ))}
         <div className="ds-row">

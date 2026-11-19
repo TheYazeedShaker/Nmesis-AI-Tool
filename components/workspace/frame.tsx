@@ -19,7 +19,7 @@ import {themeAttribute,useTheme} from '@/lib/theme';
 export function WorkspaceFrame({current,notices,children,bleed}:{current:StudioPage;notices?:React.ReactNode;children:React.ReactNode;/** Kept for the design-system proposals; the frame reads the account itself. */preview?:ShellPreview;/** No page padding: the editor fills the space. */bleed?:boolean}){
  const theme=useTheme(),path=usePathname();
  React.useEffect(()=>{navigated(path,toolOf(current))},[path,current]);
- return <div className="ds-app ds-shell workspace studio-frame" data-theme={themeAttribute(theme)}>
+ return <div className="ds-app ds-shell workspace studio-frame" data-theme={themeAttribute(theme)} data-fill={bleed||undefined}>
   <a className="ds-skip" href="#main">Skip to content</a>
   <SideNav current={current}/>
   <ShellPanels current={current}/>
