@@ -172,6 +172,15 @@ export function layoutChecks({ phone }) {
     if (s.top > 1 || s.bottom < window.innerHeight - 1) out.shellShort.push({ el: 'shell', top: Math.round(s.top), bottom: Math.round(s.bottom), window: window.innerHeight });
     if (w && w.bottom < window.innerHeight - 1) out.shellShort.push({ el: 'work area', bottom: Math.round(w.bottom), window: window.innerHeight });
     if (shell.scrollTop > 0) out.shellShort.push({ el: 'shell scrolled', by: Math.round(shell.scrollTop) });
+    // A tool page (data-fill): the document is exactly the window, and the shell's bottom is the
+    // window's at any page zoom (a zoomed window's height is fractional: compare with the visual
+    // viewport's, within half a pixel). The band on a real laptop was the document taller than the
+    // window (app/side-nav.css).
+    if (shell.hasAttribute('data-fill')) {
+      const doc = document.documentElement.scrollHeight, view = window.visualViewport?.height ?? window.innerHeight;
+      if (doc !== window.innerHeight) out.shellShort.push({ el: 'document taller than the window', document: doc, window: window.innerHeight });
+      if (Math.abs(s.bottom - view) > 0.5) out.shellShort.push({ el: 'shell bottom is not the window bottom', bottom: +s.bottom.toFixed(2), window: +view.toFixed(2) });
+    }
     // A tool page (main.bleed): only the editor takes height in the work area (a dialog, a wrapper
     // or a hidden input there must take none), the editor reaches the work area's bottom, and its
     // canvas and settings panel reach the editor's bottom (or the row under them, the phone's
@@ -235,6 +244,33 @@ export function layoutChecks({ phone }) {
 
 // After a real Tab press: the focused element, whether it shows a focus
 // indicator, and whether a fixed or sticky bar covers it (2.4.11).
+// What a real browser adds that the harness does not (the band, fix/studio-editor-fixes): on a tool
+// page, a node after the shell in <body> (a browser extension's, a hosting toolbar's) and an
+// absolutely positioned box in the work area whose containing block is outside the shell must
+// not make the document taller than the window, and scrolling the document must not move the
+// shell. Both are added, measured and removed; the page's scroll is put back.
+export function shellOutsideProbe() {
+  const shell = document.querySelector('.studio-frame[data-fill]');
+  if (!shell) return [];
+  const found = [], outside = document.createElement('div'), escaper = document.createElement('div');
+  outside.style.height = '88px'; outside.textContent = ' ';
+  escaper.style.cssText = 'position:absolute;width:8px;height:48px';
+  const y = window.scrollY;
+  document.body.append(outside);
+  (document.querySelector('main#main') || shell).append(escaper);
+  try {
+    const doc = document.documentElement.scrollHeight;
+    if (doc !== window.innerHeight) found.push({ el: 'a node outside the shell makes the document taller', document: doc, window: window.innerHeight });
+    document.scrollingElement.scrollTop = 1e6;
+    const b = shell.getBoundingClientRect(), view = window.visualViewport?.height ?? window.innerHeight;
+    if (window.scrollY > 0 || Math.abs(b.bottom - view) > 0.5) found.push({ el: 'the document scrolls under the shell', by: Math.round(window.scrollY), gap: Math.round(view - b.bottom) });
+  } finally {
+    outside.remove(); escaper.remove();
+    document.scrollingElement.scrollTop = y;
+  }
+  return found;
+}
+
 export function focusState() {
   const describe = (el) => {
     const id = el.id ? '#' + el.id : '';

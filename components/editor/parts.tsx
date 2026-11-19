@@ -1,12 +1,14 @@
 'use client';
 import * as React from 'react';
-import {Camera,Check,Coins,FolderInput,Folder as FolderIcon,Image as ImageIcon,Inbox,RotateCw} from 'lucide-react';
+import {Camera,Check,Coins,FolderInput,Folder as FolderIcon,Image as ImageIcon,Inbox,KeyRound,RotateCw} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {Badge} from '@/components/ds/feedback';
 import {Dialog} from '@/components/ds/dialog';
 import {DropZone} from '@/components/ds/drop-zone';
 import {Field,Input,Radio,RadioGroup,Select,Slider,Textarea} from '@/components/ds/field';
-import {credits as creditWords} from '@/lib/ds/words';
+import {credits as creditWords,OWN_KEY_USED,usedOwnKey} from '@/lib/ds/words';
+import {useCredits} from '@/components/credits';
+import type {CreditProvider} from '@/lib/credits/pricing';
 import type {ConfiguratorChoice,ConfiguratorOptions} from './configurator';
 import {useConfiguratorPresets} from '@/lib/configurator-presets';
 import {CarPicture} from '@/components/workspace/car-picture';
@@ -17,9 +19,12 @@ import {CarPicture} from '@/components/workspace/car-picture';
 export type Quality='standard'|'high';
 export const QUALITY_LABEL:Record<Quality,string>={standard:'Standard',high:'High detail'};
 
-/** The credit cost before an action ("· 4 credits") or what a result used. */
-export function CostBadge({credits,used}:{credits:number|null;used?:boolean}){
+/** The credit cost before an action ("· 4 credits") or what a result used; work on the company's own
+ *  AI key says so instead of "Used 0 credits" (lib/ds/words.ts). */
+export function CostBadge({credits,used,provider}:{credits:number|null;used?:boolean;provider?:CreditProvider}){
+ const o=useCredits();
  if(credits===null)return null;
+ if(used&&usedOwnKey(o,provider,credits))return <Badge icon={<KeyRound aria-hidden="true"/>}>{OWN_KEY_USED}</Badge>;
  return <Badge icon={<Coins aria-hidden="true"/>}>{used?`Used ${creditWords(credits)}`:creditWords(credits)}</Badge>;
 }
 
@@ -95,6 +100,7 @@ export function LengthSettings({value,onChange,choices}:{value:number;onChange:(
 }
 
 export type Version={id:string;n:number;src?:string;quality:Quality;used:number|null;at:string;status:'ready'|'working'|'failed';label?:string;
+ /** Who it was billed through: work on the company's own AI key reads "Your AI key, no credits". */provider?:CreditProvider;
  /** While it is being made: the provider's step in words, 0–1 when known, the credits held. */stage?:string;progress?:number;held?:number;
  /** False when this version can no longer be cancelled (e.g. the render has started). */cancellable?:boolean};
 /** A failed version says "nothing used" only when that is known: work a provider accepted can be charged even if it fails. */
@@ -113,7 +119,7 @@ export function VersionHistory({versions,current,onPick,onCancel}:{versions:Vers
    </button>
    {v.status==='working'?<div className="editor-version-progress" role="status"><span>{v.stage||'In progress'}{typeof v.progress==='number'?` · ${Math.round(v.progress*100)}%`:''}</span>
      <span className="ds-progress" data-indeterminate={typeof v.progress!=='number'||undefined}><span className="ds-progress-bar" style={{transform:`scaleX(${v.progress??0.3})`}}/></span>
-     <span className="editor-row">{typeof v.held==='number'&&<span>{creditWords(v.held)} held</span>}{onCancel&&v.cancellable!==false&&<Button size="sm" kind="quiet" onClick={()=>onCancel(v.id)}>Cancel</Button>}</span></div>:v.status==='failed'?<Badge kind="bad">{failedWords(v.used)}</Badge>:<CostBadge credits={v.used} used/>}
+     <span className="editor-row">{typeof v.held==='number'&&<span>{creditWords(v.held)} held</span>}{onCancel&&v.cancellable!==false&&<Button size="sm" kind="quiet" onClick={()=>onCancel(v.id)}>Cancel</Button>}</span></div>:v.status==='failed'?<Badge kind="bad">{failedWords(v.used)}</Badge>:<CostBadge credits={v.used} used provider={v.provider}/>}
   </div>)}
  </div>;
 }

@@ -9,7 +9,7 @@ import {SkeletonTile,State} from '@/components/ds/feedback';
 import {AccountNotices,hasFeature,planEnded,PLAN_ENDED_CHIP,useAccount} from '@/components/studio-account';
 import {useCredits} from '@/components/credits';
 import {COMING_SOON,toolOpen,type ToolId} from '@/lib/tools';
-import {dayDate} from '@/lib/ds/words';
+import {dayDate,ownKeysLine,OWN_KEYS_ALL} from '@/lib/ds/words';
 import {isDemoConfigurator,useConfiguratorPresets} from '@/lib/configurator-presets';
 import {FEATURE_TOOL,briefPlaceholder,toolSample} from '@/lib/tool-samples';
 import {KEY_VISUAL_HREF} from '@/components/studio-topbar';
@@ -20,7 +20,6 @@ import {HomeScreen,type HomeTool} from './home';
 import {LibraryView,type CreateOptions,type Place} from './library';
 import {FolderHeader,ProjectsHeader,ProjectsScreen,ProjectsUnavailable,folderHref} from './projects';
 import {useLibraryPage} from './data';
-import {asSamples} from './samples';
 
 // The rebuilt screens wired to the Studio (Phase 3): the library a page at a time.
 
@@ -58,18 +57,17 @@ const libraryHref=(p:Place)=>p==='all'?'/library':`/library?in=${encodeURICompon
 export function HomePage(){
  const account=useAccount(),credits=useCredits(),lib=useLibraryPage('all',{limit:10});
  const presets=useConfiguratorPresets(),cars=presets.filter(c=>!isDemoConfigurator(c));
- // Each tool's picture: its latest finished work in the feed Home loads, else one of the company's cars.
- const work=lib.ready?asSamples(lib.items):[];
+ // Each tool's one fixed picture (lib/tool-samples.ts): never its latest work, which is in Recent work below.
  // Car lineup: two or three different cars of the company side by side (neutral cars while they load).
  const lineupCars=cars.length>=2?cars.slice(0,3).map(c=>c.picture):[undefined,undefined,undefined];
- const tools:HomeTool[]=TOOLS.map(({tool,feature,...t},i)=>!toolOpen(tool)?{...t,locked:COMING_SOON,soon:true}
-  :{...t,sample:toolSample(FEATURE_TOOL[feature],work,cars,i).src,cars:tool==='lineup'?lineupCars:undefined,locked:hasFeature(account,feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[feature]}`});
- const meter=credits&&!credits.unlimited?credits.meter:null;
+ const tools:HomeTool[]=TOOLS.map(({tool,feature,...t})=>!toolOpen(tool)?{...t,locked:COMING_SOON,soon:true}
+  :{...t,sample:toolSample(FEATURE_TOOL[feature],cars).src,cars:tool==='lineup'?lineupCars:undefined,locked:hasFeature(account,feature)?undefined:planEnded(account)?PLAN_ENDED_CHIP:`On ${account?.upsell[feature]}`});
+ const meter=credits&&!credits.unlimited?credits.meter:null,own=ownKeysLine(credits);
  const first=account?.user.name?.split(' ')[0];
  return <WorkspaceFrame current="home" notices={<AccountNotices variant="ds" credits={false}/>}>
   {lib.problem&&!lib.ready?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:null}
   <HomeScreen tools={tools} greeting={account?(first?`Welcome back, ${first}`:`Welcome to ${workName(account)}`):undefined} placeholder={briefPlaceholder(cars,account?.brand?.id)}
-   credits={meter?{left:meter.left,resetsOn:meter.resetsOn?dayDate(meter.resetsOn)||meter.resetsOn:null,href:credits?.usage?'/usage':undefined}:null}
+   credits={own===OWN_KEYS_ALL?{left:null,own,href:credits?.usage?'/usage':undefined}:meter?{left:meter.left,resetsOn:meter.resetsOn?dayDate(meter.resetsOn)||meter.resetsOn:null,href:credits?.usage?'/usage':undefined,own}:null}
    recent={lib.ready?lib.items.map(i=>({...i,href:i.kind==='image'?`/library?open=${encodeURIComponent(i.id)}`:i.href})):lib.problem?[]:null}
    onStart={brief=>location.assign(brief?`${KEY_VISUAL_HREF}?brief=${encodeURIComponent(brief)}`:KEY_VISUAL_HREF)}/>
  </WorkspaceFrame>;

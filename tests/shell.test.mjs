@@ -153,7 +153,7 @@ test('Key visual settings: one column in the beginner order, everything else und
 test('no band under the page: the editor fills the window, the old dark body never shows, no room held for a phone bar', () => {
   const css = read('app/side-nav.css');
   assert.match(css, /body:has\(> \.ds-shell\), body:has\(\.studio-frame\) \{ background: var\(--ds-bg\); \}/);
-  assert.match(css, /\.studio-frame\[data-fill\] \{ height: 100dvh; min-height: 0; overflow: clip; \}/);
+  assert.match(css, /\.studio-frame\[data-fill\] \{ height: 100dvh; min-height: 0; overflow: clip; position: relative; \}/);
   assert.match(css, /\.studio-frame \.ds-main\.bleed > \.ds-editor \{[^}]*grid-template-rows: minmax\(0, 1fr\);/);
   assert.match(css, /\.studio-frame \.ds-main \{ padding-bottom: var\(--ds-space-32\); \}/);
   assert.match(read('components/ds/editor.tsx'), /data-rail=\{tools\.length \? undefined : 'none'\}/);
@@ -180,6 +180,30 @@ test('the shell alone sizes from the viewport: no page or editor sets its own vi
   assert.match(ds, /\.ds-editor \{[^}]*height: 100%; min-height: 0;/);
   // check:ui asserts it on every screen at 1440, 768 and 390.
   assert.match(read('scripts/ui/checks.mjs'), /out\.shellShort = \[\];/);
+});
+
+test('the band on a real laptop: on a tool page the document is the shell and nothing more (fix/studio-editor-fixes)', () => {
+  const css = read('app/side-nav.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  // The shell contains its own absolutely positioned boxes (its clip reaches them)...
+  assert.match(css, /\.studio-frame\[data-fill\] \{[^}]*overflow: clip; position: relative; \}/);
+  // ...and the body is the window (100 % of the root, no viewport unit) and clips whatever else it holds;
+  // the root clips too, so the body's overflow is its own and not the window's.
+  const root = css.match(/html:has\(> body > \.studio-frame\[data-fill\]\) \{([^}]*)\}/)?.[1] || '';
+  const body = css.match(/html:has\(> body > \.studio-frame\[data-fill\]\) > body \{([^}]*)\}/)?.[1] || '';
+  assert.match(root, /height: 100%; overflow: clip;/);
+  assert.match(body, /height: 100%; overflow: clip; position: relative;/);
+  for (const rule of [root, body]) assert.doesNotMatch(rule, /\d(d|s|l)?vh\b/);
+  // check:ui: a document taller than the window, a shell bottom that is not the window's (at any page zoom),
+  // and a node outside the shell that makes the document taller, all count as shellNotFilling, at
+  // 1191 x 786 on Retina at 90, 100 and 110 % zoom too.
+  const checks = read('scripts/ui/checks.mjs'), ui = read('scripts/check-ui.mjs'), screens = read('scripts/ui/screens.mjs');
+  assert.match(checks, /el: 'document taller than the window'/);
+  assert.match(checks, /el: 'shell bottom is not the window bottom'/);
+  assert.match(checks, /export function shellOutsideProbe\(\)/);
+  assert.match(ui, /out\.shellShort = \[\.\.\.\(out\.shellShort \|\| \[\]\), \.\.\.await page\.evaluate\(shellOutsideProbe\)\]/);
+  assert.match(screens, /export const RETINA_WINDOW = \[1191, 786\];/);
+  assert.match(screens, /export const RETINA_ZOOMS = \[0\.9, 1, 1\.1\];/);
+  assert.match(ui, /dsf \? await contexts\[role\]\.atRatio\(dsf\)/);
   assert.match(read('scripts/ui/ratchet.mjs'), /shellNotFilling: sum\(\(r\) => r\.shellShort\?\.length\)/);
 });
 
@@ -204,4 +228,20 @@ test('accessibility of the shell (check:ui on PR 42): references point only at w
   assert.doesNotMatch(shell, /height: auto; min-height: 100dvh; overflow: visible/);
   // Smart pick asks the photo library only for someone who can make work now.
   assert.match(read('app/key-visual/page.tsx'), /if\(!smartPick\|\|!car\|\|!mayChange\|\|handAdded/);
+});
+
+test('design pass: what is shown uses the stage, the versions sit right under it, settings fade at Generate (fix/studio-editor-fixes)', () => {
+  const css = read('app/editor.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const block = css.match(/@media \(min-width: 769px\) \{\s*\.ds-canvas-stage > \.editor-stage > \.editor-stage-main:has\(\.editor-configurator, \.editor-result\)[\s\S]*?\n\}/)?.[0] || '';
+  assert.ok(block, 'the stage rules exist');
+  // The stage's middle is a size container only when it shows a configurator or a result (a long board keeps scrolling).
+  assert.match(block, /\.editor-stage-main:has\(\.editor-configurator, \.editor-result\) \{ container-type: size; flex: 1 1 0; \}/);
+  // The configurator fills its height, never taller than 4:3; a result is the largest 16:9 that fits.
+  assert.match(block, /\.editor-stage-main \.editor-configurator-frame \{ flex: 1 1 auto; aspect-ratio: auto;[^}]*max-height: calc\(min\(100cqw, 1040px\) \* 3 \/ 4\); \}/);
+  assert.match(block, /\.editor-stage-main \.editor-result \{ width: min\(100cqw, 1040px, calc\(\(100cqh - var\(--ds-space-48\)\) \* 16 \/ 9\)\); \}/);
+  // The versions keep one card's height from the start: nothing moves when they load.
+  assert.match(block, /> \.editor-stage-history \{ min-height: calc\(var\(--ds-space-64\) \* 2\); \}/);
+  assert.doesNotMatch(block, /\d(d|s|l)?vh\b/, 'container units, never a viewport height');
+  // The settings' last pixels fade into the panel above Generate instead of being sliced.
+  assert.match(read('app/design-system.css'), /\.ds-settings-body::after \{\s*content: ""; position: sticky;[^}]*linear-gradient\(to bottom, transparent, var\(--ds-panel\)\); pointer-events: none;/);
 });

@@ -12,6 +12,12 @@ export const ALL_VIEWPORTS = [[1440, 900], [1280, 800], [1024, 768], [768, 1024]
 export const QUICK_VIEWPORTS = [[1440, 900], [390, 844]];
 // Common laptop windows, for the shell's fill check (shellNotFilling): every screen once at each (first person, light).
 export const LAPTOP_VIEWPORTS = [[1366, 768], [1536, 864]];
+// The owner's laptop (fix/studio-editor-fixes): Chrome on a Retina screen (pixel ratio 2), a 1191 x 786
+// window, at 90, 100 and 110 % page zoom, every screen once at each (first person, light). Chrome draws a
+// zoomed page as a smaller CSS window at a larger pixel ratio; that is how the zoom is emulated here.
+export const RETINA_WINDOW = [1191, 786];
+export const RETINA_ZOOMS = [0.9, 1, 1.1];
+export const retinaViewport = (zoom) => ({ w: Math.floor(RETINA_WINDOW[0] / zoom), h: Math.floor(RETINA_WINDOW[1] / zoom), dsf: +(2 * zoom).toFixed(2), zoom });
 export const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
 export const SHOT_WIDTHS = new Set([1440, 1280, 1024, 390]); // screenshots: small laptops too (Phase 3 group 2)
 export const THEMES = ['light', 'dark'];
@@ -115,6 +121,7 @@ export function pageJobs(screens, { quick = false } = {}) {
         for (const theme of THEMES) if (KEY_WIDTHS.has(w) || full || theme === 'light') jobs.push({ screen, role, w, h, theme });
       }
       if (!quick && role === screen.roles[0]) for (const [w, h] of LAPTOP_VIEWPORTS) jobs.push({ screen, role, w, h, theme: 'light' });
+      if (!quick && role === screen.roles[0]) for (const zoom of RETINA_ZOOMS) jobs.push({ screen, role, ...retinaViewport(zoom), theme: 'light' });
     }
   }
   return jobs;

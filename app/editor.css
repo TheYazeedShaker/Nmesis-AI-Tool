@@ -142,6 +142,26 @@
 /* What is shown sits at the top of the stage: when the history loads under it,
    nothing above moves (check:ui layout shift on Film). */
 .editor-stage-main { place-items: start center; }
+/* The design pass (fix/studio-editor-fixes, owner on a 1191 x 786 laptop): the
+   configurator was a 16:9 box at the top of a tall stage, so a large empty area
+   sat under "Use this view" and the versions sat far below on their own. Now,
+   on wider screens, what is shown uses the stage: the stage's middle is a size
+   container; the live configurator fills its height (its page lays out to any
+   shape; never taller than 4:3, so it stays a car view) and a result is the
+   largest 16:9 picture that fits, with its action row and the versions right
+   under it. The versions strip keeps one card's height from the start, so
+   nothing moves when they load. Only for a configurator or a result: a tool
+   whose stage is a long board (Story) keeps the scrolling column, as phones do. */
+@media (min-width: 769px) {
+  .ds-canvas-stage > .editor-stage > .editor-stage-main:has(.editor-configurator, .editor-result) { container-type: size; flex: 1 1 0; }
+  .ds-canvas-stage > .editor-stage:has(> .editor-stage-main .editor-configurator, > .editor-stage-main .editor-result) > .editor-stage-history { min-height: calc(var(--ds-space-64) * 2); }
+  /* A tool's own wrapper around them (Key visual's car view) passes the height on. */
+  .editor-stage-main:has(.editor-configurator, .editor-result) > :not(.editor-configurator, .editor-result) { height: 100%; }
+  .editor-stage-main .editor-configurator { height: 100%; width: min(100%, 1040px); }
+  .editor-stage-main .editor-configurator-frame { flex: 1 1 auto; aspect-ratio: auto; min-height: calc(var(--ds-space-64) * 3); max-height: calc(min(100cqw, 1040px) * 3 / 4); }
+  .editor-stage-main .editor-result { width: min(100cqw, 1040px, calc((100cqh - var(--ds-space-48)) * 16 / 9)); }
+  .editor-stage-main .editor-result img { max-height: none; }
+}
 /* Phones: the editor fills the screen under the top bar as on desktop, as a
    column: the tools, the canvas (which scrolls inside itself) and Generate in a
    row of its own. Nothing is ever under the Generate bar, at rest or while

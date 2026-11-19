@@ -5,6 +5,7 @@ import {Coins,Info} from 'lucide-react';
 import {Banner} from '@/components/ds/shell';
 import {dayDate} from '@/lib/ds/words';
 import {creditsLabel,CREDITS_USED} from '@/lib/credits/words';
+import {OWN_KEY_PRICE,OWN_KEY_USED,usedOwnKey} from '@/lib/ds/words';
 import type {CreditOverview} from '@/lib/credits/usage';
 import type {CostKey,CreditProvider} from '@/lib/credits/pricing';
 // The company's credits as the workspace shows them: the top-bar meter, the
@@ -50,11 +51,12 @@ export function useCredits(){
  useEffect(()=>{let live=true;const on=(o:CreditOverview|null)=>{if(live)setOverview(o)};listeners.add(on);watch();void loadCredits().then(on);return()=>{live=false;listeners.delete(on)}},[]);
  return overview;
 }
-// "8 credits", "Your own key · 0 credits" or, in Nmesis's own workspace, "Not counted".
+// "8 credits", "no credits (your AI key)" on the company's own AI key (never "0 credits": it read as
+// broken, lib/ds/words.ts), or, in Nmesis's own workspace, "not counted here".
 export function costLabel(o:CreditOverview|null,cost:CostKey|number|null|undefined,provider:CreditProvider){
  if(!o||cost===null||cost===undefined)return '';
  const billing=o.billing[provider];
- if(billing==='own key')return 'Your own key · 0 credits';
+ if(billing==='own key')return OWN_KEY_PRICE;
  const n=typeof cost==='number'?cost:o.prices[cost];
  if(typeof n!=='number')return '';
  return billing==='internal'?`${creditsLabel(n)} · not counted here`:creditsLabel(n);
@@ -64,9 +66,10 @@ export function CreditCost({cost,provider,className}:{cost:CostKey|number|null|u
  if(!label)return null;
  return <span className={'credit-cost'+(className?' '+className:'')} title="What this costs before it starts"><Coins size={13} aria-hidden="true"/>{label}</span>;
 }
-export function CreditsUsed({credits}:{credits:number|null|undefined}){
+export function CreditsUsed({credits,provider}:{credits:number|null|undefined;provider?:CreditProvider}){
+ const o=useCredits();
  if(typeof credits!=='number')return null;
- return <span className="credit-used"><Coins size={12} aria-hidden="true"/>Used {creditsLabel(credits)}</span>;
+ return <span className="credit-used"><Coins size={12} aria-hidden="true"/>{usedOwnKey(o,provider,credits)?OWN_KEY_USED:<>Used {creditsLabel(credits)}</>}</span>;
 }
 // Top bar: used / left this period, coloured at 80% and 100%; one click to Usage
 // for those who may open it (owners, staff with access). For everyone else it is

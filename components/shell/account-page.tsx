@@ -11,7 +11,7 @@ import {AccountNotices,planEnded,reloadAccount,useAccount} from '@/components/st
 import {WorkspaceFrame} from '@/components/workspace/frame';
 import {workName} from '@/lib/accounts/names';
 import type {AccountSummary} from '@/lib/accounts/summary';
-import {dayDate} from '@/lib/ds/words';
+import {dayDate,ownKeysLine,OWN_KEYS_ALL} from '@/lib/ds/words';
 import {THEME_CHOICES,setTheme,useTheme} from '@/lib/theme';
 import {Avatar} from './side-nav';
 
@@ -147,13 +147,14 @@ function SecurityCard({account}:{account:AccountSummary}){
 function PlanCard({account}:{account:AccountSummary}){
  const credits=useCredits(),answered=useCreditsAnswered(),p=account.plan;
  const plan=p.none?'No plan yet':p.name||(account.internal?'Nmesis’s own workspace':'Your plan');
- const meter=credits&&!credits.unlimited?credits.meter:null;
+ const meter=credits&&!credits.unlimited?credits.meter:null,own=ownKeysLine(credits);
  return <Section title="Plan and credits" className="account-card">
   <dl className="account-facts">
    <Fact label="Plan">{plan}{planEnded(account)?' (ended)':''}</Fact>
-   <Fact label="Credits left">{credits?.unlimited?'Not counted in this workspace'
+   {own&&<Fact label="AI keys">{own}</Fact>}
+   {own!==OWN_KEYS_ALL&&<Fact label="Credits left">{credits?.unlimited?'Not counted in this workspace'
     :meter?<>{meter.left.toLocaleString('en-US')} this month{meter.resetsOn&&<span className="ds-help account-sub">They reset on {dayDate(meter.resetsOn)||meter.resetsOn}.</span>}</>
-    :answered?<span className="ds-muted">Not available right now</span>:<Loading/>}</Fact>
+    :answered?<span className="ds-muted">Not available right now</span>:<Loading/>}</Fact>}
   </dl>
   {credits?.usage&&<div className="account-foot"><Link className="ds-link" href="/usage">Plans and credits</Link></div>}
  </Section>;

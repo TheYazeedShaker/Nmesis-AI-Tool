@@ -32,7 +32,7 @@ import { seedStudio, ORGS, PEOPLE, PASSWORD } from './ui/seed.mjs';
 import { execFile } from 'node:child_process';
 // Asynchronous: the S3 stand-in runs in this process and must keep answering while the backfill runs.
 const backfill = (stack) => new Promise((resolve, reject) => execFile(process.execPath, ['scripts/backfill-library.mjs', '--env', 'preview', '--staff', PEOPLE.staff.id], { env: { ...stack.env, NODE_OPTIONS: '' }, encoding: 'utf8', timeout: 600_000, maxBuffer: 16 * 1024 * 1024 }, (e, out, err) => (e ? reject(new Error('The backfill failed: ' + (err || e.message).slice(-2000))) : resolve(String(out).trim().split(/\r?\n/).pop()))));
-import { initScript, quietFor, vitals, layoutChecks, focusState, providerNamesOnPage } from './ui/checks.mjs';
+import { initScript, quietFor, vitals, layoutChecks, shellOutsideProbe, focusState, providerNamesOnPage } from './ui/checks.mjs';
 import { PROVIDER_PATTERN } from '../lib/provider-words.ts';
 import { runPerf } from './ui/perf.mjs';
 import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
@@ -144,17 +144,25 @@ async function roleContexts(name, role) {
   }
   const state = await desktop.storageState();
   const phone = await make({ storageState: state, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
-  for (const ctx of [desktop, phone]) {
-    await ctx.addInitScript(initScript);
-    // The browser may load only the Studio and its stand-ins.
-    await ctx.route('**/*', (route) => {
-      const u = new URL(route.request().url());
-      if (/^(localhost|127\.0\.0\.1)$/.test(u.hostname) || u.protocol === 'data:' || u.protocol === 'blob:') return route.continue();
-      ctx.__blocked = ctx.__blocked || new Set(); ctx.__blocked.add(u.hostname);
-      return route.abort('blockedbyclient');
-    });
-  }
-  return { desktop, phone };
+  for (const ctx of [desktop, phone]) await prepareContext(ctx);
+  // A laptop at another pixel ratio (the Retina pass, RETINA_ZOOMS): one context per ratio, made when first needed.
+  const ratios = new Map();
+  const atRatio = (dsf) => {
+    if (!ratios.has(dsf)) ratios.set(dsf, make({ storageState: state, deviceScaleFactor: dsf }).then(async (ctx) => { await prepareContext(ctx); return ctx; }));
+    return ratios.get(dsf);
+  };
+  return { desktop, phone, atRatio };
+}
+
+async function prepareContext(ctx) {
+  await ctx.addInitScript(initScript);
+  // The browser may load only the Studio and its stand-ins.
+  await ctx.route('**/*', (route) => {
+    const u = new URL(route.request().url());
+    if (/^(localhost|127\.0\.0\.1)$/.test(u.hostname) || u.protocol === 'data:' || u.protocol === 'blob:') return route.continue();
+    ctx.__blocked = ctx.__blocked || new Set(); ctx.__blocked.add(u.hostname);
+    return route.abort('blockedbyclient');
+  });
 }
 
 async function pool(items, n, fn) {
@@ -198,8 +206,8 @@ async function act(page, action) {
   return false;
 }
 
-async function check({ screen, role, w, h, theme }) {
-  const ctx = w <= 480 ? contexts[role].phone : contexts[role].desktop;
+async function check({ screen, role, w, h, theme, dsf, zoom }) {
+  const ctx = dsf ? await contexts[role].atRatio(dsf) : w <= 480 ? contexts[role].phone : contexts[role].desktop;
   const page = await ctx.newPage();
   page.__inflight = 0;
   const consoleErrors = [], httpErrors = [];
@@ -212,7 +220,7 @@ async function check({ screen, role, w, h, theme }) {
   const ownNotFound = (m) => screen.id === 'not-found' && /status of 404/.test(m.text()) && (() => { try { return new URL(m.location().url).pathname === new URL(screen.path, 'http://x').pathname; } catch { return false; } })();
   page.on('console', (m) => { if (m.type() === 'error' && !/ERR_BLOCKED_BY_CLIENT|blockedbyclient/.test(m.text()) && !ownNotFound(m)) consoleErrors.push(m.text().slice(0, 300)); });
   page.on('pageerror', (e) => consoleErrors.push('Uncaught: ' + String(e.message).slice(0, 300)));
-  const out = { screen: screen.id, role, w, h, theme };
+  const out = { screen: screen.id, role, w, h, theme, ...(dsf ? { dsf, zoom } : {}) };
   try {
     await page.setViewportSize({ width: w, height: h });
     await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
@@ -229,6 +237,8 @@ async function check({ screen, role, w, h, theme }) {
     if (SHOTS && SHOT_WIDTHS.has(w)) await page.screenshot({ path: path.join(OUT, 'shots', `${screen.id}--${role}--${w}--${theme}.png`) }).catch(() => {});
     Object.assign(out, await page.evaluate(layoutChecks, { phone: w <= 480 }));
     out.vitals = await page.evaluate(vitals);
+    // After the vitals (it adds and removes nodes): nothing outside the shell may make a tool page's document taller.
+    out.shellShort = [...(out.shellShort || []), ...await page.evaluate(shellOutsideProbe)];
     if (NO_PROVIDER_NAMES.has(role)) out.providerNames = await page.evaluate(providerNamesOnPage, { source: PROVIDER_PATTERN.source });
     if (KEY_WIDTHS.has(w)) {
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']).analyze();
