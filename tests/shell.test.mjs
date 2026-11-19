@@ -153,10 +153,34 @@ test('Key visual settings: one column in the beginner order, everything else und
 test('no band under the page: the editor fills the window, the old dark body never shows, no room held for a phone bar', () => {
   const css = read('app/side-nav.css');
   assert.match(css, /body:has\(> \.ds-shell\), body:has\(\.studio-frame\) \{ background: var\(--ds-bg\); \}/);
-  assert.match(css, /\.studio-frame:has\(\.ds-main\.bleed\) \{ height: 100dvh; min-height: 0; overflow: hidden; \}/);
+  assert.match(css, /\.studio-frame\[data-fill\] \{ height: 100dvh; min-height: 0; overflow: clip; \}/);
   assert.match(css, /\.studio-frame \.ds-main\.bleed > \.ds-editor \{[^}]*grid-template-rows: minmax\(0, 1fr\);/);
   assert.match(css, /\.studio-frame \.ds-main \{ padding-bottom: var\(--ds-space-32\); \}/);
   assert.match(read('components/ds/editor.tsx'), /data-rail=\{tools\.length \? undefined : 'none'\}/);
+  assert.match(read('components/workspace/frame.tsx'), /data-fill=\{bleed\|\|undefined\}/);
+});
+
+test('the shell alone sizes from the viewport: no page or editor sets its own viewport height (fix/shell-height-and-critique)', () => {
+  // Every vh/dvh in the Studio's own stylesheets, outside the shell's frame, its navigation and panel, and
+  // the overlays that cover the window (dialogs, drawers, the viewer, menus); locked tools' old CSS is not touched.
+  const allowed = /^(\.ds-app|\.ds-shell|\.ds-shell\.studio-frame|\.studio-frame\[data-fill\]|\.studio-side|\.studio-panel|\.studio-account-pop|\.auth-shell|\.share-view-img|\.ds-dialog[\w-]*|\.ds-drawer|\.ds-viewer|\.ds-gallery-toc)(?![\w-])/;
+  const files = ['app/design-system.css', 'app/side-nav.css', 'app/editor.css', 'app/workspace.css', 'app/studio-shell.css', 'app/panels.css', 'app/inputs.css', 'app/references.css', 'app/brand.css', 'app/elements.css', 'app/account.css', 'app/share.css', 'app/auth.css', 'app/key-visual/editor-visuals.css', 'app/lineup/editor-lineup.css'];
+  const offenders = [];
+  for (const f of files) {
+    const css = read(f).replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const m of css.matchAll(/([^{}]+)\{([^{}]*\b100d?vh\b[^{}]*)\}/g)) {
+      const sel = m[1].trim().split('\n').pop().trim();
+      for (const one of sel.split(',').map((s) => s.trim())) if (!allowed.test(one)) offenders.push(`${f}: ${one}`);
+    }
+  }
+  assert.deepEqual(offenders, []);
+  // The editor fills its container; the old "window minus the top bar" height is gone.
+  const ds = read('app/design-system.css');
+  assert.doesNotMatch(ds, /calc\(100dvh - var\(--ds-topbar-h\)\)/);
+  assert.match(ds, /\.ds-editor \{[^}]*height: 100%; min-height: 0;/);
+  // check:ui asserts it on every screen at 1440, 768 and 390.
+  assert.match(read('scripts/ui/checks.mjs'), /out\.shellShort = \[\];/);
+  assert.match(read('scripts/ui/ratchet.mjs'), /shellNotFilling: sum\(\(r\) => r\.shellShort\?\.length\)/);
 });
 
 test('accessibility of the shell (check:ui on PR 42): references point only at what exists, names include what is seen, truncated names say themselves in full', () => {

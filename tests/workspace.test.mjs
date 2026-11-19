@@ -23,7 +23,7 @@ test('Phase 3 group 1: Home, Library, Projects and a folder are routes; the key-
 test('the new screens follow light and dark; the tool screens keep their dark bar', () => {
   const frame = read('components/workspace/frame.tsx');
   // The shell: the left navigation and its panels, light, dark or the person's choice (lib/theme.ts).
-  assert.match(frame, /<div className="ds-app ds-shell workspace studio-frame" data-theme=\{themeAttribute\(theme\)\}>/);
+  assert.match(frame, /<div className="ds-app ds-shell workspace studio-frame" data-theme=\{themeAttribute\(theme\)\} data-fill=\{bleed\|\|undefined\}>/);
   assert.match(frame, /<SideNav current=\{current\}\/>/);
   // Phones use the top bar's menu: a fixed bottom bar covered the work under it (check:ui).
   assert.doesNotMatch(frame, /PhoneNav/);

@@ -101,9 +101,12 @@ export function pageJobs(screens, { quick = false } = {}) {
     for (const role of screen.roles) {
       if (screen.pending) { jobs.push({ screen, role, pending: true }); continue; }
       const full = (screen.full || []).includes(role) && !quick;
+      // 768 (tablet) for every screen as well, once (its first person, light), so the shell's
+      // fill check (shellNotFilling) covers 1440, 768 and 390 everywhere.
+      const tablet = !full && !quick && role === screen.roles.find((r) => !(screen.full || []).includes(r));
       for (const [w, h] of viewports) {
-        if (!full && !KEY_WIDTHS.has(w)) continue;
-        for (const theme of THEMES) jobs.push({ screen, role, w, h, theme });
+        if (!full && !KEY_WIDTHS.has(w) && !(tablet && w === 768)) continue;
+        for (const theme of THEMES) if (KEY_WIDTHS.has(w) || full || theme === 'light') jobs.push({ screen, role, w, h, theme });
       }
     }
   }

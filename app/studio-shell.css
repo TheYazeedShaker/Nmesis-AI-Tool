@@ -136,7 +136,7 @@ body .studio input[type="checkbox"], body .studio input[type="radio"] { min-widt
 .studio-meter-loading { pointer-events: none; }
 .studio-meter-skel { width: 8ch; }
 @media (max-width: 768px) { .studio-meter-skel { width: 3ch; } }
-.film-loading, .lineup-loading { min-height: 100dvh; }
+
 .studio-topbar[data-tight] .studio-action-word { display: none; }
 .studio-topbar-actions .ds-btn { color: var(--ds-text); }
 .studio-topbar-actions .ds-btn svg, .studio-menu-row > span[aria-hidden="true"] svg { width: var(--ds-icon); height: var(--ds-icon); }
