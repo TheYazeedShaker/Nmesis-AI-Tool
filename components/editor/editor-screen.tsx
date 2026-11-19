@@ -63,7 +63,9 @@ export function EditorScreen({tool,onTool,bar,stage,history,jobs,settings,cost,v
  /** Who the work is billed through: with the company's own key, credits never stop it. */payer?:CreditProvider;
  /** The tool's first data is still loading (the frame draws at once; the content when it is ready). */loading?:boolean;
 }){
- const why=generateBlocker(useAccount(),useCredits(),cost,blocked,payer);
+ const credits=useCredits(),why=generateBlocker(useAccount(),credits,cost,blocked,payer);
+ // On the company's own AI key, Generate says so instead of "· 0 credits" (lib/ds/words.ts OWN_KEY_TAG).
+ const own=!!payer&&credits?.billing[payer]==='own key';
  // The content waits for the tool's first answer, never long: after 3 s it shows
  // whatever it has (a status that failed never hides the editor).
  const [late,setLate]=React.useState(false);
@@ -75,5 +77,5 @@ export function EditorScreen({tool,onTool,bar,stage,history,jobs,settings,cost,v
   jobs={jobs}
   notice={why&&<GenerateNotice blocked={why}/>}
   settings={settings}
-  generate={<GenerateButton cost={cost} verb={verb} busy={busy} disabled={disabled} onGenerate={onGenerate} note={note} blocked={why}/>}/>;
+  generate={<GenerateButton cost={own?'own key':cost} verb={verb} busy={busy} disabled={disabled} onGenerate={onGenerate} note={note} blocked={why}/>}/>;
 }

@@ -63,7 +63,8 @@ test('the lineup page sends that moodId, and every way in uses the shared action
   assert.match(page, /body=\{id,lineup,sourceId:lineup\.cars\[0\]\.views\[0\]\.id,moodId,/);
   assert.match(page, /async function importPin\(\)\{const d=await importPinterestReference\(pin\);addAsReference\(/);
   assert.match(page, /async function uploadMood\(file:File\)\{const d=await uploadReference\(file\);[^}]*addAsReference\(/);
-  assert.match(page, /onClick=\{\(\)=>openPanel\('references'\)\}>Find a photo in References/);
+  // "Find a photo in References" is the shared reference list's add button (limit 1, tests/reference-list.test.mjs).
+  assert.match(page, /<ReferenceList id="lineup-inspiration-title" title="Inspiration" limit=\{referenceLimit\('lineup'\)\}[\s\S]*?onAdd=\{\(\)=>openPanel\('references'\)\}/);
   assert.doesNotMatch(page, /setMood\(/, 'no second store for the inspiration');
   // The panels call the same action.
   assert.match(read('components/references/references-panel.tsx'), /const done = addAsReference\(item\);/);

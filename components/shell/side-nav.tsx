@@ -1,12 +1,13 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import {Aperture,BarChart3,ChevronsUpDown,CircleHelp,CloudUpload,FolderOpen,Home,Images,LogOut,Menu as MenuIcon,Monitor,Moon,PanelLeftClose,PanelLeftOpen,Palette,Settings,Shapes,Sun,UserRound} from 'lucide-react';
+import {Aperture,BarChart3,ChevronsUpDown,CircleHelp,CloudUpload,FolderOpen,Home,Images,LogOut,Menu as MenuIcon,Monitor,Moon,PanelLeftClose,PanelLeftOpen,Palette,Settings,Shapes,Sun,Type,UserRound} from 'lucide-react';
 import {Dialog} from '@/components/ds/dialog';
 import {Layer,anchorAbove} from '@/components/ds/layer';
 import {useRememberedOpen} from '@/components/ds/layout';
 import {useAccount} from '@/components/studio-account';
 import {useCredits,useCreditsAnswered} from '@/components/credits';
+import {ownKeysLine,OWN_KEYS_ALL,OWN_KEYS_SHORT} from '@/lib/ds/words';
 import {BrandMark,Meter,MeterSkeleton,PlaceList,sectionsOf,brandsOnly,useSwitch,type StudioPage} from '@/components/studio-topbar';
 import {workName} from '@/lib/accounts/names';
 import type {AccountSummary} from '@/lib/accounts/summary';
@@ -22,7 +23,7 @@ import {closePanel,togglePanel,useShell} from './shell-state';
 // Elements, Uploads), which open beside it. Below 768px it lives in a drawer
 // opened from a slim bar at the top.
 
-const ICON:Record<NavKey,React.ReactNode>={home:<Home/>,projects:<FolderOpen/>,references:<Images/>,brand:<Palette/>,elements:<Shapes/>,uploads:<CloudUpload/>,settings:<Settings/>};
+const ICON:Record<NavKey,React.ReactNode>={home:<Home/>,projects:<FolderOpen/>,references:<Images/>,brand:<Palette/>,elements:<Shapes/>,text:<Type/>,uploads:<CloudUpload/>,settings:<Settings/>};
 const hide=(icon:React.ReactNode)=>React.isValidElement(icon)?React.cloneElement(icon as React.ReactElement<{'aria-hidden'?:boolean}>,{'aria-hidden':true}):icon;
 
 function NavItems({current,onGo}:{current?:StudioPage;onGo?:()=>void}){
@@ -66,7 +67,7 @@ function AccountMenuBody({account,onClose,onHelp}:{account:AccountSummary;onClos
  const credits=useCredits(),members=useMemberCount(true,account.org.id),{busy,problem,choose}=useSwitch();
  const [switching,setSwitching]=React.useState(false);
  const many=sectionsOf(account).reduce((n,s)=>n+s.places.length,0)>1,noun=brandsOnly(account)?'brand':'company';
- const meter=credits&&!credits.unlimited?credits.meter:null;
+ const own=ownKeysLine(credits)===OWN_KEYS_ALL,meter=credits&&!credits.unlimited&&!own?credits.meter:null;
  return <div className="studio-account-body">
   <div className="studio-account-who"><Avatar account={account}/><span className="studio-account-names">{account.user.name&&<b className="ds-truncate" title={account.user.name}>{account.user.name}</b>}<span className="ds-truncate ds-muted" title={account.user.email}>{account.user.email}</span></span></div>
   <div className="studio-account-company">
@@ -81,8 +82,8 @@ function AccountMenuBody({account,onClose,onHelp}:{account:AccountSummary;onClos
    <div className="studio-account-row studio-account-theme"><span className="ds-label">Theme</span><ThemeChoices/></div>
    <button type="button" className="studio-account-row" onClick={()=>{onClose();onHelp()}}><CircleHelp aria-hidden="true"/>Help</button>
    {credits?.usage
-    ?<Link className="studio-account-row" href="/usage" onClick={onClose}><BarChart3 aria-hidden="true"/><span className="studio-account-grow">Plans and credits</span>{meter&&<span className="ds-muted">{meter.left.toLocaleString('en-US')} left</span>}</Link>
-    :<span className="studio-account-row"><BarChart3 aria-hidden="true"/><span className="studio-account-grow">{account.plan.name?`${account.plan.name} plan`:'Plans and credits'}</span>{meter&&<span className="ds-muted">{meter.left.toLocaleString('en-US')} credits left</span>}</span>}
+    ?<Link className="studio-account-row" href="/usage" onClick={onClose}><BarChart3 aria-hidden="true"/><span className="studio-account-grow">Plans and credits</span>{own?<span className="ds-muted">{OWN_KEYS_SHORT}</span>:meter&&<span className="ds-muted">{meter.left.toLocaleString('en-US')} left</span>}</Link>
+    :<span className="studio-account-row"><BarChart3 aria-hidden="true"/><span className="studio-account-grow">{account.plan.name?`${account.plan.name} plan`:'Plans and credits'}</span>{own?<span className="ds-muted">{OWN_KEYS_SHORT}</span>:meter&&<span className="ds-muted">{meter.left.toLocaleString('en-US')} credits left</span>}</span>}
    <form method="post" action="/auth/signout"><button type="submit" className="studio-account-row"><LogOut aria-hidden="true"/>Log out</button></form>
   </nav>
   <Dialog open={switching} onClose={()=>setSwitching(false)} title={'Switch '+noun} className="studio-menu"><PlaceList account={account} busy={busy} onChoose={p=>{setSwitching(false);void choose(account,p)}}/></Dialog>

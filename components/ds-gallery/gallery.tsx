@@ -281,7 +281,7 @@ function UpsellSpecimen() {
   return <Both label="Upsell and badges">{() => <>
     <div className="ds-row"><Upsell plan="Growth" onAsk={() => {}} /><Upsell plan="Enterprise" href="#ask" /></div>
     <div className="ds-row">
-      <Badge kind="ok">Done</Badge><Badge kind="info">In progress</Badge><Badge kind="warn">85% used</Badge><Badge kind="bad">Failed</Badge><Badge kind="accent">New</Badge><Badge>0 credits · own key</Badge><Badge>1,250,000 credits</Badge>
+      <Badge kind="ok">Done</Badge><Badge kind="info">In progress</Badge><Badge kind="warn">85% used</Badge><Badge kind="bad">Failed</Badge><Badge kind="accent">New</Badge><Badge>Your AI key, no credits</Badge><Badge>1,250,000 credits</Badge>
     </div>
   </>}</Both>;
 }

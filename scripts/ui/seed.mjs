@@ -194,6 +194,11 @@ export function seedVisuals(s3, org, person, n, start = 0, { spread = false } = 
       prompt: `${VEHICLES[i % 3]} in a ${SCENES[i % SCENES.length].toLowerCase()} scene, campaign key visual.`, provider: 'openai', model: 'gpt-image',
       vehicle: VEHICLES[i % 3], width: 1536, height: 864, size: '1536x864',
       ...(failed ? { error: 'The provider could not finish this image. Nothing was charged.' } : {}),
+      // One line-up for the owner (scripts/ui/screens.mjs LINEUP_VISUAL_ID): two cars, their views two of the owner's pictures.
+      ...(i === 12 ? { title: 'Demo SUV and Demo Saloon line-up', lineup: { layout: 'hero', heroId: 'car-demo-suv', strictReference: false, cars: [
+        { id: 'car-demo-suv', name: 'Demo SUV', configurator: '', finish: '', views: [{ id: uuid(10_000), label: 'Front three-quarter' }], x: 35, y: 60, scale: 30 },
+        { id: 'car-demo-saloon', name: 'Demo Saloon', configurator: '', finish: '', views: [{ id: uuid(10_001), label: 'Side' }], x: 65, y: 60, scale: 30 },
+      ] } } : {}),
     };
     put(s3, prefix + 'visuals/' + id + '.json', Buffer.from(JSON.stringify(visual)), 'application/json');
     if (!failed && !pending) put(s3, prefix + 'images/' + id, png(i), 'image/png');

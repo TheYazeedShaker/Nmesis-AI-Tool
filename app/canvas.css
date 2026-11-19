@@ -1,0 +1,68 @@
+/* The canvas editor (components/canvas/*): a bar, the canvas on a light
+   table, and the Design inspector (layers, then the selected layer).
+   Tokens only. Motion: only a new layer fading in (in the canvas, 120ms); the
+   rest follows the design system's transitions and reduced motion. */
+.canvas-editor { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--ds-bg); }
+.canvas-bar {
+  display: flex; align-items: center; gap: var(--ds-space-8); min-height: var(--ds-topbar-h); padding: 0 var(--ds-space-16);
+  background: var(--ds-panel); border-bottom: var(--ds-border-width) solid var(--ds-border);
+}
+.canvas-title { min-width: 0; flex: 0 1 auto; margin: 0; font-size: var(--ds-text-md); line-height: var(--ds-leading-md); font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); }
+.canvas-bar-group { display: inline-flex; gap: var(--ds-space-2); padding-left: var(--ds-space-8); border-left: var(--ds-border-width) solid var(--ds-border); }
+.canvas-bar-actions { display: inline-flex; align-items: center; gap: var(--ds-space-8); margin-left: auto; flex: none; }
+/* The inspector is narrower than a tool's settings panel: the canvas needs the room when a left panel is open. */
+.canvas-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) calc(var(--ds-space-64) * 4.5); }
+/* The light table: a faint dot grid under the picture, so its edges read on any background. */
+.canvas-area {
+  min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-12); padding: var(--ds-space-24);
+  background-color: var(--ds-panel-2);
+  background-image: radial-gradient(var(--ds-border-strong) var(--ds-border-width), transparent var(--ds-border-width));
+  background-size: var(--ds-space-16) var(--ds-space-16);
+}
+.canvas-fit { flex: 1 1 auto; min-height: 0; width: 100%; display: grid; place-items: center; container-type: size; }
+/* The picture's shape (--canvas-ratio, set by the editor), as large as fits: sized before the canvas loads. */
+.canvas-box { width: min(100cqw, calc(100cqh * var(--canvas-ratio, 1.7778))); aspect-ratio: var(--canvas-ratio, 1.7778); line-height: 0; box-shadow: var(--ds-shadow-2); background: var(--ds-media-bg); }
+.canvas-box:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-4); }
+.canvas-keys { max-width: var(--ds-measure); text-align: center; }
+.canvas-skeleton { width: min(100%, var(--ds-page-max)); aspect-ratio: 16 / 9; border-radius: var(--ds-radius-md); background: var(--ds-skeleton); }
+.canvas-editor > .canvas-skeleton, .canvas-editor-state { margin: auto; padding: var(--ds-space-24); }
+.canvas-inspector {
+  min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--ds-space-24); padding: var(--ds-space-16);
+  background: var(--ds-panel); border-left: var(--ds-border-width) solid var(--ds-border);
+}
+.canvas-section { display: flex; flex-direction: column; gap: var(--ds-space-12); }
+.canvas-section-title { margin: 0; font-family: var(--ds-font-display); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-label); text-transform: uppercase; color: var(--ds-muted); }
+.canvas-layers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ds-space-2); }
+.canvas-layer {
+  position: relative; display: flex; align-items: center; gap: var(--ds-space-8); width: 100%; min-width: 0; min-height: var(--ds-control-h-sm); padding: 0 var(--ds-space-8);
+  border: 0; border-radius: var(--ds-radius-md); background: transparent; color: var(--ds-text); font: inherit; font-size: var(--ds-text-sm); text-align: left; cursor: pointer;
+}
+button.canvas-layer:hover { background: var(--ds-panel-2); }
+.canvas-layer[aria-pressed="true"] { background: var(--ds-selected-bg); color: var(--ds-selected-text); box-shadow: inset var(--ds-space-4) 0 0 var(--ds-selected-mark); }
+.canvas-layer-kind { flex: none; width: calc(var(--ds-space-64) - var(--ds-space-8)); color: var(--ds-muted); font-size: var(--ds-text-xs); }
+.canvas-layer-base { cursor: default; color: var(--ds-muted); }
+.canvas-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); }
+.canvas-colour { width: calc(var(--ds-control-h) * 2); padding: var(--ds-space-2); cursor: pointer; }
+.canvas-phone-note { flex: 1 1 auto; display: grid; place-items: center; padding: var(--ds-space-24) var(--ds-space-16); }
+@media (max-width: 1024px) {
+  .canvas-bar-actions .ds-btn.quiet { padding: 0 var(--ds-space-8); }
+}
+/* Tablets in portrait: the inspector under the canvas, the canvas keeps most of the height. */
+@media (max-width: 900px) {
+  .canvas-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .canvas-inspector { max-height: 40dvh; border-left: 0; border-top: var(--ds-border-width) solid var(--ds-border); }
+  .canvas-area { padding: var(--ds-space-16); }
+}
+
+/* A finished result opens in the editor (components/canvas/open-in-editor.tsx): the picture is the link. */
+.editor-result-open { position: relative; display: block; border-radius: var(--ds-radius); }
+.editor-result-open > img { display: block; }
+.editor-result-hint {
+  position: absolute; right: var(--ds-space-12); bottom: var(--ds-space-12); display: inline-flex; align-items: center; gap: var(--ds-space-4);
+  min-height: var(--ds-control-h-sm); padding: 0 var(--ds-space-12); border-radius: var(--ds-radius-pill);
+  background: var(--ds-media-shade); color: var(--ds-on-media); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-semibold);
+  opacity: 0; transition: opacity var(--ds-dur-fast) var(--ds-ease);
+}
+.editor-result-hint svg { width: var(--ds-icon); height: var(--ds-icon); }
+.editor-result-open:hover .editor-result-hint, .editor-result-open:focus-visible .editor-result-hint { opacity: 1; }
+@media (hover: none) { .editor-result-hint { opacity: 1; } }

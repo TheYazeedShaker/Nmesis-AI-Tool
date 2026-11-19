@@ -1,6 +1,6 @@
 'use client';
 import * as React from 'react';
-import { ChevronLeft, ChevronRight, Download, FolderInput, ImageIcon, MoreHorizontal, Sparkles, Trash2, X } from 'lucide-react';
+import { PenLine, ChevronLeft, ChevronRight, Download, FolderInput, ImageIcon, MoreHorizontal, Sparkles, Trash2, X } from 'lucide-react';
 import { Button, IconButton, dsClass } from './button';
 import { Badge, type BadgeKind } from './feedback';
 import { Menu, MenuItem, MenuSeparator } from './menu';
@@ -105,13 +105,16 @@ export function BulkBar({ count, onClear, children }: { count: number; onClear: 
 
 // ── Viewer / lightbox ────────────────────────────────────────────────────
 // ← / → move, Escape closes, focus returns to the tile that opened it.
-export function Viewer({ items, index, onIndex, onClose, onDownload, onVariation, onMove, onDelete }: {
+export function Viewer({ items, index, onIndex, onClose, onDownload, onVariation, onEdit, canEdit, onMove, onDelete }: {
   items: MediaItem[];
   index: number | null;
   onIndex: (i: number) => void;
   onClose: () => void;
   onDownload?: (item: MediaItem) => void;
   onVariation?: (item: MediaItem) => void;
+  /** Opens the picture in the canvas editor; offered only for what it can edit. */
+  onEdit?: (item: MediaItem) => void;
+  canEdit?: (item: MediaItem) => boolean;
   onMove?: (item: MediaItem) => void;
   onDelete?: (item: MediaItem) => void;
 }) {
@@ -162,6 +165,7 @@ export function Viewer({ items, index, onIndex, onClose, onDownload, onVariation
           </>}
         </div>
         <div className="ds-viewer-foot">
+          {onEdit && (!canEdit || canEdit(item)) && <Button icon={<PenLine aria-hidden="true" />} onClick={() => onEdit(item)}>Edit</Button>}
           {onDownload && <Button icon={<Download aria-hidden="true" />} onClick={() => onDownload(item)}>Download</Button>}
           {onVariation && <Button kind="primary" icon={<Sparkles aria-hidden="true" />} onClick={() => onVariation(item)}>Make a variation</Button>}
           {onMove && <Button icon={<FolderInput aria-hidden="true" />} onClick={() => onMove(item)}>Move to…</Button>}

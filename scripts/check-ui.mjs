@@ -32,10 +32,11 @@ import { seedStudio, ORGS, PEOPLE, PASSWORD } from './ui/seed.mjs';
 import { execFile } from 'node:child_process';
 // Asynchronous: the S3 stand-in runs in this process and must keep answering while the backfill runs.
 const backfill = (stack) => new Promise((resolve, reject) => execFile(process.execPath, ['scripts/backfill-library.mjs', '--env', 'preview', '--staff', PEOPLE.staff.id], { env: { ...stack.env, NODE_OPTIONS: '' }, encoding: 'utf8', timeout: 600_000, maxBuffer: 16 * 1024 * 1024 }, (e, out, err) => (e ? reject(new Error('The backfill failed: ' + (err || e.message).slice(-2000))) : resolve(String(out).trim().split(/\r?\n/).pop()))));
-import { initScript, quietFor, vitals, layoutChecks, focusState, providerNamesOnPage } from './ui/checks.mjs';
+import { initScript, quietFor, vitals, layoutChecks, shellOutsideProbe, focusState, providerNamesOnPage } from './ui/checks.mjs';
 import { PROVIDER_PATTERN } from '../lib/provider-words.ts';
 import { runPerf } from './ui/perf.mjs';
-import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
+import { VISUAL_ID } from '../lib/work-ref.ts';
+import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, FLOWS, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
 import { finish } from './ui/ratchet.mjs';
 
 const args = process.argv.slice(2);
@@ -106,6 +107,13 @@ try {
   if (perf) report.perf = perf;
   // The library at scale (Phase 3 group 2): a hard limit, not a ratchet.
   if (perf?.libraryScale && !perf.libraryScale.ok) { console.log('✗ The library at 1,000 items: first paint 1.5 s or more on the phone profile, or storage read for work off screen: ' + JSON.stringify(perf.libraryScale)); exitCode = 1; }
+  // Journeys across screens (Edit from Projects): a hard check, in the run or shard that checks where they start.
+  const flows = await runFlows();
+  if (flows.length) {
+    report.flows = flows;
+    for (const f of flows) console.log(`  flow ${f.id}: ${f.ok ? 'ok' : 'FAILED: ' + f.problems.join('; ')}`);
+    if (flows.some((f) => !f.ok)) { console.log('✗ A journey across screens failed (report.flows).'); exitCode = 1; }
+  }
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
   // Screens in a given state, for the PR (not counted): before/after sheets.
   if (RUN_STATES.length) await stateShots();
@@ -144,17 +152,25 @@ async function roleContexts(name, role) {
   }
   const state = await desktop.storageState();
   const phone = await make({ storageState: state, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
-  for (const ctx of [desktop, phone]) {
-    await ctx.addInitScript(initScript);
-    // The browser may load only the Studio and its stand-ins.
-    await ctx.route('**/*', (route) => {
-      const u = new URL(route.request().url());
-      if (/^(localhost|127\.0\.0\.1)$/.test(u.hostname) || u.protocol === 'data:' || u.protocol === 'blob:') return route.continue();
-      ctx.__blocked = ctx.__blocked || new Set(); ctx.__blocked.add(u.hostname);
-      return route.abort('blockedbyclient');
-    });
-  }
-  return { desktop, phone };
+  for (const ctx of [desktop, phone]) await prepareContext(ctx);
+  // A laptop at another pixel ratio (the Retina pass, RETINA_ZOOMS): one context per ratio, made when first needed.
+  const ratios = new Map();
+  const atRatio = (dsf) => {
+    if (!ratios.has(dsf)) ratios.set(dsf, make({ storageState: state, deviceScaleFactor: dsf }).then(async (ctx) => { await prepareContext(ctx); return ctx; }));
+    return ratios.get(dsf);
+  };
+  return { desktop, phone, atRatio };
+}
+
+async function prepareContext(ctx) {
+  await ctx.addInitScript(initScript);
+  // The browser may load only the Studio and its stand-ins.
+  await ctx.route('**/*', (route) => {
+    const u = new URL(route.request().url());
+    if (/^(localhost|127\.0\.0\.1)$/.test(u.hostname) || u.protocol === 'data:' || u.protocol === 'blob:') return route.continue();
+    ctx.__blocked = ctx.__blocked || new Set(); ctx.__blocked.add(u.hostname);
+    return route.abort('blockedbyclient');
+  });
 }
 
 async function pool(items, n, fn) {
@@ -198,8 +214,8 @@ async function act(page, action) {
   return false;
 }
 
-async function check({ screen, role, w, h, theme }) {
-  const ctx = w <= 480 ? contexts[role].phone : contexts[role].desktop;
+async function check({ screen, role, w, h, theme, dsf, zoom }) {
+  const ctx = dsf ? await contexts[role].atRatio(dsf) : w <= 480 ? contexts[role].phone : contexts[role].desktop;
   const page = await ctx.newPage();
   page.__inflight = 0;
   const consoleErrors = [], httpErrors = [];
@@ -212,7 +228,7 @@ async function check({ screen, role, w, h, theme }) {
   const ownNotFound = (m) => screen.id === 'not-found' && /status of 404/.test(m.text()) && (() => { try { return new URL(m.location().url).pathname === new URL(screen.path, 'http://x').pathname; } catch { return false; } })();
   page.on('console', (m) => { if (m.type() === 'error' && !/ERR_BLOCKED_BY_CLIENT|blockedbyclient/.test(m.text()) && !ownNotFound(m)) consoleErrors.push(m.text().slice(0, 300)); });
   page.on('pageerror', (e) => consoleErrors.push('Uncaught: ' + String(e.message).slice(0, 300)));
-  const out = { screen: screen.id, role, w, h, theme };
+  const out = { screen: screen.id, role, w, h, theme, ...(dsf ? { dsf, zoom } : {}) };
   try {
     await page.setViewportSize({ width: w, height: h });
     await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
@@ -229,6 +245,8 @@ async function check({ screen, role, w, h, theme }) {
     if (SHOTS && SHOT_WIDTHS.has(w)) await page.screenshot({ path: path.join(OUT, 'shots', `${screen.id}--${role}--${w}--${theme}.png`) }).catch(() => {});
     Object.assign(out, await page.evaluate(layoutChecks, { phone: w <= 480 }));
     out.vitals = await page.evaluate(vitals);
+    // After the vitals (it adds and removes nodes): nothing outside the shell may make a tool page's document taller.
+    out.shellShort = [...(out.shellShort || []), ...await page.evaluate(shellOutsideProbe)];
     if (NO_PROVIDER_NAMES.has(role)) out.providerNames = await page.evaluate(providerNamesOnPage, { source: PROVIDER_PATTERN.source });
     if (KEY_WIDTHS.has(w)) {
       const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice']).analyze();
@@ -243,6 +261,44 @@ async function check({ screen, role, w, h, theme }) {
     out.httpErrors = [...new Set(httpErrors)];
     out.blockedInBrowser = [...(ctx.__blocked || [])];
     await page.close().catch(() => {});
+  }
+  return out;
+}
+
+// Journeys across screens (scripts/ui/screens.mjs FLOWS). Edit from Projects: the filters pick the
+// picture, the first tile with a picture opens the viewer, Edit opens the canvas editor, and the editor
+// must show that picture (its title, the canvas), not a "can't open" state.
+async function runFlows() {
+  const out = [];
+  for (const flow of FLOWS.filter((f) => inRun(f.from, f.role))) {
+    const page = await contexts[flow.role].desktop.newPage();
+    const problems = [], result = { id: flow.id, role: flow.role };
+    page.on('pageerror', (e) => problems.push('Uncaught: ' + String(e.message).slice(0, 200)));
+    try {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+      await page.goto('/library', { waitUntil: 'load', timeout: 30_000 });
+      await ready(page);
+      for (const [label, option] of Object.entries(flow.filters)) { await page.getByLabel(label, { exact: true }).selectOption({ label: option }, { timeout: 5000 }); await ready(page); }
+      const open = page.locator('.ds-tile:has(img) .ds-tile-open').first();
+      await open.waitFor({ timeout: 10_000 });
+      result.picture = (await open.innerText()).replace(/^Open\s+/, '').trim();
+      await open.click({ timeout: 5000 });
+      await page.locator('dialog[open]').getByRole('button', { name: 'Edit', exact: true }).click({ timeout: 5000 });
+      await page.waitForURL(/\/editor\?/,{ timeout: 10_000 });
+      const id = new URL(page.url()).searchParams.get('visual') || '';
+      result.editor = '/editor?visual=' + id;
+      if (!VISUAL_ID.test(id)) problems.push(`Edit sent the editor "${id}", not a picture id`);
+      if (flow.expect && id !== flow.expect) problems.push(`Edit opened ${id}, not ${flow.expect}`);
+      await page.locator('.canvas-editor-state, .canvas-editor .canvas-box canvas').first().waitFor({ timeout: 20_000 });
+      if (await page.locator('.canvas-editor-state').count()) problems.push('the editor showed: ' + (await page.locator('.canvas-editor-state').innerText()).replace(/\s+/g, ' ').slice(0, 200));
+      else {
+        const title = ((await page.locator('.canvas-title').textContent()) || '').trim();
+        if (title !== result.picture) problems.push(`the editor opened "${title}", not "${result.picture}"`);
+      }
+    } catch (e) { problems.push(String(e.message || e).split('\n')[0].slice(0, 200)); }
+    finally { await page.close().catch(() => {}); }
+    out.push({ ...result, ok: !problems.length, problems });
   }
   return out;
 }

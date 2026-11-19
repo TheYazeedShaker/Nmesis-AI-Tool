@@ -5,9 +5,21 @@
 
 // Phase 3: the folders seeded for Demo Company (scripts/ui/seed.mjs re-exports it).
 export const FOLDER_ID = '00000000-0000-4000-8000-0000000f0001';
+// The canvas editor's picture: the first of the owner's seeded key visuals (scripts/ui/seed.mjs, ready, 1536 x 864).
+export const EDITOR_VISUAL_ID = '00000000-0000-4000-8000-000000010000';
+// The owner's one line-up (scripts/ui/seed.mjs: the 13th key visual, made a line-up of two cars).
+export const LINEUP_VISUAL_ID = '00000000-0000-4000-8000-000000010012';
 
 export const ALL_VIEWPORTS = [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
 export const QUICK_VIEWPORTS = [[1440, 900], [390, 844]];
+// Common laptop windows, for the shell's fill check (shellNotFilling): every screen once at each (first person, light).
+export const LAPTOP_VIEWPORTS = [[1366, 768], [1536, 864]];
+// The owner's laptop (fix/studio-editor-fixes): Chrome on a Retina screen (pixel ratio 2), a 1191 x 786
+// window, at 90, 100 and 110 % page zoom, every screen once at each (first person, light). Chrome draws a
+// zoomed page as a smaller CSS window at a larger pixel ratio; that is how the zoom is emulated here.
+export const RETINA_WINDOW = [1191, 786];
+export const RETINA_ZOOMS = [0.9, 1, 1.1];
+export const retinaViewport = (zoom) => ({ w: Math.floor(RETINA_WINDOW[0] / zoom), h: Math.floor(RETINA_WINDOW[1] / zoom), dsf: +(2 * zoom).toFixed(2), zoom });
 export const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
 export const SHOT_WIDTHS = new Set([1440, 1280, 1024, 390]); // screenshots: small laptops too (Phase 3 group 2)
 export const THEMES = ['light', 'dark'];
@@ -48,6 +60,8 @@ export const SCREENS = [
   // The layers (feat/studio-foundations): References open, then the account menu over it (1440 and 390).
   { id: 'account-menu', path: '/key-visual', action: 'account-over-panel', roles: ['owner'] },
   { id: 'lineup', path: '/lineup', roles: ['owner', 'starter', 'viewer'], full: ['owner'] },
+  // The canvas editor (feat/studio-editor): every viewport for the owner (phones get the larger-screen note), a viewer at 1440 and 390.
+  { id: 'editor', path: `/editor?visual=${EDITOR_VISUAL_ID}`, roles: ['owner', 'viewer'], full: ['owner'] },
   { id: 'films', path: '/films', roles: ['enterprise', 'owner'], full: ['enterprise'] },
   { id: 'swap', path: '/swap', roles: ['enterprise', 'owner'], full: ['enterprise'] },
   { id: 'storyboard', path: '/storyboard', roles: ['enterprise', 'owner'], full: ['enterprise'] },
@@ -59,6 +73,16 @@ export const SCREENS = [
   { id: 'staff-refused', path: '/', roles: ['staffRefused'] },
 ];
 export const SCREEN_IDS = SCREENS.map((s) => s.id);
+
+// Journeys across screens, as a person takes them (scripts/check-ui.mjs runFlows): a hard check, not a
+// ratchet. Each runs once at 1440, in the run or shard that checks its first screen as its person.
+// Edit from Projects: the Projects filters pick the picture, its first tile opens the viewer, Edit opens
+// the canvas editor, which must load that picture (no error state). Selects are named by their labels.
+export const FLOWS = [
+  { id: 'edit-own-key-visual', role: 'owner', from: 'library', filters: { Tool: 'Key visual', Person: 'You' } },
+  { id: 'edit-line-up', role: 'owner', from: 'library', filters: { Tool: 'Line-up' }, expect: LINEUP_VISUAL_ID },
+  { id: 'edit-colleague-picture', role: 'owner', from: 'library', filters: { Tool: 'Key visual', Person: 'A teammate' } },
+];
 
 // Screens in a given state (Phase 3 polish), screenshots only, nothing counted.
 // Each belongs to one screen and person: it is taken in the run (or shard) that
@@ -108,6 +132,8 @@ export function pageJobs(screens, { quick = false } = {}) {
         if (!full && !KEY_WIDTHS.has(w) && !(tablet && w === 768)) continue;
         for (const theme of THEMES) if (KEY_WIDTHS.has(w) || full || theme === 'light') jobs.push({ screen, role, w, h, theme });
       }
+      if (!quick && role === screen.roles[0]) for (const [w, h] of LAPTOP_VIEWPORTS) jobs.push({ screen, role, w, h, theme: 'light' });
+      if (!quick && role === screen.roles[0]) for (const zoom of RETINA_ZOOMS) jobs.push({ screen, role, ...retinaViewport(zoom), theme: 'light' });
     }
   }
   return jobs;

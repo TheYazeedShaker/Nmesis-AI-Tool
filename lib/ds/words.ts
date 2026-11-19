@@ -6,6 +6,37 @@ export const count = (n: number) => (Number.isFinite(n) ? Math.round(n).toLocale
 export const credits = (n: number) => `${count(n)} ${Math.round(n) === 1 ? 'credit' : 'credits'}`;
 export const plural = (n: number, one: string, many = `${one}s`) => `${count(n)} ${Math.round(n) === 1 ? one : many}`;
 
+// ── A company on its own AI keys ────────────────────────────────────────
+// It pays its provider directly, so nothing is charged in credits, by design.
+// "0 credits" read as broken, so wherever a cost shows it says this instead,
+// the same words everywhere, never naming the provider (fix/studio-editor-fixes).
+/** Before an action, as a sentence (the cost line over Generate, a dialog). */
+export const OWN_KEY = 'Uses your company’s AI key, no credits';
+/** Before an action, after its name ("Generate 1 key visual · your AI key"). */
+export const OWN_KEY_TAG = 'your AI key';
+/** Inside a sentence or after a smaller action ("It costs no credits (your AI key)."). */
+export const OWN_KEY_PRICE = 'no credits (your AI key)';
+/** After it ran (the version history, the result's badge). */
+export const OWN_KEY_USED = 'Your AI key, no credits';
+/** Home and the account: the company's work on its own keys. */
+export const OWN_KEYS_ALL = 'Your company uses its own AI keys: no credits are used.';
+export const OWN_KEYS_SOME = 'Work on your company’s own AI keys uses no credits.';
+/** The account menu's row, when every tool runs on the company's own keys. */
+export const OWN_KEYS_SHORT = 'Own AI keys · no credits';
+/** What an action costs: credits, or the company's own key. */
+export type Cost = number | 'own key' | null;
+/** Who a provider's work is billed through (lib/credits/usage.ts CreditOverview, structurally). */
+type Billed = { billing?: Record<string, string> } | null | undefined;
+/** Work that used nothing because it ran on the company's own AI key (the ledger records it with 0 credits). */
+export const usedOwnKey = (o: Billed, provider: string | undefined, used: number | null | undefined) => used === 0 && !!provider && o?.billing?.[provider] === 'own key';
+/** Home and the account: whether the company works on its own AI keys, for every provider or some. */
+export function ownKeysLine(o: Billed) {
+  const modes = o?.billing ? Object.values(o.billing) : [];
+  return !modes.includes('own key') ? null : modes.every((m) => m === 'own key') ? OWN_KEYS_ALL : OWN_KEYS_SOME;
+}
+/** A cost after an action's name: "4 credits", or "your AI key". */
+export const costTag = (c: Exclude<Cost, null>) => (c === 'own key' ? OWN_KEY_TAG : credits(c));
+
 // ── Long-running AI work ────────────────────────────────────────────────
 export type JobState = 'queued' | 'running' | 'done' | 'failed' | 'cancelled';
 export type Job = {

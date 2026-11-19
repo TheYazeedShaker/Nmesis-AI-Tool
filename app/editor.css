@@ -35,7 +35,12 @@
 .editor-turn .ds-slider { flex: 1 1 auto; }
 
 /* Version history, under the canvas. */
-.editor-history { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 240px); gap: var(--ds-space-12); overflow-x: auto; padding-bottom: var(--ds-space-4); }
+/* The versions strip: one row of compact cards. A card is as tall as its own content (never stretched to
+   the tallest), and a title takes two lines at most (its full text is its tooltip): before, one long title
+   or error made every card, and so the strip, as tall as that one, which pushed the canvas past the window
+   and left a band of empty card at the bottom (Key visual, fix in feat/studio-editor). */
+.editor-history { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(200px, 240px); align-items: start; gap: var(--ds-space-12); overflow-x: auto; padding-bottom: var(--ds-space-4); }
+.editor-version-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .editor-history-empty { font-size: var(--ds-text-sm); }
 .editor-version { display: flex; flex-direction: column; gap: var(--ds-space-8); padding: var(--ds-space-8); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius); background: var(--ds-panel); min-width: 0; }
 .editor-version[data-current] { border-color: var(--ds-ring); box-shadow: 0 0 0 var(--ds-border-width) var(--ds-ring); }
@@ -50,8 +55,19 @@
 .editor-section { display: flex; flex-direction: column; gap: var(--ds-space-12); padding-bottom: var(--ds-space-16); border-bottom: var(--ds-border-width) solid var(--ds-border); }
 .editor-section:last-child { border-bottom: 0; padding-bottom: 0; }
 .editor-section-title { font-family: var(--ds-font-display); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-label); text-transform: uppercase; color: var(--ds-muted); }
-.editor-swatches, .editor-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); margin: 0; padding: 0; border: 0; min-width: 0; }
+/* Chips and swatches are groups of choices (.ds-choices): the legend, then the
+   chips wrapping in their own list, so in the settings panel's grid
+   (app/design-system.css) the legend takes the label column and the list the
+   field column. The legend is centred on the first line of chips there. */
 .editor-swatches > legend, .editor-chips > legend { margin-bottom: var(--ds-space-8); }
+.editor-swatch-list, .editor-chip-list { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); min-width: 0; }
+.ds-settings-body .editor-chips > legend { padding-top: calc((var(--ds-control-h-sm) - var(--ds-text-base) * var(--ds-leading-base)) / 2); }
+.ds-settings-body .editor-swatches > legend { padding-top: calc((var(--ds-control-h) - var(--ds-text-base) * var(--ds-leading-base)) / 2); }
+/* A section that is one group of choices and nothing else (How many): its
+   title is the row's label, in the label column. */
+.ds-settings-body .editor-section:has(> .editor-section-title:first-child + .ds-segmented:last-child) {
+  display: grid; grid-template-columns: var(--ds-settings-label-w) minmax(0, 1fr); align-items: center; column-gap: var(--ds-space-12);
+}
 .editor-swatch { position: relative; display: inline-grid; place-items: center; width: var(--ds-control-h); height: var(--ds-control-h); cursor: pointer; }
 .editor-swatch > input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .editor-swatch-chip { width: var(--ds-space-24); height: var(--ds-space-24); border-radius: var(--ds-radius-round); border: var(--ds-border-width) solid var(--ds-border-strong); }
@@ -67,7 +83,10 @@
 .editor-row { display: flex; flex-wrap: wrap; gap: var(--ds-space-8); }
 .editor-quality .ds-radio { padding: var(--ds-space-8) var(--ds-space-12); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); }
 .editor-quality .ds-radio:has(input:checked) { border-color: var(--ds-ring); background: var(--ds-selected-bg); }
-.editor-quality-label { display: inline-flex; gap: var(--ds-space-8); align-items: baseline; justify-content: space-between; width: 100%; }
+/* In the settings grid the legend lines up with the words inside the first card. */
+.ds-settings-body .editor-quality > legend { padding-top: calc(var(--ds-border-width) + var(--ds-space-8) + var(--ds-space-2)); }
+/* The credits drop under the name when the field column is narrow. */
+.editor-quality-label { display: inline-flex; flex-wrap: wrap; gap: 0 var(--ds-space-8); align-items: baseline; justify-content: space-between; width: 100%; }
 .editor-upload { display: flex; align-items: center; gap: var(--ds-space-12); padding: var(--ds-space-8); border: var(--ds-border-width) dashed var(--ds-border-strong); border-radius: var(--ds-radius-md); min-width: 0; }
 .editor-upload > svg { width: var(--ds-icon-lg); height: var(--ds-icon-lg); color: var(--ds-muted); flex: none; }
 .editor-upload > span:not(.editor-lineup-thumb) { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; font-size: var(--ds-text-sm); }
@@ -123,6 +142,26 @@
 /* What is shown sits at the top of the stage: when the history loads under it,
    nothing above moves (check:ui layout shift on Film). */
 .editor-stage-main { place-items: start center; }
+/* The design pass (fix/studio-editor-fixes, owner on a 1191 x 786 laptop): the
+   configurator was a 16:9 box at the top of a tall stage, so a large empty area
+   sat under "Use this view" and the versions sat far below on their own. Now,
+   on wider screens, what is shown uses the stage: the stage's middle is a size
+   container; the live configurator fills its height (its page lays out to any
+   shape; never taller than 4:3, so it stays a car view) and a result is the
+   largest 16:9 picture that fits, with its action row and the versions right
+   under it. The versions strip keeps one card's height from the start, so
+   nothing moves when they load. Only for a configurator or a result: a tool
+   whose stage is a long board (Story) keeps the scrolling column, as phones do. */
+@media (min-width: 769px) {
+  .ds-canvas-stage > .editor-stage > .editor-stage-main:has(.editor-configurator, .editor-result) { container-type: size; flex: 1 1 0; }
+  .ds-canvas-stage > .editor-stage:has(> .editor-stage-main .editor-configurator, > .editor-stage-main .editor-result) > .editor-stage-history { min-height: calc(var(--ds-space-64) * 2); }
+  /* A tool's own wrapper around them (Key visual's car view) passes the height on. */
+  .editor-stage-main:has(.editor-configurator, .editor-result) > :not(.editor-configurator, .editor-result) { height: 100%; }
+  .editor-stage-main .editor-configurator { height: 100%; width: min(100%, 1040px); }
+  .editor-stage-main .editor-configurator-frame { flex: 1 1 auto; aspect-ratio: auto; min-height: calc(var(--ds-space-64) * 3); max-height: calc(min(100cqw, 1040px) * 3 / 4); }
+  .editor-stage-main .editor-result { width: min(100cqw, 1040px, calc((100cqh - var(--ds-space-48)) * 16 / 9)); }
+  .editor-stage-main .editor-result img { max-height: none; }
+}
 /* Phones: the editor fills the screen under the top bar as on desktop, as a
    column: the tools, the canvas (which scrolls inside itself) and Generate in a
    row of its own. Nothing is ever under the Generate bar, at rest or while
@@ -164,15 +203,19 @@
    account; finish pass). */
 .ds-editor[data-loading] .ds-canvas-bar > *, .ds-editor[data-loading] .ds-canvas-stage, .ds-editor[data-loading] .ds-settings-body, .ds-editor[data-loading] .ds-generate > * { visibility: hidden; }
 
-/* References in the settings (components/editor/references-settings.tsx). */
-.editor-refs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-8); }
+/* The reference list in the settings (components/editor/reference-list.tsx):
+   two pictures a row; one wide picture when the tool takes one (an inspiration). */
+.editor-ref-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-8); }
+.editor-ref-list[data-single] { grid-template-columns: minmax(0, 1fr); }
+.editor-ref-list[data-single] .editor-ref-thumb { aspect-ratio: 16 / 9; }
 .editor-ref { display: flex; flex-direction: column; gap: var(--ds-space-4); min-width: 0; }
 .editor-ref-thumb { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: var(--ds-radius-md); overflow: hidden; background: var(--ds-media-bg); border: var(--ds-border-width) solid var(--ds-border); }
 .editor-ref-thumb > img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .editor-ref-remove { position: absolute; top: var(--ds-space-4); right: var(--ds-space-4); background: var(--ds-panel); box-shadow: var(--ds-shadow-1); }
 .editor-ref-meta { display: flex; flex-direction: column; min-width: 0; font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); color: var(--ds-muted); }
-.editor-ref-count { margin-left: auto; font-size: var(--ds-text-xs); font-variant-numeric: var(--ds-numeric); }
-.editor-smart-pick { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ds-space-8); }
+.editor-ref-count { align-self: center; margin-left: auto; font-size: var(--ds-text-xs); font-variant-numeric: var(--ds-numeric); }
+/* Smart pick (a settings row): the switch and how many, side by side in the field column. */
+.editor-smart-controls { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ds-space-8); min-width: 0; }
 .editor-smart-count .ds-select { min-width: 0; }
 /* What Generate will use, live, just above it. */
 .editor-cost-line { margin: 0; padding: var(--ds-space-8) 0; color: var(--ds-text); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-variant-numeric: var(--ds-numeric); border-top: var(--ds-border-width) solid var(--ds-border); }

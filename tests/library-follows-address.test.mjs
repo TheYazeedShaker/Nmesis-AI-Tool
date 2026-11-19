@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import * as workRef from '../lib/work-ref.ts';
 
 // Library → a folder: the list follows the address without a reload. The page
 // reads ?in= and ?open= with useSearchParams (every navigation, in a Suspense
@@ -50,7 +51,7 @@ test('navigating between folders updates the list without a reload', async () =>
   };
   const code = ts.transpileModule(src('components/workspace/data.ts'), {compilerOptions: {target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext}}).outputText;
   const context = vm.createContext({fetch, AbortSignal, URL, URLSearchParams, Date, JSON, Promise, Math, Number, String, Map, Set, Error, setTimeout, clearTimeout, console});
-  const stubs = {react: {...React, default: React}, '@/components/ds/toast': {useToast: () => ({toast() {}})}, './library': {EMPTY_QUERY: {tool: '', car: '', who: '', q: '', sort: 'new'}}};
+  const stubs = {react: {...React, default: React}, '@/components/ds/toast': {useToast: () => ({toast() {}})}, './library': {EMPTY_QUERY: {tool: '', car: '', who: '', q: '', sort: 'new'}}, '@/lib/work-ref': {...workRef}};
   const mod = new vm.SourceTextModule(code, {context});
   await mod.link(async (name) => new vm.SyntheticModule(Object.keys(stubs[name]), function () { for (const [k, v] of Object.entries(stubs[name])) this.setExport(k, v); }, {context}));
   await mod.evaluate();

@@ -21,6 +21,7 @@ import "./brand.css";
 import "./share.css";
 import "./elements.css";
 import "./account.css";
+import "./canvas.css";
 import {LinkLanding} from "@/components/link-landing";
 import {StudioProviders} from "@/components/studio-providers";
 // The Nmesis fonts. preload stays off until screens use them (Phase 2b), so no

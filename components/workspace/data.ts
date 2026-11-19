@@ -3,6 +3,7 @@ import * as React from 'react';
 import {useToast} from '@/components/ds/toast';
 import type {LibraryPage,PageFolder,PageItem} from '@/lib/library-page';
 import type {FolderOut} from '@/lib/folders';
+import {workKey,workRef} from '@/lib/work-ref';
 import type {Folder,WorkItem} from './items';
 import {EMPTY_QUERY,type Counts,type LibraryQuery,type Place} from './library';
 
@@ -20,11 +21,12 @@ export function when(at:number,now=Date.now()){
 const KIND={visual:'image',film:'film',swap:'swap',story:'storyboard'} as const;
 export function toWork(i:PageItem):WorkItem{
  const status=i.status==='working'?{kind:'info' as const,label:'In progress'}:i.status==='failed'?{kind:'bad' as const,label:'Didn’t finish'}:i.tool!=='Key visual'?{kind:'quiet' as const,label:i.tool}:undefined;
- return {id:`${i.kind}:${i.id}`,name:i.title,sub:when(i.at),src:i.thumb||undefined,full:i.full||undefined,kind:KIND[i.kind],status,width:i.width??undefined,height:i.height??undefined,
+ return {id:workKey(i),ref:{kind:i.kind,id:i.id},name:i.title,sub:when(i.at),src:i.thumb||undefined,full:i.full||undefined,kind:KIND[i.kind],status,width:i.width??undefined,height:i.height??undefined,
   tool:i.tool as WorkItem['tool'],car:i.car||undefined,person:i.mine?'You':'A teammate',at:new Date(i.at).toISOString(),folderId:i.folderId,href:i.href,deleted:i.deleted};
 }
 const toFolder=(f:PageFolder):Folder=>({id:f.id,name:f.name,parentId:f.parentId,count:f.count,covers:f.covers});
-const split=(workId:string)=>{const at=workId.indexOf(':');return {kind:workId.slice(0,at) as PageItem['kind'],id:workId.slice(at+1)}};
+/** The kind and raw id each route takes, from items' library keys (lib/work-ref.ts). */
+const refs=(keys:string[])=>keys.flatMap(k=>{const r=workRef(k);return r?[r]:[]});
 const PATH={film:'films',swap:'swaps',story:'storyboards'} as const;
 async function send(url:string,method:string,body?:unknown){
  const r=await fetch(url,{method,credentials:'same-origin',headers:{'Content-Type':'application/json'},body:body===undefined?(method==='GET'?undefined:'{}'):JSON.stringify(body),signal:AbortSignal.timeout(60_000)});
@@ -63,7 +65,7 @@ export function useLibraryPage(place:Place,{limit=40}:{limit?:number}={}){
  const drop=(ids:string[])=>{setItems(v=>v.filter(i=>!ids.includes(i.id)));setTotal(t=>Math.max(0,t-ids.length))};
  const fail=(e:unknown)=>{toast.toast({message:e instanceof Error?e.message:'That didn’t work. Try again.',kind:'bad'});void reload()};
  async function setDeleted(ids:string[],deleted:boolean){
-  for(const w of ids){const {kind,id}=split(w);
+  for(const {kind,id} of refs(ids)){
    if(kind==='visual')await send(`/api/visuals/${id}`,deleted?'DELETE':'POST');
    else await send(deleted?`/api/${PATH[kind]}/${id}`:`/api/${PATH[kind]}/${id}/restore`,deleted?'DELETE':'POST');}
  }
@@ -72,11 +74,11 @@ export function useLibraryPage(place:Place,{limit=40}:{limit?:number}={}){
   onMove:(ids:string[],folderId:string|null)=>{
    const before=new Map(items.filter(i=>ids.includes(i.id)).map(i=>[i.id,i.folderId??null]));
    if(inThisPlace(folderId))patch(ids,{folderId});else drop(ids);
-   void send('/api/folders/move','POST',{items:ids.map(split),folderId}).then(()=>{
+   void send('/api/folders/move','POST',{items:refs(ids),folderId}).then(()=>{
     const name=folderId?meta?.folders.find(f=>f.id===folderId)?.name:'Not in a folder';
     toast.undo(`Moved ${words(ids.length)} to ${name}.`,()=>{
      const groups=new Map<string|null,string[]>();for(const [id,f] of before)groups.set(f,[...(groups.get(f)||[]),id]);
-     void Promise.all([...groups].map(([f,list])=>send('/api/folders/move','POST',{items:list.map(split),folderId:f}))).then(reload,fail);
+     void Promise.all([...groups].map(([f,list])=>send('/api/folders/move','POST',{items:refs(list),folderId:f}))).then(reload,fail);
     });
     void reload();
    },fail);

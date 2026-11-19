@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import {ArrowRight,Coins,Search,Sparkles} from 'lucide-react';
+import {ArrowRight,Coins,KeyRound,Search,Sparkles} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {SkeletonTile} from '@/components/ds/feedback';
 import {MediaTile} from '@/components/ds/media';
@@ -22,7 +22,8 @@ export type HomeTool={key:string;name:string;line:string;href:string;icon:React.
  /** Why it can't be opened: its plan, or "Coming soon" (lib/tools.ts). */locked?:string;soon?:boolean;
  /** Its sample picture (lib/tool-samples.ts); none: the neutral placeholder. */sample?:string;
  /** Several cars side by side (Car lineup), drawn instead of the sample. */cars?:(string|undefined)[]};
-export type HomeCredits={left:number;resetsOn?:string|null;href?:string}|null;
+/** The credits left this month (none when every tool runs on the company's own AI keys), and the own-keys line. */
+export type HomeCredits={left:number|null;resetsOn?:string|null;href?:string;own?:string|null}|null;
 export const CONTINUE_MAX=6;
 
 /** Car lineup's picture: the company's cars, each its configurator's opening frame, full size on one
@@ -81,7 +82,7 @@ export function HomeScreen({greeting,tools,recent,onStart,credits,placeholder=br
     :<p className="ds-muted">Nothing yet. What you make appears here and in Projects.</p>}
   </section>
 
-  {credits&&<p className="workspace-credits"><Coins aria-hidden="true"/><span><b>{credits.left.toLocaleString('en-US')}</b> credits left this month{credits.resetsOn?` · they reset on ${credits.resetsOn}`:''}.</span>{credits.href&&<Link className="ds-link" href={credits.href}>Plans and credits</Link>}</p>}
+  {credits&&<p className="workspace-credits">{credits.left===null?<><KeyRound aria-hidden="true"/><span>{credits.own}</span></>:<><Coins aria-hidden="true"/><span><b>{credits.left.toLocaleString('en-US')}</b> credits left this month{credits.resetsOn?` · they reset on ${credits.resetsOn}`:''}.{credits.own?' '+credits.own:''}</span></>}{credits.href&&<Link className="ds-link" href={credits.href}>Plans and credits</Link>}</p>}
  </div>;
 }
 

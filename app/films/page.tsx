@@ -23,6 +23,7 @@ import {studioFetch} from '@/lib/studio-fetch';
 import {FILM_MODELS,MOTIONS,SEEDANCE_IMAGE_MODEL,SEEDANCE_REFERENCE_MODEL,VIDEO_MODEL,filmDuration,filmModelInfo,type Film,type FilmDraft} from '@/lib/films';
 import {refreshCredits,useCredits,costLabel} from '@/components/credits';
 import {creditsLabel} from '@/lib/credits/words';
+import {OWN_KEY} from '@/lib/ds/words';
 import './editor-films.css';
 
 // Film in the one editor (Phase 3 group 2): the film or its starting frame in
@@ -175,7 +176,7 @@ function FilmStudio(){const router=useRouter(),showNames=providerNames(useAccoun
   </fieldset>}
   {film&&draft&&quoted&&<SettingsSection title="Estimate" id="film-estimate-title">
    <p><span className="editor-films-price">{price}</span> <span className="ds-muted">for this film</span></p>
-   <p className="ds-help">{connection?.connected?w('Your company’s Higgsfield key: 0 credits'):w('Reserved when it starts, charged once Higgsfield accepts it')}. Price checked again before submission. A higher price requires your approval again.</p>
+   <p className="ds-help">{connection?.connected?OWN_KEY:w('Reserved when it starts, charged once Higgsfield accepts it')}. Price checked again before submission. A higher price requires your approval again.</p>
    <Checkbox label="I approve this source image, storyboard and estimated cost." checked={approved} onChange={e=>setApproved(e.target.checked)}/>
    <span className="editor-row"><Button size="sm" kind="quiet" icon={<RefreshCw aria-hidden="true"/>} busy={busy==='quote'} disabled={isBusy&&busy!=='quote'} onClick={()=>void action('quote')}>Refresh estimate</Button></span>
   </SettingsSection>}
