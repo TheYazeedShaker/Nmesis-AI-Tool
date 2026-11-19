@@ -196,7 +196,7 @@ test('Brand: inside the editor a logo is a button that adds it; outside, a refer
   assert.equal(addLogo(LOGO, null, () => false).message, 'Open a picture in the editor to add this.');
 });
 
-test('Elements: inside the editor elements are add buttons and icons say they wait; outside, pictures only', () => {
+test('Elements: inside the editor elements and icons are add buttons; outside, pictures only', () => {
   const { ElementsPanel } = load('components/shell/elements-panel.tsx', { sink: () => {} }).mod;
   const inside = html(ElementsPanel);
   assert.match(inside, /Click an element to add it to your design\./);
@@ -206,9 +206,14 @@ test('Elements: inside the editor elements are add buttons and icons say they wa
   assert.match(inside, /aria-label="Add Square frame, 1:1 to the design"/);
   assert.match(inside, /<button type="button" class="elements-text elements-text-add" aria-label="Add heading text in Montserrat to the design">/);
   assert.match(inside, /aria-label="Add body text in Lato to the design"/);
-  assert.match(inside, /Icons can’t be added to a design yet\./);
-  assert.match(inside, /role="img" aria-label="Car"/, 'icons stay pictures');
-  assert.doesNotMatch(inside, /aria-label="Add Car to the design"/);
+  // Each style previews in the brand font the Studio serves (app/brand-fonts.ts), as the canvas draws it.
+  assert.match(inside, /class="elements-text-sample" data-style="heading" style="font-family:var\(--font-montserrat, &quot;Montserrat&quot;\), var\(--ds-font-sans\)"/);
+  assert.doesNotMatch(inside, /can’t be added/);
+  assert.match(inside, /<button type="button" class="elements-add" aria-label="Add the car icon to the design" title="Car"><span class="elements-tile" data-kind="icon"><svg/, 'icons are add buttons, drawn by the icon set');
+  const icons = html(ElementsPanel, { initialCategory: 'icons' });
+  assert.match(icons, /<label class="ds-search elements-search">[\s\S]*placeholder="Search icons"/);
+  assert.match(icons, /Suggested for cars\. Search to find any icon\./);
+  assert.equal((icons.match(/aria-label="Add the [^"]+ icon to the design"/g) || []).length, ICONS.length);
   assert.equal((inside.match(/aria-pressed/g) || []).length, 7, 'the category bar stays');
   const shapes = html(ElementsPanel, { initialCategory: 'shapes' });
   assert.equal((shapes.match(/class="elements-add"/g) || []).length, 6);
@@ -218,7 +223,8 @@ test('Elements: inside the editor elements are add buttons and icons say they wa
 
   const outside = html(load('components/shell/elements-panel.tsx').mod.ElementsPanel);
   assert.match(outside, /Adding elements to a picture comes with the editor\./);
-  assert.doesNotMatch(outside, /to the design|class="elements-add"|Icons can’t/);
+  assert.doesNotMatch(outside, /to the design|class="elements-add"/);
+  assert.match(outside, /role="img" aria-label="Car"/, 'outside the editor, icons are pictures');
 });
 
 test('Text: three styles in the brand’s fonts and the colours named; without an editor, one line', () => {
@@ -226,10 +232,10 @@ test('Text: three styles in the brand’s fonts and the colours named; without a
   const inside = html(TextPanel);
   const buttons = [...inside.matchAll(/<button type="button" class="text-panel-add" data-style="(\w+)">([\s\S]*?)<\/button>/g)];
   assert.deepEqual(buttons.map((b) => b[1]), ['heading', 'subheading', 'body']);
-  assert.match(buttons[0][2], /^<span class="text-panel-sample" style="font-family:&quot;Montserrat&quot;, var\(--ds-font-display\)">Add a heading<\/span>/);
+  assert.match(buttons[0][2], /^<span class="text-panel-sample" style="font-family:var\(--font-montserrat, &quot;Montserrat&quot;\), var\(--ds-font-sans\)">Add a heading<\/span>/);
   assert.match(buttons[0][2], /<span class="ds-sr-only">in <\/span>Montserrat/);
   assert.match(buttons[1][2], />Add a subheading</);
-  assert.match(buttons[2][2], /^<span class="text-panel-sample" style="font-family:&quot;Lato&quot;, var\(--ds-font-sans\)">Add a little body text<\/span>/);
+  assert.match(buttons[2][2], /^<span class="text-panel-sample" style="font-family:var\(--font-lato, &quot;Lato&quot;\), var\(--ds-font-sans\)">Add a little body text<\/span>/);
   assert.match(inside, /<h3 class="ds-label-caps" id="[^"]+">Brand colours<\/h3>/);
   assert.match(inside, /style="background:#0A84FF"/);
   assert.match(inside, /<b class="ds-truncate">Demo blue<\/b><span class="text-panel-hex">#0A84FF<\/span>/);

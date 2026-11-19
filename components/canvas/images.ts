@@ -33,11 +33,3 @@ export function useCanvasImage(src:string|null|undefined){
  },[src]);
  return state.src===src?state:{src:src||'',img:null,error:''};
 }
-
-/** A font the canvas can draw: the Studio's own fonts resolve to the families Next loaded; others by name. */
-export function fontStack(name:string){
- if(typeof window==='undefined')return name;
- const own:Record<string,string>={Inter:'--font-inter',Outfit:'--font-outfit'};
- const resolved=own[name]?getComputedStyle(document.documentElement).getPropertyValue(own[name]).trim():'';
- return `${resolved||JSON.stringify(name)}, ${getComputedStyle(document.documentElement).getPropertyValue('--font-inter').trim()||'system-ui'}, sans-serif`;
-}

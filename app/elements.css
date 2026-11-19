@@ -126,3 +126,10 @@
 /* Loading logos: square skeletons, the shape of the tiles coming. */
 .elements-grid > .ds-skel-tile > .ds-skel:first-child { aspect-ratio: 1 / 1; border-radius: var(--ds-radius-md); }
 .elements-grid > .ds-skel-tile > .ds-skel-line { display: none; }
+
+/* Icons (lib/editor/icons.ts): the search above the grid, its result line under it.
+   The search field is the design system's (.ds-search); it keeps its place while the grid changes. */
+.elements-icons { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.elements-search > input { width: 100%; }
+.elements-icons > .ds-help { margin: 0; min-height: calc(var(--ds-text-sm) * var(--ds-leading-sm)); font-variant-numeric: var(--ds-numeric); }
+.elements-icons > .ds-btn { align-self: flex-start; }

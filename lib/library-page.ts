@@ -5,6 +5,7 @@ import {foldersReady} from './trash-ready';
 import {indexReady,hidesPrivate,NOT_HIDDEN} from './library-index';
 import {backfilled} from './library-backfill';
 import {companyLibrary,type LibraryItem} from './library';
+import type {WorkRef} from './work-ref';
 // The library a page at a time (Phase 3 group 2), from the database alone: the
 // index (0007) with the folders (0006). No storage read: each thumbnail is a
 // short-lived signed link to the small WebP made when the work was saved (or,
@@ -80,10 +81,7 @@ export async function libraryPage(ctx:FilmContext,query:PageQuery,{brandCars,car
   live.length?db.prepare(`SELECT fi.folder_id AS folder_id, li.thumb_key AS thumb_key FROM folder_items fi JOIN library_items li ON li.org_id=fi.org_id AND li.kind=fi.item_kind AND li.id=fi.item_id WHERE fi.org_id=? AND li.deleted_at IS NULL AND li.thumb_key IS NOT NULL AND fi.folder_id IN (${marks})${hidden} ORDER BY li.created_at DESC LIMIT 400`).bind(ctx.org,...live,...hiddenArgs).all<{folder_id:string;thumb_key:string}>():Promise.resolve({results:[]}),
  ]);
  const sign=(key:string)=>store.downloadUrl(key);
- const items=await Promise.all(rows.results.map(async r=>({kind:r.kind,id:r.id,title:tidyCarText(r.title)||r.title,tool:r.tool,car:tidyCarText(r.car),status:r.status,mine:r.owner===ctx.prefix,at:Number(r.created_at),deleted:r.deleted_at!==null&&r.deleted_at!==undefined,
-  folderId:r.folder_id??null,href:hrefFor(r.kind,r.id,r.tool),width:r.width,height:r.height,
-  thumb:r.thumb_key?await sign(r.thumb_key):r.asset_id&&r.status==='ready'?`/api/assets/${r.asset_id}?thumb=1`:null,
-  full:r.asset_id&&r.status==='ready'?`/api/assets/${r.asset_id}`:null} satisfies PageItem)));
+ const items=await Promise.all(rows.results.map(r=>pageItem(ctx,r,sign)));
  const count=new Map(perFolder.results.map(r=>[r.folder_id,Number(r.n)]));
  const coverKeys=new Map<string,string[]>();for(const c of covers.results){const list=coverKeys.get(c.folder_id)||[];if(list.length<3)list.push(c.thumb_key);coverKeys.set(c.folder_id,list)}
  // A folder counts its sub-folders' work too.
@@ -94,6 +92,37 @@ export async function libraryPage(ctx:FilmContext,query:PageQuery,{brandCars,car
  return {items,total:n,next:query.offset+items.length<n?query.offset+items.length:null,
   counts:{all:Number(counts?.live_n)||0,unsorted:Number(counts?.unsorted_n)||0,deleted:Number(counts?.deleted_n)||0},
   folders,cars:carList(carChoices,(inBrand||stored).map(c=>tidyCarText(c)||c)),foldersReady:withFolders,indexed:true};
+}
+
+/** One row as the page shows it (thumbnails on short-lived signed links). */
+async function pageItem(ctx:FilmContext,r:Row,sign:(key:string)=>Promise<string>|string):Promise<PageItem>{
+ return {kind:r.kind,id:r.id,title:tidyCarText(r.title)||r.title,tool:r.tool,car:tidyCarText(r.car),status:r.status,mine:r.owner===ctx.prefix,at:Number(r.created_at),deleted:r.deleted_at!==null&&r.deleted_at!==undefined,
+  folderId:r.folder_id??null,href:hrefFor(r.kind,r.id,r.tool),width:r.width,height:r.height,
+  thumb:r.thumb_key?await sign(r.thumb_key):r.asset_id&&r.status==='ready'?`/api/assets/${r.asset_id}?thumb=1`:null,
+  full:r.asset_id&&r.status==='ready'?`/api/assets/${r.asset_id}`:null};
+}
+
+/**
+ * One piece of work by its kind and id (Projects opened on a link, ?open=, to
+ * work older than the pages loaded so far), with the same rules as the list:
+ * the company's own, not deleted, not another person's "Only me", in the
+ * chosen brand. Null for anything else.
+ */
+export async function libraryItem(ctx:FilmContext,ref:WorkRef,{brandCars}:{brandCars?:string[]|null}={}):Promise<PageItem|null>{
+ if(!validId(ref.id))return null;
+ const db=database(ctx),inBrand=(car:string|null)=>!brandCars||!car||brandCars.map(c=>tidyCarText(c)||c).includes(car);
+ if(!await indexReady(db)||!await backfilled({DB:db,BUCKET:ctx.BUCKET,org:ctx.org})){
+  const all=await fromFeed(ctx,{place:'all',tool:null,car:null,who:null,q:null,sort:'new',offset:0,limit:100_000},brandCars||null,null);
+  const found=all.items.find(i=>i.kind===ref.kind&&i.id===ref.id);
+  return found&&inBrand(found.car)?found:null;
+ }
+ const hide=await hidesPrivate(db,ctx),withFolders=await foldersReady(db);
+ const filed=withFolders?'(SELECT fi.folder_id FROM folder_items fi JOIN folders f ON f.id=fi.folder_id AND f.org_id=fi.org_id AND f.deleted_at IS NULL WHERE fi.org_id=li.org_id AND fi.item_kind=li.kind AND fi.item_id=li.id LIMIT 1)':'NULL';
+ const row=await db.prepare(`SELECT li.*, ${filed} AS folder_id FROM library_items li WHERE li.org_id=? AND li.kind=? AND li.id=? AND li.deleted_at IS NULL${hide?' AND '+NOT_HIDDEN:''}`)
+  .bind(ctx.org,ref.kind,ref.id,...(hide?[ctx.prefix]:[])).first<Row>();
+ if(!row)return null;
+ const item=await pageItem(ctx,row,key=>bucket(ctx.BUCKET).downloadUrl(key));
+ return inBrand(item.car)?item:null;
 }
 
 /** The car filter's choices: the company's cars and the cars with work, each once, A–Z (at most 200). */

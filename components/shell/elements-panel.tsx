@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import {Award,BatteryCharging,Camera,Car,CarFront,Flag,Fuel,Gauge,KeyRound,Leaf,MapPin,Moon,Mountain,Navigation,Percent,PlugZap,Route,ShieldCheck,Snowflake,Sparkles,Star,Sun,Tag,Timer,Trophy,Wrench,Zap,type LucideIcon} from 'lucide-react';
+import {Award,BatteryCharging,Camera,Car,CarFront,Flag,Fuel,Gauge,KeyRound,Leaf,MapPin,Moon,Mountain,Navigation,Percent,PlugZap,Route,Search,ShieldCheck,Snowflake,Sparkles,Star,Sun,Tag,Timer,Trophy,Wrench,Zap,type LucideIcon} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {Loading,SkeletonTile} from '@/components/ds/feedback';
 import {useToast} from '@/components/ds/toast';
@@ -9,7 +9,9 @@ import {useBrandKit} from '@/components/brand/brand-kit';
 import {useAccount} from '@/components/studio-account';
 import {can} from '@/lib/accounts/can';
 import {NOT_YET,type BrandKit} from '@/lib/brand-kit';
-import {ALL_PREVIEW,ELEMENT_CATEGORIES,canvasAddFor,canvasAddSaid,elementsIn,imageSize,logoCanvasAdd,textStyleFont,type ElementCategory,type ElementGroup,type ElementGroupId,type ElementItem,type FrameElement,type IconId,type LineId,type ShapeId} from '@/lib/elements';
+import {ALL_PREVIEW,ELEMENT_CATEGORIES,canvasAddFor,canvasAddSaid,elementsIn,iconCanvasAdd,imageSize,logoCanvasAdd,textStyleFont,type ElementCategory,type ElementGroup,type ElementGroupId,type ElementItem,type FrameElement,type IconElement,type IconId,type LineId,type ShapeId} from '@/lib/elements';
+import {ICON_RESULTS_MAX,iconLabel,iconName,iconPaths,searchIcons,shapesOf} from '@/lib/editor/icons';
+import {cssFontFamily} from '@/lib/editor/fonts';
 import {addToCanvas,useShell} from './shell-state';
 
 // The Elements panel's body (the shell around it draws the "Elements" header,
@@ -19,13 +21,16 @@ import {addToCanvas,useShell} from './shell-state';
 // brand-kit logos. Outside the canvas editor the panel only shows and filters,
 // so the elements are pictures with names, not buttons. Inside it (a canvas
 // sink is registered, components/shell/shell-state.ts) it lists what the
-// editor can add, and one press adds it; icons are shown but not added yet.
+// editor can add, and one press adds it. Icons: a few suggested for cars, and
+// a search over the Studio's whole icon set (lucide, loaded the first time
+// someone searches); an icon goes on the design as vector paths read from its
+// drawing here (lib/editor/icons.ts), in the brand's first colour.
 // Data, the filter and what each element adds: lib/elements.ts.
 // Styles: app/elements.css.
 
 const NOTE='Adding elements to a picture comes with the editor.';
 const DESIGN_NOTE='Click an element to add it to your design.';
-const ICONS_NOTE='Icons can’t be added to a design yet.';
+const ICONS_HINT='Suggested for cars. Search to find any icon.';
 
 const ICON:Record<IconId,LucideIcon>={
  car:Car,'car-front':CarFront,gauge:Gauge,fuel:Fuel,zap:Zap,'battery-charging':BatteryCharging,'plug-zap':PlugZap,
@@ -82,6 +87,25 @@ function Art({item}:{item:Drawn}){
 /** One element inside the editor: a button that adds it to the design (icons
  *  stay a picture with a name, as outside). The preview inside is the same. */
 function AddElement({item,kit}:{item:ElementItem;kit:BrandKit|null}){
+ if(item.kind==='icon')return <AddIcon id={item.id} name={item.name} Icon={ICON[item.id]} kit={kit}/>;
+ return <AddOther item={item} kit={kit}/>;
+}
+
+/** An icon inside the editor: one press adds it, drawn from the very SVG shown in the tile. */
+function AddIcon({id,name,Icon,kit}:{id:string;name:string;Icon:LucideIcon;kit:BrandKit|null}){
+ const {toast}=useToast();
+ function press(e:React.MouseEvent<HTMLButtonElement>){
+  const svg=e.currentTarget.querySelector('svg'),add=svg?iconCanvasAdd({id,name},iconPaths(shapesOf(svg)),kit):null;
+  toast(add?canvasAddSaid(add,addToCanvas(add)):{message:'This icon can’t be added to the design.',kind:'bad'});
+ }
+ return <li className="elements-item">
+  <button type="button" className="elements-add" aria-label={`Add the ${name.toLowerCase()} icon to the design`} title={name} onClick={press}>
+   <span className="elements-tile" data-kind="icon"><Icon className="elements-icon" aria-hidden="true" focusable="false"/></span>
+  </button>
+ </li>;
+}
+
+function AddOther({item,kit}:{item:Exclude<ElementItem,IconElement>;kit:BrandKit|null}){
  const {toast}=useToast();
  const add=canvasAddFor(item,kit);
  if(!add)return <Element item={item} kit={kit}/>;
@@ -93,8 +117,8 @@ function AddElement({item,kit}:{item:ElementItem;kit:BrandKit|null}){
  if(item.kind==='text'){
   const font=textStyleFont(item,kit);
   return <li className="elements-item">
-   <button type="button" className="elements-text elements-text-add"aria-label={`Add ${item.name.toLowerCase()} text${font?` in ${font}`:''} to the design`} onClick={press}>
-    <span className="elements-text-sample" data-style={item.id}>{item.name}</span>
+   <button type="button" className="elements-text elements-text-add" aria-label={`Add ${item.name.toLowerCase()} text${font?` in ${font}`:''} to the design`} onClick={press}>
+    <span className="elements-text-sample" data-style={item.id} style={font?{fontFamily:cssFontFamily(font)}:undefined}>{item.name}</span>
     {font&&<span className="elements-text-font">{font}</span>}
    </button>
   </li>;
@@ -116,7 +140,7 @@ function Element({item,kit}:{item:ElementItem;kit:BrandKit|null}){
  if(item.kind==='text'){
   const font=textStyleFont(item,kit);
   return <li className="elements-text">
-   <span className="elements-text-sample" data-style={item.id}>{item.name}</span>
+   <span className="elements-text-sample" data-style={item.id} style={font?{fontFamily:cssFontFamily(font)}:undefined}>{item.name}</span>
    <span className="ds-sr-only"> text style</span>
    {font&&<span className="elements-text-font">{font}</span>}
   </li>;
@@ -151,13 +175,59 @@ function LogosState({kit,error,reload,count,mayEdit}:Kit&{count:number;mayEdit:b
 
 function GroupGrid({group,kit,labelledBy,mayEdit,preview,design}:{group:ElementGroup;kit:Kit;labelledBy?:string;mayEdit:boolean;preview:boolean;design:boolean}){
  if(group.category==='logos'&&!group.items.length)return <LogosState {...kit} count={preview?ALL_PREVIEW:6} mayEdit={mayEdit}/>;
+ if(group.category==='icons'&&!preview)return <IconsSection group={group} kit={kit.kit} design={design}/>;
  const One=design?AddElement:Element;
  return <>
-  {design&&group.category==='icons'&&<p className="ds-help">{ICONS_NOTE}</p>}
   <ul className="elements-grid" data-group={group.category} aria-labelledby={labelledBy} aria-label={labelledBy?undefined:group.label}>
    {group.items.map(item=><One key={`${item.kind}:${item.id}`} item={item} kit={kit.kit}/>)}
   </ul>
  </>;
+}
+
+// ── Icons: the suggested few, and a search over the whole set ──────────────
+type IconSet=Map<string,LucideIcon>;
+let iconSet:Promise<IconSet>|null=null;
+/** The Studio's whole icon set (lucide), as name → icon: one download, the first time someone searches. */
+function loadIconSet():Promise<IconSet>{
+ if(!iconSet){
+  const load=import('lucide-react').then(m=>new Map(Object.entries(m.icons as unknown as Record<string,LucideIcon>).map(([k,v])=>[iconName(k),v])));
+  iconSet=Promise.race([load,new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('timeout')),15_000))]);
+  iconSet.catch(()=>{iconSet=null});
+ }
+ return iconSet;
+}
+type Found={kind:'idle'}|{kind:'loading'}|{kind:'error'}|{kind:'done';query:string;names:string[];total:number;set:IconSet};
+
+function IconsSection({group,kit,design}:{group:ElementGroup;kit:BrandKit|null;design:boolean}){
+ const [query,setQuery]=React.useState(''),[found,setFound]=React.useState<Found>({kind:'idle'}),[attempt,setAttempt]=React.useState(0);
+ const id=React.useId(),words=query.trim();
+ React.useEffect(()=>{
+  if(!words)return;let live=true;
+  // A moment after typing stops; the set downloads once.
+  const t=setTimeout(()=>{
+   setFound(f=>f.kind==='done'?f:{kind:'loading'});
+   loadIconSet().then(set=>{if(!live)return;const r=searchIcons([...set.keys()],words);setFound({kind:'done',query:words,names:r.names,total:r.total,set})},
+    (e:unknown)=>{console.warn('[elements] the icon set did not load',e instanceof Error?e.message:'unknown');if(live)setFound({kind:'error'})});
+  },200);
+  return()=>{live=false;clearTimeout(t)};
+ },[words,attempt]);
+ const results=words&&found.kind==='done'?found:null;
+ return <div className="elements-icons">
+  <label className="ds-search elements-search"><Search aria-hidden="true"/><span className="ds-sr-only">Search icons</span>
+   <input className="ds-input" type="search" value={query} placeholder="Search icons" aria-describedby={id} onChange={e=>setQuery(e.target.value)}/>
+  </label>
+  <p className="ds-help" id={id} role="status">{!words?ICONS_HINT
+   :found.kind==='error'?'The icons didn’t load.'
+   :!results?'Finding icons…'
+   :results.total===0?`No icons match “${results.query}”. Try a shorter or different word.`
+   :results.total>results.names.length?`The first ${ICON_RESULTS_MAX} of ${results.total} icons. Add a word to narrow them.`
+   :`${results.total} ${results.total===1?'icon':'icons'}`}</p>
+  {words&&found.kind==='error'&&<Button size="sm" onClick={()=>setAttempt(a=>a+1)}>Try again</Button>}
+  {!words?<ul className="elements-grid" data-group="icons" aria-label="Suggested icons">{group.items.map(item=>design?<AddElement key={item.id} item={item} kit={kit}/>:<Element key={item.id} item={item} kit={kit}/>)}</ul>
+   :results&&results.names.length>0&&<ul className="elements-grid" data-group="icons" aria-label="Icons found">{results.names.map(name=>{const Icon=results.set.get(name)!;return design
+    ?<AddIcon key={name} id={name} name={iconLabel(name)} Icon={Icon} kit={kit}/>
+    :<li key={name} className="elements-item"><div className="elements-tile" data-kind="icon" role="img" aria-label={iconLabel(name)} title={iconLabel(name)}><Icon className="elements-icon" aria-hidden="true" focusable="false"/></div></li>})}</ul>}
+ </div>;
 }
 
 /** The nearest box that scrolls (the panel's body, or the drawer's) back to its top. */

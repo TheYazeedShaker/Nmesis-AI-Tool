@@ -101,3 +101,23 @@ export function useLibraryPage(place:Place,{limit=40}:{limit?:number}={}){
  return {query,onQuery,items,total,hasMore:next!==null,onMore,loading,problem,reload,
   counts:meta?.counts||{all:0,unsorted:0,deleted:0},folders:meta?.folders||[],cars:meta?.cars||[],foldersReady:meta?.foldersReady!==false,ready:meta!==null,actions,folderActions};
 }
+
+/**
+ * Projects opened on a link to one piece of work (?open=<key>) that is not in
+ * the pages loaded so far (older than the newest 40, or filtered out): asks the
+ * server for that one item (/api/library?item=), so the viewer opens it all the
+ * same. Null while it isn't needed or asked yet; a refusal says why.
+ */
+export function useLinkedItem(openId:string|null,items:WorkItem[],ready:boolean):WorkItem|null{
+ const toast=useToast();
+ const [got,setGot]=React.useState<{key:string;item:WorkItem|null}|null>(null);
+ const missing=!!openId&&ready&&!items.some(i=>i.id===openId)&&got?.key!==openId;
+ React.useEffect(()=>{
+  if(!missing||!openId)return;let live=true;
+  send('/api/library?item='+encodeURIComponent(openId),'GET')
+   .then(d=>{if(live)setGot({key:openId,item:toWork((d as {item:PageItem}).item)})},
+    (e:unknown)=>{if(!live)return;setGot({key:openId,item:null});toast.toast({message:e instanceof Error?e.message:'That piece of work didn’t open.',kind:'bad'})});
+  return()=>{live=false};
+ },[missing,openId,toast]);
+ return got&&got.key===openId?got.item:null;
+}

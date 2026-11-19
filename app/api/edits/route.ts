@@ -11,14 +11,17 @@ import {checkDoc} from '@/lib/editor/doc';
 import {locate} from '@/lib/org-library';
 import {hiddenFromRequester} from '@/lib/shares';
 import {EDIT_MAX_BYTES,editedVisual,fullSize} from '@/lib/editor/save';
+import {readDesign} from '@/lib/editor/reopen';
 
 // Save from the canvas editor: the exported design (PNG, the original's full
 // size, uploaded straight to storage by the signed upload path) becomes a NEW
 // picture, saved as the editing person's own work. The original (anyone's in the company the person
 // may see, as GET /api/visuals/<id> finds it) is only read, never written. `copy` makes a separate
 // copy instead of the original's next version. The design's layers are kept
-// beside it (edits/<id>.json) for editing again later. Nothing is generated and
-// no credits are used.
+// beside it (edits/<id>.json, over the original picture it was made on) for
+// editing again later (GET /api/edits/<id>). A reopened design is saved the same
+// way: the picture it was opened from is the parent (never written), and its
+// original stays underneath. Nothing is generated and no credits are used.
 export async function POST(request:Request){try{
  const ctx=await context(request,true),store=bucket(ctx.BUCKET);
  if(request.headers.get('origin')!==new URL(request.url).origin)throw new StudioError('Save from your studio.',403);
@@ -33,7 +36,13 @@ export async function POST(request:Request){try{
  if(!await store.head(imageKey(owner||ctx.prefix,parentId)))throw new StudioError('The original picture is unavailable.',404);
  let raw:unknown;try{raw=JSON.parse(String(form.get('doc')||''))}catch{throw new StudioError('The design could not be read.')}
  const checked=checkDoc(raw);if(!checked.ok)throw new StudioError('The design could not be read.');
- if(checked.doc.background.visualId!==parentId)throw new StudioError('The design belongs to a different picture.');
+ // The picture opened, or (a reopened design) the original kept under the picture opened, and nothing else.
+ let base={visualId:parentId,src:parent.src};
+ if(checked.doc.background.visualId!==parentId){
+  const kept=await readDesign(ctx,parentId);
+  if(!kept||kept.design.background.visualId!==checked.doc.background.visualId)throw new StudioError('The design belongs to a different picture.');
+  base=kept.design.background;
+ }
  const file=form.get('image');if(!(file instanceof File)||!file.size||file.size>EDIT_MAX_BYTES)throw new StudioError('The exported design is missing.');
  const bytes=new Uint8Array(await file.arrayBuffer());let dimensions;try{dimensions=imageDimensions(bytes)}catch(e){throw new StudioError((e as Error).message)}
  if(dimensions.type!=='image/png')throw new StudioError('Save the design as a PNG.');
@@ -41,7 +50,7 @@ export async function POST(request:Request){try{
  const id=crypto.randomUUID(),copy=form.get('copy')==='1';
  const visual=editedVisual(parent,{id,width:dimensions.width,height:dimensions.height,layers:checked.doc.layers.length,copy,now:new Date()});
  await store.put(imageKey(ctx.prefix,id),bytes,{httpMetadata:{contentType:dimensions.type}});
- await store.put(ctx.prefix+'edits/'+id+'.json',JSON.stringify({...checked.doc,background:{visualId:parentId,src:parent.src}}),{httpMetadata:{contentType:'application/json'}});
+ await store.put(ctx.prefix+'edits/'+id+'.json',JSON.stringify({...checked.doc,background:base}),{httpMetadata:{contentType:'application/json'}});
  await store.put(ctx.prefix+'visuals/'+id+'.json',JSON.stringify(visual),{httpMetadata:{contentType:'application/json'}});
  await indexQuietly(ctx,fromVisual(ctx.prefix,visual));
  return Response.json({visual},{headers:{'Cache-Control':'private, no-store'}});
