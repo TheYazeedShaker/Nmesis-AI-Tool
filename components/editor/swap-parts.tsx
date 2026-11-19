@@ -38,7 +38,7 @@ const UNSETTLED=['submitting','unknown'];
 export function swapVersions(swaps:Swap[]):Version[]{
  return swaps.map((s,i)=>{
   const n=swaps.length-i,working=busySwap(s);
-  const base={id:s.id,n,src:s.data.imageIds[0]?'/api/assets/'+s.data.imageIds[0]:undefined,quality:qualityOf(s.data.resolution),at:new Date(s.createdAt).toLocaleDateString()};
+  const base={id:s.id,n,provider:'higgsfield' as const,src:s.data.imageIds[0]?'/api/assets/'+s.data.imageIds[0]:undefined,quality:qualityOf(s.data.resolution),at:new Date(s.createdAt).toLocaleDateString()};
   if(working)return {...base,status:'working' as const,used:null,label:`Version ${n}`,
    stage:UNSETTLED.includes(s.status)?statusWords(s.status):`${statusWords(s.status)} · ${creditsLabel(s.credits)} used`,
    held:UNSETTLED.includes(s.status)?s.credits:undefined};

@@ -4,7 +4,7 @@ import { Info, PanelRightClose, PanelRightOpen, SlidersHorizontal, Sparkles } fr
 import { Button, IconButton } from './button';
 import { Dialog } from './dialog';
 import { useRememberedOpen } from './layout';
-import { credits } from '@/lib/ds/words';
+import { costTag, type Cost } from '@/lib/ds/words';
 
 // The editor layout, the same for every tool: tools rail on the left, the
 // canvas in the centre, settings on the right (collapsible, remembered), one
@@ -18,13 +18,13 @@ export type RailTool = { id: string; label: string; icon: React.ReactNode };
  *  notice at the top of the settings, and the disabled button's description. */
 export type GenerateBlocker = { title: string; body: string; action?: React.ReactNode };
 
-export function GenerateButton({ cost, busy, disabled, onGenerate, note, verb = 'Generate', blocked }: { cost: number | null; busy?: boolean; disabled?: boolean; onGenerate: () => void; note?: React.ReactNode; verb?: string; blocked?: GenerateBlocker | null }) {
+export function GenerateButton({ cost, busy, disabled, onGenerate, note, verb = 'Generate', blocked }: { cost: Cost; busy?: boolean; disabled?: boolean; onGenerate: () => void; note?: React.ReactNode; verb?: string; blocked?: GenerateBlocker | null }) {
   const reason = React.useId();
   return (
     <>
       <Button kind="primary" busy={busy} disabled={disabled || !!blocked} onClick={onGenerate} icon={<Sparkles aria-hidden="true" />} aria-describedby={blocked ? reason : undefined}>
         {verb}
-        {cost !== null && <span className="ds-btn-meta">· {credits(cost)}</span>}
+        {cost !== null && <span className="ds-btn-meta">· {costTag(cost)}</span>}
       </Button>
       {/* While Generate cannot run, its reason is its description (the notice over the settings shows it); never a grey line under an active-looking button. */}
       {blocked ? <span id={reason} className="ds-sr-only">{blocked.title}. {blocked.body}</span> : note && <p className="ds-generate-note">{note}</p>}

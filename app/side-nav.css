@@ -18,8 +18,26 @@ body:has(> .ds-shell), body:has(.studio-frame) { background: var(--ds-bg); }
    a focused element in the configurator frame) can scroll it and show the
    background under the page. check:ui counts a shell or work area that does not
    fill the window (shellNotFilling). */
-.studio-frame[data-fill] { height: 100dvh; min-height: 0; overflow: clip; }
+.studio-frame[data-fill] { height: 100dvh; min-height: 0; overflow: clip; position: relative; }
 .studio-frame[data-fill] .studio-frame-page { min-height: 0; }
+/* ...and the document is the shell, nothing more. The band under the app on a
+   real laptop was the DOCUMENT being taller than the window, not the shell
+   being short: anything else in <body> (a browser extension's or a hosting
+   toolbar's node, Next's route announcer) and any absolutely positioned box
+   whose containing block was outside the shell (it was position: static, so
+   its overflow: clip did not reach those boxes) added height below the shell.
+   A trackpad scroll past the end of a panel, or a scrollIntoView (the live
+   capture), then scrolled the whole document and the page background showed
+   under the app (88 px at 1191 x 786 for an 88 px node). Now the shell is the
+   containing block of its own boxes, and on a tool page the body is exactly
+   the window (height: 100% of the root, which is the window: no viewport
+   unit) and clips whatever else it holds; the root clips too, so the body's
+   overflow stays its own instead of passing to the window. Fixed boxes (toasts,
+   the skip link) and dialogs (the top layer) are not affected. check:ui counts a
+   document taller than the window (shellNotFilling, at 1191 x 786 on Retina at
+   90, 100 and 110 % page zoom too). */
+html:has(> body > .studio-frame[data-fill]) { height: 100%; overflow: clip; }
+html:has(> body > .studio-frame[data-fill]) > body { height: 100%; overflow: clip; position: relative; }
 .studio-frame .ds-main.bleed { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0; }
 .studio-frame .ds-main.bleed > .ds-editor { flex: 1 1 auto; height: auto; min-height: 0; grid-template-rows: minmax(0, 1fr); }
 /* One navigation: the editor's own tool rail is gone (EditorLayout draws none when given no tools). */

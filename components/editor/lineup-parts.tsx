@@ -6,7 +6,7 @@ import {Badge,State} from '@/components/ds/feedback';
 import {Dialog} from '@/components/ds/dialog';
 import {Field,Input,Radio,RadioGroup,Select,Slider,Switch,Textarea} from '@/components/ds/field';
 import {Menu,MenuItem,MenuSeparator} from '@/components/ds/menu';
-import {credits as creditWords} from '@/lib/ds/words';
+import {credits as creditWords,OWN_KEY} from '@/lib/ds/words';
 import {ChoiceChips,QualitySettings,SettingsSection,QUALITY_LABEL,type Quality} from './parts';
 import {LINEUP_LAYOUTS,MAX_LINEUP_CARS,MIN_LINEUP_SCALE,STRICT_LINEUP_REFERENCE_PROMPT,type Lineup,type LineupCar} from '@/lib/lineup';
 import {EXTERNAL_IMAGE_MODELS,HIGGSFIELD_IMAGE_MODELS,OPENAI_IMAGE_MODELS,higgsImageModel,openaiImageModel,type ImageProvider} from '@/lib/image-models';
@@ -57,7 +57,7 @@ export function lineupBillingNote(o:CreditOverview|null,provider:ImageProvider,m
  const key=lineupCostKey(provider,model,size);
  if(!key)return names?'Higgsfield prices it in credits as it starts.':'Its credits are set as it starts.';
  const billing=o?.billing[provider];
- if(billing==='own key')return 'Your own key: no credits are used.';
+ if(billing==='own key')return OWN_KEY+'.';
  if(billing==='internal')return 'Not counted here.';
  return '';
 }

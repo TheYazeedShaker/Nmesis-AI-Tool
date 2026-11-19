@@ -37,26 +37,27 @@ const h=React.createElement,html=(el)=>renderToStaticMarkup(el);
 const PROVIDERS=/OpenAI|Google|Gemini|Higgsfield|Topaz|Kling|Nano Banana/;
 
 // ── Home and the upgrade page: one picture helper ──────────────────────────
-const work=(tool,src,finished=true)=>({tool,src,finished});
 const cars=[{name:'Demo SUV',picture:'/api/cars/demo.suv/picture',brandId:'demo'},{name:'Demo Coupe',picture:'/api/cars/demo.coupe/picture',brandId:'demo'},{name:'Demo Van',brandId:'demo'}];
 
-test('a tool’s picture: its latest finished work, else one of the company’s cars, else the neutral placeholder', () => {
- const feed=[work('Film','/t/film-working',false),work('Key visual','/t/kv-new'),work('Film','/t/film-done'),work('Key visual','/t/kv-old'),work('Story',null)];
- assert.deepEqual(toolSample('Key visual',feed,cars),{from:'work',src:'/t/kv-new'},'the newest finished work');
- assert.deepEqual(toolSample('Film',feed,cars),{from:'work',src:'/t/film-done'},'work in progress or failed is skipped');
- assert.deepEqual(toolSample('Story',feed,cars),{from:'car',src:'/api/cars/demo.suv/picture'},'work without a picture is skipped');
- assert.deepEqual(toolSample('Car swap',feed,cars,1),{from:'car',src:'/api/cars/demo.coupe/picture'},'cards spread over the cars');
- assert.deepEqual(toolSample('Car swap',feed,cars,2),{from:'car',src:'/api/cars/demo.suv/picture'},'only cars with a picture');
- assert.deepEqual(toolSample('Line-up',[],[{name:'Demo Van'}]),{from:'none'});
- assert.deepEqual(toolSample(undefined,feed,[]),{from:'none'});
+test('a tool’s picture is fixed: one of the company’s cars in the tool’s own place, never its latest work (fix/studio-editor-fixes)', () => {
+ // Only cars with a picture count; each tool has its fixed place among them.
+ assert.deepEqual(toolSample('Key visual',cars),{from:'car',src:'/api/cars/demo.suv/picture'});
+ assert.deepEqual(toolSample('Line-up',cars),{from:'car',src:'/api/cars/demo.coupe/picture'});
+ assert.deepEqual(toolSample('Story',cars),{from:'car',src:'/api/cars/demo.suv/picture'});
+ assert.deepEqual(toolSample('Line-up',[{name:'Demo Van'}]),{from:'none'});
+ assert.deepEqual(toolSample(undefined,cars),{from:'none'});
+ // Nothing about the company's work goes in, so a new generation or edit can't change a card's picture.
+ assert.equal(toolSample.length,2);
+ assert.doesNotMatch(read('lib/tool-samples.ts'),/SampleWork|finished/);
+ assert.doesNotMatch(read('components/workspace/pages.tsx'),/asSamples/);
+ assert.doesNotMatch(read('components/workspace/samples.ts'),/api\/library/);
  // Every tool on Home and every gated page has its library name.
  for(const f of ['studio.key_visuals','studio.lineups','studio.storyboards','studio.film','studio.swap','studio.smart_reference'])assert.ok(FEATURE_TOOL[f],f);
 });
 
 test('Home: each tool card shows its sample in a fixed box (lazy, sized, no layout shift), never the olive box', () => {
  const pages=read('components/workspace/pages.tsx'),home=read('components/workspace/home.tsx'),pic=read('components/workspace/car-picture.tsx'),css=read('app/workspace.css');
- assert.match(pages,/const work=lib\.ready\?asSamples\(lib\.items\):\[\];/);
- assert.match(pages,/sample:toolSample\(FEATURE_TOOL\[feature\],work,cars,i\)\.src/);
+ assert.match(pages,/sample:toolSample\(FEATURE_TOOL\[feature\],cars\)\.src/);
  assert.match(pages,/cars=presets\.filter\(c=>!isDemoConfigurator\(c\)\)/);
  assert.match(home,/<SamplePicture src=\{tool\.sample\} className="ds-tool-art" fallback=\{tool\.icon\}\/>/);
  // One tile component for locked and open tools alike (components/ds/tool-tile.tsx), so both are one size.
@@ -67,7 +68,7 @@ test('Home: each tool card shows its sample in a fixed box (lazy, sized, no layo
  assert.match(css,/\.ds-tool-art > img \{ width: 100%; height: 100%; object-fit: cover;/);
  assert.doesNotMatch(css,/\.ds-tool-art \{ background: var\(--ds-accent-soft\)/);
  // The upgrade page uses the same helper.
- assert.match(read('components/workspace/samples.ts'),/return toolSample\(tool,work,cars\);/);
+ assert.match(read('components/workspace/samples.ts'),/return toolSample\(FEATURE_TOOL\[feature\],cars\);/);
 });
 
 test('Home’s prompt names one of the company’s cars, or none', () => {

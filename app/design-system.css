@@ -918,6 +918,14 @@
 /* The one primary Generate, always at the bottom of the settings, with its
    cost on it before it is pressed. */
 .ds-generate { padding: var(--ds-space-12) var(--ds-space-16) var(--ds-space-16); border-top: var(--ds-border-width) solid var(--ds-border); display: flex; flex-direction: column; gap: var(--ds-space-8); }
+/* The settings scroll under Generate (fix/studio-editor-fixes): their last
+   pixels fade into the panel instead of being sliced by the footer's edge (a
+   reference picture read as cut off), and the end leaves room for the fade. */
+.ds-settings-body::after {
+  content: ""; position: sticky; bottom: calc(var(--ds-space-16) * -1); flex: none;
+  height: var(--ds-space-24); margin-top: calc(var(--ds-space-16) * -1);
+  background: linear-gradient(to bottom, transparent, var(--ds-panel)); pointer-events: none;
+}
 .ds-generate .ds-btn { width: 100%; min-height: var(--ds-space-48); font-size: var(--ds-text-md); }
 .ds-generate-note { color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); text-align: center; font-variant-numeric: var(--ds-numeric); }
 .ds-phone-generate { display: none; }

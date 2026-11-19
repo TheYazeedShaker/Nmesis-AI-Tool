@@ -35,7 +35,7 @@ export function filmVersions(films:Film[]):Version[]{
  return films.map((f,i)=>{
   const working=FILM_WORKING.includes(f.status),date=new Date(f.createdAt).toLocaleDateString();
   return {id:f.id,n:films.length-i,label:f.data.title,src:'/api/assets/'+f.data.sourceId,quality:versionQuality(f.data.model),
-   used:f.status==='ready'?f.credits:null,at:working||f.status==='ready'?date:`${FILM_STATUS[f.status]||f.status} · ${date}`,
+   used:f.status==='ready'?f.credits:null,provider:'higgsfield',at:working||f.status==='ready'?date:`${FILM_STATUS[f.status]||f.status} · ${date}`,
    status:working?'working':'ready',stage:FILM_STATUS[f.status]||f.status,held:working?f.credits:undefined};
  });
 }

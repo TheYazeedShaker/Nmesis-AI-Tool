@@ -281,6 +281,17 @@ test('the account page: credits while loading, unlimited or unknown; plan names;
  assert.doesNotMatch(internal,/<dt>Members<\/dt>|href="\/company"/,'Settings has no Team there');
  assert.match(drawPage({account:{...SUMMARY,plan:{name:null,legacy:false,none:true}}}),/<dt>Plan<\/dt><dd>No plan yet<\/dd>/);
  assert.match(drawPage({credits:{unlimited:false,meter:{...METER,left:1,resetsOn:'2026-12-01'},usage:false}}),/<dd>1 this month<span class="ds-help account-sub">They reset on [^<]+\.<\/span><\/dd>/);
+ // A company on its own AI keys (fix/studio-editor-fixes): said plainly, never "0 credits"; with some
+ // tools on credits, the credits left stay and the line says which work uses none. Credit-paying: no line.
+ const own=drawPage({credits:{unlimited:false,meter:METER,usage:true,billing:{openai:'own key',google:'own key',higgsfield:'own key',topaz:'own key'}}});
+ assert.match(own,/<dt>AI keys<\/dt><dd>Your company uses its own AI keys: no credits are used\.<\/dd>/);
+ assert.doesNotMatch(own,/<dt>Credits left<\/dt>|0 credits/);
+ const some=drawPage({credits:{unlimited:false,meter:METER,usage:true,billing:{openai:'own key',google:'credits',higgsfield:'credits',topaz:'credits'}}});
+ assert.match(some,/<dt>AI keys<\/dt><dd>Work on your company’s own AI keys uses no credits\.<\/dd>/);
+ assert.match(some,/<dt>Credits left<\/dt>/);
+ const paying=drawPage({credits:{unlimited:false,meter:METER,usage:true,billing:{openai:'credits',google:'credits',higgsfield:'credits',topaz:'credits'}}});
+ assert.doesNotMatch(paying,/AI keys/);
+ assert.match(paying,/<dt>Credits left<\/dt>/);
  // Before the account is known: a status for screen readers and the cards’ shapes.
  const loading=drawPage({account:null});
  assert.match(loading,/<p class="ds-sr-only" role="status">Loading your account…<\/p>/);

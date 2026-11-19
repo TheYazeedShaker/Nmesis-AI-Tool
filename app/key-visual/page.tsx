@@ -34,9 +34,9 @@ import {upscaleModel} from '@/lib/upscale-models';
 import {OPENAI_IMAGE_MODEL,OPENAI_IMAGE_MODELS,higgsImageModel,HIGGSFIELD_IMAGE_MODELS,HIGGSFIELD_IMAGE_MODEL,imageSettings,refinementReferenceLimit,type ImageProvider,type HiggsBudget} from '@/lib/image-models';
 import {costLabel,refreshCredits,useCredits} from '@/components/credits';
 import {googleImageCost,openaiImageCost} from '@/lib/credits/words';
-import {credits as creditWords} from '@/lib/ds/words';
+import {credits as creditWords,OWN_KEY} from '@/lib/ds/words';
 import {useConfiguratorPresets,isDemoConfigurator,mergePresets} from '@/lib/configurator-presets';
-import {snapshotStream,highResolutionDisplayOptions,captureSharedTab} from '@/lib/live-capture';
+import {snapshotStream,highResolutionDisplayOptions,captureSharedTab,CaptureError,logCaptureFailure} from '@/lib/live-capture';
 import {imageFromUrl,type CaptureResult} from '@/lib/capture';
 import {VIEWS,localDirections,safePinterest,type View,type Direction,type Visual,type Asset,type ReferenceMode} from '@/lib/studio';
 import {readReference,uploadReference} from '@/lib/reference-upload';
@@ -77,6 +77,8 @@ function downloadJson(data:unknown,name:string){const url=URL.createObjectURL(ne
 const when=(iso:string)=>{const d=new Date(iso);if(Number.isNaN(d.getTime()))return '';return d.toDateString()===new Date().toDateString()?d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})};
 const higgsDraft=(r:Visual)=>['draft','quoted'].includes(r.jobStatus||''),higgsUnknown=(r:Visual)=>['unknown','submitting'].includes(r.jobStatus||''),higgsRunning=(r:Visual)=>['queued','in_progress','archiving'].includes(r.jobStatus||'');
 
+// "Use this view" on a configurator without the capture connector (most of them): the two ways that work.
+const NO_DIRECT_PICTURE='This configurator can’t send its picture directly. Capture this tab, or paste the image’s address below.';
 export default function Studio(){
  const router=useRouter();const toaster=useToast();const say=useCallback((message:string,kind:ToastKind='info')=>toaster.toast({message,kind}),[toaster]);
  const project=useProject();const sourceName=`kv-source-${useId().replace(/[^a-zA-Z0-9]/g,'')}`;
@@ -93,7 +95,7 @@ export default function Studio(){
  const [directions,setDirections]=useState<Direction[]>(localDirections(DEFAULT_BRIEF,VIEWS[0].title));const [direction,setDirection]=useState(0);
  const [googleConnection,setGoogleConnection]=useState<GoogleConnectionStatus|null>(null),[googleOpen,setGoogleOpen]=useState(false);const googleReady=!!(googleConnection?.connected||googleConnection?.available);
  const [provider,setProvider]=useState<ImageProvider>('openai');const [imageModel,setImageModel]=useState<string>(OPENAI_IMAGE_MODEL);const [higgsConnection,setHiggsConnection]=useState<HiggsBudget|null>(null);const higgsConnected=!!(higgsConnection?.connected||higgsConnection?.available);const creditInfo=useCredits();const [cleaningEmpty,setCleaningEmpty]=useState(false);const [size,setSize]=useState('2048x1152');const [results,setResults]=useState<Visual[]>([]);const [busy,setBusy]=useState(false);const [completed,setCompleted]=useState(0);const [jobCount,setJobCount]=useState(3);const [historyError,setHistoryError]=useState('');const [historyLoading,setHistoryLoading]=useState(false);
- const [captureOpen,setCaptureOpen]=useState(false);const [capturing,setCapturing]=useState(false);const [cropSrc,setCropSrc]=useState('');const [crop,setCrop]=useState<Rect>({x:0,y:0,w:1,h:1});const [captureTitle,setCaptureTitle]=useState('Custom view');const [captureFinish,setCaptureFinish]=useState('Selected configurator finish');
+ const [captureOpen,setCaptureOpen]=useState(false);const [captureFailed,setCaptureFailed]=useState(false);const imageUrlRef=useRef<HTMLInputElement>(null);const [capturing,setCapturing]=useState(false);const [cropSrc,setCropSrc]=useState('');const [crop,setCrop]=useState<Rect>({x:0,y:0,w:1,h:1});const [captureTitle,setCaptureTitle]=useState('Custom view');const [captureFinish,setCaptureFinish]=useState('Selected configurator finish');
  const [trashOpen,setTrashOpen]=useState(false),[deletedVisuals,setDeletedVisuals]=useState<Visual[]>([]),[trashLoading,setTrashLoading]=useState(false),[trashError,setTrashError]=useState(''),[managingVisual,setManagingVisual]=useState('');
  // The editor: what the canvas shows, the version in it, and the result's own dialogs.
  const [stage,setStage]=useState<Stage>('car');const [currentId,setCurrentId]=useState<string|null>(null);const [refineOpen,setRefineOpen]=useState(false);const [compareOpen,setCompareOpen]=useState<false|'references'|'original'>(false);
@@ -208,15 +210,21 @@ export default function Studio(){
  // A car picture to review and crop; the drop zone shows its problems under itself.
  async function readCapture(file:File){const version=captureVersion.current;const src=await readImage(file);if(version!==captureVersion.current)return;setCropSrc(src);setCrop({x:0,y:0,w:1,h:1});setCaptureOpen(false)}
  async function receiveCapture(file?:File){if(!file)return;try{await readCapture(file)}catch(e){setError((e as Error).message)}}
- async function screenCapture(){setCapturing(true);setCaptureOpen(false);setError('');let stream:MediaStream|undefined;try{
-  if(!navigator.mediaDevices?.getDisplayMedia)throw new Error('Screen capture is unavailable in this browser. Upload a screenshot of your chosen view instead.');
+ // A capture that does not work says why (each step of lib/live-capture.ts has its own sentence; one
+ // catch-all used to hide them all), logs the step to the console, and moves to the image's address,
+ // which works with any configurator.
+ async function screenCapture(){setCapturing(true);setCaptureOpen(false);setCaptureFailed(false);setError('');let stream:MediaStream|undefined;try{
+  if(!navigator.mediaDevices?.getDisplayMedia)throw new CaptureError('unsupported','This browser can’t capture a tab.');
   stream=await navigator.mediaDevices.getDisplayMedia(highResolutionDisplayOptions());
   const image=await captureSharedTab(stream,iframeRef.current,handleRef.current);setCropSrc(image);setCrop({x:0,y:0,w:1,h:1});setCaptureOpen(false);
- }catch(e){setCaptureOpen(true);const name=(e as Error).name;if(name==='NotAllowedError')say('Capture cancelled. Your selected view is unchanged.');else setCaptureNotice(name==='InvalidStateError'?'Bring the studio tab to the front, then try capturing again.':'The browser could not capture this view. Try opening the configurator in a separate tab, or upload a screenshot.')}finally{stream?.getTracks().forEach(t=>t.stop());setCapturing(false)}}
+ }catch(e){setCaptureOpen(true);const err=e as Error;logCaptureFailure('Key visual',err);if(err.name==='NotAllowedError'){say('Capture cancelled. Your selected view is unchanged.');return}
+  setCaptureFailed(true);setCaptureNotice(err.name==='InvalidStateError'?'Bring the studio tab to the front, then try again. Or paste the image’s address below.':`Live capture didn’t work for this configurator. ${err instanceof CaptureError?err.message:'The browser stopped the capture.'} Paste the image’s address below instead: it works with any configurator.`)}finally{stream?.getTracks().forEach(t=>t.stop());setCapturing(false)}}
+ // After a failed capture, the image's address is where to go next: its field takes the focus.
+ useEffect(()=>{if(captureOpen&&captureFailed)requestAnimationFrame(()=>imageUrlRef.current?.focus())},[captureOpen,captureFailed]);
  function reviewCapture(result:CaptureResult){setCropSrc(result.image);setCaptureTitle(typeof result.angle==='string'?result.angle.slice(0,100):'Custom view');setCaptureFinish(typeof result.finish==='string'?result.finish.slice(0,120):'Selected configurator finish');setCrop({x:0,y:0,w:1,h:1});setCaptureOpen(false)}
  // Use this view: the configurator's picture through the adapter; when it has none, the other ways in.
- async function captureView(){if(mode!=='live'){setCaptureNotice('');setCaptureOpen(true);return}const a=adapter.current;if(!a){setCaptureNotice('This configurator has no direct capture connection yet. Capture its tab, or import the current image URL from Inspect.');setCaptureOpen(true);return}setCapturing(true);setCaptureNotice('');const version=captureVersion.current;
- try{const shot=await a.capture();const image=await blobToDataUrl(shot.blob);if(version!==captureVersion.current)return;reviewCapture({image,angle:shot.state.view,finish:shot.state.colour});say('Current configurator image extracted. Review it before use.','ok')}catch{if(version===captureVersion.current){setCaptureNotice('This configurator has no direct capture connection yet. Capture its tab, or import the current image URL from Inspect.');setCaptureOpen(true)}}finally{setCapturing(false)}}
+ async function captureView(){setCaptureFailed(false);if(mode!=='live'){setCaptureNotice('');setCaptureOpen(true);return}const a=adapter.current;if(!a){setCaptureNotice(NO_DIRECT_PICTURE);setCaptureOpen(true);return}setCapturing(true);setCaptureNotice('');const version=captureVersion.current;
+ try{const shot=await a.capture();const image=await blobToDataUrl(shot.blob);if(version!==captureVersion.current)return;reviewCapture({image,angle:shot.state.view,finish:shot.state.colour});say('Current configurator image extracted. Review it before use.','ok')}catch{if(version===captureVersion.current){setCaptureNotice(NO_DIRECT_PICTURE);setCaptureOpen(true)}}finally{setCapturing(false)}}
  async function importImage(){setImportingImage(true);setCaptureNotice('');const version=captureVersion.current;try{const file=await imageFromUrl(imageUrl);if(version===captureVersion.current)await receiveCapture(file)}catch(e){setCaptureNotice((e as Error).message)}finally{setImportingImage(false)}}
  async function applyCrop(){const img=cropImage.current;if(capturing||!img||!img.complete||!img.naturalWidth||crop.w<.02||crop.h<.02){say('Select a larger area of the image.','bad');return}setCapturing(true);const version=captureVersion.current;try{const c=document.createElement('canvas');const w=img.naturalWidth*crop.w,h=img.naturalHeight*crop.h;c.width=Math.round(w);c.height=Math.round(h);c.getContext('2d')!.drawImage(img,img.naturalWidth*crop.x,img.naturalHeight*crop.y,w,h,0,0,c.width,c.height);const src=c.toDataURL('image/png');originals.current.set(src,cropSrc);const asset=status?.storage?await ensureAsset(src):null;if(version!==captureVersion.current)return;const captured={id:crypto.randomUUID(),src:asset?.url||src,title:captureTitle.trim()||'Custom view',finish:captureFinish.trim()||'Selected configurator finish'};savedViews.current[configurator.id]=[captured,...(savedViews.current[configurator.id]||[])].slice(0,6);chooseView(captured);setCropSrc('');say('Car reference saved. Your original screenshot is kept.','ok')}catch(e){say((e as Error).message,'bad')}finally{setCapturing(false)}}
  function cropPoint(e:React.PointerEvent<HTMLDivElement>){const b=e.currentTarget.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-b.left)/b.width)),y:Math.max(0,Math.min(1,(e.clientY-b.top)/b.height))}}
@@ -301,7 +309,7 @@ export default function Studio(){
  const refineUnit=unit;
  const resultBusy=busy||areaBusy||readingReferences||!!managingVisual||creatingFilm;
  const meta=(n:number|null,from?:boolean)=>n===null?null:<span className="ds-btn-meta">· {from?'from ':''}{creditWords(n)}</span>;
- const versions:Version[]=results.map((r,i)=>({id:r.id,n:results.length-i,src:r.status==='ready'?r.src:undefined,quality:visualQualityLabel(r)==='High detail'?'high':'standard',used:typeof r.credits==='number'?r.credits:null,at:when(r.createdAt),label:r.title,
+ const versions:Version[]=results.map((r,i)=>({id:r.id,n:results.length-i,src:r.status==='ready'?r.src:undefined,quality:visualQualityLabel(r)==='High detail'?'high':'standard',used:typeof r.credits==='number'?r.credits:null,provider:r.provider||'openai',at:when(r.createdAt),label:r.title,
   status:r.status==='ready'?'ready':r.status==='failed'?'failed':'working',
   stage:r.provider==='higgsfield'&&higgsDraft(r)?'Not started':r.provider==='higgsfield'&&higgsUnknown(r)?'Check original request':r.mine===false?'Started by someone in your company':'Creating your visual'}));
  const generateVerb=moodUpload?'Saving inspiration…':preparing&&!busy?(mode==='live'?'Taking the picture…':'Preparing your visual…'):busy?completed+' / '+jobCount+' completed':'Generate '+visualCount+' key visual'+(visualCount===1?'':'s');
@@ -335,7 +343,7 @@ export default function Studio(){
    :areaOpen&&ready?<AreaEditor key={ready.id} visual={ready} connected={!!status?.generation} onBusy={v=>{setAreaBusy(v);working.current=v}} onSaved={v=>{putImage(v);setCurrentId(v.id);setProvider(v.provider||'openai');setImageModel(v.model||OPENAI_IMAGE_MODEL);setRefinementImages([]);setRefinement('');refinementOwner.current=v.id;setAreaOpen(false);setCompareOpen(false);say('Area edit saved. Everything outside the selection is preserved.','ok')}}/>
    :shown.status==='ready'?<figure className="editor-result">{/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
     <OpenInEditor visualId={shown.id} title={shown.title}><img crossOrigin="anonymous" src={shown.src} alt={shown.title}/></OpenInEditor>
-    <figcaption><span className="ds-truncate" title={shown.title}><b>{shown.title}</b></span>{resultLine(shown)}<CostBadge credits={typeof shown.credits==='number'?shown.credits:null} used/></figcaption>
+    <figcaption><span className="ds-truncate" title={shown.title}><b>{shown.title}</b></span>{resultLine(shown)}<CostBadge credits={typeof shown.credits==='number'?shown.credits:null} used provider={shown.provider||'openai'}/></figcaption>
     <SmartReviewView review={shown.areaEdit?undefined:shown.smartReview}/>
    </figure>
    :placeholder(shown)}
@@ -379,9 +387,9 @@ export default function Studio(){
 
  const saved=savedViews.current[configurator.id]||[];
  // Staff and companies with their own keys: the engine, its model and exact size, and who pays for it.
- const paidBy=provider==='google'?(googleConnection?.connected?'Uses your company’s Google key: 0 credits.':googleReady?'Nano Banana is provided by Nmesis; each image costs credits.':'')
-  :provider==='higgsfield'?(higgsConnection?.connected?'Uses your company’s Higgsfield key: 0 credits.':higgsConnected?'Higgsfield is provided by Nmesis; each image costs credits.':'')
-  :status?.generation?(status.personalKey?'Uses your company’s OpenAI key: 0 credits.':'Provided by Nmesis; each image costs credits.'):'';
+ const paidBy=provider==='google'?(googleConnection?.connected?OWN_KEY+'.':googleReady?'Nano Banana is provided by Nmesis; each image costs credits.':'')
+  :provider==='higgsfield'?(higgsConnection?.connected?OWN_KEY+'.':higgsConnected?'Higgsfield is provided by Nmesis; each image costs credits.':'')
+  :status?.generation?(status.personalKey?OWN_KEY+'.':'Provided by Nmesis; each image costs credits.'):'';
  // Why Generate cannot run here (the account and credits are checked by the editor).
  const blocked:GenerateBlocker|null=status?.signedOut?{title:'Sign in to generate',body:'Your draft stays here.'}
   :!status?null
@@ -395,7 +403,7 @@ export default function Studio(){
  const quality=highAllowed&&!lock
   ?<QualitySettings value={qualityOfSize(size)} onChange={chooseQuality} costs={qualityCosts}/>
   :<VisualsQuality value={qualityOfSize(size)} onChange={chooseQuality} costs={qualityCosts} highAllowed={highAllowed} disabled={lock}/>;
- const costLine=billing==='own key'||billing==='internal'?(costLabel(creditInfo,cost,provider)||'No credits are used.')
+ const costLine=billing==='own key'?OWN_KEY+'.':billing==='internal'?(costLabel(creditInfo,cost,provider)||'No credits are used.')
   :cost===null?(costNote||'The credits show here once the price is known.')
   :<>This will use <b>{creditWords(cost)}</b>{visualCount>1&&unit!==null?<> ({visualCount} × {creditWords(unit)})</>:null}.</>;
  const yourIdea=brief===DEFAULT_BRIEF?'':brief;
@@ -500,15 +508,16 @@ export default function Studio(){
   <Dialog open={captureOpen} onClose={()=>setCaptureOpen(false)} title="Capture your chosen view">
    <div className="ds-stack">
     <p className="ds-help">Take a picture of {configurator.name} as it is shown. Your browser asks which tab to share: choose the one with the car. Sharing stops as soon as the picture is taken, and you check the crop before it is used.</p>
-    {captureNotice&&<p className="ds-note" role="status">{captureNotice}</p>}
-    <div className="editor-row"><Button kind="primary" busy={capturing} icon={<Monitor aria-hidden="true"/>} onClick={()=>void screenCapture()}>{capturing?'Capturing…':'Capture a browser tab'}</Button><Button icon={<Upload aria-hidden="true"/>} onClick={()=>uploadRef.current?.click()}>Upload a screenshot</Button></div>
+    {captureNotice&&<p className={captureFailed?'ds-error':'ds-note'} role={captureFailed?'alert':'status'}>{captureNotice}</p>}
+    <div className="editor-row"><Button kind={captureFailed?undefined:'primary'} busy={capturing} icon={<Monitor aria-hidden="true"/>} onClick={()=>void screenCapture()}>{capturing?'Capturing…':captureFailed?'Try capturing again':'Capture a browser tab'}</Button><Button icon={<Upload aria-hidden="true"/>} onClick={()=>uploadRef.current?.click()}>Upload a screenshot</Button></div>
+    <section className="ds-stack" aria-labelledby="kv-capture-url-title">
+     <h3 id="kv-capture-url-title" className="ds-section-title">Paste the image’s address</h3>
+     <p className="ds-help">Works with any configurator. In the configurator, right-click the car, choose Inspect, then copy the address of the car image. A panorama’s file shows the whole sphere: for an exact interior angle, upload a screenshot.</p>
+     <Field label="Image address"><Input ref={imageUrlRef} type="url" value={imageUrl} onChange={e=>setImageUrl(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&imageUrl.trim()&&!importingImage){e.preventDefault();void importImage()}}} placeholder="https://…/car-view.webp"/></Field>
+     <div><Button kind={captureFailed?'primary':undefined} busy={importingImage} disabled={!imageUrl.trim()} onClick={()=>void importImage()}>{importingImage?'Getting the image…':'Use this image'}</Button></div>
+    </section>
     <p className="ds-help">For a larger image, open the configurator in its own browser tab, set your angle there, then capture that tab. You’ll review the image before using it.</p>
     <a className="ds-link" href={configurator.url} target="_blank" rel="noreferrer">Open the configurator <ExternalLink aria-hidden="true"/></a>
-    <Fold name="kv-capture-url" title="Use an image URL from Inspect" summary="For a frame the configurator loads">
-     <div className="ds-stack"><p className="ds-help">Copy the current vehicle image’s URL from the configurator’s Inspect panel. Panorama source files show the whole sphere; use a screenshot for the exact interior angle.</p>
-      <Field label="Current image URL"><Input type="url" value={imageUrl} onChange={e=>setImageUrl(e.target.value)} placeholder="https://…/current-frame.webp"/></Field>
-      <div><Button busy={importingImage} disabled={!imageUrl.trim()} onClick={()=>void importImage()}>{importingImage?'Importing…':'Import this image'}</Button></div></div>
-    </Fold>
     <Fold name="kv-capture-connector" title="Enable direct image capture" summary="For configurators you manage">
      <div className="ds-stack"><p className="ds-help">Add the capture connector to a configurator you manage. Then “Use this view” can read its current image or rendered view without a screenshot.</p>
       <a className="ds-link" href="/integration/nmesis-capture.js" download>Download capture connector</a></div>
