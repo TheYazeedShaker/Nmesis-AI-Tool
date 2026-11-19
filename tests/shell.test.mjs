@@ -136,7 +136,7 @@ test('theme: light, dark or the system’s, kept in this browser', async () => {
 test('Key visual settings: one column in the beginner order, everything else under a closed Advanced', () => {
   const kv = read('app/key-visual/page.tsx');
   const block = kv.slice(kv.indexOf(' const settings=<>'), kv.indexOf('\n const notices=<>'));
-  const order = ['<CarSettings title="Car and view"', '<ReferencesSettings ', '{quality}', '<SettingsSection title="How many"', '<p className="editor-cost-line" aria-live="polite">{costLine}</p>', '<Fold name="kv-advanced" title="Advanced"'];
+  const order = ['<CarSettings title="Car and view"', '<ReferenceList id="kv-references-title" title="References" ', '{quality}', '<SettingsSection title="How many"', '<p className="editor-cost-line" aria-live="polite">{costLine}</p>', '<Fold name="kv-advanced" title="Advanced"'];
   let at = -1;
   for (const piece of order) { const next = block.indexOf(piece); assert.ok(next > at, `${piece} comes next`); at = next; }
   // Advanced holds the idea, art direction, the pin link and (staff, own keys) the engine; it is not opened by default.
@@ -187,7 +187,7 @@ test('accessibility of the shell (check:ui on PR 42): references point only at w
   const nav = read('components/shell/side-nav.tsx');
   // aria-controls names the panel only while it is on the page (an id that does not exist is an invalid value).
   assert.match(nav, /aria-controls=\{on\?'studio-panel':undefined\}/);
-  assert.doesNotMatch(read('components/editor/references-settings.tsx'), /aria-controls=/);
+  assert.doesNotMatch(read('components/editor/reference-list.tsx'), /aria-controls=/);
   // The account button: its visible name and company are its name; a label only when collapsed (just the avatar shows).
   assert.match(nav, /aria-label=\{compact\?`Account: \$\{account\.user\.name\|\|account\.user\.email\}`:undefined\}/);
   assert.match(nav, /<b className="ds-truncate" title=\{account\.user\.name\|\|account\.user\.email\}>/);

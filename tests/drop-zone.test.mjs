@@ -1,5 +1,5 @@
-// The one way to add a picture (components/ds/drop-zone.tsx), the Inspiration
-// card (components/editor/inspiration-card.tsx), and the plain capture words:
+// The one way to add a picture (components/ds/drop-zone.tsx), the Pinterest
+// link (components/editor/pinterest-link.tsx), and the plain capture words:
 // markup, labels, errors, the plan gate on the link, and where they are used.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -106,8 +106,8 @@ test('the drop zone is a design-system component: every class styled in app/inpu
   assert.match(src, /e\.preventDefault\(\); e\.stopPropagation\(\);/);
 });
 
-// ── The Inspiration card ───────────────────────────────────────────────────
-function card(account) {
+// ── The Pinterest link (Car lineup's inspiration, in the shared reference list) ──
+function pinLink(account, props = {}) {
   const studioAccount = {
     useAccount: () => account,
     hasFeature: (a, key) => !a || a.features[key] !== false,
@@ -115,48 +115,47 @@ function card(account) {
     PLAN_ENDED_CHIP: 'Plan ended',
     AskNmesis: () => h('button', { type: 'button', className: 'text-button ask-nmesis' }, 'Ask Nmesis'),
   };
-  const { InspirationCard } = loader({ '@/components/studio-account': studioAccount })(path.join(rootPath, 'components/editor/inspiration-card.tsx'));
-  return html(h(InspirationCard, {
-    id: 'kv-inspiration-title', help: 'A picture that shows the look you want.', mood: 'What’s the mood?',
-    picture: { value: null, onFile: () => {} },
-    link: { value: '', onChange: () => {}, onAdd: () => {} },
-  }));
+  const { PinterestLink } = loader({ '@/components/studio-account': studioAccount })(path.join(rootPath, 'components/editor/pinterest-link.tsx'));
+  return html(h(PinterestLink, { value: '', onChange: () => {}, onAdd: () => {}, help: 'What’s the mood?', ...props }));
 }
 
-test('the card: title and help, the reference drop zone, the link with its button, the mood as its help', () => {
-  const m = card({ features: { 'studio.pinterest': true }, upsell: {}, workspace: { open: true } });
-  assert.match(m, /<h3 class="editor-section-title" id="kv-inspiration-title">Inspiration<\/h3>/);
-  assert.match(m, /<p class="ds-help">A picture that shows the look you want\.<\/p>/);
-  assert.match(m, /Drop, paste or upload a reference picture/);
-  assert.match(m, /<label class="ds-label" for="([^"]+)">Paste a Pinterest link<\/label><div class="editor-insp-link"><input class="ds-input" id="\1" type="url" inputMode="url" placeholder="[^"]+" aria-describedby="\1-help" value=""\/>/);
+test('the Pinterest link: the field with its own button, the mood as its help, its error in its place', () => {
+  const m = pinLink({ features: { 'studio.pinterest': true }, upsell: {}, workspace: { open: true } });
+  assert.match(m, /^<div class="ds-field"><label class="ds-label" for="([^"]+)">Paste a Pinterest link<\/label><div class="editor-pin-link"><input class="ds-input" id="\1" type="url" inputMode="url" placeholder="[^"]+" aria-describedby="\1-help" value=""\/>/);
   assert.match(m, /Add link<\/button>/);
   assert.match(m, /<p class="ds-help" id="[^"]+-help">What’s the mood\?<\/p>/);
+  const failed = pinLink({ features: { 'studio.pinterest': true }, upsell: {}, workspace: { open: true } }, { value: 'https://www.pinterest.com/pin/1', error: 'That pin could not be read.' });
+  assert.match(failed, /aria-describedby="([^"]+)-error" aria-invalid="true"[\s\S]*<p class="ds-error" id="\1-error" role="alert">That pin could not be read\.<\/p>/);
+  assert.doesNotMatch(failed, /What’s the mood/);
 });
 
-test('the card: without the plan feature the link and its button are disabled and one line says which plan has it (plan gate)', () => {
-  const m = card({ features: { 'studio.pinterest': false }, upsell: { 'studio.pinterest': 'Growth' }, workspace: { open: true } });
+test('the Pinterest link: without the plan feature the link and its button are disabled and one line says which plan has it (plan gate)', () => {
+  const m = pinLink({ features: { 'studio.pinterest': false }, upsell: { 'studio.pinterest': 'Growth' }, workspace: { open: true } });
   assert.match(m, /<input class="ds-input" id="[^"]+" type="url"[^>]* disabled=""/);
   assert.match(m, /<button type="button" class="ds-btn sm" disabled="">Add link<\/button>/);
-  assert.match(m, /<p class="editor-insp-upsell" id="[^"]+-help"><svg[^>]*>.*<\/svg>Available on Growth<span aria-hidden="true">·<\/span><button type="button" class="text-button ask-nmesis">Ask Nmesis<\/button><\/p>/);
+  assert.match(m, /<p class="editor-pin-upsell" id="[^"]+-help"><svg[^>]*>.*<\/svg>Available on Growth<span aria-hidden="true">·<\/span><button type="button" class="text-button ask-nmesis">Ask Nmesis<\/button><\/p>/);
   assert.doesNotMatch(m, /plan-chip|What’s the mood/);
-  const ended = card({ features: { 'studio.pinterest': false }, upsell: { 'studio.pinterest': 'Growth' }, workspace: { open: false, noPlan: false } });
+  const ended = pinLink({ features: { 'studio.pinterest': false }, upsell: { 'studio.pinterest': 'Growth' }, workspace: { open: false, noPlan: false } });
   assert.match(ended, /Plan ended<span aria-hidden="true">·<\/span>/);
   assert.doesNotMatch(ended, /Available on/);
-  assert.match(read('components/editor/inspiration-card.tsx'), /hasFeature\(account,'studio\.pinterest'\)/);
+  assert.match(read('components/editor/pinterest-link.tsx'), /hasFeature\(account,'studio\.pinterest'\)/);
+  // The Inspiration card it came from is gone, with its styles.
+  assert.ok(!existsSync(new URL('components/editor/inspiration-card.tsx', ROOT)));
+  assert.doesNotMatch(read('app/inputs.css'), /\.editor-insp/);
 });
 
 // ── Where pictures are added ───────────────────────────────────────────────
 test('every tool adds pictures through the drop zone; the old paste box is gone', () => {
   assert.ok(!existsSync(new URL('components/clipboard-image-input.tsx', ROOT)));
-  for (const f of ['app/key-visual/page.tsx', 'components/editor/lineup-capture.tsx', 'components/editor/swap-parts.tsx', 'components/editor/storyboard-car.tsx', 'components/editor/storyboard-settings.tsx', 'app/films/page.tsx', 'components/refinement-references.tsx', 'components/editor/inspiration-card.tsx']) {
+  for (const f of ['app/key-visual/page.tsx', 'components/editor/lineup-capture.tsx', 'components/editor/swap-parts.tsx', 'components/editor/storyboard-car.tsx', 'components/editor/storyboard-settings.tsx', 'app/films/page.tsx', 'components/refinement-references.tsx', 'components/editor/reference-list.tsx']) {
     const s = read(f);
     assert.match(s, /<DropZone /, f);
     assert.doesNotMatch(s, /clipboard-image-input|ClipboardImageInput/, f);
   }
-  assert.match(read('app/lineup/page.tsx'), /<InspirationCard /, 'app/lineup/page.tsx');
-  // Key visual: References (components/editor/references-settings.tsx) holds the inspiration pictures, through the same drop zone.
-  assert.match(read('app/key-visual/page.tsx'), /<ReferencesSettings /);
-  assert.match(read('components/editor/references-settings.tsx'), /<DropZone /);
+  // Key visual's references and Car lineup's inspiration: the one reference list
+  // (components/editor/reference-list.tsx, tests/reference-list.test.mjs), through the same drop zone.
+  assert.match(read('app/lineup/page.tsx'), /<ReferenceList /, 'app/lineup/page.tsx');
+  assert.match(read('app/key-visual/page.tsx'), /<ReferenceList /, 'app/key-visual/page.tsx');
 });
 
 test('the settings say what happens in plain words; the share prompt is explained only just before the browser asks', () => {

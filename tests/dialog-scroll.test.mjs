@@ -70,6 +70,7 @@ test('every scroll area in the design system is known, and none sits in a dialog
     ['.ds-combo-list, .ds-menu-list', 'a dropdown list over the page'],
     ['.ds-dialog-body', 'the one scroll area of a dialog'],
     ['.ds-tabs', 'a row of tabs, sideways'],
+    ['.canvas-inspector', 'the canvas editor’s Design inspector (layers and the selected layer), beside or under the canvas; never a dialog'],
     ['.elements-bar', 'the Elements panel’s categories, sideways only (overflow-y hidden); the panel is never a dialog'],
     ['.ds-scroller', 'Home’s strips, sideways'],
     ['.ds-editor-rail', 'the editor’s tool rail'],

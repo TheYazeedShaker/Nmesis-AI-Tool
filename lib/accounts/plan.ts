@@ -68,6 +68,8 @@ export const ROUTE_FEATURES:RouteRule[]=[
  // (ownProfile); the route itself still refuses staff viewing a company, whose session there is read-only.
  {path:/^\/api\/account\/profile$/,methods:['PATCH'],feature:null,ownProfile:true},
  {path:/^\/api\/assets$/,feature:null},
+ // The canvas editor saves a design as a new picture (nothing generated, no credits).
+ {path:/^\/api\/edits$/,methods:['POST'],feature:null},
  {path:new RegExp(`^/api/assets/${ID}$`),methods:['GET'],feature:null,library:true},
  {path:new RegExp(`^/api/assets/${ID}/original$`),feature:null},
  // The company's brand kit (logos, colours, fonts, voice): everyone in the company reads; owners and creators change it (lib/accounts/can.ts).

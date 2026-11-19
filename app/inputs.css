@@ -1,7 +1,7 @@
 /* ─── Adding a picture (Phase 3 polish) ──────────────────────────────────────
    The design-system drop zone (components/ds/drop-zone.tsx, .ds-drop-*) and
-   the editors' Inspiration card (components/editor/inspiration-card.tsx,
-   .editor-insp-*). Tokens only, so light and dark both follow the theme. */
+   the Pinterest link of a reference list (components/editor/pinterest-link.tsx,
+   .editor-pin-*). Tokens only, so light and dark both follow the theme. */
 
 .ds-drop { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
 .ds-drop-zone {
@@ -44,19 +44,16 @@
   .ds-drop-zone[data-filled="true"] { flex-wrap: wrap; }
 }
 
-/* ─── The Inspiration card: help, the picture, the link, the mood ────────── */
-.editor-insp { display: flex; flex-direction: column; gap: var(--ds-space-12); min-width: 0; }
-/* The link and its button on one line; the help or the error under both. */
-.editor-insp-link { display: flex; align-items: center; gap: var(--ds-space-8); min-width: 0; }
-.editor-insp-link > .ds-input { flex: 1 1 auto; min-width: 0; }
-.editor-insp-link > .ds-btn { flex: none; }
-.editor-insp-or { display: flex; align-items: center; gap: var(--ds-space-8); color: var(--ds-muted); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); text-transform: uppercase; letter-spacing: var(--ds-tracking-label); }
-.editor-insp-or::before, .editor-insp-or::after { content: ""; flex: 1 1 auto; border-top: var(--ds-border-width) solid var(--ds-border); }
-.editor-insp-upsell { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-4); margin: 0; color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
-.editor-insp-upsell > svg { width: var(--ds-space-12); height: var(--ds-space-12); flex: none; }
+/* ─── A Pinterest link: the link and its button on one line; the help, the
+   plan line or the error under both ─────────────────────────────────────── */
+.editor-pin-link { display: flex; align-items: center; gap: var(--ds-space-8); min-width: 0; }
+.editor-pin-link > .ds-input { flex: 1 1 auto; min-width: 0; }
+.editor-pin-link > .ds-btn { flex: none; }
+.editor-pin-upsell { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-4); margin: 0; color: var(--ds-muted); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.editor-pin-upsell > svg { width: var(--ds-space-12); height: var(--ds-space-12); flex: none; }
 
 @media (max-width: 480px) {
-  .editor-insp-link { flex-wrap: wrap; }
+  .editor-pin-link { flex-wrap: wrap; }
 }
 
 /* ─── Refinement references (components/refinement-references.tsx) ─────── */

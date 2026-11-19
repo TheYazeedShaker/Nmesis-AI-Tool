@@ -91,3 +91,23 @@ test('menus open in a layer above every panel; panels sit on the panel layer', (
   // The panel is never a modal on phones: the slim bar and its menu stay usable over it.
   assert.doesNotMatch(read('components/shell/panels.tsx'), /<Dialog/);
 });
+
+test('the canvas editor: its own panels (Brand, Elements, Text, Uploads), and the one way in for every panel', () => {
+  assert.deepEqual(navItems('editor').map((i) => i.label), ['Home', 'Projects', 'Brand', 'Elements', 'Text', 'Uploads', 'Settings']);
+  assert.deepEqual(panelsOn('editor'), ['brand', 'elements', 'text', 'uploads']);
+  assert.equal(navSelection('editor', 'text'), 'text');
+  assert.equal(navSelection('editor', 'references'), null, 'References is not an editor panel');
+  assert.equal(toolOf('editor'), null, 'the editor takes no references, so it is no reference tool');
+  const window = { sessionStorage: { getItem: () => null, setItem: () => {} } };
+  globalThis.window = window; globalThis.sessionStorage = window.sessionStorage;
+  try {
+    const shell = tsxLoader()('components/shell/shell-state.ts');
+    assert.equal(shell.addToCanvas({ kind: 'text', style: 'heading' }), false, 'no editor open: nothing to add to');
+    const got = [];
+    shell.setCanvasSink((a) => got.push(a));
+    assert.equal(shell.addToCanvas({ kind: 'shape', shape: 'circle' }), true);
+    assert.deepEqual(got, [{ kind: 'shape', shape: 'circle' }]);
+    shell.setCanvasSink(null);
+    assert.equal(shell.addToCanvas({ kind: 'line' }), false, 'the editor closed: its way in is gone');
+  } finally { delete globalThis.window; delete globalThis.sessionStorage; }
+});

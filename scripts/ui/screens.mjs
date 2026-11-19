@@ -5,9 +5,13 @@
 
 // Phase 3: the folders seeded for Demo Company (scripts/ui/seed.mjs re-exports it).
 export const FOLDER_ID = '00000000-0000-4000-8000-0000000f0001';
+// The canvas editor's picture: the first of the owner's seeded key visuals (scripts/ui/seed.mjs, ready, 1536 x 864).
+export const EDITOR_VISUAL_ID = '00000000-0000-4000-8000-000000010000';
 
 export const ALL_VIEWPORTS = [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
 export const QUICK_VIEWPORTS = [[1440, 900], [390, 844]];
+// Common laptop windows, for the shell's fill check (shellNotFilling): every screen once at each (first person, light).
+export const LAPTOP_VIEWPORTS = [[1366, 768], [1536, 864]];
 export const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
 export const SHOT_WIDTHS = new Set([1440, 1280, 1024, 390]); // screenshots: small laptops too (Phase 3 group 2)
 export const THEMES = ['light', 'dark'];
@@ -48,6 +52,8 @@ export const SCREENS = [
   // The layers (feat/studio-foundations): References open, then the account menu over it (1440 and 390).
   { id: 'account-menu', path: '/key-visual', action: 'account-over-panel', roles: ['owner'] },
   { id: 'lineup', path: '/lineup', roles: ['owner', 'starter', 'viewer'], full: ['owner'] },
+  // The canvas editor (feat/studio-editor): every viewport for the owner (phones get the larger-screen note), a viewer at 1440 and 390.
+  { id: 'editor', path: `/editor?visual=${EDITOR_VISUAL_ID}`, roles: ['owner', 'viewer'], full: ['owner'] },
   { id: 'films', path: '/films', roles: ['enterprise', 'owner'], full: ['enterprise'] },
   { id: 'swap', path: '/swap', roles: ['enterprise', 'owner'], full: ['enterprise'] },
   { id: 'storyboard', path: '/storyboard', roles: ['enterprise', 'owner'], full: ['enterprise'] },
@@ -108,6 +114,7 @@ export function pageJobs(screens, { quick = false } = {}) {
         if (!full && !KEY_WIDTHS.has(w) && !(tablet && w === 768)) continue;
         for (const theme of THEMES) if (KEY_WIDTHS.has(w) || full || theme === 'light') jobs.push({ screen, role, w, h, theme });
       }
+      if (!quick && role === screen.roles[0]) for (const [w, h] of LAPTOP_VIEWPORTS) jobs.push({ screen, role, w, h, theme: 'light' });
     }
   }
   return jobs;

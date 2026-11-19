@@ -52,7 +52,8 @@ function panelLoader({ kit = null, error = '', account = null, tray = null } = {
   const stubs = {
     'next/link': link,
     '@/components/brand/brand-kit': { useBrandKit: () => ({ kit: state.kit, error: state.error, reload: async () => { state.reloads++; } }) },
-    '@/components/shell/shell-state': { addAsReference: () => 'added' },
+    // No canvas editor open: the panel's own behaviour (tests/canvas-panels.test.mjs covers the editor).
+    '@/components/shell/shell-state': { addAsReference: () => 'added', useShell: () => ({ canvas: null }), addToCanvas: () => false },
     '@/components/studio-account': { useAccount: () => account },
     '@/components/ds/toast': { useToast: () => ({ toast: () => 0 }) },
   };

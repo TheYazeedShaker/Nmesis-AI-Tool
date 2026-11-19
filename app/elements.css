@@ -69,6 +69,54 @@
 .elements-text-sample[data-style="caption"] { color: var(--ds-muted); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); }
 .elements-text-font { color: var(--ds-muted); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); }
 
+/* Inside the canvas editor every element (but icons) is a button that adds it
+   to the design: the tile is drawn inside it, unchanged. */
+.elements-add {
+  display: block; width: 100%; min-width: 0; margin: 0; padding: 0;
+  border: 0; border-radius: var(--ds-radius-md); background: transparent;
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.elements-add > .elements-tile { transition: border-color var(--ds-dur-fast) var(--ds-ease), background-color var(--ds-dur-fast) var(--ds-ease); }
+.elements-add:hover > .elements-tile { border-color: var(--ds-border-strong); }
+.elements-add:hover > .elements-tile:not([data-kind="logo"]) { background: var(--ds-panel-3); }
+.elements-add:focus-visible, .elements-text-add:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.elements-text-add {
+  width: 100%; margin: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+  transition: border-color var(--ds-dur-fast) var(--ds-ease), background-color var(--ds-dur-fast) var(--ds-ease);
+}
+.elements-text-add:hover { border-color: var(--ds-border-strong); background: var(--ds-panel-3); }
+
+/* ─── The Text panel (components/shell/text-panel.tsx), inside the editor ───
+   Three large buttons, each previewed in the brand's font (set inline: the
+   font's name is data), then the brand colours, named, for reference. */
+.text-panel { display: flex; flex-direction: column; gap: var(--ds-space-24); min-width: 0; }
+.text-panel-adds { display: flex; flex-direction: column; gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; min-width: 0; }
+.text-panel-add {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--ds-space-2); width: 100%; min-width: 0; margin: 0;
+  padding: var(--ds-space-16); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md);
+  background: var(--ds-panel-2); color: var(--ds-text); font: inherit; text-align: left; cursor: pointer;
+  transition: border-color var(--ds-dur-fast) var(--ds-ease), background-color var(--ds-dur-fast) var(--ds-ease);
+}
+.text-panel-add:hover { border-color: var(--ds-border-strong); background: var(--ds-panel-3); }
+.text-panel-add:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.text-panel-sample { max-width: 100%; overflow-wrap: anywhere; color: var(--ds-text-strong); font-family: var(--ds-font-sans); }
+.text-panel-add[data-style="heading"] .text-panel-sample {
+  font-family: var(--ds-font-display); font-size: var(--ds-text-2xl); line-height: var(--ds-leading-2xl);
+  font-weight: var(--ds-weight-bold); letter-spacing: var(--ds-tracking-tight);
+}
+.text-panel-add[data-style="subheading"] .text-panel-sample {
+  font-family: var(--ds-font-display); font-size: var(--ds-text-lg); line-height: var(--ds-leading-lg); font-weight: var(--ds-weight-semibold);
+}
+.text-panel-add[data-style="body"] .text-panel-sample { color: var(--ds-text); font-size: var(--ds-text-base); line-height: var(--ds-leading-base); }
+.text-panel-font { color: var(--ds-muted); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); }
+.text-panel-colours { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.text-panel-swatches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; min-width: 0; }
+.text-panel-swatch { display: flex; align-items: center; gap: var(--ds-space-8); min-width: 0; }
+.text-panel-chip { flex: none; width: var(--ds-space-24); height: var(--ds-space-24); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-sm); }
+.text-panel-swatch-text { display: flex; flex-direction: column; min-width: 0; font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.text-panel-swatch-text b { font-weight: var(--ds-weight-medium); color: var(--ds-text); }
+.text-panel-hex { color: var(--ds-muted); font-family: var(--ds-font-mono); font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); }
+
 /* Logos with nothing to show: one calm line, and the way to add some. */
 .elements-empty {
   display: flex; flex-direction: column; align-items: flex-start; gap: var(--ds-space-4); min-width: 0;

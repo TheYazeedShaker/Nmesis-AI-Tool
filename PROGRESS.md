@@ -4,7 +4,9 @@
 
 **Last updated:** 2026-11-18 (Studio design foundations: `feat/studio-foundations`)
 
-**Latest (2026-11-19, `fix/shell-height-and-critique`):** the shell alone is the window's height on tool pages (`.studio-frame[data-fill]`, `overflow: clip`); the editor's old "window minus top bar" height and other page-level viewport heights are removed; check:ui counts `shellNotFilling` (zero) and runs every screen at 768 too. The design plugin's critique and design-system audit ran; two quick fixes landed, the rest is listed in the PR body as input for the editor PR. The owner's 180 px gap did not reproduce locally (see the PR).
+**Latest (2026-11-19, canvas editor, `feat/studio-editor`, PR 2):** a Konva canvas editor at `/editor?visual=<id>` (opened from Projects' viewer and by clicking a finished Key visual or Car lineup result): the shell's Brand, Elements, Text and Uploads panels add to the design through one sink (`addToCanvas` in `components/shell/shell-state.ts`); select, move, resize, rotate, guides, order, duplicate, delete, undo/redo, keyboard; Save makes a new version (`POST /api/edits`, the original only read), Duplicate a separate copy, Download PNG/JPG at full resolution, Share from the shell; tablets usable, phones get an "Edit on a larger screen" note. One shared reference list (Key visual and Car lineup), choice groups in the settings label column. The Key visual band at the bottom: the versions strip stretched every card to the tallest (one long title made the canvas overflow); fixed in the shared versions component, and check:ui's `shellNotFilling` now also covers the editor, its canvas and settings, and anything else taking height in a tool page, at 1366x768 and 1536x864 too. No owner steps.
+
+**Earlier (2026-11-19, `fix/shell-height-and-critique`, merged):** the shell alone is the window's height on tool pages (`.studio-frame[data-fill]`, `overflow: clip`); the editor's old "window minus top bar" height and other page-level viewport heights are removed; check:ui counts `shellNotFilling` (zero) and runs every screen at 768 too. The design plugin's critique and design-system audit ran; two quick fixes landed, the rest is listed in the PR body as input for the editor PR. The owner's 180 px gap did not reproduce locally (see the PR).
 
 **Earlier (2026-11-18, Studio design foundations, `feat/studio-foundations`, merged):** the owner's 17 fixes, made in shared tokens, layout and components (no page-level patches).
 - **Palette:** one cool neutral scale (`--ds-neutral-*`, light and dark) replaces the green-grey brand neutrals; the lime is for the main action and selection marks only (selection is `--ds-selected-*`). `tests/contrast.test.mjs` checks every text/background pair and every button label in every state, both themes, from `app/tokens.css` (`node scripts/design/contrast.mjs` prints the table).
@@ -312,7 +314,9 @@ _Carried_
 
 ## Next session — start here
 
-0. Studio design foundations (`feat/studio-foundations`): owner reviews the PR. No owner steps of its own. Then PR 2, `feat/studio-editor` (the canvas editor), from `development`; Elements adds to the picture there, and Brand colours and fonts apply to a selection there.
+0. Canvas editor (`feat/studio-editor`, PR 2): owner reviews the PR. No owner steps. Follow-ups are in its "Not done".
+
+0b. Studio design foundations (`feat/studio-foundations`): owner reviews the PR. No owner steps of its own. Then PR 2, `feat/studio-editor` (the canvas editor), from `development`; Elements adds to the picture there, and Brand colours and fonts apply to a selection there.
 
 0a. Studio shell (PR 1 of 2, `feat/studio-shell`, merged):
    - Owner: review the PR; then run `npm run db:migrate` (0010 brand kits, 0011 shares), set `UNSPLASH_ACCESS_KEY` per environment (`docs/references.md`) and `CRON_SECRET` for Production (`docs/s3-setup.md` section 7), and redeploy;
