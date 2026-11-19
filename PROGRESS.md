@@ -4,7 +4,9 @@
 
 **Last updated:** 2026-11-18 (Studio design foundations: `feat/studio-foundations`)
 
-**Latest (2026-11-18, Studio design foundations, `feat/studio-foundations`):** the owner's 17 fixes, made in shared tokens, layout and components (no page-level patches).
+**Latest (2026-11-19, `fix/shell-height-and-critique`):** the shell alone is the window's height on tool pages (`.studio-frame[data-fill]`, `overflow: clip`); the editor's old "window minus top bar" height and other page-level viewport heights are removed; check:ui counts `shellNotFilling` (zero) and runs every screen at 768 too. The design plugin's critique and design-system audit ran; two quick fixes landed, the rest is listed in the PR body as input for the editor PR. The owner's 180 px gap did not reproduce locally (see the PR).
+
+**Earlier (2026-11-18, Studio design foundations, `feat/studio-foundations`, merged):** the owner's 17 fixes, made in shared tokens, layout and components (no page-level patches).
 - **Palette:** one cool neutral scale (`--ds-neutral-*`, light and dark) replaces the green-grey brand neutrals; the lime is for the main action and selection marks only (selection is `--ds-selected-*`). `tests/contrast.test.mjs` checks every text/background pair and every button label in every state, both themes, from `app/tokens.css` (`node scripts/design/contrast.mjs` prints the table).
 - **Buttons:** every kind and state reads `--ds-btn-*`; unavailable is a quiet surface with the muted ink (it used to fade the whole button to half opacity, which made Generate and Start unreadable).
 - **Shell:** `lib/shell-nav.ts` decides the navigation (pages only outside tools: Home, Projects, Uploads, Settings; inside Key visual and Car lineup also References, Brand, Elements and Uploads as panels) and its one selected item; navigating closes the panel (`navigated` in `components/shell/shell-state.ts`). One secondary-panel slot; the settings panel is 368px with a label column and a field column.

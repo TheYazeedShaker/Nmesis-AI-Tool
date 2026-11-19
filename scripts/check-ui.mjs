@@ -207,7 +207,10 @@ async function check({ screen, role, w, h, theme }) {
   const end = () => { page.__inflight = Math.max(0, page.__inflight - 1); };
   page.on('requestfinished', end); page.on('requestfailed', end);
   page.on('response', (r) => { const u = new URL(r.url()); if (r.status() >= 500 || (r.status() >= 400 && u.pathname.startsWith('/api/') && r.status() !== 401)) httpErrors.push(`${r.status()} ${r.request().method()} ${u.pathname}`); });
-  page.on('console', (m) => { if (m.type() === 'error' && !/ERR_BLOCKED_BY_CLIENT|blockedbyclient/.test(m.text())) consoleErrors.push(m.text().slice(0, 300)); });
+  // The not-found screen answers its own address with 404 on purpose: the browser's line about that
+  // one document is expected, not an error of the page (any other 404 still counts).
+  const ownNotFound = (m) => screen.id === 'not-found' && /status of 404/.test(m.text()) && (() => { try { return new URL(m.location().url).pathname === new URL(screen.path, 'http://x').pathname; } catch { return false; } })();
+  page.on('console', (m) => { if (m.type() === 'error' && !/ERR_BLOCKED_BY_CLIENT|blockedbyclient/.test(m.text()) && !ownNotFound(m)) consoleErrors.push(m.text().slice(0, 300)); });
   page.on('pageerror', (e) => consoleErrors.push('Uncaught: ' + String(e.message).slice(0, 300)));
   const out = { screen: screen.id, role, w, h, theme };
   try {

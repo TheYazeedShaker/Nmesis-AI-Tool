@@ -7,7 +7,7 @@ import { useToast } from '@/components/ds/toast';
 import { inTray, referenceLimit, removeReference, updateReference, useReferenceTray, type TrayItem } from '@/lib/reference-tray';
 import type { ReferenceCredit as Credit, ReferencePhoto } from '@/lib/references/provider';
 import type { ToolId } from '@/lib/tools';
-import { addAsReference } from '@/components/shell/shell-state';
+import { addAsReference, openPanel } from '@/components/shell/shell-state';
 
 // The References panel's body (the shell around it carries the "References"
 // header and the close button). An empty search (never prefilled: a car's model
@@ -185,7 +185,7 @@ export function ReferencesPanel({ tool }: { tool?: ToolId | null }) {
 
   let body: React.ReactNode;
   if (!current) body = <Loading label="Loading photos"><ul className="refs-grid"><Skeletons count={8} /></ul></Loading>;
-  else if (current.page.kind === 'unavailable') body = <State kind="empty" icon={<ImageOff />} title={"The photo library isn't set up yet"} />;
+  else if (current.page.kind === 'unavailable') body = <State kind="empty" icon={<ImageOff />} title={"The photo library isn't set up yet"} actions={<Button size="sm" onClick={() => openPanel('uploads')}>Use your own pictures</Button>}>Your uploads work as references too.</State>;
   else if (current.page.kind === 'error') body = <State kind="error" title="Photos couldn't load" actions={<Button size="sm" onClick={retry}>Try again</Button>}>{current.page.message}</State>;
   else if (!current.page.photos.length) body = <State kind="no-results" title="No photos for that search">Try other words, like a body style, a colour or a place.</State>;
   else body = (

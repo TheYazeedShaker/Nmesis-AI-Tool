@@ -21,7 +21,8 @@
     "ellipsisWithoutFullText": 4,
     "serverHostsBlocked": 0,
     "pagesOverCls01": 0,
-    "menusUnderPanels": 0
+    "menusUnderPanels": 0,
+    "shellNotFilling": 0
   },
   "byScreen": {
     "account-menu": {"focusWithoutIndicator":2},

@@ -841,7 +841,8 @@
 }
 .ds-chip svg { width: var(--ds-space-12); height: var(--ds-space-12); }
 .ds-chip[aria-pressed="true"] { background: var(--ds-text); color: var(--ds-bg); border-color: var(--ds-text); }
-.ds-segmented { display: inline-flex; flex: none; padding: var(--ds-space-2); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-pill); background: var(--ds-panel-2); }
+/* Its own width, wherever it sits: a column layout never stretches the track past its segments. */
+.ds-segmented { display: inline-flex; flex: none; width: fit-content; max-width: 100%; padding: var(--ds-space-2); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-pill); background: var(--ds-panel-2); }
 .ds-segmented > button { display: inline-flex; flex: none; white-space: nowrap; align-items: center; justify-content: center; gap: var(--ds-space-4); min-height: calc(var(--ds-control-h) - var(--ds-space-8)); min-width: calc(var(--ds-control-h) - var(--ds-space-4)); padding: 0 var(--ds-space-8); border: 0; border-radius: var(--ds-radius-pill); background: transparent; color: var(--ds-muted); cursor: pointer; }
 .ds-segmented > button svg { width: var(--ds-icon); height: var(--ds-icon); }
 /* At phone width the segments are the full control height (44px), with no inset. */
@@ -861,7 +862,7 @@
 /* ── Editor: tools rail, canvas, settings, one Generate ────────────────── */
 .ds-editor {
   display: grid; grid-template-columns: var(--ds-rail-w) minmax(0, 1fr) var(--ds-settings-w);
-  height: calc(100dvh - var(--ds-topbar-h)); min-height: 520px; background: var(--ds-bg);
+  height: 100%; min-height: 0; background: var(--ds-bg);
 }
 .ds-editor[data-settings="closed"] { grid-template-columns: var(--ds-rail-w) minmax(0, 1fr) 0; }
 .ds-editor[data-settings="closed"] .ds-editor-settings { display: none; }
@@ -911,7 +912,7 @@
   .ds-editor { --ds-settings-w: 300px; }
 }
 @media (max-width: 768px) {
-  .ds-editor { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; height: auto; min-height: calc(100dvh - var(--ds-topbar-h) - var(--ds-phone-nav-h)); }
+  .ds-editor { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; height: auto; min-height: 0; }
   .ds-editor-rail { flex-direction: row; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: var(--ds-border-width) solid var(--ds-border); padding: var(--ds-space-4) var(--ds-space-8); }
   .ds-rail-tool { flex: none; width: var(--ds-space-64); min-height: 44px; }
   .ds-editor-settings, .ds-editor[data-settings="closed"] .ds-editor-settings { display: none; }

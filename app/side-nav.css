@@ -10,12 +10,16 @@
    (the old dark body) can show under the content. */
 body:has(> .ds-shell), body:has(.studio-frame) { background: var(--ds-bg); }
 
-/* The editor: the frame is exactly the window, the editor fills what is left
-   under the notices, and its row never grows past it (the canvas and the
-   settings scroll inside). This removes the dark band that showed under tool
-   pages when a notice pushed the editor past the window. */
-.studio-frame:has(.ds-main.bleed) { height: 100dvh; min-height: 0; overflow: hidden; }
-.studio-frame:has(.ds-main.bleed) .studio-frame-page { min-height: 0; }
+/* Tool pages (data-fill, set by the frame for an editor): the shell is exactly
+   the window and is the only element sized from the viewport. The work area
+   and the editor fill it through the shell's own flex layout (min-height: 0);
+   no page or editor sets a viewport height of its own. overflow: clip, not
+   hidden: the shell is never a scroll container, so nothing (a scrollIntoView,
+   a focused element in the configurator frame) can scroll it and show the
+   background under the page. check:ui counts a shell or work area that does not
+   fill the window (shellNotFilling). */
+.studio-frame[data-fill] { height: 100dvh; min-height: 0; overflow: clip; }
+.studio-frame[data-fill] .studio-frame-page { min-height: 0; }
 .studio-frame .ds-main.bleed { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0; }
 .studio-frame .ds-main.bleed > .ds-editor { flex: 1 1 auto; height: auto; min-height: 0; grid-template-rows: minmax(0, 1fr); }
 /* One navigation: the editor's own tool rail is gone (EditorLayout draws none when given no tools). */
