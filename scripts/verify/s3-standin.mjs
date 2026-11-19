@@ -7,6 +7,8 @@ export function startS3({port=0}={}){
  const server=http.createServer(async(req,res)=>{
   const url=new URL(req.url,'http://x');const [,bucket,...rest]=url.pathname.split('/');const key=decodeURIComponent(rest.join('/'));
   res.setHeader('Access-Control-Allow-Origin','*');
+  // A browser's preflight for a signed PUT (direct uploads, lib/studio-fetch.ts), as the bucket's CORS rule answers it (docs/s3-cors.example.json).
+  if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Methods':'GET, PUT, HEAD, DELETE','Access-Control-Allow-Headers':req.headers['access-control-request-headers']||'*','Access-Control-Expose-Headers':'ETag','Access-Control-Max-Age':'600'});return res.end()}
   const chunks=[];for await(const c of req)chunks.push(c);const body=Buffer.concat(chunks);
   log.push(req.method+' /'+bucket+'/'+key+(url.search.includes('X-Amz-Signature')?' (presigned)':''));
   const xml=(code,s)=>{res.writeHead(code,{'content-type':'application/xml'});res.end(s)};

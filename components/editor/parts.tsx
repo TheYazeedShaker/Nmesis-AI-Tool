@@ -32,6 +32,17 @@ export function SettingsSection({title,children,id}:{title:string;children:React
  return <section className="editor-section" aria-labelledby={id}><h3 className="editor-section-title" id={id}>{title}</h3>{children}</section>;
 }
 
+/** One row of the settings panel's grid that is not a single Field (a switch with
+ *  its options): the label in the label column, the controls and their help in the
+ *  field column (app/design-system.css, .ds-settings-row). `htmlFor` ties the label
+ *  to the one control it names. */
+export function SettingsRow({label,htmlFor,className,children}:{label:React.ReactNode;htmlFor?:string;className?:string;children:React.ReactNode}){
+ return <div className={className?`ds-settings-row ${className}`:'ds-settings-row'}>
+  {htmlFor?<label className="ds-label" htmlFor={htmlFor}>{label}</label>:<span className="ds-label">{label}</span>}
+  {children}
+ </div>;
+}
+
 /** Car, colour, trim and view. With today's configurator the colour, trim and
  *  view are chosen inside it (`controlsInEditor` false); with remote control
  *  they are set from here. */
@@ -42,9 +53,9 @@ export function CarSettings({cars,car,onCar,options,state,onColour,onTrim,onView
  return <SettingsSection title={title} id={`${idPrefix}-title`}>
   <CarChoicePicture car={car}/>
   <Field label="Car"><Select value={car} onChange={e=>onCar(e.target.value)}>{cars.map(c=><option key={c}>{c}</option>)}</Select></Field>
-  {controlsInEditor&&options.colours.length>0&&<fieldset className="editor-swatches"><legend className="ds-label">Colour</legend>
-   {options.colours.map(c=><label key={c.id} className="editor-swatch" title={c.name}><input className="editor-choice-input" type="radio" name={`${idPrefix}-colour`} checked={state.colour===c.id} onChange={()=>onColour(c.id)}/><span className="editor-swatch-chip" style={{background:c.swatch}} aria-hidden="true"/><span className="ds-sr-only">{c.name}</span></label>)}
-   <span className="ds-help editor-swatch-name">{options.colours.find(c=>c.id===state.colour)?.name||'Choose a colour'}</span>
+  {controlsInEditor&&options.colours.length>0&&<fieldset className="ds-choices editor-swatches"><legend className="ds-label">Colour</legend>
+   <div className="editor-swatch-list">{options.colours.map(c=><label key={c.id} className="editor-swatch" title={c.name}><input className="editor-choice-input" type="radio" name={`${idPrefix}-colour`} checked={state.colour===c.id} onChange={()=>onColour(c.id)}/><span className="editor-swatch-chip" style={{background:c.swatch}} aria-hidden="true"/><span className="ds-sr-only">{c.name}</span></label>)}
+    <span className="ds-help editor-swatch-name">{options.colours.find(c=>c.id===state.colour)?.name||'Choose a colour'}</span></div>
   </fieldset>}
   {controlsInEditor&&options.trims.length>0&&<Field label="Trim"><Select value={state.trim} onChange={e=>onTrim(e.target.value)}>{options.trims.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</Select></Field>}
   {controlsInEditor&&options.views.length>0&&<ChoiceChips legend="View" name={`${idPrefix}-view`} choices={options.views} value={state.view} onChange={onView}/>}
@@ -53,16 +64,18 @@ export function CarSettings({cars,car,onCar,options,state,onColour,onTrim,onView
  </SettingsSection>;
 }
 
+/** A group of chips (one choice). Like every group of choices (.ds-choices), its legend
+ *  sits in the settings panel's label column and the chips wrap in the field column. */
 export function ChoiceChips({legend,name,choices,value,onChange}:{legend:string;name:string;choices:ConfiguratorChoice[];value?:string;onChange:(id:string)=>void}){
- return <fieldset className="editor-chips"><legend className="ds-label">{legend}</legend>
-  {choices.map(c=><label key={c.id} className="editor-chip"><input className="editor-choice-input" type="radio" name={name} checked={value===c.id} onChange={()=>onChange(c.id)}/><span>{c.name}</span></label>)}
+ return <fieldset className="ds-choices editor-chips"><legend className="ds-label">{legend}</legend>
+  <div className="editor-chip-list">{choices.map(c=><label key={c.id} className="editor-chip"><input className="editor-choice-input" type="radio" name={name} checked={value===c.id} onChange={()=>onChange(c.id)}/><span>{c.name}</span></label>)}</div>
  </fieldset>;
 }
 
 export function PromptSettings({label='Scene',value,onChange,placeholder,max=600,inspiration=true,onInspiration}:{label?:string;value:string;onChange:(v:string)=>void;placeholder?:string;max?:number;inspiration?:boolean;onInspiration?:(file:File)=>unknown}){
  return <SettingsSection title="Prompt" id="prompt-title">
   <Field label={label} count={{value:value.length,max}}><Textarea value={value} onChange={e=>onChange(e.target.value.slice(0,max))} rows={4} placeholder={placeholder}/></Field>
-  {/* The tools' own inspiration is components/editor/inspiration-card.tsx; this preview (the gallery) takes a picture only when given onInspiration. */}
+  {/* The tools' own references are components/editor/reference-list.tsx; this preview (the gallery) takes a picture only when given onInspiration. */}
   {inspiration&&<DropZone name="reference picture" label="Drop, paste or upload a reference picture" hint="Optional" onFile={onInspiration} disabled={!onInspiration}/>}
  </SettingsSection>;
 }
@@ -96,7 +109,7 @@ export function VersionHistory({versions,current,onPick,onCancel}:{versions:Vers
      {/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
      {v.src?<img src={v.src} alt="" loading="lazy"/>:v.status==='working'?<RotateCw className="spin"/>:<ImageIcon/>}
     </span>
-    <span className="editor-version-meta"><b>{v.label||`Version ${v.n}`}</b><span className="ds-muted">{QUALITY_LABEL[v.quality]} · {v.at}</span></span>
+    <span className="editor-version-meta"><b className="editor-version-title" title={v.label||`Version ${v.n}`}>{v.label||`Version ${v.n}`}</b><span className="ds-muted">{QUALITY_LABEL[v.quality]} · {v.at}</span></span>
    </button>
    {v.status==='working'?<div className="editor-version-progress" role="status"><span>{v.stage||'In progress'}{typeof v.progress==='number'?` · ${Math.round(v.progress*100)}%`:''}</span>
      <span className="ds-progress" data-indeterminate={typeof v.progress!=='number'||undefined}><span className="ds-progress-bar" style={{transform:`scaleX(${v.progress??0.3})`}}/></span>

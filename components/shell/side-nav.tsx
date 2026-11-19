@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import {Aperture,BarChart3,ChevronsUpDown,CircleHelp,CloudUpload,FolderOpen,Home,Images,LogOut,Menu as MenuIcon,Monitor,Moon,PanelLeftClose,PanelLeftOpen,Palette,Settings,Shapes,Sun,UserRound} from 'lucide-react';
+import {Aperture,BarChart3,ChevronsUpDown,CircleHelp,CloudUpload,FolderOpen,Home,Images,LogOut,Menu as MenuIcon,Monitor,Moon,PanelLeftClose,PanelLeftOpen,Palette,Settings,Shapes,Sun,Type,UserRound} from 'lucide-react';
 import {Dialog} from '@/components/ds/dialog';
 import {Layer,anchorAbove} from '@/components/ds/layer';
 import {useRememberedOpen} from '@/components/ds/layout';
@@ -22,7 +22,7 @@ import {closePanel,togglePanel,useShell} from './shell-state';
 // Elements, Uploads), which open beside it. Below 768px it lives in a drawer
 // opened from a slim bar at the top.
 
-const ICON:Record<NavKey,React.ReactNode>={home:<Home/>,projects:<FolderOpen/>,references:<Images/>,brand:<Palette/>,elements:<Shapes/>,uploads:<CloudUpload/>,settings:<Settings/>};
+const ICON:Record<NavKey,React.ReactNode>={home:<Home/>,projects:<FolderOpen/>,references:<Images/>,brand:<Palette/>,elements:<Shapes/>,text:<Type/>,uploads:<CloudUpload/>,settings:<Settings/>};
 const hide=(icon:React.ReactNode)=>React.isValidElement(icon)?React.cloneElement(icon as React.ReactElement<{'aria-hidden'?:boolean}>,{'aria-hidden':true}):icon;
 
 function NavItems({current,onGo}:{current?:StudioPage;onGo?:()=>void}){

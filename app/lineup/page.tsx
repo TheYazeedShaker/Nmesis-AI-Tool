@@ -1,8 +1,8 @@
 'use client';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
-import {AlertTriangle,Columns2,Download,ImagePlus,Loader2,MoreHorizontal,RefreshCw,RotateCcw,Scissors,Share2,Wand2,X} from 'lucide-react';
-import {addReference,removeReference,trayItems,useReferenceTray,type TrayItem} from '@/lib/reference-tray';
+import {AlertTriangle,Columns2,Download,Loader2,MoreHorizontal,RefreshCw,RotateCcw,Scissors,Share2,Wand2,X} from 'lucide-react';
+import {addReference,referenceLimit,removeReference,trayItems,useReferenceTray,type TrayItem} from '@/lib/reference-tray';
 import {resolveTrayReference} from '@/lib/reference-resolve';
 import {NEED_INSPIRATION,hasInspiration,lineupInspiration,lineupMoodId} from '@/lib/lineup-reference';
 import {addAsReference,openPanel} from '@/components/shell/shell-state';
@@ -31,12 +31,14 @@ import {Dialog} from '@/components/ds/dialog';
 import {State} from '@/components/ds/feedback';
 import {Menu,MenuItem} from '@/components/ds/menu';
 import {useToast} from '@/components/ds/toast';
+import {OpenInEditor} from '@/components/canvas/open-in-editor';
 import {WorkspaceFrame} from '@/components/workspace/frame';
 import {EDITOR_TOOLS,EditorScreen,type GenerateBlocker} from '@/components/editor/editor-screen';
 import {CostBadge,CostLine,PromptSettings,SaveToProject,SettingsSection,VersionHistory,type Version} from '@/components/editor/parts';
 import {Fold} from '@/components/ds/layout';
 import {useProject} from '@/components/editor/use-project';
-import {InspirationCard} from '@/components/editor/inspiration-card';
+import {ReferenceList} from '@/components/editor/reference-list';
+import {PinterestLink} from '@/components/editor/pinterest-link';
 import {LineupCarDialog} from '@/components/editor/lineup-capture';
 import {LineupCars,LineupEngine,LineupImg,LineupLayout,LineupPlacement,LineupQuality,LineupReferenceSwitch,LineupRefineDialog,LineupSavedDialog,asset,lineupBillingNote,lineupCredits} from '@/components/editor/lineup-parts';
 import './editor-lineup.css';
@@ -152,7 +154,7 @@ function LineupStudio(){
 
  const stage=!showResult||!shown?<LineupPlacement cars={cars} heroId={heroId} strict={strictReference} moodId={inspiration?.assetId}/>
   :selected?<figure className="editor-result">
-    <LineupImg src={compare&&selected.moodId?asset(selected.moodId):selected.src} alt={compare?'Original inspiration':selected.title}/>
+    {compare&&selected.moodId?<LineupImg src={asset(selected.moodId)} alt="Original inspiration"/>:<OpenInEditor visualId={selected.id} title={selected.title}><LineupImg src={selected.src} alt={selected.title}/></OpenInEditor>}
     <figcaption><span>{compare?'Original inspiration':[selected.width&&selected.height?`${selected.width} × ${selected.height}`:'',selected.lineup?.strictReference?'Reference locked':'',selected.lineup?`${selected.lineup.cars.length} cars`:'',engineWords(selected),'check each car against its references'].filter(Boolean).join(' · ')}</span><CostBadge credits={typeof selected.credits==='number'?selected.credits:null} used/></figcaption>
    </figure>
   :<State kind={shown.status==='failed'?'error':'empty'} icon={shown.status==='failed'?undefined:<Loader2 className="ds-spin-icon"/>} title={shown.status==='failed'?'Could not finish':'Creating your lineup…'}
@@ -163,14 +165,13 @@ function LineupStudio(){
  const settings=<fieldset className="editor-lineup-fields" disabled={!!busy}>
   <LineupCars cars={cars} heroId={heroId} strict={strictReference} ready={ready} onEdit={setCaptureId} onSaved={setLibraryId} onHero={chooseHero} onMove={moveCar} onRemove={removeCar} onAdd={addCar}/>
   <div className="ds-contents" onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!busy)void addMood(file,'Adding inspiration…')}}}>
-  <InspirationCard id="lineup-inspiration-title" help="Its cars are replaced by yours: the picture sets the staging, light and atmosphere."
-   mood={<><b>What’s the mood?</b> A line-up picture for the staging, or a place for the light.</>}
-   picture={{value:inspiration?(inspiration.assetId?asset(inspiration.assetId):inspiration.thumb||inspiration.src):null,name:inspiration?.name,alt:'Lineup inspiration',onFile:file=>addMood(file),onRemove:()=>{if(inspiration)removeReference(inspiration.key);setPin('');setPinAdded('');setMoodError('')},
-    busy:busy==='Uploading inspiration…'||busy==='Adding inspiration…'?busy:false,disabled:!!busy,error:moodError||undefined}}
-   link={{value:pin,onChange:v=>{setPin(v);setPinError('')},onAdd:addPin,busy:busy==='Loading inspiration…',error:pinError||undefined,disabled:!!busy&&busy!=='Loading inspiration…'}}>
-   <Button size="sm" icon={<ImagePlus aria-hidden="true"/>} disabled={!!busy} onClick={()=>openPanel('references')}>Find a photo in References</Button>
+  <ReferenceList id="lineup-inspiration-title" title="Inspiration" limit={referenceLimit('lineup')} help="Its cars are replaced by yours: the picture sets the staging, light and atmosphere."
+   items={inspiration?[inspiration]:[]} onAdd={()=>openPanel('references')} onFile={file=>addMood(file)} onRemove={key=>{removeReference(key);setPin('');setPinAdded('');setMoodError('')}}
+   busy={busy==='Uploading inspiration…'||busy==='Adding inspiration…'?busy:''} error={moodError||undefined} disabled={!!busy}>
+   <PinterestLink value={pin} onChange={v=>{setPin(v);setPinError('')}} onAdd={addPin} busy={busy==='Loading inspiration…'} error={pinError||undefined} disabled={!!busy&&busy!=='Loading inspiration…'}
+    help={<><b>What’s the mood?</b> A line-up picture for the staging, or a place for the light.</>}/>
    <LineupReferenceSwitch active={strictReference} onChange={active=>{setStrictReference(active);if(active)setLayout('inspiration')}}/>
-  </InspirationCard>
+  </ReferenceList>
   </div>
   <LineupQuality o={o} provider={provider} model={model} size={size} onSize={setSize} names={names}/>
   <CostLine cost={cost} own={billing||null}/>

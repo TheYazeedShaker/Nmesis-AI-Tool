@@ -402,8 +402,13 @@
 .ds-switch > input:checked { background: var(--ds-accent); border-color: var(--ds-accent-edge); }
 .ds-switch > input:checked::after { transform: translateX(var(--ds-space-16)); background: var(--ds-accent-ink); }
 .ds-switch-state { color: var(--ds-muted); font-size: var(--ds-text-sm); min-width: 3ch; }
+/* A switch named by a label elsewhere (a settings row's label column) has no words of its own. */
+.ds-choice-text:empty { display: none; }
 .ds-choices { display: flex; flex-direction: column; gap: var(--ds-space-4); border: 0; padding: 0; margin: 0; min-width: 0; }
 .ds-choices > legend { padding: 0; margin-bottom: var(--ds-space-4); }
+/* A settings row (components/editor/parts.tsx, SettingsRow): its label above
+   its controls, like a field; in the settings panel, a row of its grid (below). */
+.ds-settings-row { display: flex; flex-direction: column; gap: var(--ds-space-4); min-width: 0; }
 
 /* Slider: a range with its value printed beside it, and a box for typing. */
 .ds-slider { display: flex; align-items: center; gap: var(--ds-space-12); min-width: 0; }
@@ -889,14 +894,27 @@
 .ds-settings-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--ds-space-16); display: flex; flex-direction: column; gap: var(--ds-space-16); }
 /* The settings panel's grid: one label column (--ds-settings-label-w) and one
    field column, on one spacing scale (16 between sections, 12 between rows,
-   4 between a control and its help). A field is a row; a picture, a drop zone,
-   a list, a long text box, a group of choices and a field with its own button row
-   take the full width. */
-.ds-settings-body .ds-field:has(> .ds-select, > .ds-input, > .ds-affix) {
+   4 between a control and its help). A field, a group of choices (.ds-choices:
+   radios, chips, swatches) and a settings row (.ds-settings-row: a switch with
+   its options) are rows: the label or legend in the label column, the control,
+   the choices and the help in the field column. A picture, a drop zone, a list,
+   a long text box and a field with its own button row take the full width. On
+   the phone sheet (not .ds-settings-body) every label stays above its control. */
+.ds-settings-body .ds-field:has(> .ds-select, > .ds-input, > .ds-affix),
+.ds-settings-body .ds-choices,
+.ds-settings-body .ds-settings-row {
   display: grid; grid-template-columns: var(--ds-settings-label-w) minmax(0, 1fr); align-items: center; column-gap: var(--ds-space-12); row-gap: var(--ds-space-4);
 }
-.ds-settings-body .ds-field:has(> .ds-select, > .ds-input, > .ds-affix) > .ds-label { grid-column: 1; margin-bottom: 0; }
-.ds-settings-body .ds-field:has(> .ds-select, > .ds-input, > .ds-affix) > :not(.ds-label) { grid-column: 2; }
+.ds-settings-body .ds-field:has(> .ds-select, > .ds-input, > .ds-affix) > .ds-label,
+.ds-settings-body .ds-settings-row > .ds-label { grid-column: 1; margin-bottom: 0; }
+.ds-settings-body .ds-field:has(> .ds-select, > .ds-input, > .ds-affix) > :not(.ds-label),
+.ds-settings-body .ds-settings-row > :not(.ds-label) { grid-column: 2; }
+/* A group of choices starts at the top: its legend lines up with the first
+   choice's words. Floated, a legend is no longer drawn in the fieldset's border
+   but is an ordinary box, so it can be the first grid item. */
+.ds-settings-body .ds-choices { align-items: start; }
+.ds-settings-body .ds-choices > legend { float: left; grid-column: 1; grid-row: 1; margin: 0; padding: var(--ds-space-2) 0 0; }
+.ds-settings-body .ds-choices > :not(legend) { grid-column: 2; }
 /* The one primary Generate, always at the bottom of the settings, with its
    cost on it before it is pressed. */
 .ds-generate { padding: var(--ds-space-12) var(--ds-space-16) var(--ds-space-16); border-top: var(--ds-border-width) solid var(--ds-border); display: flex; flex-direction: column; gap: var(--ds-space-8); }

@@ -6,14 +6,15 @@ import {Button,buttonClass} from '@/components/ds/button';
 import {Loading,SkeletonPanel,SkeletonTile,State} from '@/components/ds/feedback';
 import {useToast,type ToastKind} from '@/components/ds/toast';
 import {useBrandKit} from '@/components/brand/brand-kit';
-import {addAsReference} from '@/components/shell/shell-state';
+import {addAsReference,addToCanvas,useShell} from '@/components/shell/shell-state';
 import {useAccount} from '@/components/studio-account';
 import {can} from '@/lib/accounts/can';
 import {cleanHex,NOT_YET,type BrandColour,type BrandKit,type BrandLogo} from '@/lib/brand-kit';
+import {canvasAddSaid,imageSize,logoCanvasAdd} from '@/lib/elements';
 import {removeReference,useReferenceTray,type TrayItem} from '@/lib/reference-tray';
 
-// The Brand panel's body: the company's logos to use as references, and its
-// colours and fonts to copy. The shell draws the panel around it (header,
+// The Brand panel's body: the company's logos to use as references (inside the
+// canvas editor: to add to the design), and its colours and fonts to copy. The shell draws the panel around it (header,
 // close button, the drawer on phones: components/shell/panels.tsx). It reads
 // the kit with useBrandKit(), so it follows a save in Settings → Brand kit
 // (/company/brand), where owners and creators change it. Styles: app/brand.css.
@@ -69,13 +70,31 @@ function Part({title,children}:{title:string;children:React.ReactNode}){
  </section>;
 }
 
+/** A press on a logo inside the editor: it goes on the design, at its own size once the <img> has loaded. */
+export function addLogo(logo:Pick<BrandLogo,'id'|'name'|'url'>,img:{naturalWidth?:unknown;naturalHeight?:unknown}|null,add:typeof addToCanvas=addToCanvas):{message:string;kind:ToastKind}{
+ const item=logoCanvasAdd(logo,imageSize(img));
+ return item?canvasAddSaid(item,add(item)):{message:'This logo can’t be added to the design.',kind:'bad'};
+}
+
 function Logos({logos}:{logos:BrandLogo[]}){
- const tray=useReferenceTray(),{toast}=useToast();
+ const tray=useReferenceTray(),{toast}=useToast(),{canvas}=useShell();
  return <Part title="Logos">
   {logos.length?<ul className="brand-panel-logos">{logos.map(logo=>{
+   const name=logo.name||'Brand logo';
+   // Inside the editor: one press adds the logo to the design (no reference, no tick).
+   if(canvas)return <li key={logo.id}>
+    <button type="button" className="brand-panel-logo" aria-label={`Add ${name} to the design`} title={logo.name} onClick={e=>toast(addLogo(logo,e.currentTarget.querySelector('img')))}>
+     <span className="brand-panel-logo-media">
+      <span className="brand-panel-board" data-theme="light" aria-hidden="true"/>
+      {/* eslint-disable-next-line @next/next/no-img-element -- private media on a signed link */}
+      <img src={logo.url} alt="" loading="lazy" decoding="async"/>
+     </span>
+     <span className="brand-panel-logo-name ds-truncate" aria-hidden="true">{logo.name}</span>
+    </button>
+   </li>;
    const key=logoReference(logo)?.key,on=!!key&&tray.some(t=>t.key===key);
    return <li key={logo.id}>
-    <button type="button" className="brand-panel-logo" aria-pressed={on} aria-label={`Use ${logo.name||'Brand logo'} as a reference`} title={logo.name} onClick={()=>toast(pressLogo(logo,tray))}>
+    <button type="button" className="brand-panel-logo" aria-pressed={on} aria-label={`Use ${name} as a reference`} title={logo.name} onClick={()=>toast(pressLogo(logo,tray))}>
      <span className="brand-panel-logo-media">
       {/* A light checkerboard in both themes: most logos are dark, and transparency shows. */}
       <span className="brand-panel-board" data-theme="light" aria-hidden="true"/>

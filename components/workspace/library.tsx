@@ -32,6 +32,8 @@ export type LibraryActions={
 };
 const TOOLS=['Key visual','Line-up','Film','Car swap','Story'] as const;
 
+/** What the canvas editor can open: a finished key visual or line-up picture. */
+const editable=(w:WorkItem)=>(w.tool==='Key visual'||w.tool==='Line-up')&&(w.kind===undefined||w.kind==='image')&&!w.status&&!w.deleted;
 export function FolderNav({folders,place,counts,hrefFor,label='Folders'}:{folders:Folder[];place:Place;counts:Counts;hrefFor:(p:Place)=>string;label?:string}){
  const top=folders.filter(f=>!f.parentId);
  const row=(p:Place,icon:React.ReactNode,name:string,count:number,sub?:boolean)=><Link key={p} className={'ds-folder'+(sub?' sub':'')} href={hrefFor(p)} aria-current={place===p?'page':undefined}>{icon}<span className="ds-truncate" title={name}>{name}</span><span className="ds-folder-count">{count.toLocaleString('en-US')}</span></Link>;
@@ -165,6 +167,7 @@ export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMo
    {create?.onNewFolder&&<NewFolderDialog key={naming?'open':'shut'} open={naming} folderIn={create.folderIn} onClose={()=>setNaming(false)} onSave={n=>{create.onNewFolder?.(n);setNaming(false)}}/>}
    <MoveDialog open={!!moving} folders={folders} count={moving?.length||0} onClose={()=>setMoving(null)} onMove={f=>{actions.onMove(moving||[],f);setMoving(null);setChosen(new Set())}}/>
    <Viewer items={items} index={open>=0?open:null} onIndex={i=>setOpenItem(items[i]?.id??null)} onClose={()=>setOpenItem(null)} onDownload={actions.onDownload?m=>actions.onDownload!(m as WorkItem):undefined}
+    onEdit={deletedView||readOnly?undefined:m=>router.push('/editor?visual='+encodeURIComponent(m.id))} canEdit={m=>editable(m as WorkItem)}
     onMove={deletedView||!canMove?undefined:m=>setMoving([m.id])} onDelete={deletedView||readOnly?undefined:m=>{setOpenItem(null);actions.onDelete([m.id])}}/>
   </div>
  </div>;

@@ -23,8 +23,8 @@ import {SmartControls,SmartPlanView,SmartReviewView} from '@/components/smart-re
 import type {SmartPriority,SmartPlan} from '@/lib/smart-reference';
 import {InspirationMatch} from '@/components/inspiration-match';
 import {DropZone} from '@/components/ds/drop-zone';
-import {ReferencesSettings} from '@/components/editor/references-settings';
-import {addReference,clearPicked,removeReference,updateReference,useReferenceTray,type TrayItem} from '@/lib/reference-tray';
+import {ReferenceList} from '@/components/editor/reference-list';
+import {addReference,clearPicked,referenceLimit,removeReference,updateReference,useReferenceTray,type TrayItem} from '@/lib/reference-tray';
 import {openPanel} from '@/components/shell/shell-state';
 import {liveConfiguratorUrl} from '@/lib/configurators';
 import {toolOpen} from '@/lib/tools';
@@ -48,6 +48,7 @@ import {Field,Input,Textarea} from '@/components/ds/field';
 import {Fold} from '@/components/ds/layout';
 import {Menu,MenuItem,MenuSeparator} from '@/components/ds/menu';
 import {useToast,type ToastKind} from '@/components/ds/toast';
+import {OpenInEditor} from '@/components/canvas/open-in-editor';
 import {WorkspaceFrame} from '@/components/workspace/frame';
 import {Advanced,EDITOR_TOOLS,EditorScreen,type GenerateBlocker} from '@/components/editor/editor-screen';
 import {CarSettings,ChoiceChips,ConfiguratorStage,CostBadge,PromptSettings,QualitySettings,SaveToProject,SettingsSection,VersionHistory,type Quality,type Version} from '@/components/editor/parts';
@@ -333,7 +334,7 @@ export default function Studio(){
   {!shown?<State kind="empty" icon={<ImagePlus aria-hidden="true"/>} title={historyLoading?'Loading your versions…':'No versions yet'}>Choose your car and inspiration, then Generate.</State>
    :areaOpen&&ready?<AreaEditor key={ready.id} visual={ready} connected={!!status?.generation} onBusy={v=>{setAreaBusy(v);working.current=v}} onSaved={v=>{putImage(v);setCurrentId(v.id);setProvider(v.provider||'openai');setImageModel(v.model||OPENAI_IMAGE_MODEL);setRefinementImages([]);setRefinement('');refinementOwner.current=v.id;setAreaOpen(false);setCompareOpen(false);say('Area edit saved. Everything outside the selection is preserved.','ok')}}/>
    :shown.status==='ready'?<figure className="editor-result">{/* eslint-disable-next-line @next/next/no-img-element -- private media on signed URLs */}
-    <img crossOrigin="anonymous" src={shown.src} alt={shown.title}/>
+    <OpenInEditor visualId={shown.id} title={shown.title}><img crossOrigin="anonymous" src={shown.src} alt={shown.title}/></OpenInEditor>
     <figcaption><span className="ds-truncate" title={shown.title}><b>{shown.title}</b></span>{resultLine(shown)}<CostBadge credits={typeof shown.credits==='number'?shown.credits:null} used/></figcaption>
     <SmartReviewView review={shown.areaEdit?undefined:shown.smartReview}/>
    </figure>
@@ -417,9 +418,10 @@ export default function Studio(){
    </div>
   </CarSettings>
   <div className="ds-contents" onPaste={e=>{const file=clipboardImage(e.clipboardData);if(file){e.preventDefault();if(!lock)void receiveMood(file)}}}>
-   <ReferencesSettings items={tray} onAdd={()=>openPanel('references')} onFile={file=>void receiveMood(file)} onRemove={removeReference}
+   <ReferenceList id="kv-references-title" title="References" limit={referenceLimit('visuals')} help="Pictures that show the look you want: the place, the light, the framing."
+    items={tray} onAdd={()=>openPanel('references')} onFile={file=>void receiveMood(file)} onRemove={removeReference}
     busy={moodUpload||(importingPin?'Finding the largest Pinterest image…':'')} error={moodUploadError||pinError||undefined}
-    smart={smartPick} onSmart={on=>{setSmartPick(on);if(!on)clearPicked()}} count={pickCount} onCount={n=>{setPickCount(n);clearPicked()}} smartState={smartState} disabled={lock}/>
+    smart={{on:smartPick,onChange:on=>{setSmartPick(on);if(!on)clearPicked()},count:pickCount,onCount:n=>{setPickCount(n);clearPicked()},state:smartState}} disabled={lock}/>
   </div>
   {quality}
   <SettingsSection title="How many" id="kv-count-title">

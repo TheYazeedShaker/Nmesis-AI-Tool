@@ -4,21 +4,28 @@ import Link from 'next/link';
 import {Award,BatteryCharging,Camera,Car,CarFront,Flag,Fuel,Gauge,KeyRound,Leaf,MapPin,Moon,Mountain,Navigation,Percent,PlugZap,Route,ShieldCheck,Snowflake,Sparkles,Star,Sun,Tag,Timer,Trophy,Wrench,Zap,type LucideIcon} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {Loading,SkeletonTile} from '@/components/ds/feedback';
+import {useToast} from '@/components/ds/toast';
 import {useBrandKit} from '@/components/brand/brand-kit';
 import {useAccount} from '@/components/studio-account';
 import {can} from '@/lib/accounts/can';
 import {NOT_YET,type BrandKit} from '@/lib/brand-kit';
-import {ALL_PREVIEW,ELEMENT_CATEGORIES,elementsIn,textStyleFont,type ElementCategory,type ElementGroup,type ElementGroupId,type ElementItem,type FrameElement,type IconId,type LineId,type ShapeId} from '@/lib/elements';
+import {ALL_PREVIEW,ELEMENT_CATEGORIES,canvasAddFor,canvasAddSaid,elementsIn,imageSize,logoCanvasAdd,textStyleFont,type ElementCategory,type ElementGroup,type ElementGroupId,type ElementItem,type FrameElement,type IconId,type LineId,type ShapeId} from '@/lib/elements';
+import {addToCanvas,useShell} from './shell-state';
 
 // The Elements panel's body (the shell around it draws the "Elements" header,
 // the close button and, on phones, the drawer). A category bar that scrolls
 // sideways inside itself and stays at the top, and a grid under it: "All" in
 // labelled groups with "See all", or one category. Logos are the company's
-// brand-kit logos. For now the panel only shows and filters, so the elements
-// are pictures with names, not buttons. Data and the filter: lib/elements.ts.
+// brand-kit logos. Outside the canvas editor the panel only shows and filters,
+// so the elements are pictures with names, not buttons. Inside it (a canvas
+// sink is registered, components/shell/shell-state.ts) it lists what the
+// editor can add, and one press adds it; icons are shown but not added yet.
+// Data, the filter and what each element adds: lib/elements.ts.
 // Styles: app/elements.css.
 
 const NOTE='Adding elements to a picture comes with the editor.';
+const DESIGN_NOTE='Click an element to add it to your design.';
+const ICONS_NOTE='Icons can’t be added to a design yet.';
 
 const ICON:Record<IconId,LucideIcon>={
  car:Car,'car-front':CarFront,gauge:Gauge,fuel:Fuel,zap:Zap,'battery-charging':BatteryCharging,'plug-zap':PlugZap,
@@ -72,7 +79,39 @@ function Art({item}:{item:Drawn}){
  }
 }
 
-/** One element: a preview with a name (role="img" + aria-label, or the logo's alt). Not a button yet. */
+/** One element inside the editor: a button that adds it to the design (icons
+ *  stay a picture with a name, as outside). The preview inside is the same. */
+function AddElement({item,kit}:{item:ElementItem;kit:BrandKit|null}){
+ const {toast}=useToast();
+ const add=canvasAddFor(item,kit);
+ if(!add)return <Element item={item} kit={kit}/>;
+ function press(e:React.MouseEvent<HTMLButtonElement>){
+  // A logo goes on at its own size once its picture has loaded.
+  const now=item.kind==='logo'?logoCanvasAdd(item,imageSize(e.currentTarget.querySelector('img'))):add;
+  if(now)toast(canvasAddSaid(now,addToCanvas(now)));
+ }
+ if(item.kind==='text'){
+  const font=textStyleFont(item,kit);
+  return <li className="elements-item">
+   <button type="button" className="elements-text elements-text-add"aria-label={`Add ${item.name.toLowerCase()} text${font?` in ${font}`:''} to the design`} onClick={press}>
+    <span className="elements-text-sample" data-style={item.id}>{item.name}</span>
+    {font&&<span className="elements-text-font">{font}</span>}
+   </button>
+  </li>;
+ }
+ return <li className="elements-item">
+  <button type="button" className="elements-add" aria-label={`Add ${item.name} to the design`} title={item.name} onClick={press}>
+   {item.kind==='logo'
+    ?<span className="elements-tile" data-kind="logo" data-theme="light">
+     {/* eslint-disable-next-line @next/next/no-img-element -- private media on a signed same-origin link */}
+     <img src={item.url} alt="" loading="lazy" decoding="async"/>
+    </span>
+    :<span className="elements-tile" data-kind={item.kind}><Art item={item}/></span>}
+  </button>
+ </li>;
+}
+
+/** One element: a preview with a name (role="img" + aria-label, or the logo's alt). Not a button. */
 function Element({item,kit}:{item:ElementItem;kit:BrandKit|null}){
  if(item.kind==='text'){
   const font=textStyleFont(item,kit);
@@ -110,11 +149,15 @@ function LogosState({kit,error,reload,count,mayEdit}:Kit&{count:number;mayEdit:b
  </div>;
 }
 
-function GroupGrid({group,kit,labelledBy,mayEdit,preview}:{group:ElementGroup;kit:Kit;labelledBy?:string;mayEdit:boolean;preview:boolean}){
+function GroupGrid({group,kit,labelledBy,mayEdit,preview,design}:{group:ElementGroup;kit:Kit;labelledBy?:string;mayEdit:boolean;preview:boolean;design:boolean}){
  if(group.category==='logos'&&!group.items.length)return <LogosState {...kit} count={preview?ALL_PREVIEW:6} mayEdit={mayEdit}/>;
- return <ul className="elements-grid" data-group={group.category} aria-labelledby={labelledBy} aria-label={labelledBy?undefined:group.label}>
-  {group.items.map(item=><Element key={`${item.kind}:${item.id}`} item={item} kit={kit.kit}/>)}
- </ul>;
+ const One=design?AddElement:Element;
+ return <>
+  {design&&group.category==='icons'&&<p className="ds-help">{ICONS_NOTE}</p>}
+  <ul className="elements-grid" data-group={group.category} aria-labelledby={labelledBy} aria-label={labelledBy?undefined:group.label}>
+   {group.items.map(item=><One key={`${item.kind}:${item.id}`} item={item} kit={kit.kit}/>)}
+  </ul>
+ </>;
 }
 
 /** The nearest box that scrolls (the panel's body, or the drawer's) back to its top. */
@@ -126,13 +169,13 @@ function scrollToTop(from:HTMLElement|null){
 }
 
 export function ElementsPanel({initialCategory='all'}:{initialCategory?:ElementCategory}={}){
- const kit=useBrandKit(),account=useAccount();
+ const kit=useBrandKit(),account=useAccount(),design=!!useShell().canvas;
  const mayEdit=can(account,'brand.edit');
  const [category,setCategory]=React.useState<ElementCategory>(initialCategory);
  const root=React.useRef<HTMLDivElement>(null);
  const chips=React.useRef<Partial<Record<ElementCategory,HTMLButtonElement|null>>>({});
  const ids=React.useId();
- const view=elementsIn(category,kit.kit?.logos??null);
+ const view=elementsIn(category,kit.kit?.logos??null,{forDesign:design});
  function choose(next:ElementCategory){
   setCategory(next);
   scrollToTop(root.current);
@@ -147,7 +190,7 @@ export function ElementsPanel({initialCategory='all'}:{initialCategory?:ElementC
    {ELEMENT_CATEGORIES.map(c=><button key={c.id} type="button" className="ds-chip" aria-pressed={view.category===c.id}
     ref={el=>{chips.current[c.id]=el}} onClick={()=>choose(c.id)}>{c.label}</button>)}
   </div>
-  <p className="ds-help">{NOTE}</p>
+  <p className="ds-help">{design?DESIGN_NOTE:NOTE}</p>
   {view.category==='all'
    ?view.groups.map(group=>{
     const head=`${ids}-${group.category}`;
@@ -156,9 +199,9 @@ export function ElementsPanel({initialCategory='all'}:{initialCategory?:ElementC
       <h3 id={head} className="elements-group-title">{group.label}</h3>
       <Button kind="quiet" size="sm" aria-label={`See all ${group.label.toLowerCase()}`} onClick={()=>seeAll(group.category)}>See all</Button>
      </div>
-     <GroupGrid group={group} kit={kit} labelledBy={head} mayEdit={mayEdit} preview/>
+     <GroupGrid group={group} kit={kit} labelledBy={head} mayEdit={mayEdit} preview design={design}/>
     </section>;
    })
-   :view.groups.map(group=><GroupGrid key={group.category} group={group} kit={kit} mayEdit={mayEdit} preview={false}/>)}
+   :view.groups.map(group=><GroupGrid key={group.category} group={group} kit={kit} mayEdit={mayEdit} preview={false} design={design}/>)}
  </div>;
 }
