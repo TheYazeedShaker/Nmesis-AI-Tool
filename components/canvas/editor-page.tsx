@@ -3,7 +3,7 @@ import * as React from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {useRouter,useSearchParams} from 'next/navigation';
-import {ArrowDown,ArrowLeft,ArrowUp,BringToFront,Copy,Download,Monitor,Redo2,Save,SendToBack,Share2,Trash2,Undo2} from 'lucide-react';
+import {ArrowDown,ArrowLeft,ArrowUp,BringToFront,Clock,Copy,Download,ImageOff,Monitor,Redo2,Save,SendToBack,Share2,Trash2,Undo2} from 'lucide-react';
 import {Button,IconButton} from '@/components/ds/button';
 import {Field,Input,Textarea} from '@/components/ds/field';
 import {Loading,State} from '@/components/ds/feedback';
@@ -18,6 +18,8 @@ import {studioFetch} from '@/lib/studio-fetch';
 import type {Visual} from '@/lib/studio';
 import {addLayer,commit,createDoc,duplicateLayer,exportPixelRatio,nudge,redo,removeLayer,reorder,startHistory,undo,updateLayer,type CanvasAdd,type EditorDoc,type History,type Layer} from '@/lib/editor/doc';
 import {editFileName,EDITS_PATH} from '@/lib/editor/save';
+import {answerProblem,CANT_OPEN,linkProblem,type CantOpen} from '@/lib/editor/cant-open';
+import {viewerHref} from '@/lib/work-ref';
 import {loadImage} from './images';
 import type {StageHandle} from './stage';
 
@@ -30,7 +32,6 @@ import type {StageHandle} from './stage';
 // Download exports PNG or JPG at the picture's full resolution. Phones get a
 // note instead: the editor needs a larger screen.
 const CanvasStage=dynamic(()=>import('./stage'),{ssr:false,loading:()=><Loading label="Opening the canvas"><div className="canvas-skeleton"/></Loading>});
-const VISUAL_ID=/^[a-z0-9-]{8,80}$/;
 
 function useNarrow(){
  return React.useSyncExternalStore(l=>{const m=window.matchMedia('(max-width: 767px)');m.addEventListener('change',l);return()=>m.removeEventListener('change',l)},()=>window.matchMedia('(max-width: 767px)').matches,()=>false);
@@ -45,41 +46,61 @@ function useSize(ref:React.RefObject<HTMLElement|null>){
  return size;
 }
 
-type Loaded={kind:'loading'}|{kind:'error';message:string}|{kind:'ready';visual:Visual};
-function useVisual(id:string|null):Loaded{
- const [state,setState]=React.useState<{id:string;loaded:Loaded}>({id:'',loaded:{kind:'loading'}});
+type Loaded={kind:'loading'}|{kind:'error';problem:CantOpen;detail?:string}|{kind:'ready';visual:Visual};
+/** The picture's answer said why it can't be edited (lib/editor/cant-open.ts). */
+class Refused extends Error{problem:CantOpen;constructor(problem:CantOpen,detail?:string){super(detail||CANT_OPEN[problem].body);this.problem=problem}}
+/** The picture at ?visual=<id>; `attempt` asks again (Try again). */
+function useVisual(id:string|null,attempt:number):Loaded{
+ const [state,setState]=React.useState<{key:string;loaded:Loaded}>({key:'',loaded:{kind:'loading'}});
+ const bad=linkProblem(id),key=(id||'')+'#'+attempt;
  React.useEffect(()=>{
-  if(!id||!VISUAL_ID.test(id))return;let live=true;
+  if(bad||!id)return;let live=true;
   studioFetch('/api/visuals/'+id,{signal:AbortSignal.timeout(20_000)})
-   .then(async r=>{const d=await r.json().catch(()=>({})) as {visual?:Visual;error?:string};if(!r.ok||!d.visual)throw new Error(d.error||'This picture could not be opened.');return d.visual})
+   .then(async r=>{const d=await r.json().catch(()=>({})) as {visual?:Visual;error?:string};const problem=answerProblem(r.status,d.visual);if(problem)throw new Refused(problem,problem==='other'?d.error:undefined);return d.visual as Visual})
    .then(async v=>{
-    if(v.status!=='ready')throw new Error('This picture is not finished yet, so it can’t be edited.');
     // An older picture may not say its size: read it from the picture itself.
     if(!(v.width&&v.height)){const img=await loadImage(v.src);v={...v,width:img.naturalWidth,height:img.naturalHeight}}
-    if(live)setState({id,loaded:{kind:'ready',visual:v}});
+    if(live)setState({key,loaded:{kind:'ready',visual:v}});
    })
-   .catch((e:unknown)=>{if(live)setState({id,loaded:{kind:'error',message:e instanceof Error&&e.name!=='TimeoutError'?e.message:'This picture could not be opened. Try again.'}})});
+   .catch((e:unknown)=>{
+    if(!live)return;
+    const problem=e instanceof Refused?e.problem:'other';
+    // Which case, never the address: enough to tell a bad link from a missing picture in the logs.
+    console.warn('[editor] the picture did not open',{problem,reason:e instanceof Error?e.name:'unknown'});
+    setState({key,loaded:{kind:'error',problem,detail:e instanceof Refused&&problem==='other'?e.message:undefined}});
+   });
   return()=>{live=false};
- },[id]);
- if(!id||!VISUAL_ID.test(id))return {kind:'error',message:'Choose a picture to edit: open one of your key visuals or line-ups and click it.'};
- return state.id===id?state.loaded:{kind:'loading'};
+ },[id,bad,key]);
+ if(bad)return {kind:'error',problem:bad};
+ return state.key===key?state.loaded:{kind:'loading'};
+}
+
+/** Why the editor can't open, in its own words, with the way on (Projects; Try again when a load failed). */
+function CantOpenState({problem,detail,onRetry}:{problem:CantOpen;detail?:string;onRetry:()=>void}){
+ const words=CANT_OPEN[problem],calm=problem==='pending'||problem==='missing';
+ return <div className="canvas-editor canvas-editor-state">
+  <State kind={calm?'empty':'error'} icon={problem==='pending'?<Clock/>:problem==='missing'?<ImageOff/>:undefined} title={words.title}
+   actions={<>{problem==='other'&&<Button kind="primary" onClick={onRetry}>Try again</Button>}<Link className="ds-btn" href="/library">Go to Projects</Link></>}>
+   {detail||words.body}
+  </State>
+ </div>;
 }
 
 export function EditorPage(){
- const params=useSearchParams(),id=params.get('visual'),loaded=useVisual(id),narrow=useNarrow();
+ const params=useSearchParams(),id=params.get('visual'),[attempt,setAttempt]=React.useState(0),loaded=useVisual(id,attempt),narrow=useNarrow();
  // Phones have no editor: no editor panels either, and the navigation is the usual one.
  React.useEffect(()=>{if(narrow)closePanel()},[narrow]);
  return <WorkspaceFrame current={narrow?'projects':'editor'} bleed={!narrow} notices={<AccountNotices variant="ds"/>}>
   {narrow?<PhoneNote id={id}/>
    :loaded.kind==='loading'?<Loading label="Opening your picture" className="canvas-editor"><div className="canvas-skeleton"/></Loading>
-   :loaded.kind==='error'?<div className="canvas-editor canvas-editor-state"><State kind="error" title="Can’t open the editor" actions={<Link className="ds-btn" href="/library">Go to Projects</Link>}>{loaded.message}</State></div>
+   :loaded.kind==='error'?<CantOpenState problem={loaded.problem} detail={loaded.detail} onRetry={()=>setAttempt(n=>n+1)}/>
    :<Editor key={loaded.visual.id} visual={loaded.visual}/>}
  </WorkspaceFrame>;
 }
 
 function PhoneNote({id}:{id:string|null}){
  return <div className="canvas-phone-note">
-  <State kind="empty" icon={<Monitor/>} title="Edit on a larger screen" actions={<Link className="ds-btn" href={id&&VISUAL_ID.test(id)?'/library?open='+id:'/library'}>Back to the picture</Link>}>
+  <State kind="empty" icon={<Monitor/>} title="Edit on a larger screen" actions={<Link className="ds-btn" href={id&&!linkProblem(id)?viewerHref({kind:'visual',id}):'/library'}>Back to the picture</Link>}>
    The editor needs a tablet or a computer to place logos and text precisely. Your picture is safe in Projects.
   </State>
  </div>;
@@ -159,7 +180,7 @@ function Editor({visual}:{visual:Visual}){
    const r=await studioFetch(EDITS_PATH,{method:'POST',body:form});const d=await r.json().catch(()=>({})) as {visual?:Visual;error?:string};
    if(!r.ok||!d.visual)throw new Error(d.error||'Your design could not be saved. Try again.');
    if(!copy)setSaved({visual:d.visual,doc});
-   toaster.toast({kind:'ok',message:copy?'Saved a copy in Projects.':'Saved as a new version. The original is unchanged.',action:{label:'Open in Projects',run:()=>router.push('/library?open='+d.visual!.id)}});
+   toaster.toast({kind:'ok',message:copy?'Saved a copy in Projects.':'Saved as a new version. The original is unchanged.',action:{label:'Open in Projects',run:()=>router.push(viewerHref({kind:'visual',id:d.visual!.id}))}});
   }catch(e){toaster.toast({kind:'bad',message:e instanceof Error?e.message:'Your design could not be saved. Try again.'})}
   finally{setBusy('')}
  }
@@ -176,7 +197,7 @@ function Editor({visual}:{visual:Visual}){
 
  return <div className="canvas-editor">
   <div className="canvas-bar">
-   <Link className="ds-btn icon sm quiet" href={'/library?open='+visual.id} aria-label="Back to the picture" title="Back to the picture"><ArrowLeft aria-hidden="true"/></Link>
+   <Link className="ds-btn icon sm quiet" href={viewerHref({kind:'visual',id:visual.id})} aria-label="Back to the picture" title="Back to the picture"><ArrowLeft aria-hidden="true"/></Link>
    <h1 className="canvas-title ds-truncate" title={visual.title}>{visual.title}</h1>
    <span className="canvas-bar-group" role="group" aria-label="History">
     <IconButton label="Undo (Ctrl+Z)" size="sm" disabled={!history.past.length} onClick={()=>setHistory(undo)}><Undo2 aria-hidden="true"/></IconButton>

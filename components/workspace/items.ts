@@ -1,8 +1,11 @@
 import type {MediaItem} from '@/components/ds/media';
+import type {WorkRef} from '@/lib/work-ref';
 // One thing in the company's library, whatever made it: a key visual (and its
 // line-ups and upscales), a film, a car swap or a story.
 export type WorkTool='Key visual'|'Line-up'|'Film'|'Car swap'|'Story';
 export type WorkItem=MediaItem&{
+ /** Its kind and its own id, for the routes and the editor. `id` is the library's key ("visual:<id>"), never one of them. */
+ ref:WorkRef;
  tool:WorkTool;
  car?:string;
  person?:string;

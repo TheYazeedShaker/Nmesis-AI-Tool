@@ -46,7 +46,8 @@ function items(n:number):WorkItem[]{
  return Array.from({length:n},(_,i)=>{
   const tool=TOOLS[i%TOOLS.length],car=CARS[i%CARS.length];
   const status=i===3?{kind:'info' as const,label:'In progress'}:i===9?{kind:'bad' as const,label:'Didn’t finish'}:undefined;
-  return {id:`w${i+1}`,name:i===2?`${LONG_NAME} launch visual`:`${car} · ${SCENES[i%SCENES.length]}`,sub:WHEN[i%4],at:DAYS[i%4]+'T1'+(i%10)+':00:00Z',
+  const kind=tool==='Film'?'film' as const:tool==='Car swap'?'swap' as const:tool==='Story'?'story' as const:'visual' as const,raw='00000000-0000-4000-8000-'+String(i+1).padStart(12,'0');
+  return {id:`${kind}:${raw}`,ref:{kind,id:raw},name:i===2?`${LONG_NAME} launch visual`:`${car} · ${SCENES[i%SCENES.length]}`,sub:WHEN[i%4],at:DAYS[i%4]+'T1'+(i%10)+':00:00Z',
    tool,car,person:PEOPLE[i%PEOPLE.length],src:status?.kind==='info'?undefined:thumb(i),kind:tool==='Film'?'film':tool==='Car swap'?'swap':tool==='Story'?'storyboard':'image',
    status:status||(tool==='Film'?{kind:'quiet' as const,label:'Film'}:tool==='Car swap'?{kind:'quiet' as const,label:'Car swap'}:tool==='Story'?{kind:'quiet' as const,label:'Story'}:undefined),
    folderId:i<14?'f1':i<18?'f1a':i<27?'f2':i<33?'f3':null,deleted:i>=44,width:640,height:400};

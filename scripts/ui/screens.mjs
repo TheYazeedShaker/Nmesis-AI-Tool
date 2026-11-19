@@ -7,6 +7,8 @@
 export const FOLDER_ID = '00000000-0000-4000-8000-0000000f0001';
 // The canvas editor's picture: the first of the owner's seeded key visuals (scripts/ui/seed.mjs, ready, 1536 x 864).
 export const EDITOR_VISUAL_ID = '00000000-0000-4000-8000-000000010000';
+// The owner's one line-up (scripts/ui/seed.mjs: the 13th key visual, made a line-up of two cars).
+export const LINEUP_VISUAL_ID = '00000000-0000-4000-8000-000000010012';
 
 export const ALL_VIEWPORTS = [[1440, 900], [1280, 800], [1024, 768], [768, 1024], [390, 844], [360, 740]];
 export const QUICK_VIEWPORTS = [[1440, 900], [390, 844]];
@@ -71,6 +73,16 @@ export const SCREENS = [
   { id: 'staff-refused', path: '/', roles: ['staffRefused'] },
 ];
 export const SCREEN_IDS = SCREENS.map((s) => s.id);
+
+// Journeys across screens, as a person takes them (scripts/check-ui.mjs runFlows): a hard check, not a
+// ratchet. Each runs once at 1440, in the run or shard that checks its first screen as its person.
+// Edit from Projects: the Projects filters pick the picture, its first tile opens the viewer, Edit opens
+// the canvas editor, which must load that picture (no error state). Selects are named by their labels.
+export const FLOWS = [
+  { id: 'edit-own-key-visual', role: 'owner', from: 'library', filters: { Tool: 'Key visual', Person: 'You' } },
+  { id: 'edit-line-up', role: 'owner', from: 'library', filters: { Tool: 'Line-up' }, expect: LINEUP_VISUAL_ID },
+  { id: 'edit-colleague-picture', role: 'owner', from: 'library', filters: { Tool: 'Key visual', Person: 'A teammate' } },
+];
 
 // Screens in a given state (Phase 3 polish), screenshots only, nothing counted.
 // Each belongs to one screen and person: it is taken in the run (or shard) that

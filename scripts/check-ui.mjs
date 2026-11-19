@@ -35,7 +35,8 @@ const backfill = (stack) => new Promise((resolve, reject) => execFile(process.ex
 import { initScript, quietFor, vitals, layoutChecks, shellOutsideProbe, focusState, providerNamesOnPage } from './ui/checks.mjs';
 import { PROVIDER_PATTERN } from '../lib/provider-words.ts';
 import { runPerf } from './ui/perf.mjs';
-import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
+import { VISUAL_ID } from '../lib/work-ref.ts';
+import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, FLOWS, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
 import { finish } from './ui/ratchet.mjs';
 
 const args = process.argv.slice(2);
@@ -106,6 +107,13 @@ try {
   if (perf) report.perf = perf;
   // The library at scale (Phase 3 group 2): a hard limit, not a ratchet.
   if (perf?.libraryScale && !perf.libraryScale.ok) { console.log('✗ The library at 1,000 items: first paint 1.5 s or more on the phone profile, or storage read for work off screen: ' + JSON.stringify(perf.libraryScale)); exitCode = 1; }
+  // Journeys across screens (Edit from Projects): a hard check, in the run or shard that checks where they start.
+  const flows = await runFlows();
+  if (flows.length) {
+    report.flows = flows;
+    for (const f of flows) console.log(`  flow ${f.id}: ${f.ok ? 'ok' : 'FAILED: ' + f.problems.join('; ')}`);
+    if (flows.some((f) => !f.ok)) { console.log('✗ A journey across screens failed (report.flows).'); exitCode = 1; }
+  }
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
   // Screens in a given state, for the PR (not counted): before/after sheets.
   if (RUN_STATES.length) await stateShots();
@@ -253,6 +261,44 @@ async function check({ screen, role, w, h, theme, dsf, zoom }) {
     out.httpErrors = [...new Set(httpErrors)];
     out.blockedInBrowser = [...(ctx.__blocked || [])];
     await page.close().catch(() => {});
+  }
+  return out;
+}
+
+// Journeys across screens (scripts/ui/screens.mjs FLOWS). Edit from Projects: the filters pick the
+// picture, the first tile with a picture opens the viewer, Edit opens the canvas editor, and the editor
+// must show that picture (its title, the canvas), not a "can't open" state.
+async function runFlows() {
+  const out = [];
+  for (const flow of FLOWS.filter((f) => inRun(f.from, f.role))) {
+    const page = await contexts[flow.role].desktop.newPage();
+    const problems = [], result = { id: flow.id, role: flow.role };
+    page.on('pageerror', (e) => problems.push('Uncaught: ' + String(e.message).slice(0, 200)));
+    try {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+      await page.goto('/library', { waitUntil: 'load', timeout: 30_000 });
+      await ready(page);
+      for (const [label, option] of Object.entries(flow.filters)) { await page.getByLabel(label, { exact: true }).selectOption({ label: option }, { timeout: 5000 }); await ready(page); }
+      const open = page.locator('.ds-tile:has(img) .ds-tile-open').first();
+      await open.waitFor({ timeout: 10_000 });
+      result.picture = (await open.innerText()).replace(/^Open\s+/, '').trim();
+      await open.click({ timeout: 5000 });
+      await page.locator('dialog[open]').getByRole('button', { name: 'Edit', exact: true }).click({ timeout: 5000 });
+      await page.waitForURL(/\/editor\?/,{ timeout: 10_000 });
+      const id = new URL(page.url()).searchParams.get('visual') || '';
+      result.editor = '/editor?visual=' + id;
+      if (!VISUAL_ID.test(id)) problems.push(`Edit sent the editor "${id}", not a picture id`);
+      if (flow.expect && id !== flow.expect) problems.push(`Edit opened ${id}, not ${flow.expect}`);
+      await page.locator('.canvas-editor-state, .canvas-editor .canvas-box canvas').first().waitFor({ timeout: 20_000 });
+      if (await page.locator('.canvas-editor-state').count()) problems.push('the editor showed: ' + (await page.locator('.canvas-editor-state').innerText()).replace(/\s+/g, ' ').slice(0, 200));
+      else {
+        const title = ((await page.locator('.canvas-title').textContent()) || '').trim();
+        if (title !== result.picture) problems.push(`the editor opened "${title}", not "${result.picture}"`);
+      }
+    } catch (e) { problems.push(String(e.message || e).split('\n')[0].slice(0, 200)); }
+    finally { await page.close().catch(() => {}); }
+    out.push({ ...result, ok: !problems.length, problems });
   }
   return out;
 }

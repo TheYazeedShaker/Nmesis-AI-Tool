@@ -13,6 +13,7 @@ import {dayDate,ownKeysLine,OWN_KEYS_ALL} from '@/lib/ds/words';
 import {isDemoConfigurator,useConfiguratorPresets} from '@/lib/configurator-presets';
 import {FEATURE_TOOL,briefPlaceholder,toolSample} from '@/lib/tool-samples';
 import {KEY_VISUAL_HREF} from '@/components/studio-topbar';
+import {viewerHref} from '@/lib/work-ref';
 import type {AccountSummary} from '@/lib/accounts/summary';
 import type {FeatureKey} from '@/lib/accounts/plan';
 import {WorkspaceFrame} from './frame';
@@ -68,7 +69,7 @@ export function HomePage(){
   {lib.problem&&!lib.ready?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:null}
   <HomeScreen tools={tools} greeting={account?(first?`Welcome back, ${first}`:`Welcome to ${workName(account)}`):undefined} placeholder={briefPlaceholder(cars,account?.brand?.id)}
    credits={own===OWN_KEYS_ALL?{left:null,own,href:credits?.usage?'/usage':undefined}:meter?{left:meter.left,resetsOn:meter.resetsOn?dayDate(meter.resetsOn)||meter.resetsOn:null,href:credits?.usage?'/usage':undefined,own}:null}
-   recent={lib.ready?lib.items.map(i=>({...i,href:i.kind==='image'?`/library?open=${encodeURIComponent(i.id)}`:i.href})):lib.problem?[]:null}
+   recent={lib.ready?lib.items.map(i=>({...i,href:i.kind==='image'?viewerHref(i.ref):i.href})):lib.problem?[]:null}
    onStart={brief=>location.assign(brief?`${KEY_VISUAL_HREF}?brief=${encodeURIComponent(brief)}`:KEY_VISUAL_HREF)}/>
  </WorkspaceFrame>;
 }
