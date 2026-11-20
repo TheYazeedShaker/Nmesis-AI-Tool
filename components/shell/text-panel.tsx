@@ -5,6 +5,7 @@ import {useBrandKit} from '@/components/brand/brand-kit';
 import {cleanHex,type BrandKit} from '@/lib/brand-kit';
 import {TEXT_STYLES as STYLE,type TextStyle} from '@/lib/editor/doc';
 import {canvasAddSaid,textCanvasAdd,textStyleFont} from '@/lib/elements';
+import {cssFontFamily} from '@/lib/editor/fonts';
 import {addToCanvas,useShell} from './shell-state';
 
 // The Text panel's body, listed only inside the canvas editor (lib/shell-nav.ts):
@@ -18,9 +19,9 @@ import {addToCanvas,useShell} from './shell-state';
 export const TEXT_PANEL_STYLES:readonly TextStyle[]=['heading','subheading','body'];
 export const NO_EDITOR='Open a picture in the editor to add text.';
 
-/** The preview's font: the brand font first, the Studio's own after it (the brand font may not be on this device). */
-function previewFamily(font:string|null,style:TextStyle){
- return font?`"${font}", ${style==='body'?'var(--ds-font-sans)':'var(--ds-font-display)'}`:undefined;
+/** The preview's font: the brand font itself (served by the Studio, app/brand-fonts.ts), as the canvas draws it. */
+function previewFamily(font:string|null){
+ return font?cssFontFamily(font):undefined;
 }
 
 function Colours({kit}:{kit:BrandKit|null}){
@@ -41,7 +42,7 @@ function TextAdds(){
  return <div className="text-panel">
   <ul className="text-panel-adds" aria-label="Add text">
    {TEXT_PANEL_STYLES.map(style=>{
-    const font=textStyleFont({font:style==='body'?'body':'heading'},kit),family=previewFamily(font,style);
+    const font=textStyleFont({font:style==='body'?'body':'heading'},kit),family=previewFamily(font);
     return <li key={style}>
      <button type="button" className="text-panel-add" data-style={style} onClick={()=>{const add=textCanvasAdd(style,kit);toast(canvasAddSaid(add,addToCanvas(add)))}}>
       <span className="text-panel-sample" style={family?{fontFamily:family}:undefined}>{STYLE[style].sample}</span>

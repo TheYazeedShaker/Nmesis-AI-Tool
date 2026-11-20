@@ -123,7 +123,14 @@ test('the account menu: name (from the profile), email, avatar, company and memb
   assert.match(nav, /navItems\(current\)\.map/);
   assert.match(nav, /navSelection\(current,panel\)/);
   assert.match(nav, /useRememberedOpen\('studio-nav',true\)/);
-  assert.match(nav, /aria-label=\{expanded\?'Collapse navigation':'Expand navigation'\}/);
+  assert.match(nav, /aria-label=\{open\?'Collapse navigation':'Expand navigation'\}/);
+  // Narrow laptops (part 3): the rail whatever was remembered; expanding lays it over the page for a moment.
+  assert.match(nav, /NARROW_LAPTOP='\(min-width: 769px\) and \(max-width: 1280px\)'/);
+  assert.match(nav, /const open=narrow\?peek:expanded,over=narrow&&peek;/);
+  assert.match(nav, /data-expanded=\{open\|\|undefined\} data-over=\{over\|\|undefined\}/);
+  const css = readFileSync(new URL('../app/side-nav.css', import.meta.url), 'utf8');
+  assert.match(css, /@media \(min-width: 769px\) and \(max-width: 1280px\) \{\n  \.studio-side\[data-expanded\]:not\(\[data-over\]\) \{ --studio-side-w: var\(--studio-side-rail\);/, 'the rail from the first paint, before the script runs');
+  assert.match(css, /\.studio-side\[data-over\] \{ margin-right: calc\(var\(--studio-side-rail\) - var\(--studio-side-w\)\);/, 'expanded there, it lies over the page instead of pushing it');
 });
 
 test('theme: light, dark or the system’s, kept in this browser', async () => {

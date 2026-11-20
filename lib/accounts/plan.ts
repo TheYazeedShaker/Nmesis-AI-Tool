@@ -70,6 +70,8 @@ export const ROUTE_FEATURES:RouteRule[]=[
  {path:/^\/api\/assets$/,feature:null},
  // The canvas editor saves a design as a new picture (nothing generated, no credits).
  {path:/^\/api\/edits$/,methods:['POST'],feature:null},
+ // A picture saved from the editor reopens with its layers (read only; like the picture itself, the library may open it).
+ {path:new RegExp(`^/api/edits/${ID}$`),methods:['GET'],feature:null,library:true},
  {path:new RegExp(`^/api/assets/${ID}$`),methods:['GET'],feature:null,library:true},
  {path:new RegExp(`^/api/assets/${ID}/original$`),feature:null},
  // The company's brand kit (logos, colours, fonts, voice): everyone in the company reads; owners and creators change it (lib/accounts/can.ts).

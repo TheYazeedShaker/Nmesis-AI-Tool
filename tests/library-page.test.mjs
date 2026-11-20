@@ -204,3 +204,26 @@ test('until the company’s older work is indexed (0009), the library shows the 
   await assert.rejects(()=>h.page.libraryPage(h.ctx,h.q()),/group 1 feed/);
  }finally{h.close()}
 });
+
+test('a link to work older than the pages loaded opens it alone, with the list’s rules (part 3)',async()=>{
+ const h=await harness(200);
+ try{
+  const first=await h.page.libraryPage(h.ctx,h.q());
+  assert.ok(!first.items.some(i=>i.id==='item-00006'),'older than the newest 40');
+  const one=await h.page.libraryItem(h.ctx,{kind:'visual',id:'item-00006'});
+  assert.equal(one.id,'item-00006');assert.equal(one.kind,'visual');assert.equal(one.full,'/api/assets/asset-6');assert.equal(one.href,'/library?open=visual:item-00006');
+  assert.equal((await h.page.libraryItem(h.ctx,{kind:'visual',id:'item-00010'})).folderId,'folder-top','its folder, for Move');
+  assert.equal(await h.page.libraryItem(h.ctx,{kind:'visual',id:'item-00005'}),null,'deleted work does not open from a link');
+  assert.equal(await h.page.libraryItem(h.ctx,{kind:'film',id:'item-00006'}),null,'the kind must match too');
+  assert.equal(await h.page.libraryItem(h.ctx,{kind:'visual',id:'../x'}),null);
+  assert.equal(await h.page.libraryItem(h.ctx,{kind:'visual',id:'item-00006'},{brandCars:['Demo Saloon']}),null,'another brand’s car (Demo SUV) stays out');
+  assert.equal((await h.page.libraryItem(h.ctx,{kind:'visual',id:'item-00006'},{brandCars:['Demo SUV']})).id,'item-00006');
+  // The route answers ?item=<key>; Projects asks it when ?open= names work not on the pages loaded.
+  const route=readFileSync(new URL('../app/api/library/route.ts',import.meta.url),'utf8');
+  assert.match(route,/searchParams\.get\('item'\)/);assert.match(route,/libraryItem\(ctx,ref,\{brandCars:names\}\)/);
+  const data=readFileSync(new URL('../components/workspace/data.ts',import.meta.url),'utf8');
+  assert.match(data,/send\('\/api\/library\?item='\+encodeURIComponent\(openId\),'GET'\)/);
+  const view=readFileSync(new URL('../components/workspace/library.tsx',import.meta.url),'utf8');
+  assert.match(view,/const viewed=linked&&!items\.some\(m=>m\.id===linked\.id\)\?\[linked,\.\.\.items\]:items;/);
+ }finally{h.close()}
+});

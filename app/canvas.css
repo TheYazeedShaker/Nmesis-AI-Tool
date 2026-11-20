@@ -21,7 +21,18 @@
 }
 .canvas-fit { flex: 1 1 auto; min-height: 0; width: 100%; display: grid; place-items: center; container-type: size; }
 /* The picture's shape (--canvas-ratio, set by the editor), as large as fits: sized before the canvas loads. */
-.canvas-box { width: min(100cqw, calc(100cqh * var(--canvas-ratio, 1.7778))); aspect-ratio: var(--canvas-ratio, 1.7778); line-height: 0; box-shadow: var(--ds-shadow-2); background: var(--ds-media-bg); }
+.canvas-box { position: relative; width: min(100cqw, calc(100cqh * var(--canvas-ratio, 1.7778))); aspect-ratio: var(--canvas-ratio, 1.7778); line-height: 0; box-shadow: var(--ds-shadow-2); background: var(--ds-media-bg); }
+/* Typing on the canvas (components/canvas/text-editor.tsx): the box sits exactly over the text, in its font,
+   size, colour and rotation (set by the editor), with no padding or border of its own so the words do not move.
+   A dashed ring says "you are typing here"; the caret takes the text's colour. */
+.canvas-text-editor {
+  position: absolute; z-index: var(--ds-z-raised); display: block; margin: 0; padding: 0; border: 0; border-radius: 0;
+  background: transparent; resize: none; overflow: hidden; white-space: pre-wrap; overflow-wrap: break-word;
+  transform-origin: top left; caret-color: currentColor;
+  outline: var(--ds-focus-width) dashed var(--ds-ring); outline-offset: var(--ds-space-2);
+}
+/* A notice above the canvas (a font that fell back, layers that didn't load): one line where it fits. */
+.canvas-notice { width: min(100%, var(--ds-measure)); flex: none; }
 .canvas-box:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-4); }
 .canvas-keys { max-width: var(--ds-measure); text-align: center; }
 .canvas-skeleton { width: min(100%, var(--ds-page-max)); aspect-ratio: 16 / 9; border-radius: var(--ds-radius-md); background: var(--ds-skeleton); }
@@ -43,6 +54,17 @@ button.canvas-layer:hover { background: var(--ds-panel-2); }
 .canvas-layer-base { cursor: default; color: var(--ds-muted); }
 .canvas-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); }
 .canvas-colour { width: calc(var(--ds-control-h) * 2); padding: var(--ds-space-2); cursor: pointer; }
+/* Colour: the brand kit's colours first (one press recolours), then any colour. */
+.canvas-colours { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); }
+.canvas-swatches { display: flex; flex-wrap: wrap; gap: var(--ds-space-4); }
+.canvas-swatch {
+  display: inline-grid; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); min-width: var(--ds-control-h-sm); padding: 0;
+  border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius-round); background: var(--swatch); cursor: pointer;
+}
+.canvas-swatch[aria-pressed="true"] { box-shadow: 0 0 0 var(--ds-space-2) var(--ds-panel), 0 0 0 var(--ds-space-4) var(--ds-text-strong); }
+.canvas-swatch:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-4); }
+/* The tick reads on light and dark brand colours alike: it carries its own contrasting ring. */
+.canvas-swatch > svg { width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-on-media); filter: drop-shadow(0 0 var(--ds-space-2) var(--ds-media-shade)); }
 .canvas-phone-note { flex: 1 1 auto; display: grid; place-items: center; padding: var(--ds-space-24) var(--ds-space-16); }
 @media (max-width: 1024px) {
   .canvas-bar-actions .ds-btn.quiet { padding: 0 var(--ds-space-8); }

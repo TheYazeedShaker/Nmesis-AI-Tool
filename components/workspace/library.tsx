@@ -96,10 +96,10 @@ function More({hasMore,loading,onMore,shown,total}:{hasMore:boolean;loading:bool
  </div>;
 }
 
-export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMore,loading,onMore,hrefFor,actions,createHref='/',create,above,readOnly,openId,foldersReady=true}:{
+export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMore,loading,onMore,hrefFor,actions,createHref='/',create,above,readOnly,openId,linked,foldersReady=true}:{
  items:WorkItem[];total:number;counts:Counts;folders:Folder[];cars:string[];query:LibraryQuery;onQuery:(q:Partial<LibraryQuery>)=>void;
  hasMore:boolean;loading:boolean;onMore:()=>void;hrefFor:(p:Place)=>string;actions:LibraryActions;/** Without create: a plain Create link to here. */createHref?:string;/** The Create menu. */create?:CreateOptions;
- /** A folder's path and sub-folders, above its title. */above?:React.ReactNode;/** Viewers and staff viewing a client: look, open, download. */readOnly?:boolean;/** Open this item in the viewer (?open=). */openId?:string|null;/** Before migration 0006 there are no folders to move to. */foldersReady?:boolean}){
+ /** A folder's path and sub-folders, above its title. */above?:React.ReactNode;/** Viewers and staff viewing a client: look, open, download. */readOnly?:boolean;/** Open this item in the viewer (?open=). */openId?:string|null;/** The item ?open= names when it isn't among `items` (an older one, asked for alone): the viewer shows it first. */linked?:WorkItem|null;/** Before migration 0006 there are no folders to move to. */foldersReady?:boolean}){
  const [view,setView]=React.useState<'grid'|'list'>('grid'),[typed,setTyped]=React.useState(query.q);
  const router=useRouter();
  const [chosen,setChosen]=React.useState<Set<string>>(new Set()),[openItem,setOpenItem]=React.useState<string|null>(openId||null),[openAsked,setOpenAsked]=React.useState(openId||null),[moving,setMoving]=React.useState<string[]|null>(null),[naming,setNaming]=React.useState(false);
@@ -112,7 +112,9 @@ export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMo
  const toggle=(id:string,on:boolean)=>setChosen(s=>{const n=new Set(s);if(on)n.add(id);else n.delete(id);return n});
  const clear=()=>{setTyped('');onQuery({tool:'',car:'',who:'',q:''})};
  const ids=[...chosen],deletedView=place==='deleted';
- const open=openItem?items.findIndex(m=>m.id===openItem):-1;
+ // The viewer's list: the item a link opened, when it is not on the pages loaded, then the rest.
+ const viewed=linked&&!items.some(m=>m.id===linked.id)?[linked,...items]:items;
+ const open=openItem?viewed.findIndex(m=>m.id===openItem):-1;
  const openTile=(m:WorkItem)=>{if(m.kind==='image'||!m.href||deletedView)setOpenItem(m.id);else location.assign(m.href)};
  const folder=folders.find(f=>f.id===place);
  const title=deletedView?'Deleted':place==='all'?'Library':place==='unsorted'?'Not in a folder':folder?.name||'Library';
@@ -171,7 +173,7 @@ export function LibraryView({items,total,counts,folders,cars,query,onQuery,hasMo
    </BulkBar>
    {create?.onNewFolder&&<NewFolderDialog key={naming?'open':'shut'} open={naming} folderIn={create.folderIn} onClose={()=>setNaming(false)} onSave={n=>{create.onNewFolder?.(n);setNaming(false)}}/>}
    <MoveDialog open={!!moving} folders={folders} count={moving?.length||0} onClose={()=>setMoving(null)} onMove={f=>{actions.onMove(moving||[],f);setMoving(null);setChosen(new Set())}}/>
-   <Viewer items={items} index={open>=0?open:null} onIndex={i=>setOpenItem(items[i]?.id??null)} onClose={()=>setOpenItem(null)} onDownload={actions.onDownload?m=>actions.onDownload!(m as WorkItem):undefined}
+   <Viewer items={viewed} index={open>=0?open:null} onIndex={i=>setOpenItem(viewed[i]?.id??null)} onClose={()=>setOpenItem(null)} onDownload={actions.onDownload?m=>actions.onDownload!(m as WorkItem):undefined}
     onEdit={deletedView||readOnly?undefined:m=>{const href=editLink(m as WorkItem);if(href)router.push(href)}} canEdit={m=>!!editLink(m as WorkItem)}
     onMove={deletedView||!canMove?undefined:m=>setMoving([m.id])} onDelete={deletedView||readOnly?undefined:m=>{setOpenItem(null);actions.onDelete([m.id])}}/>
   </div>

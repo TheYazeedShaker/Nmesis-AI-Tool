@@ -21,7 +21,7 @@ export const RETINA_WINDOW = [1191, 786];
 export const RETINA_ZOOMS = [0.9, 1, 1.1];
 export const retinaViewport = (zoom) => ({ w: Math.floor(RETINA_WINDOW[0] / zoom), h: Math.floor(RETINA_WINDOW[1] / zoom), dsf: +(2 * zoom).toFixed(2), zoom });
 export const KEY_WIDTHS = new Set([1440, 390]); // axe, the keyboard walk and screenshots
-export const SHOT_WIDTHS = new Set([1440, 1280, 1024, 390]); // screenshots: small laptops too (Phase 3 group 2)
+export const SHOT_WIDTHS = new Set([1440, 1280, 1191, 1024, 390]); // screenshots: small laptops too (Phase 3 group 2), and the Retina laptop at 100 % (1191 x 786)
 export const THEMES = ['light', 'dark'];
 
 // Who looks. `org` is opened through the Studio's own deep link after sign-in.
