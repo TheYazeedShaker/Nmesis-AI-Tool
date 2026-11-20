@@ -20,7 +20,7 @@ import {WorkspaceFrame} from './frame';
 import {HomeScreen,type HomeTool} from './home';
 import {LibraryView,type CreateOptions,type Place} from './library';
 import {FolderHeader,ProjectsHeader,ProjectsScreen,ProjectsUnavailable,folderHref} from './projects';
-import {useLibraryPage} from './data';
+import {useLibraryPage,useLinkedItem} from './data';
 
 // The rebuilt screens wired to the Studio (Phase 3): the library a page at a time.
 
@@ -83,9 +83,11 @@ function LibraryAtAddress(){
  const account=useAccount(),params=useSearchParams();
  const place:Place=params.get('in')||'all',openId=params.get('open');
  const lib=useLibraryPage(place);
+ // A link to work older than the pages loaded still opens it (asked for alone).
+ const linked=useLinkedItem(openId,lib.items,lib.ready);
  return <WorkspaceFrame current="library" notices={<AccountNotices variant="ds"/>}>
   {!lib.ready?(lib.problem?<Problem text={lib.problem} onRetry={()=>void lib.reload()}/>:<Loading/>)
-   :<LibraryView {...lib} hrefFor={libraryHref} readOnly={!canChange(account)} openId={openId} create={createOptions(account,name=>lib.folderActions.onCreate(name,null))}/>}
+   :<LibraryView {...lib} hrefFor={libraryHref} readOnly={!canChange(account)} openId={openId} linked={linked} create={createOptions(account,name=>lib.folderActions.onCreate(name,null))}/>}
  </WorkspaceFrame>;
 }
 

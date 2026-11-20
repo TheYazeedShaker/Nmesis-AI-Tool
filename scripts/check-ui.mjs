@@ -23,9 +23,14 @@
 //   npm run check:ui -- --perf              the performance baseline too (scripts/ui/perf.mjs)
 //   npm run check:ui -- --update            write the baseline as it is now (a full run: totals
 //                                           and every screen; with --only: those screens)
+//   npm run check:ui -- --browser=webkit --only=editor,settings
+//                                           the same checks in WebKit (Safari's engine): reported,
+//                                           not compared (the baseline is Chromium's); the band
+//                                           (shellNotFilling), a page that errors and the journeys
+//                                           still fail it. No --perf (it reads Chromium's DevTools).
 import fs from 'node:fs';
 import path from 'node:path';
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 import { startStack } from './ui/stack.mjs';
 import { seedStudio, ORGS, PEOPLE, PASSWORD } from './ui/seed.mjs';
@@ -44,7 +49,11 @@ const flag = (n) => args.includes('--' + n);
 const opt = (n) => (args.find((a) => a.startsWith(`--${n}=`)) || '').slice(n.length + 3);
 const OUT = path.resolve('ui-report');
 const BASELINE = path.resolve('scripts/ui-baseline.json');
-const QUICK = flag('quick'), SHOTS = flag('shots'), UPDATE = flag('update'), PERF = flag('perf');
+const ENGINE = opt('browser') || 'chromium';
+if (!['chromium', 'webkit'].includes(ENGINE)) { console.error('--browser is chromium (the default) or webkit.'); process.exit(2); }
+const WEBKIT = ENGINE === 'webkit';
+const QUICK = flag('quick'), SHOTS = flag('shots'), UPDATE = flag('update'), PERF = flag('perf') && !WEBKIT;
+if (WEBKIT && UPDATE) { console.error('The baseline is Chromium\'s: --update runs without --browser=webkit.'); process.exit(2); }
 const SELECTED = (() => { try { return selectScreens(opt('only')); } catch (e) { console.error(e instanceof Error ? e.message : e); process.exit(2); } })();
 const SHARD = opt('shard') ? opt('shard').split('/').map(Number) : null;
 const WORKERS = Number(opt('workers')) || 3;
@@ -76,7 +85,8 @@ fs.mkdirSync(path.join(OUT, 'shots'), { recursive: true });
 if (SHARD) console.log(`Shard ${SHARD.join('/')}: ${UNITS.length} screen and person pairs (${UNITS.join(', ')})`);
 const stack = await startStack({ adminUrl: process.env.TEST_DATABASE_URL, log: (l) => console.log('  ' + l) });
 console.log(`Studio ready in ${stack.readyMs} ms at ${stack.origin}`);
-const browser = await chromium.launch();
+const browser = await (WEBKIT ? webkit : chromium).launch();
+if (WEBKIT) console.log('WebKit (Safari\'s engine): counts are reported, not compared with the Chromium baseline.');
 const harnessMistakes = [];
 const contexts = {};
 let exitCode = 0;
@@ -117,7 +127,17 @@ try {
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
   // Screens in a given state, for the PR (not counted): before/after sheets.
   if (RUN_STATES.length) await stateShots();
-  if (SHARD) {
+  report.engine = ENGINE;
+  if (WEBKIT) {
+    // Safari: what breaks there. The counts are not Chromium's, so they are listed, not compared;
+    // a band under the app, a page that errors and a failed journey still fail the run.
+    finish({ report, out: OUT, baselineFile: BASELINE, full: false, compareWith: false });
+    const band = results.filter((r) => r.shellShort?.length), broken = results.filter((r) => r.consoleErrors?.some((e) => e.startsWith('Uncaught')) || r.error);
+    for (const r of band) console.log(`✗ WebKit: the app does not fill the window on ${r.screen} as ${r.role} at ${r.w} x ${r.h}${r.zoom ? ` (zoom ${r.zoom})` : ''}: ${JSON.stringify(r.shellShort).slice(0, 300)}`);
+    for (const r of broken) console.log(`✗ WebKit: ${r.screen} as ${r.role} at ${r.w} x ${r.h}${r.zoom ? ` (zoom ${r.zoom})` : ''} threw: ${String(r.error || r.consoleErrors.find((e) => e.startsWith('Uncaught'))).slice(0, 300)}`);
+    if (band.length || broken.length) exitCode = 1;
+    console.log(`WebKit done: ${results.length} page checks, ${band.length} with a band, ${broken.length} with page errors.`);
+  } else if (SHARD) {
     // A screen can span shards: the counts are compared once the shards are merged.
     finish({ report, out: OUT, baselineFile: BASELINE, full: false, compareWith: false });
     console.log(`Shard ${SHARD.join('/')} done: ${results.length} page checks. The ratchet runs on the merged report (node scripts/ui/merge.mjs).`);

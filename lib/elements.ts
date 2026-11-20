@@ -140,7 +140,7 @@ export type ElementView={category:ElementCategory;groups:ElementGroup[]};
  *  ALL_PREVIEW elements; a category gives one group with all of them.
  *  Logos come from the brand kit (`logos`; null while it loads).
  *  `forDesign` (inside the editor): only what the editor can add, so every
- *  tile is a button; icons stay, shown but not added yet. */
+ *  tile is a button (an icon is added from its drawing, iconCanvasAdd). */
 export function elementsIn(category:unknown,logos?:readonly Pick<BrandLogo,'id'|'name'|'url'>[]|null,{forDesign=false}:{forDesign?:boolean}={}):ElementView{
  const chosen:ElementCategory=isElementCategory(category)?category:'all';
  const keep=(list:readonly ElementItem[])=>forDesign?list.filter(i=>i.kind==='icon'||canvasAddFor(i)!==null):list;
@@ -151,7 +151,7 @@ export function elementsIn(category:unknown,logos?:readonly Pick<BrandLogo,'id'|
 }
 
 /** The brand kit's font to name under a text style, or null (no kit yet, or
- *  the kit keeps the system font). Only a name: no web font is loaded. */
+ *  the kit keeps the system font). The panels draw it with lib/editor/fonts.ts cssFontFamily. */
 export function textStyleFont(item:Pick<TextElement,'font'>,kit:Pick<BrandKit,'headingFont'|'bodyFont'>|null|undefined):string|null{
  if(!kit)return null;
  const font:unknown=item.font==='heading'?kit.headingFont:kit.bodyFont;
@@ -207,7 +207,15 @@ export function textCanvasAdd(style:TextStyle,kit:Pick<BrandKit,'headingFont'|'b
  return {kind:'text',style,font:isBrandFont(font)&&font!=='System'?font:DESIGN_FONT,color:colour??DESIGN_INK};
 }
 
-/** What pressing an element adds, or null: icons, and what the editor can't draw yet. */
+/** An icon (lucide's name, e.g. "car-front") as a vector layer to add: the paths read from its drawing in the
+ *  panel (lib/editor/icons.ts), in the brand kit's first colour, else white. Null without anything to draw. */
+export function iconCanvasAdd(icon:{id:string;name:string},paths:readonly string[],kit?:Pick<BrandKit,'colours'>|null):CanvasAdd|null{
+ if(!/^[a-z0-9-]{1,60}$/.test(icon.id)||!paths.length)return null;
+ const colour=Array.isArray(kit?.colours)?kit.colours.map(c=>cleanHex(c?.hex)).find((h):h is string=>!!h):undefined;
+ return {kind:'icon',icon:icon.id,name:named(icon.name,'Icon'),paths:[...paths],color:colour??DESIGN_INK};
+}
+
+/** What pressing an element adds, or null: what the editor can't draw yet (and icons, added from their drawing). */
 export function canvasAddFor(item:ElementItem,kit?:Pick<BrandKit,'headingFont'|'bodyFont'|'colours'>|null):CanvasAdd|null{
  switch(item.kind){
   case 'shape':{const shape=SHAPE_ADD[item.id];return shape?{kind:'shape',shape}:null}
@@ -219,7 +227,7 @@ export function canvasAddFor(item:ElementItem,kit?:Pick<BrandKit,'headingFont'|'
  }
 }
 
-const ADDED:Record<CanvasAdd['kind'],string>={image:'Picture',text:'Text',shape:'Shape',line:'Line',frame:'Frame'};
+const ADDED:Record<CanvasAdd['kind'],string>={image:'Picture',text:'Text',shape:'Shape',line:'Line',frame:'Frame',icon:'Icon'};
 /** What the person is told after a press: what was added and to drag it into place, or that no editor is open. */
 export function canvasAddSaid(add:CanvasAdd,added:boolean):{message:string;kind:'ok'|'info'}{
  if(!added)return {message:'Open a picture in the editor to add this.',kind:'info'};

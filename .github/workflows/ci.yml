@@ -348,6 +348,64 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  # Safari: the canvas editor and the settings grid in WebKit (Safari's engine),
+  # when the change can reach them. Reported (ui-report-webkit), not compared:
+  # the baseline is Chromium's. A band under the app, a page that throws or a
+  # failed journey fails it. Not a required check.
+  ui-safari:
+    name: ui safari (WebKit)
+    needs: plan
+    if: needs.plan.outputs.mode == 'full' || contains(needs.plan.outputs.only, 'editor') || contains(needs.plan.outputs.only, 'settings')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: studio_ui
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install (frozen lockfile)
+        run: npm ci
+      - name: Install WebKit for Playwright
+        run: npx playwright install --with-deps webkit
+      - name: Restore the Next.js build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('app/**', 'components/**', 'lib/**', 'hooks/**', 'public/**', 'proxy.ts', 'next.config.ts', 'postcss.config.mjs', 'tsconfig.json') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+      - name: Build
+        run: npm run build
+      - name: The editor and the settings grid in WebKit
+        run: npm run check:ui -- --browser=webkit --only=editor,settings --shots
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/studio_ui?sslmode=disable
+      - name: Upload the WebKit report and screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-report-webkit
+          path: ui-report/
+          retention-days: 7
+          if-no-files-found: warn
+
   # The required check: the shards merged and compared with the baseline, or
   # the full sweep passed, or no screen was affected.
   ui:

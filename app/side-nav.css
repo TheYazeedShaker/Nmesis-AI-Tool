@@ -46,7 +46,7 @@ html:has(> body > .studio-frame[data-fill]) > body { height: 100%; overflow: cli
 
 /* ── The navigation ───────────────────────────────────────────────────── */
 .studio-side {
-  --studio-side-w: 84px;
+  --studio-side-rail: 84px; --studio-side-w: var(--studio-side-rail);
   position: sticky; top: 0; flex: none; width: var(--studio-side-w); height: 100dvh;
   display: flex; flex-direction: column; gap: var(--ds-space-8);
   padding: var(--ds-space-12) var(--ds-space-8);
@@ -164,6 +164,23 @@ a.studio-account-row:hover, button.studio-account-row:hover { background: var(--
 .ds-dialog .studio-how-step { display: grid; grid-template-columns: var(--ds-space-24) minmax(0, 1fr); column-gap: var(--ds-space-12); row-gap: var(--ds-space-2); }
 .ds-dialog .studio-how-rail { grid-row: span 2; flex-direction: column; align-self: stretch; }
 .ds-dialog .studio-how-step:not(:last-child) .studio-how-rail::after { width: var(--ds-border-width); height: auto; }
+
+/* ── Narrow laptops: the icon rail, so the canvas and settings have the room ── */
+/* 769–1280px (components/shell/side-nav.tsx NARROW_LAPTOP). The first paint
+   comes from the server, which cannot know the width: a remembered "expanded"
+   is drawn as the rail here, so nothing moves when the script takes over.
+   Expanded on purpose (data-over), the navigation lies over the page: the page
+   keeps its width (a negative margin of the difference) and a shadow lifts it. */
+@media (min-width: 769px) and (max-width: 1280px) {
+  .studio-side[data-expanded]:not([data-over]) { --studio-side-w: var(--studio-side-rail); padding: var(--ds-space-12) var(--ds-space-8); }
+  .studio-side[data-expanded]:not([data-over]) .studio-side-head { flex-direction: column; justify-content: flex-start; }
+  .studio-side[data-expanded]:not([data-over]) .studio-side-item {
+    flex-direction: column; justify-content: center; gap: var(--ds-space-4); min-height: var(--ds-space-64);
+    padding: var(--ds-space-8) var(--ds-space-4); font-size: var(--ds-text-2xs); line-height: var(--ds-leading-2xs); text-align: center;
+  }
+  .studio-side[data-expanded]:not([data-over]) :is(.studio-side-brand > .studio-side-word, .studio-side-credits, .studio-account-label) { display: none; }
+  .studio-side[data-over] { margin-right: calc(var(--studio-side-rail) - var(--studio-side-w)); z-index: var(--ds-z-dropdown); box-shadow: var(--ds-shadow-3); }
+}
 
 /* ── Phones: a slim bar, the navigation in a drawer ───────────────────── */
 .studio-phonebar { display: none; }

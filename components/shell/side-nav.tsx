@@ -21,7 +21,11 @@ import {closePanel,togglePanel,useShell} from './shell-state';
 // come from lib/shell-nav.ts: pages everywhere (Home, Projects, Uploads,
 // Settings), and inside a tool's view the tool's panels (References, Brand,
 // Elements, Uploads), which open beside it. Below 768px it lives in a drawer
-// opened from a slim bar at the top.
+// opened from a slim bar at the top. On narrow laptops (769–1280px, NARROW_LAPTOP)
+// it is the icon rail whatever was remembered, so the canvas and the settings
+// have the room; expanding it there lays it over the page until a choice is
+// made, Esc is pressed or the page is clicked (app/side-nav.css draws the rail
+// from the first paint, before this script runs, so nothing moves on load).
 
 const ICON:Record<NavKey,React.ReactNode>={home:<Home/>,projects:<FolderOpen/>,references:<Images/>,brand:<Palette/>,elements:<Shapes/>,text:<Type/>,uploads:<CloudUpload/>,settings:<Settings/>};
 const hide=(icon:React.ReactNode)=>React.isValidElement(icon)?React.cloneElement(icon as React.ReactElement<{'aria-hidden'?:boolean}>,{'aria-hidden':true}):icon;
@@ -127,21 +131,37 @@ function Credits(){
  return <div className="studio-side-credits">{answered?<Meter credits={credits}/>:!account.internal&&<MeterSkeleton/>}</div>;
 }
 
+/** Narrow laptops: the navigation is its icon rail (app/side-nav.css has the same range). */
+export const NARROW_LAPTOP='(min-width: 769px) and (max-width: 1280px)';
+function useNarrowLaptop(){
+ return React.useSyncExternalStore(l=>{const m=window.matchMedia(NARROW_LAPTOP);m.addEventListener('change',l);return()=>m.removeEventListener('change',l)},()=>window.matchMedia(NARROW_LAPTOP).matches,()=>false);
+}
+
 /** The navigation column (wide screens) and its drawer (phones). */
 export function SideNav({current}:{current?:StudioPage}){
  const account=useAccount();
  const [expanded,setExpanded]=useRememberedOpen('studio-nav',true);
+ const narrow=useNarrowLaptop(),[peek,setPeek]=React.useState(false);
+ // On a narrow laptop the rail, unless expanded for a moment over the page; elsewhere the remembered choice.
+ const open=narrow?peek:expanded,over=narrow&&peek;
  const [drawer,setDrawer]=React.useState(false),[help,setHelp]=React.useState(false);
+ const nav=React.useRef<HTMLElement>(null);
+ React.useEffect(()=>{
+  if(!over)return;
+  const away=(e:PointerEvent)=>{if(e.target instanceof Node&&!nav.current?.contains(e.target)&&!(e.target instanceof Element&&e.target.closest('.studio-account-pop')))setPeek(false)};
+  document.addEventListener('pointerdown',away);
+  return()=>document.removeEventListener('pointerdown',away);
+ },[over]);
  return <>
-  <nav className="studio-side" aria-label="Main" data-expanded={expanded||undefined}>
+  <nav ref={nav} className="studio-side" aria-label="Main" data-expanded={open||undefined} data-over={over||undefined} onKeyDown={e=>{if(over&&e.key==='Escape'){e.stopPropagation();setPeek(false)}}}>
    <div className="studio-side-head">
-    <Link className="studio-side-brand" href="/" aria-label="Nmesis Studio, Home"><span className="ds-brand-mark" aria-hidden="true"><Aperture/></span>{expanded&&<span className="studio-side-word" aria-hidden="true">NMESIS <span className="ds-brand-sub">STUDIO</span></span>}</Link>
-    <button type="button" className="ds-btn icon sm studio-side-toggle" aria-label={expanded?'Collapse navigation':'Expand navigation'} aria-expanded={expanded} onClick={()=>setExpanded(!expanded)}>{expanded?<PanelLeftClose aria-hidden="true"/>:<PanelLeftOpen aria-hidden="true"/>}</button>
+    <Link className="studio-side-brand" href="/" aria-label="Nmesis Studio, Home"><span className="ds-brand-mark" aria-hidden="true"><Aperture/></span>{open&&<span className="studio-side-word" aria-hidden="true">NMESIS <span className="ds-brand-sub">STUDIO</span></span>}</Link>
+    <button type="button" className="ds-btn icon sm studio-side-toggle" aria-label={open?'Collapse navigation':'Expand navigation'} aria-expanded={open} onClick={()=>{if(narrow)setPeek(!peek);else setExpanded(!expanded)}}>{open?<PanelLeftClose aria-hidden="true"/>:<PanelLeftOpen aria-hidden="true"/>}</button>
    </div>
-   <NavItems current={current}/>
+   <NavItems current={current} onGo={over?()=>setPeek(false):undefined}/>
    <span className="ds-spacer"/>
-   {expanded&&<Credits/>}
-   {account&&<AccountButton account={account} compact={!expanded} onHelp={()=>setHelp(true)}/>}
+   {open&&<Credits/>}
+   {account&&<AccountButton account={account} compact={!open} onHelp={()=>setHelp(true)}/>}
   </nav>
   <header className="studio-phonebar">
    <Link className="studio-side-brand" href="/" aria-label="Nmesis Studio, Home"><span className="ds-brand-mark" aria-hidden="true"><Aperture/></span><span aria-hidden="true">NMESIS</span></Link>

@@ -15,7 +15,10 @@ export type ShapeKind=typeof SHAPES[number];
 export type ShapeLayer=Base&{kind:'shape';shape:ShapeKind;fill:string;stroke:string;strokeWidth:number};
 export type LineLayer=Base&{kind:'line';dash:boolean;arrow:'none'|'end'|'both';stroke:string;strokeWidth:number};
 export type FrameLayer=Base&{kind:'frame';stroke:string;strokeWidth:number;radius:number};
-export type Layer=ImageLayer|TextLayer|ShapeLayer|LineLayer|FrameLayer;
+/** An icon from the Studio's icon set (lucide), kept as its vector paths on a 24 x 24 grid
+ *  (lib/editor/icons.ts), so it draws sharp at any size and needs nothing else to reopen. */
+export type IconLayer=Base&{kind:'icon';icon:string;paths:string[];color:string;strokeWidth:number};
+export type Layer=ImageLayer|TextLayer|ShapeLayer|LineLayer|FrameLayer|IconLayer;
 export type EditorDoc={width:number;height:number;background:{visualId:string;src:string};layers:Layer[]};
 
 /** What a panel asks the canvas to add (Brand, Elements, Text, Uploads). */
@@ -24,9 +27,14 @@ export type CanvasAdd=
  |{kind:'text';style:TextStyle;text?:string;font?:string;color?:string}
  |{kind:'shape';shape:ShapeKind;fill?:string}
  |{kind:'line';dash?:boolean;arrow?:'none'|'end'|'both'}
- |{kind:'frame';ratio:number;radius?:number};
+ |{kind:'frame';ratio:number;radius?:number}
+ |{kind:'icon';icon:string;name:string;paths:string[];color?:string};
 
-export const MAX_LAYERS=200,TEXT_MAX=500,NAME_MAX=80;
+export const MAX_LAYERS=200,TEXT_MAX=500,NAME_MAX=80,ICON_PATHS_MAX=40,ICON_PATH_MAX=4000;
+/** An icon's own grid (lucide draws on 24 x 24) and its default line weight on that grid. */
+export const ICON_GRID=24,ICON_STROKE=2;
+/** Text's line height on the canvas, the in-place text box and the export alike. */
+export const TEXT_LINE_HEIGHT=1.15;
 export const TEXT_STYLES:Record<TextStyle,{label:string;sample:string;size:number;weight:number}>={
  // Sizes are fractions of the picture's height, so a style looks the same on any picture.
  heading:{label:'Heading',sample:'Add a heading',size:0.08,weight:700},
@@ -59,6 +67,7 @@ export function layerFor(doc:EditorDoc,add:CanvasAdd,id:string):Layer{
   return {...centred(doc,width,fontSize*1.3),id,kind:'text',name:s.label,text,style:add.style,font:add.font||FALLBACK_FONT,fontSize,fontWeight:s.weight,color:add.color||INK,align:'center'};
  }
  if(add.kind==='shape')return {...centred(doc,short*0.25,short*0.25),id,kind:'shape',name:SHAPE_NAMES[add.shape],shape:add.shape,fill:add.fill||INK,stroke:'transparent',strokeWidth:0};
+ if(add.kind==='icon'){const s=short*0.16;return {...centred(doc,s,s),id,kind:'icon',name:(add.name||'Icon').slice(0,NAME_MAX),icon:add.icon,paths:add.paths.slice(0,ICON_PATHS_MAX),color:add.color||INK,strokeWidth:ICON_STROKE}}
  if(add.kind==='line')return {...centred(doc,doc.width*0.3,Math.max(2,short*0.006)),id,kind:'line',name:add.arrow&&add.arrow!=='none'?'Arrow':'Line',dash:!!add.dash,arrow:add.arrow||'none',stroke:INK,strokeWidth:Math.max(2,Math.round(short*0.006))};
  const h=short*0.4,w=clamp(h*add.ratio,8,doc.width*0.9);
  return {...centred(doc,w,h),id,kind:'frame',name:'Frame',stroke:INK,strokeWidth:Math.max(2,Math.round(short*0.004)),radius:Math.round((add.radius||0)*short)};
@@ -108,21 +117,26 @@ export function snap(doc:EditorDoc,moving:{id:string}&Box,threshold:number):{x:n
 }
 
 // ── Undo and redo ────────────────────────────────────────────────────────
-export type History<T>={past:T[];present:T;future:T[]};
+/** `merge`: the key of the last step when it may take more of the same change (typing in one text). */
+export type History<T>={past:T[];present:T;future:T[];merge?:string};
 export const HISTORY_MAX=100;
 export const startHistory=<T,>(present:T):History<T>=>({past:[],present,future:[]});
-/** A new step (clears what was undone). Pushing the same state twice is a no-op. */
-export function commit<T>(h:History<T>,next:T):History<T>{
+/** A new step (clears what was undone). Pushing the same state twice is a no-op.
+ *  With `merge` (e.g. "type:<layer>:<session>"), a change right after another
+ *  with the same key joins that step: typing a word is one step to undo, not one per letter. */
+export function commit<T>(h:History<T>,next:T,merge?:string):History<T>{
  if(next===h.present)return h;
- return {past:[...h.past,h.present].slice(-HISTORY_MAX),present:next,future:[]};
+ if(merge&&h.merge===merge&&h.past.length)return {past:h.past,present:next,future:[],merge};
+ const step:History<T>={past:[...h.past,h.present].slice(-HISTORY_MAX),present:next,future:[]};
+ return merge?{...step,merge}:step;
 }
 export function undo<T>(h:History<T>):History<T>{
  if(!h.past.length)return h;
- return {past:h.past.slice(0,-1),present:h.past[h.past.length-1],future:[h.present,...h.future]};
+ return {past:h.past.slice(0,-1),present:h.past[h.past.length-1],future:[h.present,...h.future]};// merge is not kept: what comes next is a new step
 }
 export function redo<T>(h:History<T>):History<T>{
  if(!h.future.length)return h;
- return {past:[...h.past,h.present],present:h.future[0],future:h.future.slice(1)};
+ return {past:[...h.past,h.present],present:h.future[0],future:h.future.slice(1)};// a new step after this, too
 }
 
 // ── Export ───────────────────────────────────────────────────────────────
@@ -134,6 +148,8 @@ export function exportPixelRatio(doc:EditorDoc,shownWidth:number){
 }
 
 // ── Checking a document from outside (the save route) ────────────────────
+/** SVG path data: commands, numbers, separators. Nothing that could be markup or a URL. */
+const PATH_DATA=/^[MmLlHhVvCcSsQqTtAaZz0-9eE.,+\-\s]+$/,ICON_NAME=/^[a-z0-9-]{1,60}$/;
 const HEX=/^#[0-9a-f]{6}$/i,SAFE_SRC=/^(\/api\/(assets|brand-kit\/logos)\/[a-z0-9-]{8,80}(\?[a-z0-9=&]*)?|https:\/\/[^\s"'<>]+)$/i;
 const num=(v:unknown,lo:number,hi:number)=>typeof v==='number'&&Number.isFinite(v)&&v>=lo&&v<=hi;
 const str=(v:unknown,max:number)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(v);
@@ -153,6 +169,7 @@ export function checkDoc(v:unknown):{ok:true;doc:EditorDoc}|{ok:false;reason:str
   else if(l.kind==='shape'){if(!SHAPES.includes(l.shape)||!colour(l.fill)||!colour(l.stroke)||!num(l.strokeWidth,0,500))return {ok:false,reason:'shape'}}
   else if(l.kind==='line'){if(!colour(l.stroke)||!num(l.strokeWidth,0,500)||typeof l.dash!=='boolean'||!['none','end','both'].includes(l.arrow))return {ok:false,reason:'line'}}
   else if(l.kind==='frame'){if(!colour(l.stroke)||!num(l.strokeWidth,0,500)||!num(l.radius,0,span))return {ok:false,reason:'frame'}}
+  else if(l.kind==='icon'){if(typeof l.icon!=='string'||!ICON_NAME.test(l.icon)||!Array.isArray(l.paths)||!l.paths.length||l.paths.length>ICON_PATHS_MAX||!l.paths.every(d=>str(d,ICON_PATH_MAX)&&PATH_DATA.test(d))||!colour(l.color)||l.color==='transparent'||!num(l.strokeWidth,0.25,6))return {ok:false,reason:'icon'}}
   else return {ok:false,reason:'kind'};
  }
  return {ok:true,doc:d};

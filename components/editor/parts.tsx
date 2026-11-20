@@ -71,8 +71,12 @@ export function CarSettings({cars,car,onCar,options,state,onColour,onTrim,onView
 
 /** A group of chips (one choice). Like every group of choices (.ds-choices), its legend
  *  sits in the settings panel's label column and the chips wrap in the field column. */
+/** A few choices with long words (View: "Live configurator", "Your picture") don't fit the settings' field
+ *  column on one line: they take the panel's width under their label instead (app/editor.css). Many short
+ *  choices (a car's views) wrap in the field column as before. */
+export const chipsNeedRow=(choices:readonly {name:string}[])=>choices.length<=4&&choices.reduce((n,c)=>n+c.name.length,0)>18;
 export function ChoiceChips({legend,name,choices,value,onChange}:{legend:string;name:string;choices:ConfiguratorChoice[];value?:string;onChange:(id:string)=>void}){
- return <fieldset className="ds-choices editor-chips"><legend className="ds-label">{legend}</legend>
+ return <fieldset className="ds-choices editor-chips" data-row={chipsNeedRow(choices)||undefined}><legend className="ds-label">{legend}</legend>
   <div className="editor-chip-list">{choices.map(c=><label key={c.id} className="editor-chip"><input className="editor-choice-input" type="radio" name={name} checked={value===c.id} onChange={()=>onChange(c.id)}/><span>{c.name}</span></label>)}</div>
  </fieldset>;
 }
