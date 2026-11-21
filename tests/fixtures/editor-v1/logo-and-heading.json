@@ -1,0 +1,39 @@
+{
+ "width": 1536,
+ "height": 864,
+ "background": {
+  "visualId": "00000000-0000-4000-8000-000000010000",
+  "src": "/api/assets/00000000-0000-4000-8000-000000010000"
+ },
+ "layers": [
+  {
+   "x": 69.76,
+   "y": 97.44,
+   "width": 276.48,
+   "height": 69.12,
+   "rotation": 0,
+   "id": "00000000-0000-4000-8000-00000000a001",
+   "kind": "image",
+   "name": "Demo logo",
+   "src": "/api/brand-kit/logos/00000000-0000-4000-8000-00000000c0de",
+   "source": "logo"
+  },
+  {
+   "x": 578.25,
+   "y": 640,
+   "width": 379.5,
+   "height": 89.7,
+   "rotation": 0,
+   "id": "00000000-0000-4000-8000-00000000a002",
+   "kind": "text",
+   "name": "Heading",
+   "text": "Launch day",
+   "style": "heading",
+   "font": "Outfit",
+   "fontSize": 69,
+   "fontWeight": 700,
+   "color": "#0a84ff",
+   "align": "center"
+  }
+ ]
+}

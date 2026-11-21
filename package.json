@@ -33,6 +33,7 @@
     "date-fns": "^4.4.0",
     "embla-carousel-react": "^8.6.0",
     "fast-png": "7.0.1",
+    "immer": "11.1.21",
     "input-otp": "^1.4.2",
     "jpeg-js": "0.4.4",
     "konva": "10.9.1",

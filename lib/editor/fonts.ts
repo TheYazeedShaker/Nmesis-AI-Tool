@@ -64,7 +64,7 @@ export const fontKey=(n:FontNeed)=>`${n.font}|${n.weight}`;
 /** Every font and weight the design's text layers draw with, once each, in order. */
 export function fontsInDoc(doc:Pick<EditorDoc,'layers'>):FontNeed[]{
  const seen=new Map<string,FontNeed>();
- for(const l of doc.layers)if(l.kind==='text'){const n={font:knownFont(l.font),weight:l.fontWeight};seen.set(fontKey(n),n)}
+ for(const l of Object.values(doc.layers))if(l.kind==='text'){const n={font:knownFont(l.font),weight:l.fontWeight};seen.set(fontKey(n),n)}
  return [...seen.values()];
 }
 

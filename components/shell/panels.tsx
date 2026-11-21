@@ -97,7 +97,7 @@ export function UploadsPanel(){
   {busy&&<p className="ds-help" role="status">{busy}</p>}
   {problem&&<State kind="error" title="Your uploads didn’t load" actions={<button type="button" className="ds-btn" onClick={retry}>Try again</button>}>{problem}</State>}
   {uploads===null?<div className="studio-pick-grid" aria-busy="true" aria-label="Loading your uploads">{Array.from({length:6},(_,i)=><SkeletonTile key={i}/>)}</div>
-   :uploads.length===0&&!problem?<p className="ds-muted">{design?'Nothing here yet. Pictures you upload appear here, ready to add to your design.':'Nothing here yet. Pictures you upload appear here, ready to use as references.'}</p>
+   :uploads.length===0&&!problem?<State kind="empty" title="No uploads yet">{design?`${mayAdd?'Drop a picture above. ':''}Pictures you upload appear here; click one to add it to your design.`:'Pictures you upload appear here, ready to use as references.'}</State>
    :<UploadGrid uploads={uploads} design={design} inUse={u=>tray.some(t=>t.key==='upload:'+u.id)} onPress={press}/>}
  </div>;
 }

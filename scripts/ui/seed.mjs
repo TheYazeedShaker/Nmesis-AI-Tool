@@ -14,7 +14,8 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import postgres from 'postgres';
 import { encode } from 'fast-png';
-import { FOLDER_ID } from './screens.mjs';
+import { FOLDER_ID, V1_DESIGN_ID, PERF_PICTURE_ID, PERF_DESIGN_ID, PERF_UPLOAD_ID, PERF_LAYERS } from './screens.mjs';
+import { createDoc, addLayer, updateLayer } from '../../lib/editor/doc.ts';
 
 const ROOT = new URL('../../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, ROOT), 'utf8');
@@ -208,9 +209,63 @@ export function seedVisuals(s3, org, person, n, start = 0, { spread = false } = 
   return ids;
 }
 
+/**
+ * A design saved by the v1 editor, kept exactly as the v1 save route wrote it (the real file the v1 code
+ * made: tests/fixtures/editor-v1/every-kind.json, every kind of layer, over the owner's first picture),
+ * with its picture and the upload it uses. The editor reads it through the one v1 → v2 upgrade.
+ */
+export function seedV1Design(s3) {
+  const prefix = prefixOf('growth', 'owner'), raw = readFileSync(new URL('../../tests/fixtures/editor-v1/every-kind.json', import.meta.url));
+  const doc = JSON.parse(raw);
+  for (const l of doc.layers) if (l.kind === 'image' && l.assetId) put(s3, prefix + 'images/' + l.assetId, png(7, 60, 40), 'image/png');
+  const visual = { id: V1_DESIGN_ID, title: 'Demo SUV · Desert dusk · edited', src: '/api/assets/' + V1_DESIGN_ID, status: 'ready', createdAt: new Date(Date.now() - 90 * 60_000).toISOString(),
+    vehicle: 'Demo SUV', width: doc.width, height: doc.height, size: `${doc.width}x${doc.height}`, parentId: doc.background.visualId,
+    edit: { parentId: doc.background.visualId, parentSrc: doc.background.src, layers: doc.layers.length } };
+  put(s3, prefix + 'visuals/' + V1_DESIGN_ID + '.json', Buffer.from(JSON.stringify(visual)), 'application/json');
+  put(s3, prefix + 'images/' + V1_DESIGN_ID, png(8), 'image/png');
+  put(s3, prefix + 'edits/' + V1_DESIGN_ID + '.json', raw, 'application/json');
+}
+
+/**
+ * The editor under load (feat/editor-panel-rules, journey editor-performance): a 3840 x 2160 picture and a
+ * format v2 design saved over it with PERF_LAYERS layers (text, shapes, icons, lines and an upload, spread
+ * over the page), made with the editor's own document code. The top layer is a square on the page's centre,
+ * where the journey drags.
+ */
+export function perfDesign() {
+  const W = 3840, H = 2160, kinds = ['text', 'shape', 'icon', 'text', 'shape', 'line', 'image', 'shape', 'text', 'icon'];
+  let doc = createDoc({ id: PERF_PICTURE_ID, width: W, height: H });
+  for (let n = 0; n < PERF_LAYERS; n++) {
+    const id = `perf-layer-${String(n + 1).padStart(2, '0')}`, last = n === PERF_LAYERS - 1, kind = last ? 'shape' : kinds[n % kinds.length];
+    const add = kind === 'text' ? { kind: 'text', style: 'body', text: `Layer ${n + 1}` }
+      : kind === 'shape' ? { kind: 'shape', shape: ['rect', 'circle', 'star', 'hexagon', 'rounded', 'triangle'][n % 6], fill: '#3366cc' }
+        : kind === 'icon' ? { kind: 'icon', icon: 'plus', name: 'Plus', paths: ['M5 12h14', 'M12 5v14'] }
+          : kind === 'line' ? { kind: 'line' }
+            : { kind: 'image', src: '/api/assets/' + PERF_UPLOAD_ID, assetId: PERF_UPLOAD_ID, source: 'upload', name: 'Upload', naturalWidth: 600, naturalHeight: 400 };
+    doc = addLayer(doc, add, id);
+    const col = n % 10, row = Math.floor(n / 10);
+    doc = updateLayer(doc, id, last ? { x: W / 2 - 200, y: H / 2 - 200, width: 400, height: 400 } : { x: col * 384 + 40, y: row * 432 + 40 });
+  }
+  return doc;
+}
+export function seedPerfDesign(s3) {
+  const prefix = prefixOf('growth', 'owner'), doc = perfDesign(), at = new Date(Date.now() - 120 * 60_000).toISOString();
+  const base = { id: PERF_PICTURE_ID, title: 'Demo SUV · Studio white · 4K', src: '/api/assets/' + PERF_PICTURE_ID, status: 'ready', createdAt: at, vehicle: 'Demo SUV', width: doc.width, height: doc.height, size: `${doc.width}x${doc.height}` };
+  const design = { ...base, id: PERF_DESIGN_ID, title: 'Demo SUV · Studio white · 50 layers', src: '/api/assets/' + PERF_DESIGN_ID, parentId: PERF_PICTURE_ID,
+    edit: { parentId: PERF_PICTURE_ID, parentSrc: '/api/assets/' + PERF_PICTURE_ID, layers: PERF_LAYERS, pages: 1, designId: PERF_DESIGN_ID } };
+  put(s3, prefix + 'visuals/' + PERF_PICTURE_ID + '.json', Buffer.from(JSON.stringify(base)), 'application/json');
+  put(s3, prefix + 'images/' + PERF_PICTURE_ID, png(11, doc.width, doc.height), 'image/png');
+  put(s3, prefix + 'images/' + PERF_UPLOAD_ID, png(12, 600, 400), 'image/png');
+  put(s3, prefix + 'visuals/' + PERF_DESIGN_ID + '.json', Buffer.from(JSON.stringify(design)), 'application/json');
+  put(s3, prefix + 'images/' + PERF_DESIGN_ID, png(13), 'image/png');
+  put(s3, prefix + 'edits/' + PERF_DESIGN_ID + '.json', Buffer.from(JSON.stringify(doc)), 'application/json');
+}
+
 /** Studio content: 300 visuals for Growth, and films, swaps and storyboards for Enterprise (through the Studio's own routes). */
 export async function seedStudio({ s3, adminUrl, request }) {
   const growthIds = seedVisuals(s3, 'growth', 'owner', 200, 0);
+  seedV1Design(s3);
+  seedPerfDesign(s3);
   seedVisuals(s3, 'growth', 'creator', 100, 200);
   const entIds = seedVisuals(s3, 'enterprise', 'enterprise', 12, 400).filter((_, i) => i % 29 !== 7 && i % 31 !== 11);
   seedVisuals(s3, 'starter', 'starter', 3, 500);

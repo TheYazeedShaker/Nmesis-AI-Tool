@@ -126,6 +126,10 @@
   --ds-viewer-bg: rgba(8, 10, 13, 0.94);
   --ds-on-media: #ffffff;
   --ds-media-shade: rgba(8, 10, 13, 0.56);
+  /* Behind a small preview of a colour (a layer's thumbnail): light behind dark colours, dark behind
+     light ones, the same in both themes, so white text or a black icon always shows. */
+  --ds-preview-light: #f2f4f7;
+  --ds-preview-dark: #23272d;
 
   /* Elevation: three steps, plus the focus halo. */
   --ds-shadow-1: 0 1px 2px light-dark(rgba(14, 17, 22, 0.06), rgba(0, 0, 0, 0.35));
@@ -147,6 +151,13 @@
   --ds-space-40: 40px;
   --ds-space-48: 48px;
   --ds-space-64: 64px;
+  /* The canvas editor's right panel (docs/editor-rules.md, rules 2 and 4): its
+     width and the only four spacings inside it. */
+  --ds-editor-panel: 340px;
+  --ds-editor-label-gap: var(--ds-space-4);
+  --ds-editor-row-gap: var(--ds-space-8);
+  --ds-editor-pad: var(--ds-space-16);
+  --ds-editor-section-gap: var(--ds-space-24);
 
   /* Type. Each size has its line height under the same name; use them as
      a pair. Outfit for headings and big figures, Inter for the rest. */

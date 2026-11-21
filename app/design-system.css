@@ -420,6 +420,58 @@
 .ds-slider > input[type="range"]::-webkit-slider-thumb { appearance: none; width: var(--ds-space-20); height: var(--ds-space-20); margin-top: calc(var(--ds-space-8) * -1); border-radius: var(--ds-radius-round); background: var(--ds-accent); border: var(--ds-focus-width) solid var(--ds-accent-edge); }
 .ds-slider > input[type="range"]::-moz-range-thumb { width: var(--ds-space-16); height: var(--ds-space-16); border-radius: var(--ds-radius-round); background: var(--ds-accent); border: var(--ds-focus-width) solid var(--ds-accent-edge); }
 .ds-slider-value { width: 9ch; flex: none; text-align: right; font-variant-numeric: var(--ds-numeric); }
+/* The slider's number as a box to type in (the editor's panel, rule 11 of docs/editor-rules.md). */
+.ds-slider-edit { gap: var(--ds-space-8); }
+.ds-slider-number { width: calc(var(--ds-space-64) + var(--ds-space-24)); flex: none; }
+.ds-slider-number > input, .ds-affix.ds-slider-number > span { padding: 0 var(--ds-space-8); }
+
+/* ── Editor panel (components/ds/inspector.tsx, docs/editor-rules.md) ─────────
+   Every space comes from the four editor tokens and is set by a container
+   (gap, the panel's padding); nothing inside has a margin of its own. */
+.ds-inspector-panel { display: flex; flex-direction: column; gap: var(--ds-editor-section-gap); min-width: 0; }
+.ds-inspector-section { display: flex; flex-direction: column; gap: var(--ds-editor-row-gap); min-width: 0; }
+.ds-inspector-title {
+  margin: 0; font-family: var(--ds-font-display); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm);
+  font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-label); text-transform: uppercase; color: var(--ds-muted);
+}
+.ds-inspector-row { display: flex; flex-direction: column; gap: var(--ds-editor-label-gap); min-width: 0; }
+.ds-inspector-label { font-weight: var(--ds-weight-medium); color: var(--ds-text); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); }
+.ds-inspector-row > .ds-input, .ds-inspector-row > .ds-select, .ds-inspector-row > .ds-affix, .ds-inspector-row > .ds-textarea, .ds-inspector-row > .ds-slider { width: 100%; }
+/* A text box grows with its words: the panel is the one scroll (rule 8). */
+.ds-inspector-row > .ds-textarea { field-sizing: content; min-height: calc(var(--ds-control-h) * 2); resize: none; }
+.ds-inspector-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--ds-editor-row-gap); }
+.ds-inspector-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-editor-row-gap); }
+.ds-inspector-switch { display: flex; width: 100%; align-items: center; }
+.ds-inspector-switch > .ds-choice-text { flex: 1 1 auto; }
+/* Choices in words, side by side and sharing the row's width. */
+.ds-inspector-segmented { display: flex; width: 100%; }
+.ds-inspector-segmented > button { flex: 1 1 0; min-width: 0; }
+.ds-segmented > button[aria-checked="true"] { background: var(--ds-panel); color: var(--ds-text-strong); box-shadow: var(--ds-shadow-1); }
+.ds-segmented > button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Colours: a group of choices (the brand's first), then Custom for any colour. */
+.ds-swatch-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-editor-row-gap); }
+.ds-swatches { display: flex; flex-wrap: wrap; gap: var(--ds-editor-label-gap); }
+.ds-swatch {
+  display: inline-grid; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); min-width: var(--ds-control-h-sm); padding: 0;
+  border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius-round); background: var(--swatch); cursor: pointer;
+}
+.ds-swatch[aria-checked="true"] { box-shadow: 0 0 0 var(--ds-space-2) var(--ds-panel), 0 0 0 var(--ds-space-4) var(--ds-text-strong); }
+.ds-app .ds-swatch:focus-visible { outline-offset: var(--ds-space-4); }
+/* "No colour": a diagonal stroke through an empty swatch. */
+.ds-swatch-none { background: linear-gradient(to top right, transparent calc(50% - var(--ds-border-width)), var(--ds-danger) 50%, transparent calc(50% + var(--ds-border-width))), var(--ds-panel); }
+/* The tick reads on light and dark colours alike: it carries its own contrasting ring. */
+.ds-swatch > svg { width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-on-media); filter: drop-shadow(0 0 var(--ds-space-2) var(--ds-media-shade)); }
+.ds-swatch-custom { display: inline-flex; align-items: center; gap: var(--ds-editor-label-gap); min-height: var(--ds-control-h-sm); cursor: pointer; font-size: var(--ds-text-sm); color: var(--ds-text); }
+.ds-swatch-input { width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); padding: 0; border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius-round); background: var(--ds-panel); cursor: pointer; }
+/* "More": rare settings, folded. */
+.ds-more-summary {
+  display: flex; align-items: center; gap: var(--ds-editor-label-gap); min-height: var(--ds-control-h-sm); width: fit-content;
+  list-style: none; cursor: pointer; font-size: var(--ds-text-sm); font-weight: var(--ds-weight-medium); color: var(--ds-text); border-radius: var(--ds-radius-sm);
+}
+.ds-more-summary::-webkit-details-marker { display: none; }
+.ds-more-summary > svg { width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-muted); transition: transform var(--ds-dur-fast) var(--ds-ease); }
+.ds-more[open] > .ds-more-summary > svg { transform: rotate(90deg); }
+.ds-more-body { display: flex; flex-direction: column; gap: var(--ds-editor-row-gap); padding-top: var(--ds-editor-row-gap); }
 
 /* ── Buttons ───────────────────────────────────────────────────────────── */
 .ds-btn {
