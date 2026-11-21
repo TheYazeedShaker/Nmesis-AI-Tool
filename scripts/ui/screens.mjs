@@ -87,7 +87,8 @@ export const V1_DESIGN_ID = '00000000-0000-4000-8000-000000010900';
 // selection on the v1 design (nothing, one layer of each kind, three layers, the Layers tab), at these sizes
 // (the rule states: counted in the ratchet under the editor screen); the layers list by keyboard only;
 // Ctrl+A, Ctrl+G and one undo; the shortcuts sheet; snapping to the page centre, and not with Ctrl held;
-// and a design of 50 layers on a 3840 x 2160 picture (PERF_DESIGN_ID, over PERF_PICTURE_ID), timed.
+// and a design of 50 layers on a 3840 x 2160 picture (PERF_DESIGN_ID, over PERF_PICTURE_ID), timed. Closing the
+// tab right after a change keeps it: in the Studio (keepalive), or restored from the device when offline.
 export const RULE_STATE_SIZES = [[1440, 900], [1191, 786], [1024, 768]];
 export const PERF_PICTURE_ID = '00000000-0000-4000-8000-000000010901';
 export const PERF_DESIGN_ID = '00000000-0000-4000-8000-000000010902';
@@ -102,6 +103,7 @@ export const EDITOR_JOURNEYS = [
   { id: 'editor-snapping', role: 'owner', from: 'editor' },
   { id: 'editor-undo-drag', role: 'owner', from: 'editor' },
   { id: 'editor-duplicate-design', role: 'owner', from: 'editor' },
+  { id: 'editor-close-after-edit', role: 'owner', from: 'editor' },
   { id: 'editor-performance', role: 'owner', from: 'editor' },
 ];
 export const FLOWS = [
