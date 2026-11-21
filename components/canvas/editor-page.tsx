@@ -86,14 +86,14 @@ async function loadDesign(id:string):Promise<{design:EditorDoc|null;lost:boolean
 /** The working draft (autosave) for this picture, or this device's newer unsent copy; null when there is none. */
 async function loadDraft(id:string,mayEdit:boolean):Promise<{doc:EditorDoc|null;unsent:boolean}>{
  if(!mayEdit)return {doc:null,unsent:false};
- let server:{doc:EditorDoc;at:number}|null=null;
+ let server:{doc:EditorDoc;at:number;rev:number;session?:string}|null=null;
  try{
   const r=await studioFetch(`/api/edits/${id}/draft`,{signal:AbortSignal.timeout(15_000)});
   // {draft:null}: no draft yet (the usual case).
-  if(r.ok){const d=await r.json().catch(()=>({})) as {draft?:{doc?:unknown;savedAt?:number}|null};if(d.draft){const read=readDoc(d.draft.doc);if(read.ok)server={doc:read.doc,at:Number(d.draft.savedAt)||0}}}
+  if(r.ok){const d=await r.json().catch(()=>({})) as {draft?:{doc?:unknown;savedAt?:number;rev?:number;session?:unknown}|null};if(d.draft){const read=readDoc(d.draft.doc);if(read.ok)server={doc:read.doc,at:Number(d.draft.savedAt)||0,rev:Number(d.draft.rev)||0,session:typeof d.draft.session==='string'?d.draft.session:undefined}}}
   else console.warn('[editor] the draft did not open',{status:r.status});
  }catch(e){console.warn('[editor] the draft did not open',{reason:e instanceof Error?e.name:'unknown'})}
- const local=deviceCopy(id,server?.at??null),read=local?readDoc(local):null;
+ const local=deviceCopy(id,server),read=local?readDoc(local):null;
  return read?.ok?{doc:read.doc,unsent:true}:{doc:server?.doc??null,unsent:false};
 }
 /** The picture's answer said why it can't be edited (lib/editor/cant-open.ts). */
@@ -271,8 +271,13 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
  },[change,toaster,page,readOnly,busyNote]);
  React.useEffect(()=>{const sink=(a:CanvasAdd)=>{void add(a)};setCanvasSink(sink);return()=>setCanvasSink(null)},[add]);
 
- // Leaving while a change is still on its way asks first (it is kept on this device either way).
- React.useEffect(()=>{const warn=(e:BeforeUnloadEvent)=>{if(!autosave.pending())return;e.preventDefault();e.returnValue=''};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[autosave]);
+ // Closing with a change the page can't take with it (offline, refused, too large): the browser asks first. A change
+ // that can go with the page needs no question: it is sent as the page closes (components/canvas/use-autosave.ts).
+ React.useEffect(()=>{const warn=(e:BeforeUnloadEvent)=>{if(!autosave.atRisk())return;e.preventDefault();e.returnValue=''};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[autosave]);
+ // Opened from this device's copy, which the Studio didn't have yet (the page closed before it arrived, or the
+ // connection was lost): said once, and autosave sends it now.
+ const restored=React.useRef(false);
+ React.useEffect(()=>{if(!opened.unsent||restored.current)return;restored.current=true;toaster.toast({kind:'info',message:'Restored your unsaved changes.'})},[opened.unsent,toaster]);
 
  // ── What the selection can do (the panel, the keys and the Layers list share these) ──
  /** Ctrl/Cmd+D, Duplicate: copies next to the originals, selected. One undo step. */
