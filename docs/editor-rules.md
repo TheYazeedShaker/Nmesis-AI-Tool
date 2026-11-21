@@ -56,7 +56,14 @@ follows the plans data.
 9. Undo and redo cover every change to the design (one step per gesture:
    a drag, a resize, a rotation, a slider move, a typing session, a
    duplicate). The canvas bar always shows the save status: "Saving…",
-   "Saved", "Offline, changes kept" or "Couldn't save, retry".
+   "Saved", "Offline, changes kept" or "Couldn't save, retry". Closing the
+   tab never loses a change. The last change goes with the page when it
+   leaves: when the tab is hidden or closed, on a reload, or on going to
+   another site, it is sent with `keepalive` if it fits the browser's limit
+   (`components/canvas/use-autosave.ts`). A change that can't go with the
+   page (offline, refused, or too large) stays on this device, and only then
+   does the browser ask "Leave site?". The next time the design opens on this
+   device it comes back with "Restored your unsaved changes." and is sent.
 10. The shortcuts work wherever the canvas has focus, and each is named in its
     control's tooltip and in the shortcuts sheet ("?").
 11. Every continuous value (opacity, corner radius, spacing, effect strength)

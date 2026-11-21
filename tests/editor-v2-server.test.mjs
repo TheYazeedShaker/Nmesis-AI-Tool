@@ -247,6 +247,26 @@ test('autosave’s working draft: the person’s own, checked, kept, read back a
  assert.equal((await draft('PUT',v1.id,{doc:D.createDoc(v1),rev:2})).status,200,'or over the version itself');
 });
 
+test('the draft keeps the editing session that wrote it, so the next opening can tell which copy is newer',async()=>{
+ as(OWNER);
+ const original=await picture(0x14100);
+ const doc=D.addLayer(D.createDoc(original),{kind:'text',style:'body',text:'Demo SUV'},'t');
+ const session='0b4c8a52-6d1e-4f7a-9c3b-2e5f8d7a1c60';
+ assert.equal((await draft('PUT',original.id,{doc,rev:2,session})).status,200);
+ const got=(await draft('GET',original.id)).body.draft;
+ assert.equal(got.session,session);assert.equal(got.rev,2);
+ assert.match(await text(prefix+'drafts/'+original.id+'.json'),/"session":"0b4c8a52-/,'kept with the draft');
+ // A random id only: anything else is refused, like any field that doesn't read.
+ for(const bad of [12,'',' x','a'.repeat(65),'https://example.test/x','../../etc'])assert.equal((await draft('PUT',original.id,{doc,rev:3,session:bad})).status,400,JSON.stringify(bad));
+ assert.equal((await draft('GET',original.id)).body.draft.rev,2,'a refused write leaves the draft as it was');
+ // A draft written before sessions were kept (or without one) reads as before, with no session.
+ assert.equal((await draft('PUT',original.id,{doc,rev:4})).status,200);
+ const old=(await draft('GET',original.id)).body.draft;
+ assert.equal(old.rev,4);assert.equal('session' in old,false);
+ await putJson(prefix+'drafts/'+original.id+'.json',{doc,rev:5,savedAt:1,session:'<not an id>'});
+ assert.equal('session' in (await draft('GET',original.id)).body.draft,false,'a stored session that doesn’t read is left out');
+});
+
 test('the version history: every save, restore and copy of a design, newest first, only what the person may open',async()=>{
  as(OWNER);
  const original=await picture(0x15000,{title:'Demo SUV · Harbour at dawn'});

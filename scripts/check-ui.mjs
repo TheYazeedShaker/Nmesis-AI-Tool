@@ -417,6 +417,27 @@ async function dragOn(page, from, to, hold) {
   if (hold) await page.keyboard.up(hold);
   await page.waitForTimeout(300);
 }
+/** The layers in the Studio's draft of the editor's picture (-1: no draft), read with the context's own sign-in. */
+async function studioLayers(context, origin) {
+  const r = await context.request.get(`${origin}/api/edits/${EDITOR_VISUAL_ID}/draft`, { timeout: 10_000, failOnStatusCode: false });
+  const d = await r.json().catch(() => ({}));
+  return d?.draft?.doc?.layers ? Object.keys(d.draft.doc.layers).length : -1;
+}
+/** Until the Studio's draft holds `want` layers (a request leaving with a closed page is on its own time). */
+async function studioHas(context, origin, want, ms = 10_000) {
+  for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if (await studioLayers(context, origin) === want) return true;
+  return false;
+}
+/** Closes the tab as a person does: its beforeunload and pagehide run; resolves once it is closed. */
+async function closeTab(page) { const closed = page.waitForEvent('close', { timeout: 15_000 }); await page.close({ runBeforeUnload: true }); await closed; }
+/** Another tab in the same context, set up as the journeys' own. */
+async function journeyPage(context, problems) {
+  const p = await context.newPage();
+  p.on('pageerror', (e) => problems.push('Uncaught: ' + String(e.message).slice(0, 200)));
+  await p.setViewportSize({ width: 1440, height: 900 });
+  await p.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+  return p;
+}
 function pct(xs, p) { const s = [...xs].sort((a, b) => a - b); return s.length ? Math.round(s[Math.min(s.length - 1, Math.floor(s.length * p))] * 10) / 10 : 0; }
 function editorSteps() { return {
   // A design saved before format v2 opens with every layer, through the upgrade.
@@ -639,6 +660,51 @@ function editorSteps() { return {
       }, EDITOR_VISUAL_ID).catch((e) => String(e).slice(0, 120));
       problems.push(`the original has ${back} layers after the copy was edited, not ${before + 1} (status before Duplicate: ${statusBefore}; draft requests: ${drafts.join(', ') || 'none'}; held: ${JSON.stringify(held)})`);
     }
+  },
+  // Closing the tab right after a change, inside its two seconds, keeps it (the owner's ask on #60). With the
+  // connection, the last request goes with the page (keepalive): the browser doesn't ask "Leave site?", the
+  // Studio holds the change, and the design opens with it, with nothing to restore. Offline, it stays on this
+  // device: the next opening restores it ("Restored your unsaved changes.") and sends it to the Studio.
+  'editor-close-after-edit': async (page, problems) => {
+    const context = page.context();
+    await openEditor(page, EDITOR_VISUAL_ID);
+    const origin = new URL(page.url()).origin;
+    // A change the Studio holds first, so the counts below start from a known draft.
+    await press(page, 't');
+    await savedWithin(page, 12_000).catch(() => problems.push('the first change was never saved'));
+    const held = await studioLayers(context, origin), shown = await layersOf(page);
+    if (held < 0) problems.push('the Studio holds no draft after the first change');
+    // 1. A change, and the tab closes at once, with the change still waiting for its two seconds.
+    await press(page, 't');
+    const waiting = await page.locator('.canvas-bar [data-save-status]').getAttribute('data-save-status');
+    if (waiting !== 'saving') problems.push(`the change was "${waiting}", not still waiting to be sent, when the tab closed`);
+    page.on('dialog', (d) => { problems.push('closing asked first, though the change could go with the page'); void d.accept(); });
+    await closeTab(page);
+    if (!(await studioHas(context, origin, held + 1))) problems.push(`the change made just before closing never reached the Studio (it holds ${await studioLayers(context, origin)} layers, not ${held + 1})`);
+    const again = await journeyPage(context, problems);
+    try {
+      await openEditor(again, EDITOR_VISUAL_ID);
+      if (await layersOf(again) !== shown + 1) problems.push(`it reopened with ${await layersOf(again)} layers, not ${shown + 1}`);
+      await again.waitForTimeout(500);
+      if (await again.getByText('Restored your unsaved changes').count()) problems.push('it said “Restored your unsaved changes” though the Studio had them');
+      // 2. Offline: a change, and the tab closes; nothing can go with it.
+      await context.setOffline(true);
+      const off = await again.waitForFunction(() => !navigator.onLine, null, { timeout: 5000 }).then(() => true, () => false);
+      if (!off) problems.push('the harness could not take the page offline');
+      await press(again, 't');
+      const status = await again.locator('.canvas-bar [data-save-status]').getAttribute('data-save-status');
+      if (off && status !== 'offline') problems.push(`offline, the status was "${status}", not "offline"`);
+      again.on('dialog', (d) => { void d.accept(); });
+      await closeTab(again);
+    } finally { await context.setOffline(false); await again.close().catch(() => {}); }
+    if (await studioLayers(context, origin) !== held + 1) problems.push('offline, the change still reached the Studio: the next check proves nothing');
+    const last = await journeyPage(context, problems);
+    try {
+      await openEditor(last, EDITOR_VISUAL_ID);
+      await last.getByText('Restored your unsaved changes').first().waitFor({ timeout: 10_000 }).catch(() => problems.push('the next opening didn’t say “Restored your unsaved changes.”'));
+      if (await layersOf(last) !== shown + 2) problems.push(`the next opening shows ${await layersOf(last)} layers, not ${shown + 2}: the offline change was not restored`);
+      if (!(await studioHas(context, origin, held + 2, 15_000))) problems.push('the restored change never reached the Studio');
+    } finally { await last.close().catch(() => {}); }
   },
   // The editor under load: a design of 50 layers on a 3840 x 2160 picture (scripts/ui/seed.mjs perfDesign).
   // Timed: until the canvas holds every layer, until the picture has arrived, the frames during a 30-move drag
