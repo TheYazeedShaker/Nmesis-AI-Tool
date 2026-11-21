@@ -103,7 +103,7 @@ export function LayersPanel({doc,page,selected,readOnly,mod,baseLabel,onSelect,o
  return <div className="canvas-layers-panel">
   <ol className="canvas-layers" aria-label="Layers on this page, front first">
    {rows.filter(r=>r.depth===0).map(renderRow)}
-   <li className="canvas-layer-row canvas-layer-base"><span className="canvas-layer-thumb" aria-hidden="true"><ImageIcon/></span><span className="canvas-layer-words ds-truncate">{baseLabel}</span><span className="canvas-layer-kind">Background</span></li>
+   <li className="canvas-layer-row canvas-layer-base"><span className="canvas-layer-thumb" aria-hidden="true"><ImageIcon/></span><span className="canvas-layer-words ds-truncate" title={baseLabel}>{baseLabel}</span><span className="canvas-layer-kind">Background</span></li>
   </ol>
   <p className="ds-help">Arrows move, Enter selects, Shift+arrows add, Alt+arrows reorder, F2 renames. Or drag a row. {mod}G groups.</p>
  </div>;
@@ -122,12 +122,21 @@ function RenameBox({name,onDone}:{name:string;onDone:(name:string|null)=>void}){
 }
 
 /** A small picture of the layer: the picture itself, the text's letters in its colour, the shape or icon drawn. */
+/** Light or dark, for the backdrop behind a colour (its relative luminance, WCAG): null for no colour. */
+function backdropFor(colour:string):'light'|'dark'|undefined{
+ const m=/^#([0-9a-f]{6})$/i.exec(colour);if(!m)return undefined;
+ const n=parseInt(m[1],16),[r,g,b]=[n>>16,(n>>8)&255,n&255].map(v=>{const c=v/255;return c<=0.03928?c/12.92:((c+0.055)/1.055)**2.4});
+ return 0.2126*r+0.7152*g+0.0722*b>0.4?'dark':'light';
+}
+/** A layer's own colour: what its thumbnail shows. */
+const colourOf=(l:Layer)=>l.kind==='text'||l.kind==='icon'?l.color:l.kind==='line'||l.kind==='frame'?l.stroke:l.kind==='shape'?(l.fill==='transparent'?l.stroke:l.fill):'';
 function LayerThumb({layer:l}:{layer:Layer}){
+ const backdrop=backdropFor(colourOf(l));
  if(l.kind==='group')return <span className="canvas-layer-thumb" aria-hidden="true"><GroupIcon/></span>;
  // eslint-disable-next-line @next/next/no-img-element -- a small thumbnail from the Studio's own address; next/image adds nothing here
  if(l.kind==='image')return <span className="canvas-layer-thumb" aria-hidden="true"><img src={assetSrc(l.asset)+'?thumb=1'} alt="" loading="lazy" decoding="async"/></span>;
- if(l.kind==='text')return <span className="canvas-layer-thumb canvas-layer-thumb-text" aria-hidden="true" style={{color:l.color}}>Aa</span>;
- const svg=(body:React.ReactNode,box=`0 0 ${ICON_GRID} ${ICON_GRID}`)=><span className="canvas-layer-thumb" aria-hidden="true"><svg viewBox={box} preserveAspectRatio="xMidYMid meet">{body}</svg></span>;
+ if(l.kind==='text')return <span className="canvas-layer-thumb canvas-layer-thumb-text" aria-hidden="true" data-backdrop={backdrop} style={{color:l.color}}>Aa</span>;
+ const svg=(body:React.ReactNode,box=`0 0 ${ICON_GRID} ${ICON_GRID}`)=><span className="canvas-layer-thumb" aria-hidden="true" data-backdrop={backdrop}><svg viewBox={box} preserveAspectRatio="xMidYMid meet">{body}</svg></span>;
  if(l.kind==='icon')return svg(l.paths.map((d,i)=><path key={i} d={d} fill="none" stroke={l.color} strokeWidth={l.strokeWidth} strokeLinecap="round" strokeLinejoin="round"/>));
  if(l.kind==='line')return svg(<line x1="2" y1="12" x2="22" y2="12" stroke={l.stroke} strokeWidth="2" strokeDasharray={l.dash?'4 3':undefined}/>);
  if(l.kind==='frame')return svg(<rect x="3" y="5" width="18" height="14" rx={l.radius?3:0} fill="none" stroke={l.stroke} strokeWidth="2"/>);

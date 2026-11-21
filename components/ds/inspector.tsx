@@ -20,11 +20,12 @@ import { AffixInput, Input, Slider, Switch } from './field';
 export type InspectorSectionId = 'position' | 'appearance' | 'text' | 'effects' | 'arrange' | 'page' | 'brand';
 
 /** A section of the panel, in the fixed order (the editor leaves out a section that doesn't apply; it never moves one). */
-export function InspectorSection({ section, title, children, more }: { section: InspectorSectionId; title: string; children: React.ReactNode; more?: React.ReactNode }) {
-  const id = React.useId();
+export function InspectorSection({ section, title, children, more, level = 2 }: { section: InspectorSectionId; title: string; children: React.ReactNode; more?: React.ReactNode;
+  /** The heading's level: 2 under the page's h1 (the editor); 3 inside a dialog or a section of its own. */ level?: 2 | 3 }) {
+  const id = React.useId(), Heading = level === 3 ? 'h3' : 'h2';
   return (
     <section className="ds-inspector-section" data-editor-section={section} aria-labelledby={id}>
-      <h3 className="ds-inspector-title" id={id}>{title}</h3>
+      <Heading className="ds-inspector-title" id={id}>{title}</Heading>
       {children}
       {more && <More>{more}</More>}
     </section>

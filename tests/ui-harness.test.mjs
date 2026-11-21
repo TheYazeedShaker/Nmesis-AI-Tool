@@ -382,3 +382,15 @@ test('ci plan: `only` names every screen when every screen is affected (the Safa
   const ci = fs.readFileSync('.github/workflows/ci.yml', 'utf8');
   assert.match(ci, /contains\(needs\.plan\.outputs\.only, 'editor'\)/);
 });
+
+test('check:ui: WebKit runs signed in, a lost session is a harness mistake, and folded "More" content is measured open', () => {
+  const src = fs.readFileSync('scripts/check-ui.mjs', 'utf8'), checks = fs.readFileSync('scripts/ui/checks.mjs', 'utf8');
+  // The Studio runs as production (Secure session cookies); WebKit keeps none on http://localhost unless they are re-added plain.
+  assert.match(src, /if \(WEBKIT\) \{\s*const jar = await desktop\.cookies\(\);\s*if \(jar\.length\) \{ await desktop\.clearCookies\(\); await desktop\.addCookies\(jar\.map\(\(c\) => \(\{ \.\.\.c, secure: false \}\)\)\); \}/);
+  // A signed-in person sent to /signin is reported, so a run can't quietly check the sign-in page instead.
+  assert.match(src, /ROLES\[role\]\?\.person && out\.finalPath\.startsWith\('\/signin'\)[^\n]*harnessMistakes\.push\(/);
+  // What a closed <details> folds away is not shown (its text reads empty); the rule states open every "More" to measure it.
+  assert.match(checks, /const folded = \(el\) => \{ const d = el\.closest\('details:not\(\[open\]\)'\);/);
+  assert.match(checks, /&& !folded\(el\); \};/);
+  assert.match(src, /for \(const d of shut\) d\.open = true;[\s\S]{0,200}editorRules: await page\.evaluate\(editorRules\)/);
+});

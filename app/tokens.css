@@ -126,6 +126,10 @@
   --ds-viewer-bg: rgba(8, 10, 13, 0.94);
   --ds-on-media: #ffffff;
   --ds-media-shade: rgba(8, 10, 13, 0.56);
+  /* Behind a small preview of a colour (a layer's thumbnail): light behind dark colours, dark behind
+     light ones, the same in both themes, so white text or a black icon always shows. */
+  --ds-preview-light: #f2f4f7;
+  --ds-preview-dark: #23272d;
 
   /* Elevation: three steps, plus the focus halo. */
   --ds-shadow-1: 0 1px 2px light-dark(rgba(14, 17, 22, 0.06), rgba(0, 0, 0, 0.35));

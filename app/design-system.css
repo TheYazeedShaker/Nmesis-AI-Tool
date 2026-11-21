@@ -441,7 +441,7 @@
 .ds-inspector-row > .ds-textarea { field-sizing: content; min-height: calc(var(--ds-control-h) * 2); resize: none; }
 .ds-inspector-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--ds-editor-row-gap); }
 .ds-inspector-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-editor-row-gap); }
-.ds-inspector-switch { display: flex; width: 100%; }
+.ds-inspector-switch { display: flex; width: 100%; align-items: center; }
 .ds-inspector-switch > .ds-choice-text { flex: 1 1 auto; }
 /* Choices in words, side by side and sharing the row's width. */
 .ds-inspector-segmented { display: flex; width: 100%; }

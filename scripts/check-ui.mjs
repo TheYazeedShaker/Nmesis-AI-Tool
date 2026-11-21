@@ -175,6 +175,13 @@ async function roleContexts(name, role) {
       const opened = await desktop.request.get('/?org=' + ORGS[role.org].id, { maxRedirects: 5 });
       if (opened.status() >= 400) harnessMistakes.push(`${name}: opening ${role.org} answered ${opened.status()}`);
     }
+    // The Studio runs as production, so its session cookies are Secure. Chromium keeps a Secure cookie on
+    // http://localhost; WebKit drops it, and every page would open signed out. The run's own cookies go
+    // back into the WebKit context without the flag (only here, on the run's local address).
+    if (WEBKIT) {
+      const jar = await desktop.cookies();
+      if (jar.length) { await desktop.clearCookies(); await desktop.addCookies(jar.map((c) => ({ ...c, secure: false }))); }
+    }
   }
   const state = await desktop.storageState();
   const phone = await make({ storageState: state, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
@@ -261,6 +268,9 @@ async function check({ screen, role, w, h, theme, dsf, zoom }) {
     const res = await page.goto(screen.path, { waitUntil: 'load', timeout: 30_000 });
     out.status = res?.status();
     out.finalPath = new URL(page.url()).pathname + new URL(page.url()).search;
+    // A signed-in person sent to sign in means the run lost its session: its checks would be of the
+    // sign-in page, not the screen (how the WebKit job once checked nothing it meant to).
+    if (ROLES[role]?.person && out.finalPath.startsWith('/signin') && !screen.path.startsWith('/signin') && !screen.path.startsWith('/auth')) harnessMistakes.push(`${screen.id} (${role}, ${w}): signed out, sent to ${out.finalPath}`);
     out.ready = await ready(page);
     if (screen.action) {
       out.action = (await act(page, screen.action)) ? 'done' : 'not found';
@@ -434,8 +444,12 @@ function editorSteps() { return {
         await page.waitForTimeout(150);
         const n = await selectedOf(page);
         if (n !== want) problems.push(`${state} at ${w} x ${h}: ${n} layers selected, not ${want}`);
-        run.ruleStates.push({ screen: 'editor', state, role: 'owner', w, h, theme: 'light', editorRules: await page.evaluate(editorRules) });
+        // The picture as a person first sees it (every "More" folded); then each "More" is opened, so the rules
+        // are measured on the folded controls too, and folded again for the next state.
         if (SHOTS) await page.screenshot({ path: path.join(OUT, 'shots', `editor-state-${state}--${w}--light.png`) }).catch(() => {});
+        const opened = await page.evaluate(() => { const shut = [...document.querySelectorAll('aside.canvas-inspector details:not([open])')]; for (const d of shut) d.open = true; return shut.length; });
+        run.ruleStates.push({ screen: 'editor', state, role: 'owner', w, h, theme: 'light', editorRules: await page.evaluate(editorRules) });
+        if (opened) await page.evaluate(() => { for (const d of document.querySelectorAll('aside.canvas-inspector details[open]')) d.open = false; });
       };
       await tab(page, 'Design');
       await measure('nothing', 0);

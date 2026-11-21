@@ -42,8 +42,9 @@ function useSwatches(){
 
 export function DesignPanel({doc,page,ids,readOnly,mod,actions,baseTitle}:{doc:EditorDoc;page:string;ids:string[];readOnly:boolean;mod:string;actions:PanelActions;baseTitle:string}){
  const layers=ids.map(id=>doc.layers[id]).filter((l):l is Layer=>!!l);
- // Leaving a field closes its undo step: typing in one field, then another, is two steps.
- return <div className="canvas-design" onBlur={actions.endGesture}>
+ // Leaving a field closes its undo step: typing in one field, then another, is two steps; letting go of a
+ // slider closes its drag, so two drags of the same slider are two steps.
+ return <div className="canvas-design" onBlur={actions.endGesture} onPointerUp={e=>{if((e.target as HTMLElement).matches?.('input[type="range"]'))actions.endGesture()}}>
   {layers.length===0?<PagePanel doc={doc} page={page} readOnly={readOnly} actions={actions} baseTitle={baseTitle}/>
    :layers.length===1&&layers[0].kind!=='group'?<OnePanel layer={layers[0] as DrawnLayer} doc={doc} readOnly={readOnly} mod={mod} actions={actions}/>
    :<ManyPanel doc={doc} layers={layers} readOnly={readOnly} mod={mod} actions={actions}/>}

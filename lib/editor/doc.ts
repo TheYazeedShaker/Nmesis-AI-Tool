@@ -203,7 +203,15 @@ export const edit={
  update(d:D,id:string,patch:Partial<DrawnLayer>){
   const l=d.layers[id];if(!l||isGroup(l))return;
   const {id:_i,kind:_k,pageId:_p,parentId:_g,index:_x,...rest}=patch as Partial<DrawnLayer>&Record<string,unknown>;void _i;void _k;void _p;void _g;void _x;
-  for(const [k,v] of Object.entries(rest)){if(v===undefined)continue;if((l as Record<string,unknown>)[k]!==v)(l as Record<string,unknown>)[k]=v}
+  // Only this kind's own settings (anything else is not part of the format), and never an address: a picture is a
+  // storage key (an asset key, checked), and no other setting may hold a link (only typed text may say one).
+  const own=FIELDS[l.kind];
+  for(const [k,v] of Object.entries(rest)){
+   if(v===undefined||!own.has(k))continue;
+   if(k==='asset'&&!isAssetKey(v))throw new Error('Only pictures from this Studio can go on a design.');
+   if(typeof v==='string'&&k!=='text'&&LINKISH.test(v))throw new Error('A setting can’t be a link.');
+   if((l as Record<string,unknown>)[k]!==v)(l as Record<string,unknown>)[k]=v;
+  }
  },
  /** Removes a layer (a group with everything in it) and closes the gap. */
  remove(d:D,id:string){
@@ -445,6 +453,19 @@ const PATH_DATA=/^[MmLlHhVvCcSsQqTtAaZz0-9eE.,+\-\s]+$/,ICON_NAME=/^[a-z0-9-]{1,
 const HEX=/^#[0-9a-f]{6}$/i,LAYER_ID=/^[A-Za-z0-9_-]{1,80}$/;
 /** An address of any kind, or the marks of a signed storage link: never in a design (only text a person typed may hold one). */
 const LINKISH=/:\/\/|x-amz-|signature=|^\/\//i;
+/** Whether a value (a string, or a list of them) holds an address or a signed link's marks. */
+const linkIn=(v:unknown):boolean=>typeof v==='string'?LINKISH.test(v):Array.isArray(v)?v.some(linkIn):false;
+/** Each kind's own fields: what a design keeps of a layer (cleanDoc) and what a change may set (edit.update). */
+const PLACED_FIELDS=['id','name','kind','pageId','parentId','index','locked','hidden'],BOX_FIELDS=['x','y','width','height','rotation','opacity'];
+const FIELDS:Record<Layer['kind'],ReadonlySet<string>>={
+ group:new Set(PLACED_FIELDS),
+ image:new Set([...PLACED_FIELDS,...BOX_FIELDS,'asset','source','radius','flipX','flipY']),
+ text:new Set([...PLACED_FIELDS,...BOX_FIELDS,'text','style','font','fontSize','fontWeight','color','align','lineHeight','letterSpacing']),
+ shape:new Set([...PLACED_FIELDS,...BOX_FIELDS,'shape','fill','stroke','strokeWidth']),
+ line:new Set([...PLACED_FIELDS,...BOX_FIELDS,'dash','arrow','stroke','strokeWidth']),
+ frame:new Set([...PLACED_FIELDS,...BOX_FIELDS,'stroke','strokeWidth','radius']),
+ icon:new Set([...PLACED_FIELDS,...BOX_FIELDS,'icon','paths','color','strokeWidth']),
+};
 const num=(v:unknown,lo:number,hi:number)=>typeof v==='number'&&Number.isFinite(v)&&v>=lo&&v<=hi;
 const str=(v:unknown,max:number)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(v);
 const plain=(v:unknown,max:number)=>str(v,max)&&!LINKISH.test(v as string);
@@ -490,6 +511,8 @@ export function checkDoc(v:unknown):Checked{
   if(typeof l.pageId!=='string'||!pages.has(l.pageId)||!num(l.index,0,MAX_LAYERS*4)||!Number.isInteger(l.index)||!flag(l.locked)||!flag(l.hidden))return {ok:false,reason:'place'};
   perPage.set(l.pageId,(perPage.get(l.pageId)||0)+1);if(perPage.get(l.pageId)!>MAX_LAYERS)return {ok:false,reason:'layers'};
   if(l.parentId!==null){const g=d.layers[l.parentId as string] as Layer|undefined;if(typeof l.parentId!=='string'||!g||g.kind!=='group'||g.pageId!==l.pageId||l.parentId===key)return {ok:false,reason:'group'}}
+  // No address anywhere in a layer (a field of its own or one the format doesn't have), except typed words.
+  for(const [k,v] of Object.entries(l))if(k!=='text'&&linkIn(v))return {ok:false,reason:'link'};
   if(l.kind==='group')continue;
   const bad=checkLayerBody(l,span);if(bad)return {ok:false,reason:bad};
  }
@@ -546,7 +569,13 @@ export function readDoc(raw:unknown):Checked&{from?:1|2}{
 }
 /** What the save route keeps: a copy with only the design's own fields (nothing else a client sent). */
 export function cleanDoc(doc:EditorDoc):EditorDoc{
- return {schemaVersion:SCHEMA_VERSION,width:doc.width,height:doc.height,base:doc.base,pages:doc.pages.map(p=>({id:p.id,background:p.background.kind==='picture'?{kind:'picture',asset:p.background.asset}:{kind:'colour',colour:p.background.colour}})),layers:doc.layers};
+ const layers:Record<string,Layer>={};
+ for(const [key,l] of Object.entries(doc.layers)){
+  const own=FIELDS[l.kind]??FIELDS.group,out:Record<string,unknown>={};
+  for(const [k,v] of Object.entries(l))if(v!==undefined&&own.has(k))out[k]=v;
+  layers[key]=out as Layer;
+ }
+ return {schemaVersion:SCHEMA_VERSION,width:doc.width,height:doc.height,base:doc.base,pages:doc.pages.map(p=>({id:p.id,background:p.background.kind==='picture'?{kind:'picture',asset:p.background.asset}:{kind:'colour',colour:p.background.colour}})),layers};
 }
 /** A design applied to a recipe once, outside the history (the server: a restored version). */
 export const change=(doc:EditorDoc,recipe:(d:D)=>void)=>produce(doc,recipe);

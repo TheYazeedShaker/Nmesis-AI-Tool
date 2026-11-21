@@ -344,7 +344,10 @@ export function editorRules() {
     const name = (el.getAttribute('aria-label') || el.innerText || el.value || el.getAttribute('title') || '').trim().replace(/\s+/g, ' ').slice(0, 40);
     return el.tagName.toLowerCase() + cls + (name ? ' "' + name + '"' : '');
   };
-  const shown = (el) => { const r = el.getBoundingClientRect(), cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && !el.closest('[hidden],[inert]'); };
+  // What a closed <details> folds away (everything but its summary) is not shown, though the browser keeps its
+  // boxes: its text reads as empty, so its controls would look unlabelled. The rule states open each "More".
+  const folded = (el) => { const d = el.closest('details:not([open])'); return !!d && !d.querySelector(':scope > summary')?.contains(el); };
+  const shown = (el) => { const r = el.getBoundingClientRect(), cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && !el.closest('[hidden],[inert]') && !folded(el); };
   const words = (el) => !!el && shown(el) && el.innerText.trim().length > 0;
   const tokenPx = (name) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || NaN;
   const panel = editor.querySelector('.canvas-inspector'), box = editor.querySelector('.canvas-box');
