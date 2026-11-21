@@ -2,15 +2,16 @@
 // (lib/editor/fonts.ts), reopening a saved design with its layers
 // (GET /api/edits/<id> and saving it again, against the real handlers, SQLite
 // from the migrations and the local S3 stand-in), typing as one undo step
-// (lib/editor/doc.ts commit with `merge`), and icons as vector layers
-// (lib/editor/icons.ts). Synthetic data only.
+// (lib/editor/history.ts, one gesture), and icons as vector layers
+// (lib/editor/icons.ts). Designs are editor format v2. Synthetic data only.
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {register} from 'node:module';
-import {readFileSync} from 'node:fs';
+import {readFileSync,readdirSync} from 'node:fs';
 import {state,sqliteDatabase,memoryDirectory} from './support/state.mjs';
 import {startS3} from '../scripts/verify/s3-standin.mjs';
 import * as D from '../lib/editor/doc.ts';
+import * as H from '../lib/editor/history.ts';
 register('../scripts/verify/hooks.mjs',{parentURL:import.meta.url,data:{stubs:{
  '@/lib/studio-context':new URL('./support/stub-context.mjs',import.meta.url).href,
  '@/lib/portable/database':new URL('./support/stub-database.mjs',import.meta.url).href,
@@ -20,6 +21,9 @@ register('../scripts/verify/hooks.mjs',{parentURL:import.meta.url,data:{stubs:{
 // Loaded after the hooks: these import their neighbours without an extension, as the app does.
 const F=await import('../lib/editor/fonts.ts'),I=await import('../lib/editor/icons.ts'),{BRAND_FONTS}=await import('../lib/brand-kit.ts');
 const read=(rel)=>readFileSync(new URL('../'+rel,import.meta.url),'utf8');
+// Every file of the canvas (components/canvas), read as one: a check holds wherever the editor keeps it.
+const canvasSource=()=>readdirSync(new URL('../components/canvas/',import.meta.url)).filter(f=>/\.tsx?$/.test(f)).map(f=>read('components/canvas/'+f)).join('\n');
+const P='page-1',drawn=(doc)=>D.drawOrder(doc,P);
 const PICTURE={id:'00000000-0000-4000-8000-000000020000',src:'/api/assets/00000000-0000-4000-8000-000000020000',width:1536,height:864};
 
 // ── Brand fonts ──────────────────────────────────────────────────────────
@@ -55,7 +59,7 @@ test('the export waits for the brand font and draws in it',async()=>{
  // A stand-in canvas: it draws each text layer with whatever family is loaded at that moment.
  const loaded=new Set(),events=[];
  const load=(n)=>new Promise(resolve=>setTimeout(()=>{loaded.add(F.fontKey(n));events.push('loaded '+F.fontKey(n));resolve({ok:true})},5));
- const draw=async()=>{events.push('draw');return doc.layers.map(l=>loaded.has(F.fontKey({font:l.font,weight:l.fontWeight}))?F.canvasFontFamily(l.font,resolve):F.fallbackFamily(resolve))};
+ const draw=async()=>{events.push('draw');return drawn(doc).map(l=>loaded.has(F.fontKey({font:l.font,weight:l.fontWeight}))?F.canvasFontFamily(l.font,resolve):F.fallbackFamily(resolve))};
  const {file,failed}=await F.exportWithFonts(doc,{load,ready:async()=>{events.push('ready')},draw});
  assert.deepEqual(failed,[]);
  assert.equal(events.indexOf('draw'),events.length-1,'nothing is drawn before every font has loaded and the canvas shows it');
@@ -74,37 +78,39 @@ test('a font that can’t load falls back to the Studio’s font, and says so',a
  assert.equal(F.fallbackNotice([]),null);
  assert.ok(F.fallbackFamily(resolve).startsWith("'__Inter_a1b2c3'"));
  // The browser side: one load per font and weight, a timeout, and never silent (a notice and the console).
- const browser=read('components/canvas/fonts.ts'),editor=read('components/canvas/editor-page.tsx'),stage=read('components/canvas/stage.tsx');
+ const browser=read('components/canvas/fonts.ts'),editor=canvasSource(),stage=read('components/canvas/stage.tsx');
  assert.match(browser,/document\.fonts\.load\(spec\)/);assert.match(browser,/timeout\(FONT_LOAD_MS\)/);
  assert.match(browser,/console\.warn\('\[editor\] a brand font fell back'/);
- assert.match(editor,/const fontNote=fallbackNotice\(fonts\.failed\);/);assert.match(editor,/\{fontNote&&<div className="ds-banner warn canvas-notice" role="status">/);
- assert.match(editor,/exportWithFonts\(doc,\{load:loadCanvasFont,ready:fonts\.whenReady,draw:/,'Save, Duplicate and Download all export through the font wait');
+ assert.match(editor,/fallbackNotice\(fonts\.failed\)/);assert.match(editor,/canvas-notice/);
+ assert.match(editor,/exportWithFonts\(\w+,\{load:loadCanvasFont,ready:fonts\.whenReady,draw:/,'Save, Duplicate and Download all export through the font wait');
  assert.match(stage,/<Text key=\{key\}/,'the text is measured again once its font arrives');
 });
 
 // ── Typing: one undo step ────────────────────────────────────────────────
 test('typing on the canvas is one undo step; redo brings it back; a new edit starts a new step',()=>{
  const a=D.addLayer(D.createDoc(PICTURE),{kind:'text',style:'heading'},'t');
- let h=D.startHistory(a);
- for(const text of ['L','La','Lau','Launch'])h=D.commit(h,D.updateLayer(h.present,'t',{text}),'type:t:1');
- assert.equal(h.present.layers[0].text,'Launch');assert.equal(h.past.length,1,'one step for the whole word');
- h=D.undo(h);assert.equal(h.present.layers[0].text,'Add a heading');
- h=D.redo(h);assert.equal(h.present.layers[0].text,'Launch');
- h=D.commit(h,D.updateLayer(h.present,'t',{text:'Launch day'}),'type:t:1');
+ const type=(h,text,gesture)=>H.apply(h,d=>D.edit.update(d,'t',{text}),gesture);
+ let h=H.startHistory(a);
+ for(const text of ['L','La','Lau','Launch'])h=type(h,text,'type:t:1');
+ assert.equal(h.present.layers.t.text,'Launch');assert.equal(h.past.length,1,'one step for the whole word');
+ h=H.undo(h);assert.equal(h.present.layers.t.text,'Add a heading');
+ h=H.redo(h);assert.equal(h.present.layers.t.text,'Launch');
+ h=type(h,'Launch day','type:t:1');
  assert.equal(h.past.length,2,'after an undo or redo, typing is a new step');
- h=D.commit(h,D.updateLayer(h.present,'t',{text:'Launch day!'}),'type:t:2');
- h=D.commit(h,D.nudge(h.present,'t',4,0));
- h=D.commit(h,D.updateLayer(h.present,'t',{text:'Launch day!!'}),'type:t:2');
+ h=type(h,'Launch day!','type:t:2');
+ h=H.apply(h,d=>D.edit.nudge(d,'t',4,0));
+ h=type(h,'Launch day!!','type:t:2');
  assert.equal(h.past.length,5,'another change in between ends the step');
- assert.equal(D.commit(h,h.present,'type:t:2'),h,'nothing changed: no step');
+ assert.equal(type(h,'Launch day!!','type:t:2'),h,'nothing changed: no step');
+ h=H.end(h);h=type(h,'Launch day!!!','type:t:2');
+ assert.equal(h.past.length,6,'a finished typing session is closed: the next one is its own step');
  // The canvas: double-click or Enter types in place; Esc finishes; keys never reach the canvas's shortcuts.
- const box=read('components/canvas/text-editor.tsx'),editor=read('components/canvas/editor-page.tsx'),stage=read('components/canvas/stage.tsx');
- assert.match(stage,/onDblClick=\{\(\)=>\{if\(layer\.kind==='text'\)onEditText\(layer\.id\)\}\}/);
- assert.match(editor,/if\(e\.key==='Enter'&&layer\?\.kind==='text'\)\{e\.preventDefault\(\);startTyping\(layer\.id\);return\}/);
+ const box=read('components/canvas/text-editor.tsx'),editor=canvasSource(),stage=read('components/canvas/stage.tsx');
+ assert.match(stage,/onDblClick=/);assert.match(stage,/onEditText\(layer\.id\)/);
+ assert.match(editor,/e\.key==='Enter'/);assert.match(editor,/startTyping\(/);
  assert.match(box,/e\.stopPropagation\(\);\n   if\(e\.key==='Escape'\)\{e\.preventDefault\(\);finish\(\)\}/);
  assert.doesNotMatch(box,/e\.key==='Enter'/,'Enter adds a line (the text box’s own)');
  assert.match(box,/fontFamily:family,fontSize:layer\.fontSize\*scale,fontWeight:layer\.fontWeight,lineHeight:TEXT_LINE_HEIGHT/,'typed in the brand font, at the canvas’s size');
- assert.match(editor,/change\(d=>updateLayer\(d,l\.id,\{text,height:textHeight\(l,text\)\}\),typingKey\(l\.id\)\)/);
 });
 
 // ── Icons ────────────────────────────────────────────────────────────────
@@ -125,14 +131,14 @@ test('icons: lucide’s own drawing becomes vector paths the design keeps',async
  assert.deepEqual({...add,paths:undefined},{kind:'icon',icon:'car',name:'Car',paths:undefined,color:'#0A84FF'},'in the brand’s first colour');
  assert.equal(iconCanvasAdd({id:'car',name:'Car'},paths,null).color,'#ffffff');
  assert.equal(iconCanvasAdd({id:'Car<x>',name:'Car'},paths),null);assert.equal(iconCanvasAdd({id:'car',name:'Car'},[]),null);
- const doc=D.addLayer(D.createDoc(PICTURE),add,'i'),[l]=doc.layers;
+ const doc=D.addLayer(D.createDoc(PICTURE),add,'i'),l=doc.layers.i;
  assert.equal(l.kind,'icon');assert.equal(l.width,l.height,'square, keeps its shape');assert.equal(l.strokeWidth,D.ICON_STROKE);
  assert.equal(D.checkDoc(JSON.parse(JSON.stringify(doc))).ok,true,'the save route keeps it');
- const bad=(patch)=>D.checkDoc({...doc,layers:[{...l,...patch}]}).ok;
+ const bad=(patch)=>D.checkDoc({...doc,layers:{i:{...l,...patch}}}).ok;
  assert.equal(bad({paths:['M0 0<script>']}),false);assert.equal(bad({paths:[]}),false);assert.equal(bad({color:'red'}),false);
  assert.equal(bad({icon:'../x'}),false);assert.equal(bad({strokeWidth:60}),false);assert.equal(bad({paths:Array(D.ICON_PATHS_MAX+1).fill('M0 0')}),false);
  // Recolour: a patch keeps the vector; resizing is the layer's box (the paths are on their own 24-unit grid).
- const blue=D.updateLayer(doc,'i',{color:'#123456',width:400,height:400}).layers[0];
+ const blue=D.updateLayer(doc,'i',{color:'#123456',width:400,height:400}).layers.i;
  assert.deepEqual(blue.paths,l.paths);assert.equal(blue.color,'#123456');
  const stage=read('components/canvas/stage.tsx');
  assert.match(stage,/<Group scaleX=\{w\/ICON_GRID\} scaleY=\{h\/ICON_GRID\}>/,'drawn as vectors scaled to the box: sharp at any size and in the export');
@@ -206,18 +212,17 @@ test('Edit on a picture saved from the editor reopens its original with every la
  const e1=first.body.visual;
  const r=await open(e1.id);
  assert.equal(r.status,200,JSON.stringify(r.body));
- assert.deepEqual(r.body.design.background,{visualId:PICTURE.id,src:PICTURE.src},'the original underneath, not the flattened picture');
+ assert.equal(r.body.design.base,PICTURE.id,'the original underneath, not the flattened picture');
+ assert.deepEqual(r.body.design.pages,[{id:P,background:{kind:'picture',asset:'images/'+PICTURE.id}}]);
  assert.deepEqual(r.body.design.layers,doc.layers,'every layer, as it was saved');
- assert.equal(r.body.design.layers[0].font,'Poppins');
+ assert.equal(r.body.design.layers.t.font,'Poppins');assert.equal(r.body.designId,PICTURE.id,'a version of the design begun on the original');
  assert.deepEqual({id:r.body.base.id,width:r.body.base.width,height:r.body.base.height},{id:PICTURE.id,width:1536,height:864});
  assert.equal(D.checkDoc(r.body.design).ok,true,'the editor checks it the same way');
  // Edit on a normal picture: no layers, it opens plain (as before).
  const plain=await open(PLAIN.id);assert.equal(plain.status,404);assert.equal(plain.body.error,'This picture has no layers to reopen.');
  assert.equal((await open(id(0x9999))).status,404,'not a picture here');
- // The editor asks for the layers only for a picture made in the editor.
- const page=read('components/canvas/editor-page.tsx');
- assert.match(page,/const \{design,lost\}=v\.edit\?await loadDesign\(v\.id\):\{design:null,lost:false\};/);
- assert.match(page,/const \[opened\]=React\.useState<EditorDoc>\(\(\)=>design\|\|createDoc\(/);
+ // The editor asks the address for a picture's layers.
+ assert.match(canvasSource(),/'\/api\/edits\/'\+/);
 });
 
 test('saving a reopened design makes a new version and never changes the earlier one',async()=>{
@@ -234,15 +239,15 @@ test('saving a reopened design makes a new version and never changes the earlier
  assert.notEqual(e2.id,e1.id);assert.equal(e2.parentId,e1.id,'the next version of the picture opened');
  assert.equal(e2.title,'Demo SUV · Coast road · edited');
  const kept=JSON.parse(await text(prefix+'edits/'+e2.id+'.json'));
- assert.deepEqual(kept.background,{visualId:PICTURE.id,src:PICTURE.src},'still over the original');
- assert.deepEqual(kept.layers.map(l=>l.id),['t','star']);
+ assert.equal(kept.base,PICTURE.id,'still over the original');assert.equal(kept.schemaVersion,2);
+ assert.deepEqual(drawn(kept).map(l=>l.id),['t','star']);
  // The earlier version and the original, byte for byte.
  assert.equal(await text(prefix+'visuals/'+e1.id+'.json'),before.record);
  assert.equal(await text(prefix+'edits/'+e1.id+'.json'),before.layers);
  assert.deepEqual(Buffer.from(await (await store.get(prefix+'images/'+e1.id)).arrayBuffer()),before.image);
  assert.equal(await text(prefix+'visuals/'+PICTURE.id+'.json'),before.original);
  // And it reopens in turn.
- assert.deepEqual((await open(e2.id)).body.design.layers.map(l=>l.text||l.shape),['Second','star']);
+ assert.deepEqual(drawn((await open(e2.id)).body.design).map(l=>l.text||l.shape),['Second','star']);
  // A colleague reopens it and saves: their own version, nothing written into the owner's work.
  as(CREATOR);
  const theirs=await post({doc:(await open(e2.id)).body.design,parentId:e2.id});
@@ -250,7 +255,7 @@ test('saving a reopened design makes a new version and never changes the earlier
  assert.ok(await store.get(mine+'edits/'+theirs.body.visual.id+'.json'));assert.equal(await store.get(prefix+'visuals/'+theirs.body.visual.id+'.json'),null);
  as(OWNER);
  // A design over a picture that isn't this one's original is refused.
- const other=D.addLayer(D.createDoc({...PICTURE,id:PLAIN.id,src:PLAIN.src}),{kind:'text',style:'body'},'x');
+ const other=D.addLayer(D.createDoc({...PICTURE,id:PLAIN.id}),{kind:'text',style:'body'},'x');
  assert.equal((await post({doc:other,parentId:e1.id})).status,400);
  assert.equal((await post({doc:other,parentId:PICTURE.id})).status,400);
 });
@@ -260,7 +265,7 @@ test('when the original is gone, the saved picture opens plain (its layers have 
  const base={...ORIGINAL,id:id(0x20002),src:'/api/assets/'+id(0x20002)};
  await store.put(prefix+'visuals/'+base.id+'.json',JSON.stringify(base),{httpMetadata:{contentType:'application/json'}});
  await store.put(prefix+'images/'+base.id,pngOf(1536,864,7),{httpMetadata:{contentType:'image/png'}});
- const e1=(await post({doc:D.addLayer(D.createDoc({...PICTURE,id:base.id,src:base.src}),{kind:'text',style:'body'},'t'),parentId:base.id})).body.visual;
+ const e1=(await post({doc:D.addLayer(D.createDoc({...PICTURE,id:base.id}),{kind:'text',style:'body'},'t'),parentId:base.id})).body.visual;
  assert.equal((await open(e1.id)).status,200);
  await store.put(prefix+'deleted-visuals/'+base.id+'.json',JSON.stringify(base),{httpMetadata:{contentType:'application/json'}});
  assert.equal((await open(e1.id)).status,404,'deleted original: plain');

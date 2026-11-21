@@ -147,6 +147,13 @@
   --ds-space-40: 40px;
   --ds-space-48: 48px;
   --ds-space-64: 64px;
+  /* The canvas editor's right panel (docs/editor-rules.md, rules 2 and 4): its
+     width and the only four spacings inside it. */
+  --ds-editor-panel: 340px;
+  --ds-editor-label-gap: var(--ds-space-4);
+  --ds-editor-row-gap: var(--ds-space-8);
+  --ds-editor-pad: var(--ds-space-16);
+  --ds-editor-section-gap: var(--ds-space-24);
 
   /* Type. Each size has its line height under the same name; use them as
      a pair. Outfit for headings and big figures, Inter for the rest. */

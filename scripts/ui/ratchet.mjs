@@ -9,6 +9,10 @@ import path from 'node:path';
 // keyboard walk lands on slightly different stops from one run to the next.
 // It applies to the totals and to each screen.
 export const TOLERANCE = { focusWithoutIndicator: 5 };
+// The editor rules (docs/editor-rules.md; scripts/ui/checks.mjs editorRules): counted per page and
+// reported in every summary. They join RATCHETED (and the baseline) once the rebuilt panel brings
+// them to zero (feat/editor-panel-rules); until then they inform the review, they do not gate it.
+export const EDITOR_RULES = ['editorPanelWidth', 'editorPanelOverCanvas', 'editorSectionOrder', 'editorSpacing', 'editorUnlabelled', 'editorNestedScroll', 'editorSaveStatus'];
 export const RATCHETED = ['pagesZoomedOutOnPhones', 'editorBand', 'fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked', 'pagesOverCls01', 'menusUnderPanels', 'shellNotFilling'];
 // Counted for the whole Studio process, not per page: in the totals only.
 const WHOLE_RUN = new Set(['serverHostsBlocked']);
@@ -46,6 +50,7 @@ export function countsOf(results, blockedServerHosts = {}) {
     providerNamesShown: sum((r) => r.providerNames?.length),
     pagesNeverQuiet: pages.filter((r) => r.ready && !r.ready.quiet).length,
     serverHostsBlocked: Object.keys(blockedServerHosts).length,
+    ...Object.fromEntries(EDITOR_RULES.map((k) => [k, sum((r) => r.editorRules?.[k]?.length)])),
   };
 }
 

@@ -328,3 +328,82 @@ export function providerNamesOnPage({ source }) {
   const seen = new Set();
   return found.filter((f) => { const k = f.where + f.text; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 40);
 }
+
+// The editor rules that can be measured (docs/editor-rules.md), on any page with the
+// canvas editor: the right panel's width (rule 2), nothing from a panel over the canvas
+// (rule 1), the section order (rule 3), spacing from the four editor tokens and no margins
+// on single elements (rule 4), a plain-word label on every control (rule 5), one vertical
+// scroll with nothing nested or sideways (rule 8) and the save status in the canvas bar
+// (rule 9). Self-contained: it runs in the page. Each list holds what broke the rule.
+export function editorRules() {
+  const out = { editorPanelWidth: [], editorPanelOverCanvas: [], editorSectionOrder: [], editorSpacing: [], editorUnlabelled: [], editorNestedScroll: [], editorSaveStatus: [] };
+  const editor = document.querySelector('.canvas-editor:not(.canvas-editor-state)');
+  if (!editor || !editor.getBoundingClientRect().width) return out;
+  const describe = (el) => {
+    const cls = typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
+    const name = (el.getAttribute('aria-label') || el.innerText || el.value || el.getAttribute('title') || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+    return el.tagName.toLowerCase() + cls + (name ? ' "' + name + '"' : '');
+  };
+  const shown = (el) => { const r = el.getBoundingClientRect(), cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && !el.closest('[hidden],[inert]'); };
+  const words = (el) => !!el && shown(el) && el.innerText.trim().length > 0;
+  const tokenPx = (name) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || NaN;
+  const panel = editor.querySelector('.canvas-inspector'), box = editor.querySelector('.canvas-box');
+  // Rule 9: the save status, always visible in the canvas bar.
+  const status = editor.querySelector('.canvas-bar [data-save-status]');
+  if (!status || !words(status)) out.editorSaveStatus.push({ el: status ? describe(status) : 'no [data-save-status] in .canvas-bar' });
+  if (!panel || !shown(panel)) return out;
+  const p = panel.getBoundingClientRect(), beside = box && box.getBoundingClientRect().right <= p.left + 1;
+  // Rule 2: 340 px whenever the panel sits beside the canvas (desktop widths).
+  const want = tokenPx('--ds-editor-panel');
+  if (beside && Math.abs(p.width - want) > 1) out.editorPanelWidth.push({ el: describe(panel), width: Math.round(p.width), want });
+  // Rule 1: what is drawn at points across the canvas is the canvas (or its own text box), never a panel.
+  if (box && shown(box)) {
+    const b = box.getBoundingClientRect(), seen = new Set();
+    for (let i = 1; i < 5; i++) for (let j = 1; j < 5; j++) {
+      const top = document.elementFromPoint(b.left + (b.width * i) / 5, b.top + (b.height * j) / 5);
+      if (!top || box.contains(top) || top.closest('[role="dialog"],[role="menu"],[role="tooltip"],.ds-toast,dialog[open]')) continue;
+      const d = describe(top);
+      if (!seen.has(d)) { seen.add(d); out.editorPanelOverCanvas.push({ el: d }); }
+    }
+  }
+  // Rule 3: sections in the fixed order (a section that does not apply is left out, never moved).
+  const ORDER = ['position', 'appearance', 'text', 'effects', 'arrange'];
+  const order = [...panel.querySelectorAll('[data-editor-section]')].map((s) => ORDER.indexOf(s.getAttribute('data-editor-section'))).filter((i) => i >= 0);
+  for (let i = 1; i < order.length; i++) if (order[i] < order[i - 1]) out.editorSectionOrder.push({ el: ORDER[order[i]] + ' after ' + ORDER[order[i - 1]] });
+  // Rule 4: the panel's padding is --ds-editor-pad; gaps between rows, sections and a label
+  // and its control are one of the four tokens; nothing inside the panel sets its own margin
+  // (the inside of a control, its own box, is not layout).
+  const allowed = new Set(['--ds-editor-label-gap', '--ds-editor-row-gap', '--ds-editor-pad', '--ds-editor-section-gap'].map(tokenPx));
+  const pad = getComputedStyle(panel);
+  if (['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].some((k) => parseFloat(pad[k]) !== tokenPx('--ds-editor-pad'))) out.editorSpacing.push({ el: describe(panel), padding: pad.padding });
+  const CONTROL = 'button, input, select, textarea, [role="slider"], [role="switch"], summary, .ds-btn, svg';
+  for (const el of panel.querySelectorAll('*')) {
+    if (!shown(el) || el.parentElement?.closest(CONTROL)) continue;
+    const cs = getComputedStyle(el);
+    const margin = ['marginTop', 'marginRight', 'marginBottom', 'marginLeft'].map((k) => parseFloat(cs[k]) || 0);
+    if (margin.some((m) => Math.abs(m) > 0.5)) out.editorSpacing.push({ el: describe(el), margin: cs.margin });
+    if (!/flex|grid/.test(cs.display) || el.matches(CONTROL)) continue;
+    for (const g of [cs.rowGap, cs.columnGap]) { const v = parseFloat(g); if (v > 0.5 && !allowed.has(v)) out.editorSpacing.push({ el: describe(el), gap: g }); }
+  }
+  // Rule 5: every control has words a person can read: its own (a button), or a visible label.
+  const labelled = (el) => {
+    if (el.matches('button, summary, .ds-btn')) return words(el);
+    if ([...(el.labels || [])].some(words)) return true;
+    const by = (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).map((id) => document.getElementById(id));
+    if (by.some(words)) return true;
+    const legend = el.closest('fieldset')?.querySelector('legend');
+    return words(legend) || words(el.closest('[data-editor-row]')?.querySelector('[data-editor-label]'));
+  };
+  for (const el of panel.querySelectorAll('button, input:not([type="hidden"]), select, textarea, [role="slider"], [role="switch"], summary')) {
+    if (shown(el) && !labelled(el)) out.editorUnlabelled.push({ el: describe(el) });
+  }
+  // Rule 8: one vertical scroll (the panel's own), never sideways, nothing nested.
+  if (panel.scrollWidth > panel.clientWidth + 1) out.editorNestedScroll.push({ el: describe(panel) + ' scrolls sideways', by: panel.scrollWidth - panel.clientWidth });
+  for (const el of panel.querySelectorAll('*')) {
+    const cs = getComputedStyle(el);
+    const scrolls = (/auto|scroll/.test(cs.overflowY) && el.scrollHeight > el.clientHeight + 1) || (/auto|scroll/.test(cs.overflowX) && el.scrollWidth > el.clientWidth + 1);
+    if (scrolls && shown(el)) out.editorNestedScroll.push({ el: describe(el) });
+  }
+  for (const k of Object.keys(out)) out[k] = out[k].slice(0, 12);
+  return out;
+}

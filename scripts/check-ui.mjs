@@ -37,10 +37,11 @@ import { seedStudio, ORGS, PEOPLE, PASSWORD } from './ui/seed.mjs';
 import { execFile } from 'node:child_process';
 // Asynchronous: the S3 stand-in runs in this process and must keep answering while the backfill runs.
 const backfill = (stack) => new Promise((resolve, reject) => execFile(process.execPath, ['scripts/backfill-library.mjs', '--env', 'preview', '--staff', PEOPLE.staff.id], { env: { ...stack.env, NODE_OPTIONS: '' }, encoding: 'utf8', timeout: 600_000, maxBuffer: 16 * 1024 * 1024 }, (e, out, err) => (e ? reject(new Error('The backfill failed: ' + (err || e.message).slice(-2000))) : resolve(String(out).trim().split(/\r?\n/).pop()))));
-import { initScript, quietFor, vitals, layoutChecks, shellOutsideProbe, focusState, providerNamesOnPage } from './ui/checks.mjs';
+import { initScript, quietFor, vitals, layoutChecks, shellOutsideProbe, focusState, providerNamesOnPage, editorRules } from './ui/checks.mjs';
 import { PROVIDER_PATTERN } from '../lib/provider-words.ts';
 import { runPerf } from './ui/perf.mjs';
 import { VISUAL_ID } from '../lib/work-ref.ts';
+import { EDITOR_JOURNEYS, EDITOR_VISUAL_ID, V1_DESIGN_ID } from './ui/screens.mjs';
 import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, FLOWS, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
 import { finish } from './ui/ratchet.mjs';
 
@@ -118,7 +119,7 @@ try {
   // The library at scale (Phase 3 group 2): a hard limit, not a ratchet.
   if (perf?.libraryScale && !perf.libraryScale.ok) { console.log('✗ The library at 1,000 items: first paint 1.5 s or more on the phone profile, or storage read for work off screen: ' + JSON.stringify(perf.libraryScale)); exitCode = 1; }
   // Journeys across screens (Edit from Projects): a hard check, in the run or shard that checks where they start.
-  const flows = await runFlows();
+  const flows = [...await runFlows(), ...await runEditorJourneys()];
   if (flows.length) {
     report.flows = flows;
     for (const f of flows) console.log(`  flow ${f.id}: ${f.ok ? 'ok' : 'FAILED: ' + f.problems.join('; ')}`);
@@ -264,6 +265,8 @@ async function check({ screen, role, w, h, theme, dsf, zoom }) {
     // The screenshot shows the page as it opened (before the keyboard walk scrolls it).
     if (SHOTS && SHOT_WIDTHS.has(w)) await page.screenshot({ path: path.join(OUT, 'shots', `${screen.id}--${role}--${w}--${theme}.png`) }).catch(() => {});
     Object.assign(out, await page.evaluate(layoutChecks, { phone: w <= 480 }));
+    // The editor rules that can be measured (docs/editor-rules.md), wherever the canvas editor is open.
+    out.editorRules = await page.evaluate(editorRules);
     out.vitals = await page.evaluate(vitals);
     // After the vitals (it adds and removes nodes): nothing outside the shell may make a tool page's document taller.
     out.shellShort = [...(out.shellShort || []), ...await page.evaluate(shellOutsideProbe)];
@@ -322,6 +325,93 @@ async function runFlows() {
   }
   return out;
 }
+
+// The canvas editor's journeys (scripts/ui/screens.mjs EDITOR_JOURNEYS): what a person does, checked
+// through what the page shows (the canvas's layer count and its undo steps, the address, the title, the
+// save status), not the editor's internals.
+async function runEditorJourneys() {
+  const out = [];
+  for (const j of EDITOR_JOURNEYS.filter((f) => inRun(f.from, f.role))) {
+    const page = await contexts[j.role].desktop.newPage();
+    const problems = [];
+    page.on('pageerror', (e) => problems.push('Uncaught: ' + String(e.message).slice(0, 200)));
+    try {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+      await EDITOR_STEPS[j.id](page, problems);
+    } catch (e) { problems.push(String(e.message || e).split('\n')[0].slice(0, 200)); }
+    finally { await page.close().catch(() => {}); }
+    out.push({ id: j.id, role: j.role, ok: !problems.length, problems });
+  }
+  return out;
+}
+const canvasOf = (page) => page.locator('.canvas-box[data-editable="true"]');
+async function openEditor(page, id) {
+  await page.goto('/editor?visual=' + id, { waitUntil: 'load', timeout: 30_000 });
+  await canvasOf(page).locator('canvas').first().waitFor({ timeout: 20_000 });
+  await ready(page);
+}
+const layersOf = async (page) => Number((/(\d+) layers?/.exec((await canvasOf(page).getAttribute('aria-label')) || '') || [])[1]);
+const stepsOf = async (page) => Number(await canvasOf(page).getAttribute('data-undo-steps'));
+const savedWithin = (page, ms) => page.waitForFunction(() => document.querySelector('.canvas-bar [data-save-status]')?.getAttribute('data-save-status') === 'saved', null, { timeout: ms });
+async function press(page, key) { await canvasOf(page).focus(); await page.keyboard.press(key); await page.waitForTimeout(250); }
+const EDITOR_STEPS = {
+  // A design saved before format v2 opens with every layer, through the upgrade.
+  'editor-open-v1-design': async (page, problems) => {
+    const want = JSON.parse(fs.readFileSync('tests/fixtures/editor-v1/every-kind.json', 'utf8')).layers.length;
+    await openEditor(page, V1_DESIGN_ID);
+    const n = await layersOf(page), listed = await page.locator('.canvas-layers .canvas-layer:not(.canvas-layer-base)').count();
+    if (n !== want) problems.push(`the v1 design opened with ${n} layers, not ${want}`);
+    if (listed !== want) problems.push(`its Layers list shows ${listed}, not ${want}`);
+  },
+  // One drag (twelve moves) is one undo step; Ctrl+Z takes back the whole drag and nothing else.
+  'editor-undo-drag': async (page, problems) => {
+    await openEditor(page, EDITOR_VISUAL_ID);
+    const before = await layersOf(page);
+    await press(page, 't');
+    if (await layersOf(page) !== before + 1) problems.push('T did not add a text');
+    const s0 = await stepsOf(page), box = await canvasOf(page).boundingBox();
+    const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+    await page.mouse.move(cx, cy); await page.mouse.down();
+    for (let i = 1; i <= 12; i++) await page.mouse.move(cx + i * 12, cy + i * 6);
+    await page.mouse.up(); await page.waitForTimeout(250);
+    const s1 = await stepsOf(page);
+    if (s1 !== s0 + 1) problems.push(`a drag of twelve moves made ${s1 - s0} undo steps, not 1`);
+    await press(page, 'Control+z');
+    if (await stepsOf(page) !== s0) problems.push('one Ctrl+Z did not take back the whole drag');
+    if (await layersOf(page) !== before + 1) problems.push('one Ctrl+Z took back more than the drag');
+    await press(page, 'Control+z');
+    if (await layersOf(page) !== before) problems.push('a second Ctrl+Z did not take back the text');
+    await savedWithin(page, 12_000).catch(() => problems.push('the save status never said Saved'));
+  },
+  // "Duplicate design": "Copy of …" opens in place (same page, no reload, no new tab) with its notice, and
+  // editing goes on in the copy: its change is in the copy when it is opened again, not in the original.
+  'editor-duplicate-design': async (page, problems) => {
+    await openEditor(page, EDITOR_VISUAL_ID);
+    await page.evaluate(() => { window.__sameDocument = true; });
+    const pages = page.context().pages().length;
+    const before = await layersOf(page);
+    await press(page, 't');
+    await page.getByRole('button', { name: 'Duplicate design', exact: true }).click({ timeout: 5000 });
+    await page.locator('[data-copy-notice]').waitFor({ timeout: 40_000 });
+    const id = new URL(page.url()).searchParams.get('visual') || '';
+    if (!VISUAL_ID.test(id) || id === EDITOR_VISUAL_ID) problems.push(`the address is "${id}", not the copy's`);
+    if (new URL(page.url()).pathname !== '/editor') problems.push('the editor was left');
+    if (!(await page.evaluate(() => window.__sameDocument === true))) problems.push('the page reloaded: the copy did not open in place');
+    if (page.context().pages().length !== pages) problems.push('a new tab opened');
+    const title = ((await page.locator('.canvas-title').textContent()) || '').trim();
+    if (!title.startsWith('Copy of ')) problems.push(`the copy is called "${title}", not "Copy of …"`);
+    if (!/You’re now editing the copy/.test(await page.locator('[data-copy-notice]').innerText())) problems.push('no "You’re now editing the copy" notice');
+    if (!(await page.getByRole('button', { name: 'Back to original' }).count())) problems.push('no "Back to original"');
+    await press(page, 't');
+    if (await layersOf(page) !== before + 2) problems.push('editing the copy did not add to it');
+    await savedWithin(page, 12_000).catch(() => problems.push('the copy’s change was never saved'));
+    await openEditor(page, id);
+    if (await layersOf(page) !== before + 2) problems.push(`the copy reopened with ${await layersOf(page)} layers, not ${before + 2}`);
+    await openEditor(page, EDITOR_VISUAL_ID);
+    if (await layersOf(page) !== before + 1) problems.push(`the original has ${await layersOf(page)} layers after the copy was edited, not ${before + 1}`);
+  },
+};
 
 // A real keyboard: Tab through the page, and for each stop ask whether the
 // focus can be seen and whether a fixed or sticky bar hides it (2.4.11).

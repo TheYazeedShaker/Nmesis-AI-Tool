@@ -2,9 +2,21 @@
 
 > Read at session start; update at every stop. Refresh _Status_, append _Decisions_ and _Known issues_, rewrite _Next session_. **The repository is public: write this as if a customer will read it.** No credentials, no infrastructure identifiers, nothing about vendors or prospects.
 
-**Last updated:** 2026-11-20 (canvas editor part 3: `feat/editor-part-3`)
+**Last updated:** 2026-11-21 (editor foundations, PR A: `feat/editor-core-v2`)
 
-**Latest (2026-11-20, canvas editor part 3, `feat/editor-part-3`):**
+**Latest (2026-11-21, editor foundations PR A, `feat/editor-core-v2`):**
+- **The editor rules:** `docs/editor-rules.md` (twelve rules, linked from `docs/design-system.md`); every editor PR is reviewed against them. `check:ui` measures rules 1, 2, 3, 4, 5, 8 and 9 on every editor page (`editorRules` in `scripts/ui/checks.mjs`, counts `editorPanelWidth`, `editorPanelOverCanvas`, `editorSectionOrder`, `editorSpacing`, `editorUnlabelled`, `editorNestedScroll`, `editorSaveStatus`): reported in the summary now, ratcheted once PR B's panel brings them to zero. The right panel is 340 px (`--ds-editor-panel`) with the four editor spacing tokens.
+- **Design format v2** (`lib/editor/doc.ts`): `schemaVersion: 2`, pages (one or more, one size), layers by id with `pageId`, `parentId` (groups) and `index`; pictures by storage key only (`images/<id>`, `logos/<id>`), never an address. Every v1 design is upgraded on read by one function (`readDoc` → `upgradeV1`), tested on real v1 files written by the v1 code (`tests/fixtures/editor-v1/`, also seeded for check:ui). The operations are immer recipes (`edit.*`).
+- **Undo/redo** (`lib/editor/history.ts`): one history of immer patches; one step per gesture (a drag and its Alt copy, a resize, a rotation, a slider, a typing session); `end` closes a gesture.
+- **Autosave** (`lib/editor/autosave.ts`, `components/canvas/use-autosave.ts`): the working draft, about 2 s after the last change (`PUT /api/edits/<picture>/draft`), kept on this device first and sent on reconnect; the canvas bar always says "Saving…", "Saved", "Offline, changes kept" or "Couldn't save, retry". Save still makes a new version (page 1 is the picture; every page is kept) and never overwrites anything.
+- **Version history:** saved versions with when and who, Restore makes a new version (one undo step on the canvas); nothing is deleted.
+- **Duplicate:** Ctrl/Cmd+D and Alt-drag (a layer, offset and selected, one step), "Duplicate page" (right after, scrolled to), "Duplicate design" ("Copy of <name>" in the same folder; the editor switches to the copy in place with "You're now editing the copy" and "Back to original").
+- **Pages:** a page strip under the canvas (add, duplicate, move earlier/later, delete); Download is the current page or all pages as a ZIP of PNGs (`lib/editor/zip.ts`).
+- **Soft lock:** someone else in the company editing the design opens it read only with "Being edited by <name>" and "Edit anyway" (`components/canvas/use-presence.ts`, `POST /api/edits/<picture>/presence`).
+- **Shortcuts:** Ctrl/Cmd+] and [ (Shift: front/back), T adds text, arrows nudge 1 px (Shift: 10 px).
+- Migration `0012_designs.sql` (versions and presence); before it runs, Save, autosave and duplicates work, the version history says it isn't on yet and the soft lock is off. Owner step: `npm run db:migrate`.
+
+**Earlier (2026-11-20, canvas editor part 3, `feat/editor-part-3`):**
 - **Brand fonts:** every font of the brand kit's list (Inter, Outfit, Poppins, Montserrat, Playfair Display, Roboto, Lato, Oswald; System is the device's own) is served by the Studio itself (`app/brand-fonts.ts`, Next's font loader: files fetched at build, served from the Studio's own address, `preload: false`). The brand kit holds a fixed list of fonts, not font files, so "the brand kit's font files" are these. One registry (`lib/editor/fonts.ts` `FONT_VARS`); the canvas asks the page's font set for a font before drawing it (`components/canvas/fonts.ts`, 10 s), draws text in it and measures it again when it arrives; Save, Duplicate and Download wait for every font in the design (`exportWithFonts`). A font that can't load draws in Inter and the editor says so in a notice above the canvas (and the console). The Text and Elements panels preview the same files.
 - **Reopen with layers:** Edit on a picture saved from the editor opens its original picture underneath with every layer, editable (`GET /api/edits/<id>`, `lib/editor/reopen.ts`: the same rules as opening a picture, for both). Save makes a new version of the picture opened (its parent) over the same original; nothing earlier is written. A normal picture, an older save without layers, or one whose original is gone opens plain. Layers that fail to load say so (open flat, Try again).
 - **Type on the canvas:** double-click (or Enter on a selected text) types in place, in the brand font, size, colour, alignment and rotation; Enter adds a line, Esc or clicking away finishes; the whole edit is one undo step (`commit` with `merge`), as is typing in the side field. The inspector has a Font choice (the kit's two first) and the kit's colours as swatches.
@@ -247,6 +259,7 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 
 ## Decisions made (must be remembered)
 
+- **Editor foundations (owner, 2026-11-21):** keep the Studio's own Konva editor (no editor SDK); the right panel is the one home for the selection's settings (no floating toolbar); text effects one at a time; no live co-editing (one person edits, others see "Being edited by …" and may "Edit anyway"); what a plan allows follows the plans data. Every editor PR is reviewed against the twelve rules in `docs/editor-rules.md`. Save makes a new version and never overwrites the original or an earlier version; autosave only updates a working draft; Restore makes a new version and deletes nothing.
 - **Own profile (owner, 2026-11-18):** every role, viewers included, may edit their own name and avatar, and nothing else: their sign-in profile, never company data. A paused Studio does not stop it. One route carries the exemption (`ownProfile` on `/api/account/profile` in `lib/accounts/plan.ts`), and `tests/account-profile.test.mjs` holds that it stays the only one. Staff viewing a client company stay read-only there. There is no avatar upload yet (the avatar is the initials); when one comes, it goes through the same route.
 - **Provider names (owner, F-050, 2026-11-15):** clients never see provider or model names on cards or in the library: the tool ("Key visual") and at most "Standard" / "High detail". Staff, and companies using their own keys, see the provider in the item's details.
 - **Design direction (owner, 2026-11-15):** every change uses the Phase 0 design system and the approved wireframes, in the Nmesis theme. Phase 2b builds the new app shell and moves every screen to the new components, without re-laying out Home, the library or the tool screens (only their safety, accessibility and behaviour findings). Phase 3 group 1 rebuilds Home, projects and folders and the library to the wireframes; group 2 rebuilds the editor for all tools. Before each Phase 3 group, post the screens at 1440 and 390 next to the matching wireframe.
@@ -292,6 +305,8 @@ Grow Nmesis Studio from a single-team creative tool into a full platform. The pl
 
 _Waiting on owner_
 
+- Editor foundations PR A: `npm run db:migrate` applies `0012_designs.sql` (`studio.design_versions`, `studio.design_presence`). Before it runs, Save, autosave, pages and the three duplicates work; the version history says it isn't on yet and the soft lock is off; within a minute after it, both work, with no redeploy. Versions saved before it are not listed.
+
 - Phase 3 group 1: `npm run db:migrate` applies `0006_folders.sql`, together with 0004 and 0005 after the next release to `main`. Before it runs, the library and Home work and folders say they are not available yet; within a minute after it, they work, with no redeploy.
 
 - Phase 2b: run `npm run db:migrate` once to apply `0005_trash.sql` (with 0004, after the release to `main`, as planned). Before it runs, films, swaps and stories work as before and Delete answers "Deleting isn't available yet"; within a minute after it, Delete and Deleted work, with no redeploy.
@@ -331,6 +346,8 @@ _Carried_
 - Lint debt (BACKLOG #4). Zod 3 advisory (GHSA-mrhx-c7xc-m3w5). `docs/VERIFICATION.md` describes the original export.
 
 ## Next session — start here
+
+000. Editor foundations PR A (`feat/editor-core-v2` → `development`): owner reviews; owner runs `npm run db:migrate` (0012). Then PR B, `feat/editor-panel-rules`, branched from PR A's branch: the rebuilt right panel to the twelve rules (sections, labelled rows, one slider, toggles, "More"), layers list (keyboard, drag, lock, hide, rename, group/ungroup), align, distribute and smart guides, the shortcuts sheet, first-use and empty states; then turn the `editor*` rule counts into ratcheted counts at zero. PR A's "Not done" lists what is left.
 
 00. Canvas editor part 3 (`feat/editor-part-3`): owner reviews the PR. No owner steps. Its "Not done" lists what is left.
 

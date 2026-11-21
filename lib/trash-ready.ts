@@ -29,3 +29,16 @@ export async function foldersReady(db:Db,now=Date.now()){
  catch(e){if(!/folders/i.test(e instanceof Error?e.message:String(e)))throw e;ready=false;console.info('Folders wait for migration 0006.')}
  foldersKnown={at:now,ready};return ready;
 }
+
+// The same for migration 0012 (the editor's version history and soft lock). Before
+// it runs, saving still works (no version row is kept), the history says it is not
+// available yet and nobody is shown as editing.
+let designsKnown:{at:number;ready:boolean}|undefined;
+export async function designsReady(db:Db,now=Date.now()){
+ if(designsKnown&&(designsKnown.ready||now-designsKnown.at<60_000))return designsKnown.ready;
+ let ready=true;
+ // A missing table: Postgres 42P01 'relation "design_versions" does not exist', SQLite 'no such table: design_versions'.
+ try{await db.prepare('SELECT version_id FROM design_versions WHERE 1=0').first()}
+ catch(e){if(!/design_versions/i.test(e instanceof Error?e.message:String(e)))throw e;ready=false;console.info('The editor’s version history waits for migration 0012.')}
+ designsKnown={at:now,ready};return ready;
+}

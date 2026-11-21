@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import postgres from 'postgres';
 import { encode } from 'fast-png';
-import { FOLDER_ID } from './screens.mjs';
+import { FOLDER_ID, V1_DESIGN_ID } from './screens.mjs';
 
 const ROOT = new URL('../../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, ROOT), 'utf8');
@@ -208,9 +208,27 @@ export function seedVisuals(s3, org, person, n, start = 0, { spread = false } = 
   return ids;
 }
 
+/**
+ * A design saved by the v1 editor, kept exactly as the v1 save route wrote it (the real file the v1 code
+ * made: tests/fixtures/editor-v1/every-kind.json, every kind of layer, over the owner's first picture),
+ * with its picture and the upload it uses. The editor reads it through the one v1 → v2 upgrade.
+ */
+export function seedV1Design(s3) {
+  const prefix = prefixOf('growth', 'owner'), raw = readFileSync(new URL('../../tests/fixtures/editor-v1/every-kind.json', import.meta.url));
+  const doc = JSON.parse(raw);
+  for (const l of doc.layers) if (l.kind === 'image' && l.assetId) put(s3, prefix + 'images/' + l.assetId, png(7, 60, 40), 'image/png');
+  const visual = { id: V1_DESIGN_ID, title: 'Demo SUV · Desert dusk · edited', src: '/api/assets/' + V1_DESIGN_ID, status: 'ready', createdAt: new Date(Date.now() - 90 * 60_000).toISOString(),
+    vehicle: 'Demo SUV', width: doc.width, height: doc.height, size: `${doc.width}x${doc.height}`, parentId: doc.background.visualId,
+    edit: { parentId: doc.background.visualId, parentSrc: doc.background.src, layers: doc.layers.length } };
+  put(s3, prefix + 'visuals/' + V1_DESIGN_ID + '.json', Buffer.from(JSON.stringify(visual)), 'application/json');
+  put(s3, prefix + 'images/' + V1_DESIGN_ID, png(8), 'image/png');
+  put(s3, prefix + 'edits/' + V1_DESIGN_ID + '.json', raw, 'application/json');
+}
+
 /** Studio content: 300 visuals for Growth, and films, swaps and storyboards for Enterprise (through the Studio's own routes). */
 export async function seedStudio({ s3, adminUrl, request }) {
   const growthIds = seedVisuals(s3, 'growth', 'owner', 200, 0);
+  seedV1Design(s3);
   seedVisuals(s3, 'growth', 'creator', 100, 200);
   const entIds = seedVisuals(s3, 'enterprise', 'enterprise', 12, 400).filter((_, i) => i % 29 !== 7 && i % 31 !== 11);
   seedVisuals(s3, 'starter', 'starter', 3, 500);

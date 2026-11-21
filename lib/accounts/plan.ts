@@ -72,6 +72,12 @@ export const ROUTE_FEATURES:RouteRule[]=[
  {path:/^\/api\/edits$/,methods:['POST'],feature:null},
  // A picture saved from the editor reopens with its layers (read only; like the picture itself, the library may open it).
  {path:new RegExp(`^/api/edits/${ID}$`),methods:['GET'],feature:null,library:true},
+ // The editor's working draft (autosave), its version history, restoring a version, and who has the design open (the soft lock).
+ // Reading the history and who is editing is a look, like the picture itself; the draft, a restore and saying you are here are writes.
+ {path:new RegExp(`^/api/edits/${ID}/(versions|presence)$`),methods:['GET'],feature:null,library:true},
+ {path:new RegExp(`^/api/edits/${ID}/draft$`),methods:['GET','PUT','DELETE'],feature:null},
+ {path:new RegExp(`^/api/edits/${ID}/restore$`),methods:['POST'],feature:null},
+ {path:new RegExp(`^/api/edits/${ID}/presence$`),methods:['POST','DELETE'],feature:null},
  {path:new RegExp(`^/api/assets/${ID}$`),methods:['GET'],feature:null,library:true},
  {path:new RegExp(`^/api/assets/${ID}/original$`),feature:null},
  // The company's brand kit (logos, colours, fonts, voice): everyone in the company reads; owners and creators change it (lib/accounts/can.ts).
