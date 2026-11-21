@@ -3,9 +3,8 @@ import * as React from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {useRouter,useSearchParams} from 'next/navigation';
-import {ArrowDown,ArrowLeft,ArrowUp,BringToFront,Check,ClockArrowDown,Clock,Copy,Download,ImageOff,Info,Monitor,Redo2,Save,SendToBack,Share2,Trash2,Undo2,Users} from 'lucide-react';
+import {ArrowLeft,ClockArrowDown,Clock,Copy,Download,ImageOff,Info,Keyboard,Lightbulb,Monitor,Redo2,Save,Share2,Undo2,Users} from 'lucide-react';
 import {Button,IconButton} from '@/components/ds/button';
-import {Field,Input,Select,Textarea} from '@/components/ds/field';
 import {Loading,State} from '@/components/ds/feedback';
 import {Menu,MenuItem,MenuSeparator} from '@/components/ds/menu';
 import {useToast} from '@/components/ds/toast';
@@ -13,15 +12,13 @@ import {AccountNotices,useAccount} from '@/components/studio-account';
 import {WorkspaceFrame} from '@/components/workspace/frame';
 import {SharePanel} from '@/components/share/share-panel';
 import {closePanel,setCanvasSink} from '@/components/shell/shell-state';
-import {useBrandKit} from '@/components/brand/brand-kit';
-import {cleanHex} from '@/lib/brand-kit';
 import {can} from '@/lib/accounts/can';
 import {studioFetch} from '@/lib/studio-fetch';
 import {dateTime} from '@/lib/ds/words';
 import type {Visual} from '@/lib/studio';
-import {assetSrc,createDoc,drawOrder,duplicateOffset,edit,exportPixelRatio,pageIndex,readDoc,TEXT_LINE_HEIGHT,type CanvasAdd,type DrawnLayer,type EditorDoc,type TextLayer} from '@/lib/editor/doc';
+import {assetSrc,boundsOf,createDoc,drawOrder,duplicateOffset,edit,exportPixelRatio,hiddenIn,lineHeightOf,lockedIn,pageIndex,readDoc,siblings,type Align,type CanvasAdd,type EditorDoc,type TextLayer} from '@/lib/editor/doc';
 import {apply,canRedo,canUndo,end,redo,startHistory,undo,type History} from '@/lib/editor/history';
-import {exportWithFonts,fallbackNotice,fontChoices,knownFont} from '@/lib/editor/fonts';
+import {exportWithFonts,fallbackNotice} from '@/lib/editor/fonts';
 import {editFileName,EDITS_PATH} from '@/lib/editor/save';
 import {zipStored} from '@/lib/editor/zip';
 import {answerProblem,CANT_OPEN,linkProblem,type CantOpen} from '@/lib/editor/cant-open';
@@ -32,6 +29,10 @@ import {TextEditor} from './text-editor';
 import {editorHref} from './open-in-editor';
 import {PageStrip} from './page-strip';
 import {SaveStatus} from './save-status';
+import {DesignPanel,type PanelActions} from './design-panel';
+import {LayersPanel,type SelectMode} from './layers-panel';
+import {ShortcutsDialog} from './shortcuts';
+import {InspectorTabPanel,InspectorTabs} from '@/components/ds/inspector';
 import {VersionHistory,type Version} from './version-history';
 import {deviceCopy,useAutosave} from './use-autosave';
 import {editedBy,usePresence} from './use-presence';
@@ -166,11 +167,13 @@ function PhoneNote({id}:{id:string|null}){
  </div>;
 }
 
-const LAYER_KIND:Record<DrawnLayer['kind'],string>={image:'Picture',text:'Text',shape:'Shape',line:'Line',frame:'Frame',icon:'Icon'};
 /** A text layer's height for its lines (the canvas measures wrapping itself; guides use this). */
-const textHeight=(l:TextLayer,text:string)=>Math.max(1,text.split('\n').length)*l.fontSize*TEXT_LINE_HEIGHT;
+const textHeight=(l:TextLayer,text:string)=>Math.max(1,text.split('\n').length)*l.fontSize*lineHeightOf(l);
 const uuid=()=>crypto.randomUUID();
 const isMac=()=>typeof navigator!=='undefined'&&/Mac|iP(hone|ad)/.test(navigator.platform||navigator.userAgent);
+const HINT_KEY='nmesis.editor.hint.v1';
+function hintSeen(){try{return window.localStorage.getItem(HINT_KEY)==='seen'}catch(e){console.warn('[editor] this browser keeps no settings',{reason:e instanceof Error?e.name:'unknown'});return true}}
+function rememberHint(){try{window.localStorage.setItem(HINT_KEY,'seen')}catch(e){console.warn('[editor] this browser keeps no settings',{reason:e instanceof Error?e.name:'unknown'})}}
 
 function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit:boolean;onRetry:()=>void;onSwitched:(copyId:string,ready:Ready)=>void;onBack:(originalId:string)=>void}){
  const toaster=useToast(),reduced=useReducedMotion(),router=useRouter();
@@ -188,7 +191,10 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
  const [pageId,setPageId]=React.useState(start.pages[0].id);
  const page=doc.pages.find(p=>p.id===pageId)?pageId:doc.pages[0].id;
  const fonts=useCanvasFonts(doc);
- const [selected,setSelected]=React.useState<string|null>(null);
+ // What is selected: layers or groups on this page (several at once with Shift, Ctrl/Cmd+A or the Layers list).
+ const [picked,setPicked]=React.useState<string[]>([]);
+ const selection=React.useMemo(()=>picked.filter(id=>doc.layers[id]?.pageId===page),[picked,doc,page]);
+ const selectedSet=React.useMemo(()=>new Set(selection),[selection]);
  // The text layer being typed in on the canvas, and its typing session (one undo step each).
  const [editing,setEditing]=React.useState<string|null>(null);
  const [session,setSession]=React.useState(0);
@@ -197,6 +203,9 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
  const [restoring,setRestoring]=React.useState<string|null>(null);
  const [sharing,setSharing]=React.useState(false);
  const [versionsOpen,setVersionsOpen]=React.useState(false);
+ const [keysOpen,setKeysOpen]=React.useState(false);
+ const [tab,setTab]=React.useState<'design'|'layers'>('design');
+ const [hint,setHint]=React.useState(()=>mayEdit&&!hintSeen());
  const canvasBox=React.useRef<HTMLDivElement>(null),handle=React.useRef<StageHandle>({stage:null,ui:null});
  // The soft lock: someone else editing opens it read only, with "Edit anyway".
  const presence=usePresence(visual.id,mayEdit);
@@ -212,23 +221,33 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
   catch(e){toaster.toast({kind:'bad',message:e instanceof Error?e.message:'That change couldn’t be made.'});return false}
  },[toaster,setHistory]);
  const endGesture=React.useCallback(()=>setHistory(end),[setHistory]);
- const raw=selected?doc.layers[selected]:undefined;
- const layer=raw&&raw.kind!=='group'&&raw.pageId===page?raw:null;
+ const single=selection.length===1?doc.layers[selection[0]]:undefined;
+ const layer=single&&single.kind!=='group'?single:null;
  const editingLayer=editing&&doc.layers[editing]?.kind==='text'?doc.layers[editing] as TextLayer:null;
+ /** Picks layers: one alone, or adds and removes one (Shift, Ctrl/Cmd), or adds one (Shift with an arrow in the Layers list). */
+ const select=React.useCallback((id:string|null,mode:SelectMode='replace')=>{
+  if(id===null){setPicked([]);return}
+  setPicked(now=>{
+   const here=now.filter(x=>live.current.present.layers[x]?.pageId===page);
+   if(mode==='replace')return [id];
+   if(mode==='add')return here.includes(id)?here:[...here,id];
+   return here.includes(id)?here.filter(x=>x!==id):[...here,id];
+  });
+ },[page]);
  function startTyping(id:string){
   if(readOnly)return;
-  setSession(n=>n+1);setSelected(id);setEditing(id);
+  setSession(n=>n+1);setPicked([id]);setEditing(id);
  }
  const typingKey=(id:string)=>`type:${id}:${session}`;
  const type=(text:string)=>{if(!editingLayer)return;const l=editingLayer;change(d=>edit.update(d,l.id,{text,height:textHeight(l,text)}),typingKey(l.id))};
  function stopTyping(){
   const l=editingLayer;setEditing(null);
   // Text typed away to nothing is removed, in the same undo step as the typing.
-  if(l&&!l.text.trim()){change(d=>edit.remove(d,l.id),typingKey(l.id));setSelected(null)}
+  if(l&&!l.text.trim()){change(d=>edit.remove(d,l.id),typingKey(l.id));setPicked([])}
   endGesture();
   canvasBox.current?.focus({preventScroll:true});
  }
- function pickPage(id:string){setPageId(id);setSelected(null);setEditing(null)}
+ function pickPage(id:string){setPageId(id);setPicked([]);setEditing(null)}
 
  // The shell's panels add here while the editor is open.
  const add=React.useCallback(async(what:CanvasAdd)=>{
@@ -239,7 +258,7 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
    catch(e){toaster.toast({kind:'bad',message:e instanceof Error?e.message:'That picture could not be added.'});return}
   }
   const id=uuid();
-  change(d=>edit.add(d,page,item,id));setSelected(id);
+  if(change(d=>edit.add(d,page,item,id)))setPicked([id]);
   // On a tablet the panel is a sheet over the canvas: close it so the new layer can be placed.
   if(window.matchMedia('(max-width: 768px)').matches)closePanel();
   canvasBox.current?.focus({preventScroll:true});
@@ -249,37 +268,71 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
  // Leaving while a change is still on its way asks first (it is kept on this device either way).
  React.useEffect(()=>{const warn=(e:BeforeUnloadEvent)=>{if(!autosave.pending())return;e.preventDefault();e.returnValue=''};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[autosave]);
 
- /** Ctrl/Cmd+D, the Duplicate button: a copy next to the original, selected. One undo step. */
+ // ── What the selection can do (the panel, the keys and the Layers list share these) ──
+ /** Ctrl/Cmd+D, Duplicate: copies next to the originals, selected. One undo step. */
  function duplicateSelected(){
-  if(!layer||readOnly)return;const copy=uuid(),root=layer.id;
-  if(change(d=>{edit.duplicate(d,root,x=>x===root?copy:uuid(),duplicateOffset(doc))}))setSelected(copy);
+  if(!selection.length||readOnly)return;const copies:string[]=[];
+  const ok=change(d=>{for(const root of selection){const copy=uuid();edit.duplicate(d,root,x=>x===root?copy:uuid(),duplicateOffset(doc));copies.push(copy)}});
+  if(ok)setPicked(copies);
  }
  /** Alt held as a drag starts: a copy where the layer is, in the drag's own undo step (the drop moves the copy). */
  const altDrag=React.useCallback((id:string,gesture:string)=>{
   if(readOnly)return null;const copy=uuid();
   if(!change(d=>{edit.duplicate(d,id,x=>x===id?copy:uuid(),{x:0,y:0})},gesture))return null;
-  setSelected(copy);return copy;
+  setPicked([copy]);return copy;
  },[readOnly,change]);
+ function removeSelected(){
+  if(!selection.length||readOnly)return;const n=selection.length;
+  if(change(d=>{for(const id of selection)edit.remove(d,id)})){setPicked([]);if(n>1)toaster.toast({kind:'ok',message:`${n} layers deleted.`,action:{label:'Undo',run:()=>setHistory(undo)}})}
+ }
+ function order(to:'forward'|'backward'|'front'|'back'){
+  if(!selection.length||readOnly)return;
+  // Several at once keep their order among themselves: whichever would pass another moves first.
+  const asc=[...selection].sort((a,b)=>(doc.layers[a]?.index??0)-(doc.layers[b]?.index??0)),seq=to==='front'||to==='backward'?asc:[...asc].reverse();
+  change(d=>{for(const id of seq)edit.reorder(d,id,to)});
+ }
+ function group(){
+  if(readOnly)return;
+  if(selection.length<2){toaster.toast({kind:'info',message:'Choose two or more layers to group: Shift-click them, or Shift with the arrows in Layers.'});return}
+  const id=uuid();if(change(d=>edit.group(d,selection,id)))setPicked([id]);
+ }
+ function ungroup(){
+  const groups=selection.filter(id=>doc.layers[id]?.kind==='group');if(!groups.length||readOnly)return;
+  let out:string[]=[];
+  if(change(d=>{out=groups.flatMap(g=>edit.ungroup(d,g))}))setPicked(out);
+ }
+ function align(how:Align){
+  if(!selection.length||readOnly)return;
+  // One layer or one group lines up with the page; several line up with each other.
+  const alone=selection.length===1;
+  const to=alone?{x:0,y:0,width:doc.width,height:doc.height,rotation:0}:boundsOf(doc,selection);
+  if(to)change(d=>edit.align(d,selection,how,to));
+ }
+ function distribute(axis:'x'|'y'){if(selection.length>=3&&!readOnly)change(d=>edit.distribute(d,selection,axis))}
+ function selectAll(){setPicked(siblings(doc,page,null).filter(l=>!hiddenIn(doc,l.id)).map(l=>l.id))}
 
  function onKey(e:React.KeyboardEvent){
   const mod=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();
   if(mod&&k==='z'&&!e.shiftKey){e.preventDefault();setHistory(undo);return}
   if(mod&&(k==='y'||(k==='z'&&e.shiftKey))){e.preventDefault();setHistory(redo);return}
+  if(e.key==='?'){e.preventDefault();setKeysOpen(true);return}
+  if(mod&&k==='a'){e.preventDefault();selectAll();return}
+  if(e.key==='Escape'){setPicked([]);return}
   if(readOnly)return;
   if(!mod&&!e.altKey&&k==='t'){e.preventDefault();void add({kind:'text',style:'heading'});return}
-  if(!layer)return;
-  if(e.key==='Enter'&&layer.kind==='text'){e.preventDefault();startTyping(layer.id);return}
+  if(mod&&k==='g'){e.preventDefault();if(e.shiftKey)ungroup();else group();return}
+  if(!selection.length)return;
+  if(e.key==='Enter'&&layer?.kind==='text'){e.preventDefault();startTyping(layer.id);return}
   if(mod&&k==='d'){e.preventDefault();duplicateSelected();return}
-  if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();change(d=>edit.remove(d,layer.id));setSelected(null);return}
-  if(e.key==='Escape'){setSelected(null);return}
+  if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();removeSelected();return}
   // Ctrl/Cmd+] and [ move one step; with Shift, to the front or the back.
   if(mod&&(e.code==='BracketRight'||e.code==='BracketLeft'||e.key===']'||e.key==='['||e.key==='}'||e.key==='{')){
    e.preventDefault();const up=e.code==='BracketRight'||e.key===']'||e.key==='}';
-   change(d=>edit.reorder(d,layer.id,up?(e.shiftKey?'front':'forward'):(e.shiftKey?'back':'backward')));return;
+   order(up?(e.shiftKey?'front':'forward'):(e.shiftKey?'back':'backward'));return;
   }
   const arrows:Record<string,[number,number]>={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
-  // Arrow keys: 1 px of the picture; Shift: 10 px.
-  const a=arrows[e.key];if(a&&!layer.locked){e.preventDefault();const by=e.shiftKey?10:1;change(d=>edit.nudge(d,layer.id,a[0]*by,a[1]*by))}
+  // Arrow keys: 1 px of the picture; Shift: 10 px. Locked layers stay where they are.
+  const a=arrows[e.key];if(a){e.preventDefault();const by=e.shiftKey?10:1;change(d=>{for(const id of selection)if(!lockedIn(doc,id))edit.nudge(d,id,a[0]*by,a[1]*by)})}
  }
 
  // ── Pages ──
@@ -295,7 +348,7 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
  // ── Export ──
  /** Draws a page on the stage (switching to it) once its pictures and fonts are in. */
  async function showPage(id:string){
-  if(id!==page){setPageId(id);setSelected(null);await nextPaint()}
+  if(id!==page){setPageId(id);setPicked([]);await nextPaint()}
   const p=doc.pages.find(x=>x.id===id);
   const keys=[...(p?.background.kind==='picture'?[p.background.asset]:[]),...drawOrder(doc,id).flatMap(l=>l.kind==='image'?[l.asset]:[])];
   await Promise.all(keys.map(k=>loadImage(assetSrc(k)).catch(()=>null)));
@@ -384,6 +437,11 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
  const mod=isMac()?'⌘':'Ctrl+';
  const drawn=drawOrder(doc,page),bg=doc.pages.find(p=>p.id===page)?.background;
  const viewOnly=!mayEdit?'View only':readOnly&&presence.checked?'View only':false;
+ const picked1=selection.length===1?doc.layers[selection[0]]:null;
+ const selectedWords=!selection.length?'':picked1?`, ${picked1.name} selected`:`, ${selection.length} layers selected`;
+ const baseLabel=bg?.kind==='colour'?'A plain colour':doc.base!==visual.id?'The original picture (kept as it is)':'Your picture (kept as it is)';
+ const actions:PanelActions={change,endGesture,duplicate:duplicateSelected,remove:removeSelected,group,ungroup,order,align,distribute,typeOnCanvas:startTyping};
+ const focusCanvas=()=>canvasBox.current?.focus({preventScroll:true});
 
  return <div className="canvas-editor">
   <div className="canvas-bar">
@@ -412,68 +470,35 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
     {mayEdit&&busyNote&&<div className="ds-banner warn canvas-notice" role="status" data-soft-lock><Users aria-hidden="true"/><span>{busyNote}.{readOnly?' It’s open read only for you.':' You’re both editing; each change is kept as its own draft.'}</span>{readOnly&&<Button size="sm" kind="quiet" onClick={presence.editAnyway}>Edit anyway</Button>}</div>}
     {opened.layersLost&&<div className="ds-banner warn canvas-notice" role="status"><Info aria-hidden="true"/><span>This picture’s layers didn’t load, so it opens as one flat picture. Saving still makes a new version.</span><Button size="sm" kind="quiet" onClick={onRetry}>Try again</Button></div>}
     {fontNote&&<div className="ds-banner warn canvas-notice" role="status"><Info aria-hidden="true"/><span>{fontNote}</span></div>}
+    {hint&&!readOnly&&<div className="ds-banner canvas-notice" role="note" data-editor-hint><Lightbulb aria-hidden="true"/><span>Click anything on the picture to change it on the right. Drag to move it, press T for text, and ? for every shortcut.</span><Button size="sm" kind="quiet" onClick={()=>{rememberHint();setHint(false);focusCanvas()}}>Got it</Button></div>}
     <div className="canvas-fit">
-    <div ref={canvasBox} className="canvas-box" tabIndex={0} role="application" aria-roledescription="design canvas" data-editable={readOnly?undefined:'true'} data-undo-steps={history.past.length}
-     aria-label={`Canvas, page ${pageIndex(doc,page)+1} of ${doc.pages.length}, ${drawn.length} ${drawn.length===1?'layer':'layers'}${layer?`, ${layer.name} selected`:''}`} aria-describedby="canvas-keys" onKeyDown={onKey} style={{['--canvas-ratio' as string]:String(doc.width/doc.height)} as React.CSSProperties}>
-     {shownWidth>0&&<CanvasStage doc={doc} pageId={page} shownWidth={shownWidth} selected={selected} reducedMotion={reduced} fonts={fonts} editing={editing} readOnly={readOnly} handle={handle}
-      onSelect={setSelected} onChange={(lid,patch,gesture)=>change(d=>edit.update(d,lid,patch),gesture)} onEditText={startTyping} onAltDrag={altDrag} onGestureEnd={endGesture}/>}
+    <div ref={canvasBox} className="canvas-box" tabIndex={0} role="application" aria-roledescription="design canvas" data-editable={readOnly?undefined:'true'} data-undo-steps={history.past.length} data-selected-count={selection.length}
+     aria-label={`Canvas, page ${pageIndex(doc,page)+1} of ${doc.pages.length}, ${drawn.length} ${drawn.length===1?'layer':'layers'}${selectedWords}`} aria-describedby="canvas-keys" onKeyDown={onKey} style={{['--canvas-ratio' as string]:String(doc.width/doc.height)} as React.CSSProperties}>
+     {shownWidth>0&&<CanvasStage doc={doc} pageId={page} shownWidth={shownWidth} selected={selection} reducedMotion={reduced} fonts={fonts} editing={editing} readOnly={readOnly} handle={handle}
+      onSelect={(id,mode)=>select(id,mode)} onChange={(lid,patch,gesture)=>change(d=>edit.update(d,lid,patch),gesture)} onEditText={startTyping} onAltDrag={altDrag} onGestureEnd={endGesture}/>}
      {editingLayer&&shownWidth>0&&<TextEditor key={editingLayer.id+':'+session} layer={editingLayer} scale={shownWidth/doc.width} family={fonts.family(editingLayer.font,editingLayer.fontWeight).family} onType={type} onDone={stopTyping}/>}
     </div>
     </div>
     <PageStrip doc={doc} current={page} readOnly={readOnly} onPick={pickPage} onAdd={addPage} onDuplicate={duplicatePage} onMove={movePage} onRemove={removePage}/>
-    <p className="ds-help canvas-keys" id="canvas-keys">Double-click text to type. {mod}D duplicates, Alt-drag copies, {mod}Z undoes, arrows nudge (Shift: 10 px).</p>
+    <p className="ds-help canvas-keys" id="canvas-keys"><span>Shift-click picks several; drag to move (hold {mod.replace('+','')} to stop snapping). {mod}D duplicates, {mod}G groups, {mod}Z undoes.</span><Button size="sm" kind="quiet" icon={<Keyboard aria-hidden="true"/>} onClick={()=>setKeysOpen(true)} title="All the keys (?)">Shortcuts</Button></p>
    </div>
-   <aside className="canvas-inspector" aria-label="Design">
-    <section className="canvas-section" aria-labelledby="canvas-layers-title">
-     <h2 className="canvas-section-title" id="canvas-layers-title">Layers on page {pageIndex(doc,page)+1}</h2>
-     {drawn.length===0?<p className="ds-help">Nothing on this page yet. Open Brand, Elements, Text or Uploads on the left and click what you want.</p>
-      :<ol className="canvas-layers">{[...drawn].reverse().map(l=><li key={l.id}>
-        <button type="button" className="canvas-layer" aria-pressed={l.id===selected} onClick={()=>{setSelected(l.id);canvasBox.current?.focus({preventScroll:true})}}>
-         <span className="canvas-layer-kind">{LAYER_KIND[l.kind]}</span><span className="ds-truncate" title={l.kind==='text'?l.text:l.name}>{l.kind==='text'?l.text:l.name}</span>
-        </button>
-       </li>)}<li><span className="canvas-layer canvas-layer-base"><span className="canvas-layer-kind">{bg?.kind==='colour'?'Colour':'Picture'}</span><span className="ds-truncate" title={visual.title}>{bg?.kind==='colour'?'A plain background':doc.base!==visual.id?'The original picture (kept as it is)':'Your picture (kept as it is)'}</span></span></li></ol>}
-    </section>
-    {layer&&!readOnly&&<LayerSettings key={layer.id} layer={layer} mod={mod} onEnd={endGesture} onPatch={(patch,gesture)=>change(d=>edit.update(d,layer.id,patch),gesture)} onType={()=>startTyping(layer.id)}
-     onOrder={to=>change(d=>edit.reorder(d,layer.id,to))} onDuplicate={duplicateSelected} onRemove={()=>{change(d=>edit.remove(d,layer.id));setSelected(null)}}/>}
+   <aside className="canvas-inspector" aria-label="Design and layers">
+    <InspectorTabs idBase="canvas-panel" label="Panel" value={tab} onChange={t=>setTab(t as 'design'|'layers')} tabs={[{id:'design',label:'Design'},{id:'layers',label:'Layers'}]}/>
+    <InspectorTabPanel idBase="canvas-panel" tab={tab}>
+     {tab==='design'
+      ?<DesignPanel doc={doc} page={page} ids={selection} readOnly={readOnly} mod={mod} actions={actions} baseTitle={visual.title}/>
+      :<LayersPanel doc={doc} page={page} selected={selectedSet} readOnly={readOnly} mod={mod} baseLabel={baseLabel}
+        onSelect={(id,mode)=>select(id,mode)}
+        onFlag={(id,flag,on)=>change(d=>edit.setFlags(d,id,flag==='hidden'?{hidden:on}:{locked:on}))}
+        onRename={(id,name)=>change(d=>edit.rename(d,id,name))}
+        onStep={(id,dir)=>change(d=>edit.reorder(d,id,dir==='front'?'forward':'backward'))}
+        onPlace={(id,index)=>change(d=>edit.place(d,id,index))}
+        onDelete={removeSelected}/>}
+    </InspectorTabPanel>
    </aside>
   </div>
+  <ShortcutsDialog open={keysOpen} mod={mod} onClose={()=>{setKeysOpen(false);focusCanvas()}}/>
   <SharePanel open={sharing} onClose={()=>setSharing(false)} item={{kind:'visual',id:shareTarget.id,title:shareTarget.title,src:shareTarget.src,mine:shareTarget.mine!==false}}/>
   {mayEdit&&<VersionHistory open={versionsOpen} pictureId={visual.id} onClose={()=>setVersionsOpen(false)} onRestore={v=>void restore(v)} busy={restoring}/>}
  </div>;
-}
-
-/** The brand kit's colours as swatches: one press recolours the selection. */
-function BrandSwatches({value,onPick}:{value:string;onPick:(hex:string)=>void}){
- const {kit}=useBrandKit();
- const colours=(kit?.colours??[]).flatMap(c=>{const hex=cleanHex(c?.hex);return hex?[{hex,name:c.name?.trim()||hex}]:[]});
- if(!colours.length)return null;
- const now=value.toUpperCase();
- return <div className="canvas-swatches" role="group" aria-label="Brand colours">{colours.map(c=>{const on=c.hex===now;return <button key={c.hex} type="button" className="canvas-swatch" aria-pressed={on} aria-label={c.name!==c.hex?`${c.name}, ${c.hex}`:c.hex} title={c.name} style={{['--swatch' as string]:c.hex} as React.CSSProperties} onClick={()=>onPick(c.hex)}>{on&&<Check aria-hidden="true"/>}</button>})}</div>;
-}
-
-function LayerSettings({layer,mod,onPatch,onEnd,onType,onOrder,onDuplicate,onRemove}:{layer:DrawnLayer;mod:string;onPatch:(p:Partial<DrawnLayer>,gesture?:string)=>void;onEnd:()=>void;onType:()=>void;onOrder:(to:'forward'|'backward'|'front'|'back')=>void;onDuplicate:()=>void;onRemove:()=>void}){
- const {kit}=useBrandKit();
- const colourKey=layer.kind==='text'||layer.kind==='icon'?'color':layer.kind==='shape'?'fill':layer.kind==='image'?null:'stroke';
- const colour=colourKey?(layer as unknown as Record<string,string>)[colourKey]:null;
- const font=layer.kind==='text'?knownFont(layer.font):null,choices=layer.kind==='text'?fontChoices(kit):[];
- // Leaving a field closes its undo step: typing a number, then another field, is two steps.
- return <section className="canvas-section" aria-labelledby="canvas-selected-title" onBlur={onEnd}>
-  <h2 className="canvas-section-title" id="canvas-selected-title">{LAYER_KIND[layer.kind]}</h2>
-  {layer.kind==='text'&&<Field label="Text" count={{value:layer.text.length,max:500}}><Textarea rows={3} maxLength={500} value={layer.text} onChange={e=>onPatch({text:e.target.value,height:textHeight(layer,e.target.value)},'text:'+layer.id)}/></Field>}
-  {layer.kind==='text'&&<Button size="sm" onClick={onType}>Type on the canvas</Button>}
-  {layer.kind==='text'&&font&&<Field label="Font"><Select value={font} onChange={e=>onPatch({font:e.target.value})}>{!choices.some(c=>c.font===font)&&<option value={font}>{font}</option>}{choices.map(c=><option key={c.font} value={c.font}>{c.label}</option>)}</Select></Field>}
-  {layer.kind==='text'&&<Field label="Size"><Input type="number" min={4} max={4000} value={layer.fontSize} onChange={e=>{const n=Number(e.target.value);if(n>=4&&n<=4000)onPatch({fontSize:n,height:textHeight({...layer,fontSize:n},layer.text)},'size:'+layer.id)}}/></Field>}
-  {colourKey&&colour!==null&&<Field label="Colour"><span className="canvas-colours"><BrandSwatches value={colour} onPick={hex=>onPatch({[colourKey]:hex} as Partial<DrawnLayer>)}/><Input type="color" className="canvas-colour" aria-label="Any colour" value={colour==='transparent'?'#000000':colour} onChange={e=>onPatch({[colourKey]:e.target.value} as Partial<DrawnLayer>,'colour:'+layer.id)}/></span></Field>}
-  <Field label="Rotation"><Input type="number" min={-360} max={360} value={layer.rotation} onChange={e=>{const n=Number(e.target.value);if(n>=-360&&n<=360)onPatch({rotation:n},'rotation:'+layer.id)}}/></Field>
-  <div className="canvas-actions" role="group" aria-label="Order">
-   <IconButton label={`Bring to front (${mod}Shift+])`} size="sm" onClick={()=>onOrder('front')}><BringToFront aria-hidden="true"/></IconButton>
-   <IconButton label={`Bring forward (${mod}])`} size="sm" onClick={()=>onOrder('forward')}><ArrowUp aria-hidden="true"/></IconButton>
-   <IconButton label={`Send backward (${mod}[)`} size="sm" onClick={()=>onOrder('backward')}><ArrowDown aria-hidden="true"/></IconButton>
-   <IconButton label={`Send to back (${mod}Shift+[)`} size="sm" onClick={()=>onOrder('back')}><SendToBack aria-hidden="true"/></IconButton>
-  </div>
-  <div className="canvas-actions">
-   <Button size="sm" icon={<Copy aria-hidden="true"/>} onClick={onDuplicate} title={`Duplicate (${mod}D)`}>Duplicate</Button>
-   <Button size="sm" kind="danger-quiet" icon={<Trash2 aria-hidden="true"/>} onClick={onRemove}>Delete</Button>
-  </div>
- </section>;
 }

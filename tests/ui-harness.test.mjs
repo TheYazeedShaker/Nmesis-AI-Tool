@@ -5,9 +5,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { affected, importsOf, resolveImport, pageFor, readTree } from '../scripts/ui/affected.mjs';
-import { SCREENS, SCREEN_IDS, selectScreens, pageJobs, shardJobs, shardCount } from '../scripts/ui/screens.mjs';
-import { RATCHETED, PER_SCREEN, countsOf, countsByScreen, compare, updatedBaseline, formatBaseline } from '../scripts/ui/ratchet.mjs';
+import { affected, importsOf, resolveImport, pageFor, readTree, githubPlan } from '../scripts/ui/affected.mjs';
+import { SCREENS, SCREEN_IDS, selectScreens, pageJobs, shardJobs, shardCount, EDITOR_JOURNEYS, RULE_STATE_SIZES, PERF_LAYERS, PERF_PICTURE_ID } from '../scripts/ui/screens.mjs';
+import { RATCHETED, PER_SCREEN, EDITOR_RULES, countsOf, countsByScreen, compare, updatedBaseline, formatBaseline, editorRuleLines, summaryLines } from '../scripts/ui/ratchet.mjs';
 import { mergeReports, isFullRun } from '../scripts/ui/merge.mjs';
 
 // A small synthetic app, laid out as the Studio is.
@@ -294,4 +294,91 @@ test('check:ui: nothing at the top level after the main block is a const or let'
   assert.ok(end > 0, 'the main block ends with process.exit(exitCode)');
   const late = [...src.slice(end).matchAll(/^(const|let|var|class)\s+([\w$]+)/gm)].map((m) => m[2]);
   assert.deepEqual(late, [], `declare these as functions, or above the main block: ${late.join(', ')}`);
+});
+
+// ── The editor rules (feat/editor-panel-rules) ─────────────────────────────
+const rules = (extra = {}) => ({ ...Object.fromEntries(EDITOR_RULES.map((k) => [k, []])), ...extra });
+const state = (name, extra = {}) => ({ screen: 'editor', state: name, role: 'owner', w: 1440, h: 900, theme: 'light', editorRules: rules(extra) });
+
+test('editor rules: ratcheted at zero, in the totals and for the editor screen', () => {
+  for (const k of EDITOR_RULES) { assert.ok(RATCHETED.includes(k), k); assert.ok(PER_SCREEN.includes(k), k); }
+  const b = JSON.parse(fs.readFileSync('scripts/ui-baseline.json', 'utf8'));
+  for (const k of EDITOR_RULES) { assert.equal(b.counts[k], 0, k); assert.equal(b.byScreen.editor?.[k] || 0, 0, k); }
+});
+
+test('editor rules: the panel in each selection (rule states) counts for the editor screen, not as pages', () => {
+  const results = [page('editor', { editorRules: rules({ editorSpacing: [{ el: 'a' }] }) }), page('usage')];
+  const states = [state('one-text', { editorUnlabelled: [{ el: 'button' }, { el: 'input' }] }), state('nothing')];
+  const totals = countsOf(results, {}, states);
+  assert.equal(totals.pages, 2);
+  assert.equal(totals.editorSpacing, 1);
+  assert.equal(totals.editorUnlabelled, 2);
+  const by = countsByScreen(results, states);
+  assert.equal(by.editor.editorUnlabelled, 2);
+  assert.equal(by.usage.editorUnlabelled, 0);
+  // A state of a screen with no page in this run still counts for that screen.
+  assert.equal(countsByScreen([], [state('several', { editorSectionOrder: [{ el: 'x' }] })]).editor.editorSectionOrder, 1);
+  // One break anywhere fails against the zero baseline, and says where.
+  const zero = { counts: Object.fromEntries(RATCHETED.map((k) => [k, 0])), byScreen: { editor: {} } };
+  const r = compare(zero, { totals: countsOf([], {}, states), byScreen: countsByScreen([], states), full: false });
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.worse, ['editor: editorUnlabelled']);
+  const lines = editorRuleLines({ results, ruleStates: states });
+  assert.equal(lines.length, 3);
+  assert.ok(lines.some((l) => l.includes('editor · one-text (owner) at 1440 x 900') && l.includes('editorUnlabelled')));
+  assert.ok(compare(zero, { totals: countsOf([], {}, [state('nothing')]), byScreen: countsByScreen([], [state('nothing')]), full: false }).ok);
+  // The summary lists what broke and the performance numbers.
+  const summary = summaryLines({ at: 'now', studioReadyMs: 1, results, ruleStates: states, editorPerf: { layers: 50, picture: '3840 x 2160', dragFrameP95Ms: 17 } }, countsOf(results, {}, states)).join('\n');
+  assert.match(summary, /## Editor rules broken/);
+  assert.match(summary, /one-text/);
+  assert.match(summary, /50 layers on a 3840 x 2160 picture/);
+  assert.match(summary, /dragFrameP95Ms: 17/);
+});
+
+test('editor rules: merge joins the rule states and refuses one measured twice', () => {
+  const shard = (results, extra = {}) => ({ at: '2026-11-21T00:00:00Z', studioReadyMs: 900, results, blockedServerHosts: {}, harnessMistakes: [], scope: { screens: ['editor', 'usage'], quick: false, shard: '1/2' }, ...extra });
+  const m = mergeReports([shard([page('usage')]), shard([page('editor')], { ruleStates: [state('nothing'), state('several')], editorPerf: { layers: 50 } })]);
+  assert.equal(m.ruleStates.length, 2);
+  assert.deepEqual(m.editorPerf, { layers: 50 });
+  assert.equal(m.results.length, 2);
+  assert.throws(() => mergeReports([shard([], { ruleStates: [state('nothing')] }), shard([], { ruleStates: [state('nothing')] })]), /rule state is in two shard reports/);
+  // The same state at another size is another measurement.
+  assert.equal(mergeReports([shard([], { ruleStates: [state('nothing'), { ...state('nothing'), w: 1024, h: 768 }] })]).ruleStates.length, 2);
+});
+
+test('editor rules: the journeys that measure and use the rebuilt panel', () => {
+  const src = fs.readFileSync('scripts/check-ui.mjs', 'utf8');
+  for (const j of EDITOR_JOURNEYS) { assert.equal(j.from, 'editor'); assert.ok(src.includes(`\n  '${j.id}': async (page, problems`), j.id); }
+  for (const id of ['editor-rule-states', 'editor-layers-keyboard', 'editor-group-undo', 'editor-shortcuts-sheet', 'editor-snapping', 'editor-performance']) assert.ok(EDITOR_JOURNEYS.some((j) => j.id === id), id);
+  // The v1 design opens before anything else touches it.
+  assert.equal(EDITOR_JOURNEYS[0].id, 'editor-open-v1-design');
+  assert.deepEqual(RULE_STATE_SIZES, [[1440, 900], [1191, 786], [1024, 768]]);
+  assert.match(src, /report\.ruleStates = editor\.ruleStates/);
+  // Rule 5: a swatch is a choice in a labelled group; a button is labelled by its own words only.
+  const checks = fs.readFileSync('scripts/ui/checks.mjs', 'utf8');
+  assert.match(checks, /if \(el\.matches\('\[role="radio"\]:not\(input\)'\)\)/);
+  assert.match(checks, /if \(el\.matches\('button, summary, \.ds-btn, \[role="tab"\]'\)\) return words\(el\) \|\| \[\.\.\.\(el\.labels \|\| \[\]\)\]\.some\(words\);/);
+});
+
+test('editor rules: the design timed under load is 50 layers on a 3840 x 2160 picture, the top one centred', async () => {
+  const { perfDesign } = await import('../scripts/ui/seed.mjs');
+  const { readDoc, drawOrder } = await import('../lib/editor/doc.ts');
+  const doc = perfDesign();
+  assert.equal(readDoc(JSON.parse(JSON.stringify(doc))).ok, true);
+  assert.deepEqual([doc.width, doc.height, doc.base], [3840, 2160, PERF_PICTURE_ID]);
+  const drawn = drawOrder(doc, doc.pages[0].id), top = drawn.at(-1);
+  assert.equal(drawn.length, PERF_LAYERS);
+  assert.deepEqual(new Set(drawn.map((l) => l.kind)), new Set(['text', 'shape', 'icon', 'line', 'image']));
+  assert.deepEqual([top.x + top.width / 2, top.y + top.height / 2], [1920, 1080]);
+});
+
+test('ci plan: `only` names every screen when every screen is affected (the Safari job looks for the editor in it)', () => {
+  const all = githubPlan({ full: true, screens: SCREEN_IDS }, { shards: 4 });
+  assert.match(all, /^mode=subset\nonly=.*\beditor\b.*\nshards=\[1,2,3,4\]\ntotal=4\n$/);
+  assert.equal(all.split('\n')[1].slice(5).split(',').length, SCREEN_IDS.length);
+  assert.equal(selectScreens(all.split('\n')[1].slice(5)).length, SCREENS.length);
+  assert.equal(githubPlan({ full: false, screens: [] }), 'mode=none\nonly=\nshards=[0]\ntotal=0\n');
+  assert.match(githubPlan({ full: true, screens: SCREEN_IDS }, { sweep: true }), /^mode=full\n/);
+  const ci = fs.readFileSync('.github/workflows/ci.yml', 'utf8');
+  assert.match(ci, /contains\(needs\.plan\.outputs\.only, 'editor'\)/);
 });

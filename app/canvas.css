@@ -1,5 +1,5 @@
 /* The canvas editor (components/canvas/*): a bar, the canvas on a light
-   table, and the Design inspector (layers, then the selected layer).
+   table, and the right panel (its Design and Layers tabs, docs/editor-rules.md).
    Tokens only. Motion: only a new layer fading in (in the canvas, 120ms); the
    rest follows the design system's transitions and reduced motion. */
 .canvas-editor { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: var(--ds-bg); }
@@ -44,37 +44,68 @@
 /* A notice above the canvas (a font that fell back, layers that didn't load): one line where it fits. */
 .canvas-notice { width: min(100%, var(--ds-measure)); flex: none; }
 .canvas-box:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-4); }
-.canvas-keys { max-width: var(--ds-measure); text-align: center; }
+.canvas-keys { max-width: var(--ds-measure); text-align: center; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--ds-space-8); }
 .canvas-skeleton { width: min(100%, var(--ds-page-max)); aspect-ratio: 16 / 9; border-radius: var(--ds-radius-md); background: var(--ds-skeleton); }
 .canvas-editor > .canvas-skeleton, .canvas-editor-state { margin: auto; padding: var(--ds-space-24); }
 .canvas-inspector {
   min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: var(--ds-editor-section-gap); padding: var(--ds-editor-pad);
   background: var(--ds-panel); border-left: var(--ds-border-width) solid var(--ds-border);
 }
-.canvas-section { display: flex; flex-direction: column; gap: var(--ds-space-12); }
-.canvas-section-title { margin: 0; font-family: var(--ds-font-display); font-size: var(--ds-text-sm); line-height: var(--ds-leading-sm); font-weight: var(--ds-weight-semibold); letter-spacing: var(--ds-tracking-label); text-transform: uppercase; color: var(--ds-muted); }
-.canvas-layers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ds-space-2); }
-.canvas-layer {
-  position: relative; display: flex; align-items: center; gap: var(--ds-space-8); width: 100%; min-width: 0; min-height: var(--ds-control-h-sm); padding: 0 var(--ds-space-8);
+/* The right panel's tabs (Design, Layers) stay in view while a long list scrolls under them. */
+.canvas-inspector > .ds-inspector-tabs { position: sticky; top: 0; z-index: var(--ds-z-raised); flex: none; background: var(--ds-panel); }
+.canvas-design { display: flex; flex-direction: column; gap: var(--ds-editor-section-gap); min-width: 0; }
+.canvas-align-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ds-editor-row-gap); }
+.canvas-align-grid > .ds-btn { min-width: 0; padding: 0 var(--ds-space-8); }
+.canvas-brand-colours { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ds-editor-label-gap); font-size: var(--ds-text-sm); }
+.canvas-brand-colours > li { display: flex; align-items: center; gap: var(--ds-editor-row-gap); min-width: 0; }
+.canvas-brand-dot { width: var(--ds-space-16); height: var(--ds-space-16); flex: none; border-radius: var(--ds-radius-round); background: var(--swatch); border: var(--ds-border-width) solid var(--ds-border-strong); }
+.canvas-brand-hex { color: var(--ds-muted); font-variant-numeric: var(--ds-numeric); }
+/* The Layers tab (components/canvas/layers-panel.tsx): front first; a group's layers in a list inside its row. */
+.canvas-layers-panel { display: flex; flex-direction: column; gap: var(--ds-editor-row-gap); min-width: 0; }
+.canvas-layers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ds-editor-label-gap); min-width: 0; }
+.canvas-layer-row { display: flex; flex-direction: column; gap: var(--ds-editor-label-gap); min-width: 0; }
+.canvas-layer-line {
+  position: relative; display: flex; align-items: center; gap: var(--ds-editor-label-gap); min-width: 0;
+  padding-left: calc(var(--ds-space-16) * var(--depth, 0)); border-radius: var(--ds-radius-md);
+}
+.canvas-layer-line[data-drop="above"] { box-shadow: inset 0 var(--ds-focus-width) 0 var(--ds-ring); }
+.canvas-layer-line[data-drop="below"] { box-shadow: inset 0 calc(var(--ds-focus-width) * -1) 0 var(--ds-ring); }
+.canvas-layer-name {
+  flex: 1 1 auto; display: flex; align-items: center; gap: var(--ds-editor-row-gap); min-width: 0; min-height: var(--ds-control-h-sm); padding: 0 var(--ds-space-8);
   border: 0; border-radius: var(--ds-radius-md); background: transparent; color: var(--ds-text); font: inherit; font-size: var(--ds-text-sm); text-align: left; cursor: pointer;
 }
-button.canvas-layer:hover { background: var(--ds-panel-2); }
-.canvas-layer[aria-pressed="true"] { background: var(--ds-selected-bg); color: var(--ds-selected-text); box-shadow: inset var(--ds-space-4) 0 0 var(--ds-selected-mark); }
-.canvas-layer-kind { flex: none; width: calc(var(--ds-space-64) - var(--ds-space-8)); color: var(--ds-muted); font-size: var(--ds-text-xs); }
-.canvas-layer-base { cursor: default; color: var(--ds-muted); }
-.canvas-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); }
-.canvas-colour { width: calc(var(--ds-control-h) * 2); padding: var(--ds-space-2); cursor: pointer; }
-/* Colour: the brand kit's colours first (one press recolours), then any colour. */
-.canvas-colours { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); }
-.canvas-swatches { display: flex; flex-wrap: wrap; gap: var(--ds-space-4); }
-.canvas-swatch {
-  display: inline-grid; place-items: center; width: var(--ds-control-h-sm); height: var(--ds-control-h-sm); min-width: var(--ds-control-h-sm); padding: 0;
-  border: var(--ds-border-width) solid var(--ds-border-strong); border-radius: var(--ds-radius-round); background: var(--swatch); cursor: pointer;
+.canvas-layer-name:hover { background: var(--ds-panel-2); }
+.canvas-layer-name[aria-pressed="true"] { background: var(--ds-selected-bg); color: var(--ds-selected-text); box-shadow: inset var(--ds-space-4) 0 0 var(--ds-selected-mark); }
+.canvas-layer-row[data-hidden] > .canvas-layer-line .canvas-layer-words { color: var(--ds-muted); text-decoration: line-through; }
+.canvas-layer-words { flex: 1 1 auto; min-width: 0; }
+.canvas-layer-kind { flex: none; color: var(--ds-muted); font-size: var(--ds-text-xs); }
+.canvas-layer-thumb {
+  flex: none; display: inline-grid; place-items: center; width: var(--ds-space-32); height: var(--ds-space-24); overflow: hidden;
+  border-radius: var(--ds-radius-sm); background: var(--ds-panel-3); color: var(--ds-muted);
 }
-.canvas-swatch[aria-pressed="true"] { box-shadow: 0 0 0 var(--ds-space-2) var(--ds-panel), 0 0 0 var(--ds-space-4) var(--ds-text-strong); }
-.canvas-swatch:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-4); }
-/* The tick reads on light and dark brand colours alike: it carries its own contrasting ring. */
-.canvas-swatch > svg { width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-on-media); filter: drop-shadow(0 0 var(--ds-space-2) var(--ds-media-shade)); }
+.canvas-layer-thumb > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.canvas-layer-thumb > svg { width: var(--ds-space-20); height: var(--ds-space-20); }
+/* The words in their own colour on a mid tone, so white or black text both read. */
+.canvas-layer-thumb-text { background: var(--ds-media-bg); font-size: var(--ds-text-xs); font-weight: var(--ds-weight-semibold); }
+.canvas-layer-toggle {
+  flex: none; min-height: var(--ds-control-h-sm); padding: 0 var(--ds-space-8); border: 0; border-radius: var(--ds-radius-md);
+  background: transparent; color: var(--ds-muted); font: inherit; font-size: var(--ds-text-xs); cursor: pointer;
+}
+.canvas-layer-toggle:hover { background: var(--ds-panel-2); color: var(--ds-text); }
+.canvas-layer-toggle[aria-pressed="true"] { background: var(--ds-panel-3); color: var(--ds-text-strong); font-weight: var(--ds-weight-semibold); }
+.canvas-layer-toggle:disabled { cursor: not-allowed; opacity: 0.5; }
+.canvas-layer-rename { flex: 1 1 auto; min-width: 0; min-height: var(--ds-control-h-sm); }
+.canvas-layer-base > * { flex: none; }
+.canvas-layer-base { flex-direction: row; align-items: center; gap: var(--ds-editor-row-gap); min-height: var(--ds-control-h-sm); padding: 0 var(--ds-space-8); color: var(--ds-muted); font-size: var(--ds-text-sm); }
+.canvas-layer-base > .canvas-layer-words { flex: 1 1 auto; }
+.canvas-layers-empty { display: flex; flex-direction: column; gap: var(--ds-editor-row-gap); }
+/* The keyboard shortcuts sheet (components/canvas/shortcuts.tsx): two columns of groups where there is room. */
+.canvas-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--ds-editor-panel)), 1fr)); gap: var(--ds-space-24); }
+.canvas-shortcuts-group { display: flex; flex-direction: column; gap: var(--ds-space-8); min-width: 0; }
+.canvas-shortcuts-list { margin: 0; display: flex; flex-direction: column; gap: var(--ds-space-4); }
+.canvas-shortcut { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: var(--ds-space-12); align-items: baseline; font-size: var(--ds-text-sm); }
+.canvas-shortcut > dt, .canvas-shortcut > dd { margin: 0; min-width: 0; }
+.canvas-shortcut kbd { font: inherit; font-variant-numeric: var(--ds-numeric); font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); }
 .canvas-phone-note { flex: 1 1 auto; display: grid; place-items: center; padding: var(--ds-space-24) var(--ds-space-16); }
 /* The save status (components/canvas/save-status.tsx): always in the canvas bar, quiet unless it
    needs the person (offline: a warning tint; couldn't save: the words are a Retry button). */

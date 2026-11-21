@@ -22,7 +22,14 @@
     "serverHostsBlocked": 0,
     "pagesOverCls01": 0,
     "menusUnderPanels": 0,
-    "shellNotFilling": 0
+    "shellNotFilling": 0,
+    "editorPanelWidth": 0,
+    "editorPanelOverCanvas": 0,
+    "editorSectionOrder": 0,
+    "editorSpacing": 0,
+    "editorUnlabelled": 0,
+    "editorNestedScroll": 0,
+    "editorSaveStatus": 0
   },
   "byScreen": {
     "account-menu": {"focusWithoutIndicator":2},

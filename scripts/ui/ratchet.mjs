@@ -9,19 +9,25 @@ import path from 'node:path';
 // keyboard walk lands on slightly different stops from one run to the next.
 // It applies to the totals and to each screen.
 export const TOLERANCE = { focusWithoutIndicator: 5 };
-// The editor rules (docs/editor-rules.md; scripts/ui/checks.mjs editorRules): counted per page and
-// reported in every summary. They join RATCHETED (and the baseline) once the rebuilt panel brings
-// them to zero (feat/editor-panel-rules); until then they inform the review, they do not gate it.
+// The editor rules (docs/editor-rules.md; scripts/ui/checks.mjs editorRules): counted on every page
+// with the canvas editor, and on the editor's panel in each kind of selection (the rule states:
+// scripts/check-ui.mjs, journey editor-rule-states). Ratcheted at zero since the rebuilt panel
+// (feat/editor-panel-rules): one break of a measurable editor rule fails CI.
 export const EDITOR_RULES = ['editorPanelWidth', 'editorPanelOverCanvas', 'editorSectionOrder', 'editorSpacing', 'editorUnlabelled', 'editorNestedScroll', 'editorSaveStatus'];
-export const RATCHETED = ['pagesZoomedOutOnPhones', 'editorBand', 'fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked', 'pagesOverCls01', 'menusUnderPanels', 'shellNotFilling'];
+export const RATCHETED = ['pagesZoomedOutOnPhones', 'editorBand', 'fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked', 'pagesOverCls01', 'menusUnderPanels', 'shellNotFilling', ...EDITOR_RULES];
 // Counted for the whole Studio process, not per page: in the totals only.
 const WHOLE_RUN = new Set(['serverHostsBlocked']);
 export const PER_SCREEN = RATCHETED.filter((k) => !WHOLE_RUN.has(k));
 
-/** Every count, from a list of page results (and the server hosts the network guard refused). */
-export function countsOf(results, blockedServerHosts = {}) {
+/**
+ * Every count, from a list of page results (and the server hosts the network guard refused).
+ * `ruleStates`: the editor's panel measured in each kind of selection ({ screen, state, role, w, h,
+ * theme, editorRules }); they add to the editor rule counts only (they are not page checks).
+ */
+export function countsOf(results, blockedServerHosts = {}, ruleStates = []) {
   const pages = results.filter((r) => !r.pending);
   const sum = (f) => pages.reduce((n, r) => n + (f(r) || 0), 0);
+  const inStates = (k) => ruleStates.reduce((n, s) => n + (s.editorRules?.[k]?.length || 0), 0);
   const axeBy = (impact) => sum((r) => (r.axe || []).filter((v) => v.impact === impact).reduce((n, v) => n + v.nodes, 0));
   return {
     pages: pages.length,
@@ -50,18 +56,29 @@ export function countsOf(results, blockedServerHosts = {}) {
     providerNamesShown: sum((r) => r.providerNames?.length),
     pagesNeverQuiet: pages.filter((r) => r.ready && !r.ready.quiet).length,
     serverHostsBlocked: Object.keys(blockedServerHosts).length,
-    ...Object.fromEntries(EDITOR_RULES.map((k) => [k, sum((r) => r.editorRules?.[k]?.length)])),
+    ...Object.fromEntries(EDITOR_RULES.map((k) => [k, sum((r) => r.editorRules?.[k]?.length) + inStates(k)])),
   };
 }
 
-/** The ratcheted counts of each screen in the results: { id: { count: n } }. */
-export function countsByScreen(results) {
-  const by = {};
+/** The ratcheted counts of each screen in the results (and its rule states): { id: { count: n } }. */
+export function countsByScreen(results, ruleStates = []) {
+  const by = {}, states = {};
   for (const r of results) (by[r.screen] = by[r.screen] || []).push(r);
+  for (const s of ruleStates) { (states[s.screen] = states[s.screen] || []).push(s); by[s.screen] = by[s.screen] || []; }
   return Object.fromEntries(Object.entries(by).sort(([a], [b]) => a.localeCompare(b)).map(([id, rs]) => {
-    const c = countsOf(rs);
+    const c = countsOf(rs, {}, states[id] || []);
     return [id, Object.fromEntries(PER_SCREEN.map((k) => [k, c[k]]))];
   }));
+}
+
+/** What broke an editor rule, page by page and state by state: one line each (the summary, the log). */
+export function editorRuleLines(report) {
+  const lines = [];
+  const where = (x) => `${x.screen}${x.state ? ` · ${x.state}` : ''} (${x.role}) at ${x.w} x ${x.h}${x.theme ? `, ${x.theme}` : ''}`;
+  for (const x of [...(report.results || []), ...(report.ruleStates || [])]) {
+    for (const k of EDITOR_RULES) for (const f of x.editorRules?.[k] || []) lines.push(`- ${where(x)} · ${k}: ${JSON.stringify(f).slice(0, 200)}`);
+  }
+  return lines;
 }
 
 /** The readable summary (summary.md) of a report and its totals. */
@@ -74,6 +91,9 @@ export function summaryLines(report, totals) {
     ...Object.entries(totals).map(([k, v]) => `| ${k} | ${v} |`), '', '## axe rules (nodes)', '', ...Object.entries(axeRules).sort((a, b) => b[1] - a[1]).map(([k, v]) => `- ${k}: ${v}`),
     '', '## Provider or model names a client could read (F-050; must be none)', '', ...[...new Set(pages.flatMap((r) => (r.providerNames || []).map((f) => `- ${r.screen} (${r.role}) · ${f.where}: ${f.text}`)))].slice(0, 80),
     ...(report.perf?.libraryScale ? ['', '## The library at 1,000 items (phone: 390 wide, 4x CPU, throttled network)', '', ...Object.entries(report.perf.libraryScale).map(([k, v]) => `- ${k}: ${v}`)] : []),
+    ...(report.ruleStates?.length ? ['', `## The editor's panel in each selection (${report.ruleStates.length} rule states: ${[...new Set(report.ruleStates.map((s) => s.state))].join(', ')})`] : []),
+    '', '## Editor rules broken (docs/editor-rules.md; must be none)', '', ...editorRuleLines(report).slice(0, 120),
+    ...(report.editorPerf ? ['', `## The editor with ${report.editorPerf.layers} layers on a ${report.editorPerf.picture} picture (${report.editorPerf.engine || 'chromium'}, 1440 x 900)`, '', ...Object.entries(report.editorPerf).filter(([k]) => !['layers', 'picture', 'engine'].includes(k)).map(([k, v]) => `- ${k}: ${v}`)] : []),
     '', '## Pending screens', '', ...report.results.filter((r) => r.pending).map((r) => `- ${r.screen} (${r.role}): ${r.pending}`),
     '', '## Server requests the network guard refused', '', ...Object.entries(report.blockedServerHosts || {}).map(([h, n]) => `- ${h}: ${n}`),
     '', '## Mistakes the harness made about itself', '', ...[...new Set(report.harnessMistakes || [])].map((m) => `- ${m}`)];
@@ -151,11 +171,14 @@ export function readBaseline(file) {
  * `update` write it. Returns the exit code (0 or 1).
  */
 export function finish({ report, out, baselineFile, update = false, full, compareWith = true, log = console.log }) {
-  const totals = countsOf(report.results, report.blockedServerHosts);
+  const totals = countsOf(report.results, report.blockedServerHosts, report.ruleStates);
   const lines = summaryLines(report, totals);
   fs.writeFileSync(path.join(out, 'summary.md'), lines.join('\n') + '\n');
   log(lines.slice(0, 30).join('\n'));
-  const run = { totals, byScreen: countsByScreen(report.results), full };
+  // What broke an editor rule, where (the page, or the selection state, and the size): the ratchet only says how many.
+  const broken = editorRuleLines(report);
+  if (broken.length) log(['Editor rules broken:', ...broken.slice(0, 40)].join('\n'));
+  const run = { totals, byScreen: countsByScreen(report.results, report.ruleStates), full };
   const baseline = readBaseline(baselineFile);
   if (update) {
     fs.writeFileSync(baselineFile, formatBaseline(updatedBaseline(baseline, run)));

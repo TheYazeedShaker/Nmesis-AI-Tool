@@ -26,10 +26,13 @@ export type Box={x:number;y:number;width:number;height:number;rotation:number};
 /** A picture in storage: `images/<id>` (a picture or an upload in the company's storage) or `logos/<id>` (a brand-kit logo). */
 export type AssetKey=string;
 type Placed={id:string;name:string;pageId:string;parentId:string|null;index:number;locked?:boolean;hidden?:boolean};
-type Base=Box&Placed;
-export type ImageLayer=Base&{kind:'image';asset:AssetKey;source:'logo'|'upload'};
+// Settings added after the first v2 designs are optional, so every design saved before them reads as it was.
+type Base=Box&Placed&{/** 0 (not seen) to 1 (solid); absent: 1. */opacity?:number};
+export type ImageLayer=Base&{kind:'image';asset:AssetKey;source:'logo'|'upload';
+ /** Rounded corners, in picture pixels; absent: square. */radius?:number;/** Mirrored left to right / top to bottom. */flipX?:boolean;flipY?:boolean};
 export type TextStyle='heading'|'subheading'|'body';
-export type TextLayer=Base&{kind:'text';text:string;style:TextStyle;font:string;fontSize:number;fontWeight:number;color:string;align:'left'|'center'|'right'};
+export type TextLayer=Base&{kind:'text';text:string;style:TextStyle;font:string;fontSize:number;fontWeight:number;color:string;align:'left'|'center'|'right';
+ /** Line spacing as a multiple of the size; absent: TEXT_LINE_HEIGHT. */lineHeight?:number;/** Letter spacing in picture pixels; absent: 0. */letterSpacing?:number};
 export const SHAPES=['rect','rounded','circle','triangle','star','hexagon'] as const;
 export type ShapeKind=typeof SHAPES[number];
 export type ShapeLayer=Base&{kind:'shape';shape:ShapeKind;fill:string;stroke:string;strokeWidth:number};
@@ -63,6 +66,13 @@ export const MAX_LAYERS=200,MAX_PAGES=20,TEXT_MAX=500,NAME_MAX=80,ICON_PATHS_MAX
 export const ICON_GRID=24,ICON_STROKE=2;
 /** Text's line height on the canvas, the in-place text box and the export alike. */
 export const TEXT_LINE_HEIGHT=1.15;
+/** A layer's opacity (1 when it has never been set). */
+export const opacityOf=(l:DrawnLayer)=>l.opacity??1;
+/** A text's line spacing, as a multiple of its size. */
+export const lineHeightOf=(l:TextLayer)=>l.lineHeight??TEXT_LINE_HEIGHT;
+/** The ways a selection lines up: with the page (one layer) or with the selection's own edges (several). */
+export const ALIGNS=['left','centre','right','top','middle','bottom'] as const;
+export type Align=typeof ALIGNS[number];
 export const TEXT_STYLES:Record<TextStyle,{label:string;sample:string;size:number;weight:number}>={
  // Sizes are fractions of the picture's height, so a style looks the same on any picture.
  heading:{label:'Heading',sample:'Add a heading',size:0.08,weight:700},
@@ -110,6 +120,42 @@ export const pageLayers=(doc:EditorDoc,pageId:string)=>Object.values(doc.layers)
 export const pageOf=(doc:EditorDoc,pageId:string)=>doc.pages.find(p=>p.id===pageId)||null;
 export const pageIndex=(doc:EditorDoc,pageId:string)=>doc.pages.findIndex(p=>p.id===pageId);
 export const layerCount=(doc:EditorDoc)=>Object.keys(doc.layers).length;
+/** The layer and every group above it, the layer first (a parent chain always ends on the page; bounded all the same). */
+function chain(doc:EditorDoc,id:string):Layer[]{
+ const out:Layer[]=[];let at:Layer|undefined=doc.layers[id];
+ while(at&&out.length<=MAX_LAYERS*4){out.push(at);at=at.parentId?doc.layers[at.parentId]:undefined}
+ return out;
+}
+/** Every drawn layer a layer stands for: itself, or everything inside a group (nested groups opened), back first. */
+export function descendants(doc:EditorDoc,id:string):DrawnLayer[]{
+ const l=doc.layers[id];if(!l)return [];
+ if(!isGroup(l))return [l];
+ const out:DrawnLayer[]=[];
+ const walk=(parentId:string,depth:number)=>{if(depth>MAX_LAYERS)return;for(const c of siblings(doc,l.pageId,parentId)){if(isGroup(c))walk(c.id,depth+1);else out.push(c)}};
+ walk(id,0);return out;
+}
+/** What a click on a layer selects: the outermost group holding it, or the layer itself when it sits on the page. */
+export function topOf(doc:EditorDoc,id:string):string{const c=chain(doc,id);return c.length?c[c.length-1].id:id}
+/** Hidden, itself or by a group above it. */
+export const hiddenIn=(doc:EditorDoc,id:string)=>chain(doc,id).some(l=>l.hidden===true);
+/** Locked, itself or by a group above it. */
+export const lockedIn=(doc:EditorDoc,id:string)=>chain(doc,id).some(l=>l.locked===true);
+/** Kills the float noise of cos/sin (a quarter turn's 6e-17), so lined-up edges compare equal. */
+const tidy=(n:number)=>Math.round(n*1e6)/1e6;
+/** The upright box around one layer as drawn: Konva turns a layer about its own x, y (its top-left corner), clockwise. */
+function outline(l:Box):{x1:number;y1:number;x2:number;y2:number}{
+ if(!l.rotation)return {x1:l.x,y1:l.y,x2:l.x+l.width,y2:l.y+l.height};
+ const a=l.rotation*Math.PI/180,c=Math.cos(a),s=Math.sin(a);
+ const xs=[0,l.width,l.width,0],ys=[0,0,l.height,l.height];
+ const px=xs.map((x,i)=>tidy(l.x+x*c-ys[i]*s)),py=xs.map((x,i)=>tidy(l.y+x*s+ys[i]*c));
+ return {x1:Math.min(...px),y1:Math.min(...py),x2:Math.max(...px),y2:Math.max(...py)};
+}
+/** The upright box around these layers as drawn (groups opened, rotation counted); null when there is nothing. */
+export function boundsOf(doc:EditorDoc,ids:string[]):Box|null{
+ let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
+ for(const id of ids)for(const l of descendants(doc,id)){const o=outline(l);x1=Math.min(x1,o.x1);y1=Math.min(y1,o.y1);x2=Math.max(x2,o.x2);y2=Math.max(y2,o.y2)}
+ return x1===Infinity?null:{x:x1,y:y1,width:x2-x1,height:y2-y1,rotation:0};
+}
 
 // ── Making and changing a design (immer recipes) ─────────────────────────
 type D=Draft<EditorDoc>;
@@ -223,7 +269,85 @@ export const edit={
  replace(d:D,next:EditorDoc){
   d.pages=JSON.parse(JSON.stringify(next.pages));d.layers=JSON.parse(JSON.stringify(next.layers));d.width=next.width;d.height=next.height;d.base=next.base;
  },
+ /** Groups layers that sit side by side (same page, same group): the group takes the topmost one's place, they keep their order inside it. */
+ group(d:D,ids:string[],groupId:string){
+  const doc=d as EditorDoc,members=[...new Set(ids)].flatMap(id=>doc.layers[id]?[doc.layers[id]]:[]);
+  if(members.length<2)throw new Error('Choose two or more layers to group.');
+  const {pageId,parentId}=members[0];
+  if(members.some(l=>l.pageId!==pageId||l.parentId!==parentId))throw new Error('Only layers side by side in the Layers list can be grouped.');
+  if(doc.layers[groupId]||!LAYER_ID.test(groupId))throw new Error('The group couldn’t be made. Try again.');
+  roomFor(d,pageId,1);
+  const order=childIds(d,pageId,parentId),chosen=new Set(members.map(l=>l.id)),inside=order.filter(id=>chosen.has(id));
+  const top=order.indexOf(inside[inside.length-1]),rest=order.filter(id=>!chosen.has(id));
+  rest.splice(top-(inside.length-1),0,groupId);
+  d.layers[groupId]={id:groupId,name:'Group',kind:'group',pageId,parentId,index:0};
+  renumber(d,pageId,parentId,rest);renumber(d,pageId,groupId,inside);
+ },
+ /** Takes a group apart: what was in it takes its place, in order (hidden or locked as the group was). Returns their ids, back first. */
+ ungroup(d:D,groupId:string):string[]{
+  const g=d.layers[groupId];if(!g||!isGroup(g))return [];
+  const {pageId,parentId}=g,kids=childIds(d,pageId,groupId),order=childIds(d,pageId,parentId);
+  order.splice(order.indexOf(groupId),1,...kids);
+  for(const id of kids){const c=d.layers[id];if(g.hidden)c.hidden=true;if(g.locked)c.locked=true}
+  delete d.layers[groupId];renumber(d,pageId,parentId,order);
+  return kids;
+ },
+ /** Moves a layer to a place among its siblings (0: the back), as dragging it in the Layers list does. */
+ place(d:D,id:string,index:number){
+  const l=d.layers[id];if(!l)return;
+  const order=childIds(d,l.pageId,l.parentId).filter(x=>x!==id);
+  order.splice(clamp(Math.round(index),0,order.length),0,id);renumber(d,l.pageId,l.parentId,order);
+ },
+ /** Lines layers up with a box (the page, or the selection's own bounds): each by its drawn bounds; a group moves whole. */
+ align(d:D,ids:string[],how:Align,to:Box){
+  const doc=d as EditorDoc;
+  for(const id of movable(doc,ids)){
+   const b=boundsOf(doc,[id]);if(!b)continue;
+   const dx=how==='left'?to.x-b.x:how==='centre'?to.x+to.width/2-(b.x+b.width/2):how==='right'?to.x+to.width-(b.x+b.width):0;
+   const dy=how==='top'?to.y-b.y:how==='middle'?to.y+to.height/2-(b.y+b.height/2):how==='bottom'?to.y+to.height-(b.y+b.height):0;
+   if(dx||dy)edit.nudge(d,id,dx,dy);
+  }
+ },
+ /** Equal gaps between three or more layers along one axis; the first and the last stay where they are. */
+ distribute(d:D,ids:string[],axis:'x'|'y'){
+  const doc=d as EditorDoc;
+  const items=movable(doc,ids).flatMap(id=>{const b=boundsOf(doc,[id]);return b?[{id,start:axis==='x'?b.x:b.y,size:axis==='x'?b.width:b.height}]:[]}).sort((a,b)=>a.start-b.start||(a.id<b.id?-1:1));
+  if(items.length<3)return;
+  const first=items[0],last=items[items.length-1];
+  const gap=(last.start+last.size-first.start-items.reduce((s,i)=>s+i.size,0))/(items.length-1);
+  let at=first.start+first.size+gap;
+  for(const i of items.slice(1,-1)){const by=at-i.start;if(Math.abs(by)>1e-9)edit.nudge(d,i.id,axis==='x'?by:0,axis==='y'?by:0);at+=i.size+gap}
+ },
+ /** A layer's (or a group's) name, as the Layers list shows it. */
+ rename(d:D,id:string,name:string){
+  const l=d.layers[id];if(!l)return;
+  // Control characters become spaces, then the name is trimmed.
+  const n=String(name??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,NAME_MAX).trim();
+  if(!n)throw new Error('Give it a name.');
+  if(LINKISH.test(n))throw new Error('A name can’t be a link.');
+  if(l.name!==n)l.name=n;
+ },
+ /** Locks or hides a layer or a group (true sets the flag; false removes it, so an unhidden design is as it was). */
+ setFlags(d:D,id:string,flags:{locked?:boolean;hidden?:boolean}){
+  const l=d.layers[id];if(!l)return;
+  for(const k of ['locked','hidden'] as const){const v=flags[k];if(v===true&&l[k]!==true)l[k]=true;else if(v===false&&l[k]===true)delete l[k]}
+ },
+ /** A page's background: a colour, or a picture of this Studio (by its storage key). */
+ setBackground(d:D,pageId:string,bg:PageBackground){
+  const p=d.pages.find(x=>x.id===pageId);if(!p)throw new Error('That page is no longer in the design.');
+  if(bg?.kind==='colour'){
+   if(!colour(bg.colour))throw new Error('That isn’t a colour.');
+   if(p.background.kind!=='colour'||p.background.colour!==bg.colour)p.background={kind:'colour',colour:bg.colour};
+  }else if(bg?.kind==='picture'&&isAssetKey(bg.asset)&&bg.asset.startsWith('images/')){
+   if(p.background.kind!=='picture'||p.background.asset!==bg.asset)p.background={kind:'picture',asset:bg.asset};
+  }else throw new Error('Only pictures from this Studio can be a page’s background.');
+ },
 };
+/** The layers an arrange moves: each once (not again through a group also chosen), never one that is locked or holds a locked layer. */
+function movable(doc:EditorDoc,ids:string[]):string[]{
+ const set=new Set(ids.filter(id=>doc.layers[id]));
+ return [...set].filter(id=>!chain(doc,id).slice(1).some(a=>set.has(a.id))&&!descendants(doc,id).some(l=>lockedIn(doc,l.id))&&!lockedIn(doc,id));
+}
 
 /** Where Ctrl/Cmd+D and Alt-drag put a copy: down and right of the original by 2 % of the page's short side. */
 export const duplicateOffset=(doc:{width:number;height:number})=>{const s=Math.max(1,Math.round(Math.min(doc.width,doc.height)*0.02));return {x:s,y:s}};
@@ -236,20 +360,75 @@ export const duplicateLayer=(doc:EditorDoc,id:string,newId:string)=>produce(doc,
 export const reorder=(doc:EditorDoc,id:string,to:'forward'|'backward'|'front'|'back')=>produce(doc,d=>{edit.reorder(d,id,to)});
 export const nudge=(doc:EditorDoc,id:string,dx:number,dy:number)=>produce(doc,d=>{edit.nudge(d,id,dx,dy)});
 
-// ── Alignment guides ─────────────────────────────────────────────────────
-export type Guide={orientation:'v'|'h';at:number};
+// ── Smart guides and equal spacing ───────────────────────────────────────
+/** A guide line: vertical ('v', at an x) or horizontal ('h', at a y), drawn from/to along it (absent: across the whole page). */
+export type Guide={orientation:'v'|'h';at:number;from?:number;to?:number};
+/** A spacing mark: the gap from `start` to `end` along an axis, drawn at `at` across it. */
+export type Gap={axis:'x'|'y';start:number;end:number;at:number};
+/** A box seen along one axis (a1..a2) and across it (c1..c2). */
+type Span={a1:number;a2:number;c1:number;c2:number};
+const along=(o:{x1:number;y1:number;x2:number;y2:number},axis:'x'|'y'):Span=>axis==='x'?{a1:o.x1,a2:o.x2,c1:o.y1,c2:o.y2}:{a1:o.y1,a2:o.y2,c1:o.x1,c2:o.x2};
+const crosses=(p:Span,q:Span)=>Math.min(p.c2,q.c2)>Math.max(p.c1,q.c1);
+const across=(p:Span,q:Span)=>(Math.max(p.c1,q.c1)+Math.min(p.c2,q.c2))/2;
+const lines=(s:Span)=>[s.a1,(s.a1+s.a2)/2,s.a2];
+const SAME=1e-6;
+/** The nearest snap along one axis: an edge or centre onto a line (the page's or a layer's), or a gap made equal to one already there. */
+function snapAxis(m:Span,others:Span[],page:number,threshold:number,axis:'x'|'y'):{shift:number;gaps:((m:Span)=>Gap[])|null}|null{
+ let best:{shift:number;gaps:((m:Span)=>Gap[])|null}|null=null;
+ const offer=(shift:number,gaps:((m:Span)=>Gap[])|null)=>{if(Math.abs(shift)<=threshold&&(!best||Math.abs(shift)<Math.abs(best.shift)))best={shift,gaps}};
+ const targets=[0,page/2,page,...others.flatMap(lines)];
+ for(const e of lines(m))for(const t of targets)offer(t-e,null);
+ // The gaps already on the page: each layer to its nearest neighbour after it (overlapping across the axis).
+ const gaps:{g:number;mark:Gap}[]=[];
+ for(const o of others){
+  let n:Span|null=null;for(const q of others)if(q!==o&&q.a1>=o.a2&&crosses(o,q)&&(!n||q.a1<n.a1))n=q;
+  if(n&&n.a1-o.a2>SAME)gaps.push({g:n.a1-o.a2,mark:{axis,start:o.a2,end:n.a1,at:across(o,n)}});
+ }
+ // The moving box's neighbours before and after it.
+ let before:Span|null=null,after:Span|null=null;
+ for(const o of others){
+  if(!crosses(o,m))continue;
+  if(o.a2<=m.a1+threshold&&o.a1<m.a1&&(!before||o.a2>before.a2))before=o;
+  if(o.a1>=m.a2-threshold&&o.a2>m.a2&&(!after||o.a1<after.a1))after=o;
+ }
+ const L=before,R=after;
+ for(const {g,mark} of gaps){
+  if(L)offer(g-(m.a1-L.a2),f=>[{axis,start:L.a2,end:f.a1,at:across(L,f)},mark]);
+  if(R)offer((R.a1-m.a2)-g,f=>[{axis,start:f.a2,end:R.a1,at:across(f,R)},mark]);
+ }
+ // Right in the middle of its two neighbours.
+ if(L&&R){const s=(R.a1+L.a2-m.a1-m.a2)/2;if(m.a1+s-L.a2>SAME)offer(s,f=>[{axis,start:L.a2,end:f.a1,at:across(L,f)},{axis,start:f.a2,end:R.a1,at:across(f,R)}])}
+ return best;
+}
 /**
- * Snaps a moving (unrotated) box to the page's edges and centre lines and to
- * the other layers' edges and centres on that page, within `threshold` picture
- * pixels. Returns the snapped position and the guides to draw.
+ * Snaps a moving box (a layer, a group or a selection, by its drawn bounds) to the page's edges and
+ * centre lines, to the other layers' edges and centres, and to equal spacing with its neighbours,
+ * within `threshold` picture pixels, on each axis the nearest. Layers in `ignore` (or inside a group
+ * in it) and hidden ones are not targets. Returns the move to make and the guides and gaps to draw.
  */
+export function snapBox(doc:EditorDoc,pageId:string,moving:Box,ignore:ReadonlySet<string>,threshold:number):{dx:number;dy:number;guides:Guide[];gaps:Gap[]}{
+ const others=drawOrder(doc,pageId).filter(l=>!chain(doc,l.id).some(a=>ignore.has(a.id)||a.hidden===true)).map(outline);
+ const m=outline(moving),guides:Guide[]=[],gaps:Gap[]=[];
+ const pick={x:snapAxis(along(m,'x'),others.map(o=>along(o,'x')),doc.width,threshold,'x'),y:snapAxis(along(m,'y'),others.map(o=>along(o,'y')),doc.height,threshold,'y')};
+ const dx=pick.x?.shift??0,dy=pick.y?.shift??0,f={x1:m.x1+dx,y1:m.y1+dy,x2:m.x2+dx,y2:m.y2+dy};
+ for(const axis of ['x','y'] as const){
+  const p=pick[axis];if(!p)continue;
+  const fm=along(f,axis);
+  if(p.gaps){gaps.push(...p.gaps(fm));continue}
+  // A guide on every line the box now shares: across the whole page for the page's own, else from the box to the layers on it.
+  const page=axis==='x'?doc.width:doc.height,orientation=axis==='x'?'v':'h';
+  for(const e of new Set(lines(fm))){
+   if([0,page/2,page].some(t=>Math.abs(t-e)<SAME)){guides.push({orientation,at:e});continue}
+   const on=others.map(o=>along(o,axis)).filter(o=>lines(o).some(t=>Math.abs(t-e)<SAME));
+   if(on.length)guides.push({orientation,at:e,from:Math.min(fm.c1,...on.map(o=>o.c1)),to:Math.max(fm.c2,...on.map(o=>o.c2))});
+  }
+ }
+ return {dx,dy,guides,gaps};
+}
+/** The older call (one layer by its id): where the box goes and the guides to draw. */
 export function snap(doc:EditorDoc,pageId:string,moving:{id:string}&Box,threshold:number):{x:number;y:number;guides:Guide[]}{
- const xs=[0,doc.width/2,doc.width],ys=[0,doc.height/2,doc.height];
- for(const l of drawOrder(doc,pageId)){if(l.id===moving.id||l.rotation||l.hidden)continue;xs.push(l.x,l.x+l.width/2,l.x+l.width);ys.push(l.y,l.y+l.height/2,l.y+l.height)}
- const pick=(targets:number[],edges:number[])=>{let best:{d:number;shift:number;at:number}|null=null;for(const t of targets)for(const e of edges){const d=Math.abs(t-e);if(d<=threshold&&(!best||d<best.d))best={d,shift:t-e,at:t}}return best};
- const bx=pick(xs,[moving.x,moving.x+moving.width/2,moving.x+moving.width]),by=pick(ys,[moving.y,moving.y+moving.height/2,moving.y+moving.height]);
- const guides:Guide[]=[];if(bx)guides.push({orientation:'v',at:bx.at});if(by)guides.push({orientation:'h',at:by.at});
- return {x:moving.x+(bx?.shift||0),y:moving.y+(by?.shift||0),guides};
+ const s=snapBox(doc,pageId,moving,new Set([moving.id]),threshold);
+ return {x:moving.x+s.dx,y:moving.y+s.dy,guides:s.guides};
 }
 
 // ── Export ───────────────────────────────────────────────────────────────
@@ -275,8 +454,12 @@ type Checked={ok:true;doc:EditorDoc}|{ok:false;reason:string};
 
 function checkLayerBody(l:Record<string,unknown>,span:number):string|null{
  if(!num(l.x,-span,span)||!num(l.y,-span,span)||!num(l.width,0,span)||!num(l.height,0,span)||!num(l.rotation,-360,360))return 'box';
- if(l.kind==='image')return isAssetKey(l.asset)&&(l.source==='logo'||l.source==='upload')?null:'image';
- if(l.kind==='text')return str(l.text,TEXT_MAX)&&plain(l.font,60)&&num(l.fontSize,1,4000)&&num(l.fontWeight,100,900)&&colour(l.color)&&['heading','subheading','body'].includes(l.style as string)&&['left','center','right'].includes(l.align as string)?null:'text';
+ // The optional settings: absent, or of the right kind and in range.
+ const maybe=(v:unknown,ok:(v:unknown)=>boolean)=>v===undefined||ok(v);
+ if(!maybe(l.opacity,v=>num(v,0,1)))return 'opacity';
+ if(l.kind==='image')return isAssetKey(l.asset)&&(l.source==='logo'||l.source==='upload')&&maybe(l.radius,v=>num(v,0,span))&&flag(l.flipX)&&flag(l.flipY)?null:'image';
+ if(l.kind==='text')return str(l.text,TEXT_MAX)&&plain(l.font,60)&&num(l.fontSize,1,4000)&&num(l.fontWeight,100,900)&&colour(l.color)&&['heading','subheading','body'].includes(l.style as string)&&['left','center','right'].includes(l.align as string)
+  &&maybe(l.lineHeight,v=>num(v,0.5,4))&&maybe(l.letterSpacing,v=>num(v,-1000,1000))?null:'text';
  if(l.kind==='shape')return SHAPES.includes(l.shape as ShapeKind)&&colour(l.fill)&&colour(l.stroke)&&num(l.strokeWidth,0,500)?null:'shape';
  if(l.kind==='line')return colour(l.stroke)&&num(l.strokeWidth,0,500)&&typeof l.dash==='boolean'&&['none','end','both'].includes(l.arrow as string)?null:'line';
  if(l.kind==='frame')return colour(l.stroke)&&num(l.strokeWidth,0,500)&&num(l.radius,0,span)?null:'frame';
