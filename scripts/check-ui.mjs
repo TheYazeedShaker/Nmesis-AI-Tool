@@ -605,7 +605,12 @@ function editorSteps() { return {
     await page.evaluate(() => { window.__sameDocument = true; });
     const pages = page.context().pages().length;
     const before = await layersOf(page);
+    // Every draft request for the original (method and answer, in order): what a failure below reports.
+    const drafts = [];
+    page.on('response', (r) => { const u = new URL(r.url()); if (u.pathname === `/api/edits/${EDITOR_VISUAL_ID}/draft`) drafts.push(`${r.request().method()} ${r.status()}`); });
+    page.on('requestfailed', (r) => { const u = new URL(r.url()); if (u.pathname === `/api/edits/${EDITOR_VISUAL_ID}/draft`) drafts.push(`${r.method()} failed: ${r.failure()?.errorText || '?'}`); });
     await press(page, 't');
+    const statusBefore = await page.locator('.canvas-bar [data-save-status]').getAttribute('data-save-status');
     await page.getByRole('button', { name: 'Duplicate design', exact: true }).click({ timeout: 5000 });
     await page.locator('[data-copy-notice]').waitFor({ timeout: 40_000 });
     const id = new URL(page.url()).searchParams.get('visual') || '';
@@ -623,7 +628,17 @@ function editorSteps() { return {
     await openEditor(page, id);
     if (await layersOf(page) !== before + 2) problems.push(`the copy reopened with ${await layersOf(page)} layers, not ${before + 2}`);
     await openEditor(page, EDITOR_VISUAL_ID);
-    if (await layersOf(page) !== before + 1) problems.push(`the original has ${await layersOf(page)} layers after the copy was edited, not ${before + 1}`);
+    const back = await layersOf(page);
+    if (back !== before + 1) {
+      // What the Studio and this device hold for the original, so a failure says where the change went.
+      const held = await page.evaluate(async (orig) => {
+        const r = await fetch(`/api/edits/${orig}/draft`, { cache: 'no-store' }), d = await r.json().catch(() => ({}));
+        let k = null; try { k = JSON.parse(localStorage.getItem('nmesis.editor.draft.' + orig) || 'null'); } catch { k = 'unreadable'; }
+        return { draft: d.draft ? { layers: Object.keys(d.draft.doc.layers).length, rev: d.draft.rev, savedAt: d.draft.savedAt } : r.status,
+          device: k && typeof k === 'object' ? { layers: Object.keys(k.doc.layers).length, rev: k.rev, at: k.at } : k, now: Date.now() };
+      }, EDITOR_VISUAL_ID).catch((e) => String(e).slice(0, 120));
+      problems.push(`the original has ${back} layers after the copy was edited, not ${before + 1} (status before Duplicate: ${statusBefore}; draft requests: ${drafts.join(', ') || 'none'}; held: ${JSON.stringify(held)})`);
+    }
   },
   // The editor under load: a design of 50 layers on a 3840 x 2160 picture (scripts/ui/seed.mjs perfDesign).
   // Timed: until the canvas holds every layer, until the picture has arrived, the frames during a 30-move drag
