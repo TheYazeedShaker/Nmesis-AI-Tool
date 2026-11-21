@@ -199,3 +199,17 @@ test('4: the editor changes a design only through the history (no writes to the 
  assert.match(page,/try\{setHistory\(h=>apply\(h,recipe,gesture\)\);return true\}/);
  assert.doesNotMatch(page,/setHistoryState\((?!next\))/,'the history is set in one place');
 });
+
+test('a design never opens without its working draft before the account is known (and is then saved over it)',()=>{
+ // Before the account answers, can() says no one may edit, and a load made then skips the draft. Opened from that load,
+ // the editor showed the design without its draft and autosave wrote over the draft at the next change (found by the
+ // Safari journey editor-duplicate-design, where the account answers later than the picture).
+ const page=readFileSync('components/canvas/editor-page.tsx','utf8');
+ assert.match(page,/const \[accountIn,setAccountIn\]=React\.useState\(accountKnown\);/,'the page knows whether the account has answered');
+ assert.match(page,/void loadAccount\(\)\.then\(\(\)=>\{if\(live\)setAccountIn\(true\)\}\)/,'and waits for it');
+ assert.match(page,/const loaded=useVisual\(id,attempt,mayEdit,here\|\|!accountIn\);/,'nothing loads until it has');
+ assert.match(page,/key=\(id\|\|''\)\+'#'\+attempt\+\(mayEdit\?'#edit':'#view'\);/,'a load for a viewer is never shown to someone who may edit');
+ assert.match(page,/<Editor key=\{`\$\{attempt\}:\$\{shown\.visual\.id\}\$\{shown\.design\?':layers':''\}\$\{mayEdit\?':edit':''\}`\}/,'the editor starts again when the access changes');
+ // The draft is only read for someone who may edit; the page still says so.
+ assert.match(page,/async function loadDraft\(id:string,mayEdit:boolean\)[^\n]*\n if\(!mayEdit\)return \{doc:null,unsent:false\};/);
+});

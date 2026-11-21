@@ -8,7 +8,7 @@ import {Button,IconButton} from '@/components/ds/button';
 import {Loading,State} from '@/components/ds/feedback';
 import {Menu,MenuItem,MenuSeparator} from '@/components/ds/menu';
 import {useToast} from '@/components/ds/toast';
-import {AccountNotices,useAccount} from '@/components/studio-account';
+import {AccountNotices,accountKnown,loadAccount,useAccount} from '@/components/studio-account';
 import {WorkspaceFrame} from '@/components/workspace/frame';
 import {SharePanel} from '@/components/share/share-panel';
 import {closePanel,setCanvasSink} from '@/components/shell/shell-state';
@@ -101,7 +101,9 @@ class Refused extends Error{problem:CantOpen;constructor(problem:CantOpen,detail
 /** The picture at ?visual=<id>; `attempt` asks again (Try again). `skip`: the editor already moved there itself (a copy made in place). */
 function useVisual(id:string|null,attempt:number,mayEdit:boolean,skip:boolean):Loaded{
  const [state,setState]=React.useState<{key:string;loaded:Loaded}>({key:'',loaded:{kind:'loading'}});
- const bad=linkProblem(id),key=(id||'')+'#'+attempt;
+ // The load is for one kind of access (a person who may edit also gets their working draft): one made for a viewer
+ // is never shown to someone who may edit, so a design never opens without its draft and is then saved over it.
+ const bad=linkProblem(id),key=(id||'')+'#'+attempt+(mayEdit?'#edit':'#view');
  React.useEffect(()=>{
   if(bad||!id||skip)return;let live=true;
   studioFetch('/api/visuals/'+id,{signal:AbortSignal.timeout(20_000)})
@@ -140,10 +142,14 @@ function CantOpenState({problem,detail,onRetry}:{problem:CantOpen;detail?:string
 export function EditorPage(){
  const params=useSearchParams(),id=params.get('visual'),[attempt,setAttempt]=React.useState(0),narrow=useNarrow(),account=useAccount();
  const mayEdit=can(account,'work.create');
+ // Who is asking decides what opens, so nothing opens until the account has answered (at once when it already
+ // has; if it can't load, the picture opens view only, as the Studio would allow anyway).
+ const [accountIn,setAccountIn]=React.useState(accountKnown);
+ React.useEffect(()=>{if(accountIn)return;let live=true;void loadAccount().then(()=>{if(live)setAccountIn(true)});return()=>{live=false}},[accountIn]);
  // "Duplicate design" switches the editor to the copy in place: the address follows, the editor stays.
  const [inPlace,setInPlace]=React.useState<{id:string;ready:Ready}|null>(null);
  const here=!!inPlace&&inPlace.id===id;
- const loaded=useVisual(id,attempt,mayEdit,here);
+ const loaded=useVisual(id,attempt,mayEdit,here||!accountIn);
  const router=useRouter();
  const onSwitched=React.useCallback((copyId:string,ready:Ready)=>setInPlace({id:copyId,ready}),[]);
  // "Back to original": the original opens again, read afresh (its draft holds everything done before the copy).
@@ -155,7 +161,7 @@ export function EditorPage(){
   {narrow?<PhoneNote id={id}/>
    :shown.kind==='loading'?<Loading label="Opening your picture" className="canvas-editor"><div className="canvas-skeleton"/></Loading>
    :shown.kind==='error'?<CantOpenState problem={shown.problem} detail={shown.detail} onRetry={()=>setAttempt(n=>n+1)}/>
-   :<Editor key={`${attempt}:${shown.visual.id}${shown.design?':layers':''}`} opened={shown} mayEdit={mayEdit} onRetry={()=>setAttempt(n=>n+1)} onSwitched={onSwitched} onBack={onBack}/>}
+   :<Editor key={`${attempt}:${shown.visual.id}${shown.design?':layers':''}${mayEdit?':edit':''}`} opened={shown} mayEdit={mayEdit} onRetry={()=>setAttempt(n=>n+1)} onSwitched={onSwitched} onBack={onBack}/>}
  </WorkspaceFrame>;
 }
 
