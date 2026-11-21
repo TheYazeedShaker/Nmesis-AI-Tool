@@ -25,7 +25,7 @@ function onDesign(add) {
   const made = doc.addLayer(doc.createDoc({ id: 'visual-0001', src: '/api/assets/' + UPLOAD_ID, width: 1600, height: 900 }), add, 'layer-1');
   const checked = doc.checkDoc(JSON.parse(JSON.stringify(made)));
   assert.equal(checked.ok, true, `the editor keeps ${JSON.stringify(add)}: ${checked.reason}`);
-  return made.layers[0];
+  return Object.values(made.layers)[0];
 }
 
 test('a logo maps to an image add on its own same-origin address, at its own size when known', () => {
@@ -47,7 +47,7 @@ test('a logo maps to an image add on its own same-origin address, at its own siz
 test('an upload maps to an image add with its asset id; only the person’s own asset address', () => {
   assert.deepEqual(uploadCanvasAdd(UPLOAD), { kind: 'image', src: UPLOAD.src, assetId: UPLOAD_ID, name: 'Upload', source: 'upload' });
   assert.deepEqual(uploadCanvasAdd(UPLOAD, { naturalWidth: 320, naturalHeight: 180 }).naturalHeight, 180);
-  assert.equal(onDesign(uploadCanvasAdd(UPLOAD)).assetId, UPLOAD_ID);
+  assert.equal(onDesign(uploadCanvasAdd(UPLOAD)).asset, 'images/' + UPLOAD_ID, 'kept by its storage key (format v2), never its address');
   for (const src of ['https://cdn.example.test/x.png', '/api/assets/other-0000-id', UPLOAD.thumb, '/api/brand-kit/logos/' + UPLOAD_ID]) assert.equal(uploadCanvasAdd({ ...UPLOAD, src }), null, src);
   assert.equal(uploadCanvasAdd({ ...UPLOAD, id: '../x' }), null);
   assert.equal(uploadCanvasAdd(undefined), null);

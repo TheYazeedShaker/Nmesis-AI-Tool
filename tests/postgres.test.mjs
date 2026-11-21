@@ -24,7 +24,7 @@ const PASSWORD='local-test-password-0123456789';
 // Stands in for hosted Supabase's SQL-editor user (not a superuser; CREATEROLE).
 const SETUP_ROLE='studio_setup_test';
 const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log','folders','folder_items','library_items'];
-const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql','0006_folders.sql','0007_library_index.sql','0008_alert_recipients.sql','0009_library_backfills.sql','0010_brand_kits.sql','0011_shares.sql'];
+const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql','0006_folders.sql','0007_library_index.sql','0008_alert_recipients.sql','0009_library_backfills.sql','0010_brand_kits.sql','0011_shares.sql','0012_designs.sql'];
 // Client work, filtered by environment (0004); the holds and the staff log record it.
 // The tables 0004 scoped (they existed before it); 0006 adds folders scoped the same way from the start.
 const SCOPED_0004=['films','swap_jobs','storyboards','image_jobs','topaz_jobs','film_budgets'];
@@ -33,6 +33,8 @@ const SCOPED=[...SCOPED_0004,'folders','folder_items','library_items'];
 const MARKS=['library_backfills'];
 // 0010 (the brand kit) and 0011 (who can see a piece of work, public view links): company records, scoped and RLS-checked like client work.
 MARKS.push('brand_kits','brand_logos','work_access','share_links');
+// 0012 (the editor's version history and soft lock): company records, scoped and RLS-checked like client work.
+MARKS.push('design_versions','design_presence');
 const RECORDED=['credit_holds','staff_access_log'];
 // The environment these tests run as: no VERCEL_ENV, not production.
 const ENV='development';

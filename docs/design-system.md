@@ -11,6 +11,9 @@ and the Nmesis admin read as one product.
 - **See them:** `/design-system`, staff only. Every component in every state,
   light and dark side by side, and the wireframes of the target experience.
 - **The guard:** `npm run check:design` (below).
+- **The canvas editor** has its own twelve rules on top of this system:
+  [`docs/editor-rules.md`](editor-rules.md). Every editor PR is reviewed
+  against them, and `check:ui` measures the ones that can be measured.
 
 Phase 0 changes no existing screen. The tokens and components load only on the
 design-system routes; screens move onto them group by group from Phase 2b.

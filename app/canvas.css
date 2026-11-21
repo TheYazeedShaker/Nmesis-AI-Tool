@@ -10,8 +10,18 @@
 .canvas-title { min-width: 0; flex: 0 1 auto; margin: 0; font-size: var(--ds-text-md); line-height: var(--ds-leading-md); font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); }
 .canvas-bar-group { display: inline-flex; gap: var(--ds-space-2); padding-left: var(--ds-space-8); border-left: var(--ds-border-width) solid var(--ds-border); }
 .canvas-bar-actions { display: inline-flex; align-items: center; gap: var(--ds-space-8); margin-left: auto; flex: none; }
-/* The inspector is narrower than a tool's settings panel: the canvas needs the room when a left panel is open. */
-.canvas-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) calc(var(--ds-space-64) * 4.5); }
+/* One row while the controls fit beside a readable title; below that the actions wrap onto a second row,
+   never off the edge (design-system.css: a row's controls keep their size, the row wraps). Measured on
+   the editor's own width, since the rail beside it changes with the window. Only the open editor is the
+   container: dialogs open in the top layer, and the menus and the typing box sit absolute in their own
+   boxes, so its containment moves nothing. */
+.canvas-editor:has(> .canvas-bar) { container: canvas-editor / inline-size; }
+@container canvas-editor (max-width: 900px) {
+  .canvas-bar { flex-wrap: wrap; row-gap: var(--ds-space-8); padding-block: var(--ds-space-8); }
+  .canvas-bar-actions { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-end; row-gap: var(--ds-space-8); margin-left: 0; }
+}
+/* The right panel is the one home for the selection's settings: fixed at 340 px (docs/editor-rules.md, rule 2). */
+.canvas-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--ds-editor-panel); }
 /* The light table: a faint dot grid under the picture, so its edges read on any background. */
 .canvas-area {
   min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: var(--ds-space-12); padding: var(--ds-space-24);
@@ -38,7 +48,7 @@
 .canvas-skeleton { width: min(100%, var(--ds-page-max)); aspect-ratio: 16 / 9; border-radius: var(--ds-radius-md); background: var(--ds-skeleton); }
 .canvas-editor > .canvas-skeleton, .canvas-editor-state { margin: auto; padding: var(--ds-space-24); }
 .canvas-inspector {
-  min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--ds-space-24); padding: var(--ds-space-16);
+  min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: var(--ds-editor-section-gap); padding: var(--ds-editor-pad);
   background: var(--ds-panel); border-left: var(--ds-border-width) solid var(--ds-border);
 }
 .canvas-section { display: flex; flex-direction: column; gap: var(--ds-space-12); }
@@ -66,6 +76,38 @@ button.canvas-layer:hover { background: var(--ds-panel-2); }
 /* The tick reads on light and dark brand colours alike: it carries its own contrasting ring. */
 .canvas-swatch > svg { width: var(--ds-icon); height: var(--ds-icon); color: var(--ds-on-media); filter: drop-shadow(0 0 var(--ds-space-2) var(--ds-media-shade)); }
 .canvas-phone-note { flex: 1 1 auto; display: grid; place-items: center; padding: var(--ds-space-24) var(--ds-space-16); }
+/* The save status (components/canvas/save-status.tsx): always in the canvas bar, quiet unless it
+   needs the person (offline: a warning tint; couldn't save: the words are a Retry button). */
+.canvas-save {
+  display: inline-flex; align-items: center; gap: var(--ds-space-4); flex: none; min-height: var(--ds-control-h-sm); padding: 0 var(--ds-space-8);
+  border: 0; border-radius: var(--ds-radius-md); background: transparent; color: var(--ds-muted); font: inherit; font-size: var(--ds-text-sm); white-space: nowrap;
+}
+.canvas-save > svg { width: var(--ds-icon); height: var(--ds-icon); flex: none; }
+.canvas-save[data-save-status="offline"] { background: var(--ds-warn-soft); color: var(--ds-text-strong); }
+.canvas-save-error { background: var(--ds-danger-soft); color: var(--ds-text-strong); cursor: pointer; }
+.canvas-save-error:hover { box-shadow: inset 0 0 0 var(--ds-border-width) var(--ds-danger); }
+.canvas-save-error:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+/* The pages under the canvas (components/canvas/page-strip.tsx): one row, the tiles scroll sideways
+   on their own when there are many; the current page carries the selection mark. */
+.canvas-pages { width: 100%; flex: none; display: flex; align-items: center; gap: var(--ds-space-12); min-width: 0; }
+.canvas-page-list { list-style: none; margin: 0; padding: var(--ds-space-2); display: flex; gap: var(--ds-space-8); min-width: 0; overflow-x: auto; flex: 0 1 auto; }
+.canvas-page {
+  display: flex; flex-direction: column; align-items: stretch; gap: var(--ds-space-4); padding: var(--ds-space-4);
+  border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); background: var(--ds-panel); color: var(--ds-text); font: inherit; font-size: var(--ds-text-xs); cursor: pointer;
+}
+.canvas-page:hover { border-color: var(--ds-border-strong); }
+.canvas-page[aria-current="page"] { border-color: var(--ds-selected-mark); box-shadow: inset 0 0 0 var(--ds-border-width) var(--ds-selected-mark); }
+.canvas-page:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.canvas-page-thumb { display: block; height: var(--ds-space-40); aspect-ratio: var(--canvas-ratio, 1.7778); overflow: hidden; border-radius: var(--ds-radius-sm); background: var(--ds-media-bg); }
+.canvas-page-thumb > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.canvas-page-words { text-align: center; white-space: nowrap; }
+.canvas-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-4); flex: 1 1 auto; justify-content: flex-end; }
+/* Version history (components/canvas/version-history.tsx): one row per version, Restore at its end. */
+.canvas-versions { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ds-space-8); }
+.canvas-version { display: flex; align-items: center; gap: var(--ds-space-12); padding: var(--ds-space-8) 0; border-bottom: var(--ds-border-width) solid var(--ds-border); }
+.canvas-version-words { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: var(--ds-space-2); }
+.canvas-versions-skeleton { height: var(--ds-space-64); border-radius: var(--ds-radius-md); background: var(--ds-skeleton); }
+
 @media (max-width: 1024px) {
   .canvas-bar-actions .ds-btn.quiet { padding: 0 var(--ds-space-8); }
 }
