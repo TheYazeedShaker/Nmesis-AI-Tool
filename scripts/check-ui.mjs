@@ -338,24 +338,26 @@ async function runEditorJourneys() {
     try {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
-      await EDITOR_STEPS[j.id](page, problems);
+      await editorSteps()[j.id](page, problems);
     } catch (e) { problems.push(String(e.message || e).split('\n')[0].slice(0, 200)); }
     finally { await page.close().catch(() => {}); }
     out.push({ id: j.id, role: j.role, ok: !problems.length, problems });
   }
   return out;
 }
-const canvasOf = (page) => page.locator('.canvas-box[data-editable="true"]');
+// Helpers below the main block are function declarations: the main block runs (and exits) before any
+// top-level const after it is initialised (tests/ui-harness.test.mjs holds this).
+function canvasOf(page) { return page.locator('.canvas-box[data-editable="true"]'); }
 async function openEditor(page, id) {
   await page.goto('/editor?visual=' + id, { waitUntil: 'load', timeout: 30_000 });
   await canvasOf(page).locator('canvas').first().waitFor({ timeout: 20_000 });
   await ready(page);
 }
-const layersOf = async (page) => Number((/(\d+) layers?/.exec((await canvasOf(page).getAttribute('aria-label')) || '') || [])[1]);
-const stepsOf = async (page) => Number(await canvasOf(page).getAttribute('data-undo-steps'));
-const savedWithin = (page, ms) => page.waitForFunction(() => document.querySelector('.canvas-bar [data-save-status]')?.getAttribute('data-save-status') === 'saved', null, { timeout: ms });
+async function layersOf(page) { return Number((/(\d+) layers?/.exec((await canvasOf(page).getAttribute('aria-label')) || '') || [])[1]); }
+async function stepsOf(page) { return Number(await canvasOf(page).getAttribute('data-undo-steps')); }
+function savedWithin(page, ms) { return page.waitForFunction(() => document.querySelector('.canvas-bar [data-save-status]')?.getAttribute('data-save-status') === 'saved', null, { timeout: ms }); }
 async function press(page, key) { await canvasOf(page).focus(); await page.keyboard.press(key); await page.waitForTimeout(250); }
-const EDITOR_STEPS = {
+function editorSteps() { return {
   // A design saved before format v2 opens with every layer, through the upgrade.
   'editor-open-v1-design': async (page, problems) => {
     const want = JSON.parse(fs.readFileSync('tests/fixtures/editor-v1/every-kind.json', 'utf8')).layers.length;
@@ -411,7 +413,7 @@ const EDITOR_STEPS = {
     await openEditor(page, EDITOR_VISUAL_ID);
     if (await layersOf(page) !== before + 1) problems.push(`the original has ${await layersOf(page)} layers after the copy was edited, not ${before + 1}`);
   },
-};
+}; }
 
 // A real keyboard: Tab through the page, and for each stop ask whether the
 // focus can be seen and whether a fixed or sticky bar hides it (2.4.11).

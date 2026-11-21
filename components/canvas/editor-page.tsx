@@ -88,8 +88,9 @@ async function loadDraft(id:string,mayEdit:boolean):Promise<{doc:EditorDoc|null;
  let server:{doc:EditorDoc;at:number}|null=null;
  try{
   const r=await studioFetch(`/api/edits/${id}/draft`,{signal:AbortSignal.timeout(15_000)});
-  if(r.ok){const d=await r.json().catch(()=>({})) as {draft?:{doc?:unknown;savedAt?:number}};const read=readDoc(d.draft?.doc);if(read.ok)server={doc:read.doc,at:Number(d.draft?.savedAt)||0}}
-  else if(r.status!==404)console.warn('[editor] the draft did not open',{status:r.status});
+  // {draft:null}: no draft yet (the usual case).
+  if(r.ok){const d=await r.json().catch(()=>({})) as {draft?:{doc?:unknown;savedAt?:number}|null};if(d.draft){const read=readDoc(d.draft.doc);if(read.ok)server={doc:read.doc,at:Number(d.draft.savedAt)||0}}}
+  else console.warn('[editor] the draft did not open',{status:r.status});
  }catch(e){console.warn('[editor] the draft did not open',{reason:e instanceof Error?e.name:'unknown'})}
  const local=deviceCopy(id,server?.at??null),read=local?readDoc(local):null;
  return read?.ok?{doc:read.doc,unsent:true}:{doc:server?.doc??null,unsent:false};

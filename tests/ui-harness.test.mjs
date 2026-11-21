@@ -284,3 +284,14 @@ test('ci: actions are pinned by commit, and the required checks keep their names
   assert.match(ci, /cron: '30 2 \* \* \*'/);
   assert.match(ci, /update_baseline:/);
 });
+
+test('check:ui: nothing at the top level after the main block is a const or let', () => {
+  // The main block awaits, then exits; a const or let declared after it is never initialised, so a
+  // journey that reads one dies with "Cannot access … before initialization" (CI only, since check:ui
+  // needs Postgres). Helpers below it are function declarations, which are hoisted.
+  const src = fs.readFileSync('scripts/check-ui.mjs', 'utf8');
+  const end = src.indexOf('\nprocess.exit(exitCode);');
+  assert.ok(end > 0, 'the main block ends with process.exit(exitCode)');
+  const late = [...src.slice(end).matchAll(/^(const|let|var|class)\s+([\w$]+)/gm)].map((m) => m[2]);
+  assert.deepEqual(late, [], `declare these as functions, or above the main block: ${late.join(', ')}`);
+});

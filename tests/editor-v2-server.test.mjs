@@ -213,7 +213,10 @@ test('Duplicate design: "Copy of <name>", a design of its own, in the same folde
 test('autosave’s working draft: the person’s own, checked, kept, read back and dropped',async()=>{
  as(OWNER);
  const original=await picture(0x14000);
- assert.equal((await draft('GET',original.id)).status,404,'no draft yet');
+ // No draft yet is the usual case, not an error: a 404 would put a console error on every editor open.
+ const none=await draft('GET',original.id);
+ assert.equal(none.status,200,'no draft yet is not an error');assert.equal(none.body.draft,null,'no draft yet');
+ assert.equal((await draft('GET',id(0x14998))).status,404,'not a picture here');
  const doc=D.addLayer(D.createDoc(original),{kind:'text',style:'body',text:'Draft'},'t');
  const put=await draft('PUT',original.id,{doc,rev:3});
  assert.equal(put.status,200,put.raw);assert.equal(typeof put.body.savedAt,'number');
@@ -229,14 +232,14 @@ test('autosave’s working draft: the person’s own, checked, kept, read back a
  assert.equal((await draft('PUT',original.id,{doc,rev:5},{origin:'http://elsewhere.example.test'})).status,403);
  assert.equal((await draft('PUT',id(0x14998),{doc,rev:5})).status,404,'not a picture here');
  as(CREATOR);
- assert.equal((await draft('GET',original.id)).status,404,'a colleague has their own drafts, not the owner’s');
+ assert.equal((await draft('GET',original.id)).body.draft,null,'a colleague has their own drafts, not the owner’s');
  assert.equal((await draft('PUT',original.id,{doc,rev:1})).status,200);assert.ok(await store.get(theirs+'drafts/'+original.id+'.json'));
  as(VIEWER);
  assert.equal((await draft('PUT',original.id,{doc,rev:1})).status,403,'viewers look; they don’t make work');
  as(OWNER);
  assert.equal((await draft('GET',original.id)).body.draft.rev,3,'still the owner’s');
  assert.deepEqual((await draft('DELETE',original.id)).body,{deleted:true});
- assert.equal((await draft('GET',original.id)).status,404);
+ assert.equal((await draft('GET',original.id)).body.draft,null);
  // A reopened design's draft sits on its original; Save never touches the draft.
  const v1=(await save({doc,parentId:original.id})).body.visual;
  const reopened=(await open(v1.id)).body.design;

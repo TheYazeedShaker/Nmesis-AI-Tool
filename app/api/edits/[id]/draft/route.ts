@@ -3,7 +3,8 @@ import {context,fail,StudioError,validId} from '@/lib/studio-server';
 import {visiblePicture} from '@/lib/editor/reopen';
 import {deleteDraft,readDraft,readDraftBody,writeDraft} from '@/lib/editor/drafts';
 // Autosave's working draft of the design opened on picture <id>, the person's
-// own (lib/editor/drafts.ts): GET reads it (404: none), PUT keeps it (about 2 s
+// own (lib/editor/drafts.ts): GET reads it ({draft:null} when there is none yet:
+// that is the usual case, not a missing page, so not a 404), PUT keeps it (about 2 s
 // after the last change), DELETE drops it. Writes need someone who may make work
 // (viewers are refused by the route table); the picture must be one they may
 // open, and the design must sit on that picture's own original. Save, which
@@ -20,8 +21,7 @@ async function picture(request:Request,params:Params['params'],write=false){
 export async function GET(request:Request,{params}:Params){try{
  const {ctx,pic}=await picture(request,params);
  const draft=await readDraft(ctx,pic.visual.id);
- if(!draft)throw new StudioError('No draft for this picture.',404);
- return Response.json({draft},{headers:NO_STORE});
+ return Response.json({draft:draft??null},{headers:NO_STORE});
 }catch(e){return fail(e)}}
 export async function PUT(request:Request,{params}:Params){try{
  const {ctx,pic}=await picture(request,params,true);

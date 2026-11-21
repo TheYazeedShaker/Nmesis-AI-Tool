@@ -10,6 +10,16 @@
 .canvas-title { min-width: 0; flex: 0 1 auto; margin: 0; font-size: var(--ds-text-md); line-height: var(--ds-leading-md); font-weight: var(--ds-weight-semibold); color: var(--ds-text-strong); }
 .canvas-bar-group { display: inline-flex; gap: var(--ds-space-2); padding-left: var(--ds-space-8); border-left: var(--ds-border-width) solid var(--ds-border); }
 .canvas-bar-actions { display: inline-flex; align-items: center; gap: var(--ds-space-8); margin-left: auto; flex: none; }
+/* One row while the controls fit beside a readable title; below that the actions wrap onto a second row,
+   never off the edge (design-system.css: a row's controls keep their size, the row wraps). Measured on
+   the editor's own width, since the rail beside it changes with the window. Only the open editor is the
+   container: dialogs open in the top layer, and the menus and the typing box sit absolute in their own
+   boxes, so its containment moves nothing. */
+.canvas-editor:has(> .canvas-bar) { container: canvas-editor / inline-size; }
+@container canvas-editor (max-width: 900px) {
+  .canvas-bar { flex-wrap: wrap; row-gap: var(--ds-space-8); padding-block: var(--ds-space-8); }
+  .canvas-bar-actions { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-end; row-gap: var(--ds-space-8); margin-left: 0; }
+}
 /* The right panel is the one home for the selection's settings: fixed at 340 px (docs/editor-rules.md, rule 2). */
 .canvas-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--ds-editor-panel); }
 /* The light table: a faint dot grid under the picture, so its edges read on any background. */
