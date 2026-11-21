@@ -344,7 +344,10 @@ export function editorRules() {
     const name = (el.getAttribute('aria-label') || el.innerText || el.value || el.getAttribute('title') || '').trim().replace(/\s+/g, ' ').slice(0, 40);
     return el.tagName.toLowerCase() + cls + (name ? ' "' + name + '"' : '');
   };
-  const shown = (el) => { const r = el.getBoundingClientRect(), cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && !el.closest('[hidden],[inert]'); };
+  // What a closed <details> folds away (everything but its summary) is not shown, though the browser keeps its
+  // boxes: its text reads as empty, so its controls would look unlabelled. The rule states open each "More".
+  const folded = (el) => { const d = el.closest('details:not([open])'); return !!d && !d.querySelector(':scope > summary')?.contains(el); };
+  const shown = (el) => { const r = el.getBoundingClientRect(), cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && !el.closest('[hidden],[inert]') && !folded(el); };
   const words = (el) => !!el && shown(el) && el.innerText.trim().length > 0;
   const tokenPx = (name) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || NaN;
   const panel = editor.querySelector('.canvas-inspector'), box = editor.querySelector('.canvas-box');
@@ -376,7 +379,7 @@ export function editorRules() {
   const allowed = new Set(['--ds-editor-label-gap', '--ds-editor-row-gap', '--ds-editor-pad', '--ds-editor-section-gap'].map(tokenPx));
   const pad = getComputedStyle(panel);
   if (['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].some((k) => parseFloat(pad[k]) !== tokenPx('--ds-editor-pad'))) out.editorSpacing.push({ el: describe(panel), padding: pad.padding });
-  const CONTROL = 'button, input, select, textarea, [role="slider"], [role="switch"], summary, .ds-btn, svg';
+  const CONTROL = 'button, input, select, textarea, [role="slider"], [role="switch"], [role="radio"], [role="tab"], summary, .ds-btn, svg';
   for (const el of panel.querySelectorAll('*')) {
     if (!shown(el) || el.parentElement?.closest(CONTROL)) continue;
     const cs = getComputedStyle(el);
@@ -385,16 +388,24 @@ export function editorRules() {
     if (!/flex|grid/.test(cs.display) || el.matches(CONTROL)) continue;
     for (const g of [cs.rowGap, cs.columnGap]) { const v = parseFloat(g); if (v > 0.5 && !allowed.has(v)) out.editorSpacing.push({ el: describe(el), gap: g }); }
   }
-  // Rule 5: every control has words a person can read: its own (a button), or a visible label.
+  // Rule 5: every control has words a person can read: its own (a button, a tab), or a visible label.
+  // A choice in a labelled group of choices (a colour swatch: role="radio" in a role="radiogroup") is
+  // labelled by the group's visible words, as a radio input is by its legend; its own name is its value.
+  // A button is never labelled by words beside it: an icon-only row stays an icon-only row.
+  const rowLabel = (el) => el.closest('[data-editor-row]')?.querySelector('[data-editor-label]');
+  const labelledBy = (el) => (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).map((id) => document.getElementById(id)).some(words);
   const labelled = (el) => {
-    if (el.matches('button, summary, .ds-btn')) return words(el);
+    if (el.matches('[role="radio"]:not(input)')) {
+      const group = el.closest('[role="radiogroup"]');
+      return words(el) || (!!group && (labelledBy(group) || words(rowLabel(group))));
+    }
+    if (el.matches('button, summary, .ds-btn, [role="tab"]')) return words(el) || [...(el.labels || [])].some(words);
     if ([...(el.labels || [])].some(words)) return true;
-    const by = (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean).map((id) => document.getElementById(id));
-    if (by.some(words)) return true;
+    if (labelledBy(el)) return true;
     const legend = el.closest('fieldset')?.querySelector('legend');
-    return words(legend) || words(el.closest('[data-editor-row]')?.querySelector('[data-editor-label]'));
+    return words(legend) || words(rowLabel(el));
   };
-  for (const el of panel.querySelectorAll('button, input:not([type="hidden"]), select, textarea, [role="slider"], [role="switch"], summary')) {
+  for (const el of panel.querySelectorAll('button, input:not([type="hidden"]), select, textarea, [role="slider"], [role="switch"], [role="radio"], [role="tab"], summary')) {
     if (shown(el) && !labelled(el)) out.editorUnlabelled.push({ el: describe(el) });
   }
   // Rule 8: one vertical scroll (the panel's own), never sideways, nothing nested.

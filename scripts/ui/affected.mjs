@@ -212,6 +212,20 @@ export function changedFiles({ diff, base }, root = process.cwd()) {
   catch (e) { console.error(`git ${args.join(' ')} failed (${e instanceof Error ? e.message.split('\n')[0] : e}): every screen.`); return null; }
 }
 
+/**
+ * CI's plan ($GITHUB_OUTPUT lines): mode (full, subset or none), only, shards, total. `only` always
+ * names the screens, every one of them when the change reaches every screen: the Safari job runs when
+ * `only` contains the editor or the settings grid, and an empty `only` hid them (feat/editor-panel-rules).
+ * `--only=<every id>` selects every screen, exactly as an empty one did (the totals are compared too).
+ */
+export function githubPlan(result, { sweep = false, shards: n = 0 } = {}) {
+  const mode = sweep ? 'full' : result.screens.length ? 'subset' : 'none';
+  const only = result.screens.join(',');
+  // The shard matrix is never empty (GitHub refuses an empty matrix); the shard job runs only when mode=subset.
+  const shards = mode === 'subset' ? Array.from({ length: n }, (_, i) => i + 1) : [0];
+  return `mode=${mode}\nonly=${only}\nshards=${JSON.stringify(shards)}\ntotal=${mode === 'subset' ? n : 0}\n`;
+}
+
 function main() {
   const args = process.argv.slice(2);
   const opt = (n) => (args.find((a) => a.startsWith(`--${n}=`)) || '').slice(n.length + 3);
@@ -232,12 +246,7 @@ function main() {
     '', ...Object.entries(result.why).map(([f, w]) => `- ${f}: ${Array.isArray(w) ? w.join(', ') : w}`),
   ];
   if (flag('github')) {
-    const mode = flag('sweep') ? 'full' : result.screens.length ? 'subset' : 'none';
-    // An empty `only` means every screen.
-    const only = result.full ? '' : result.screens.join(',');
-    // The shard matrix is never empty (GitHub refuses an empty matrix); the shard job runs only when mode=subset.
-    const shards = mode === 'subset' ? Array.from({ length: n }, (_, i) => i + 1) : [0];
-    process.stdout.write(`mode=${mode}\nonly=${only}\nshards=${JSON.stringify(shards)}\ntotal=${mode === 'subset' ? n : 0}\n`);
+    process.stdout.write(githubPlan(result, { sweep: flag('sweep'), shards: n }));
     console.error(explain.join('\n'));
     if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, ['## check:ui plan', '', ...explain.slice(0, 200)].join('\n') + '\n');
   } else {

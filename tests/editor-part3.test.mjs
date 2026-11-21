@@ -110,7 +110,7 @@ test('typing on the canvas is one undo step; redo brings it back; a new edit sta
  assert.match(editor,/e\.key==='Enter'/);assert.match(editor,/startTyping\(/);
  assert.match(box,/e\.stopPropagation\(\);\n   if\(e\.key==='Escape'\)\{e\.preventDefault\(\);finish\(\)\}/);
  assert.doesNotMatch(box,/e\.key==='Enter'/,'Enter adds a line (the text box’s own)');
- assert.match(box,/fontFamily:family,fontSize:layer\.fontSize\*scale,fontWeight:layer\.fontWeight,lineHeight:TEXT_LINE_HEIGHT/,'typed in the brand font, at the canvas’s size');
+ assert.match(box,/fontFamily:family,fontSize:layer\.fontSize\*scale,fontWeight:layer\.fontWeight,lineHeight:lineHeightOf\(layer\),letterSpacing:\(layer\.letterSpacing\?\?0\)\*scale/,'typed in the brand font, at the canvas’s size, with the text’s own line and letter spacing');
 });
 
 // ── Icons ────────────────────────────────────────────────────────────────

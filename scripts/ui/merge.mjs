@@ -13,6 +13,8 @@ import { pathToFileURL } from 'node:url';
 import { finish } from './ratchet.mjs';
 import { SCREEN_IDS } from './screens.mjs';
 
+function stateKey(s) { return `${s.screen}|${s.state}|${s.role}|${s.w}x${s.h}|${s.theme}`; }
+
 /** One report from several shard reports. */
 export function mergeReports(reports) {
   if (!reports.length) throw new Error('No shard report to merge.');
@@ -32,12 +34,23 @@ export function mergeReports(reports) {
   };
   const perf = reports.find((r) => r.perf)?.perf;
   if (perf) merged.perf = perf;
+  const editorPerf = reports.find((r) => r.editorPerf)?.editorPerf;
+  if (editorPerf) merged.editorPerf = editorPerf;
+  // The editor's panel in each selection (the rule states): measured in the shard that checks the editor.
+  const ruleStates = reports.flatMap((r) => r.ruleStates || []);
+  if (ruleStates.length) merged.ruleStates = ruleStates.sort((a, b) => stateKey(a).localeCompare(stateKey(b)));
   // Every shard of the same cut: a page checked twice would count twice.
   const seen = new Set();
   for (const r of merged.results) {
     const k = `${r.screen}|${r.role}|${r.w}|${r.theme}`;
     if (seen.has(k)) throw new Error(`A page is in two shard reports: ${k}. Were the shards cut from the same --only?`);
     seen.add(k);
+  }
+  const seenStates = new Set();
+  for (const s of ruleStates) {
+    const k = stateKey(s);
+    if (seenStates.has(k)) throw new Error(`A rule state is in two shard reports: ${k}. Were the shards cut from the same --only?`);
+    seenStates.add(k);
   }
   return merged;
 }
