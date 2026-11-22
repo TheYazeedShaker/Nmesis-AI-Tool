@@ -31,11 +31,25 @@ type Base=Box&Placed&{/** 0 (not seen) to 1 (solid); absent: 1. */opacity?:numbe
 export type ImageLayer=Base&{kind:'image';asset:AssetKey;source:'logo'|'upload';
  /** Rounded corners, in picture pixels; absent: square. */radius?:number;/** Mirrored left to right / top to bottom. */flipX?:boolean;flipY?:boolean};
 export type TextStyle='heading'|'subheading'|'body';
+/** A text's one effect (one at a time). Every amount is 0–100 of what the effect can do, so it looks the same at any size (lib/editor/effects.ts draws it). */
+export type TextEffect=
+ |{kind:'shadow';/** How far, 0–100. */offset:number;/** Which way, in degrees: 0 right, 90 down. */direction:number;blur:number;colour:string;transparency:number}
+ |{kind:'outline';thickness:number;colour:string}
+ |{kind:'lift';intensity:number}
+ |{kind:'neon';intensity:number;colour:string}
+ |{kind:'background';colour:string;padding:number;corner:number;transparency:number}
+ |{kind:'curve';/** -100 (curves down) to 100 (curves up). */curve:number};
+export type TextEffectKind=TextEffect['kind'];
+export const TEXT_EFFECTS=['shadow','outline','lift','neon','background','curve'] as const;
+/** A gradient fill: linear (at an angle, as CSS reads one) or radial (from the centre), 2–4 stops. */
+export type Gradient={type:'linear'|'radial';angle:number;stops:{at:number;colour:string}[]};
 export type TextLayer=Base&{kind:'text';text:string;style:TextStyle;font:string;fontSize:number;fontWeight:number;color:string;align:'left'|'center'|'right';
- /** Line spacing as a multiple of the size; absent: TEXT_LINE_HEIGHT. */lineHeight?:number;/** Letter spacing in picture pixels; absent: 0. */letterSpacing?:number};
+ /** Line spacing as a multiple of the size; absent: TEXT_LINE_HEIGHT. */lineHeight?:number;/** Letter spacing in picture pixels; absent: 0. */letterSpacing?:number;
+ /** Italic (only where the font has an italic); absent: upright. */italic?:boolean;/** Its one effect; absent: none. */effect?:TextEffect};
 export const SHAPES=['rect','rounded','circle','triangle','star','hexagon'] as const;
 export type ShapeKind=typeof SHAPES[number];
-export type ShapeLayer=Base&{kind:'shape';shape:ShapeKind;fill:string;stroke:string;strokeWidth:number};
+export type ShapeLayer=Base&{kind:'shape';shape:ShapeKind;/** The solid fill (with a gradient: its first stop, what an older reader draws). */fill:string;stroke:string;strokeWidth:number;
+ /** A gradient fill; absent: the solid fill. */gradient?:Gradient};
 export type LineLayer=Base&{kind:'line';dash:boolean;arrow:'none'|'end'|'both';stroke:string;strokeWidth:number};
 export type FrameLayer=Base&{kind:'frame';stroke:string;strokeWidth:number;radius:number};
 /** An icon from the Studio's icon set (lucide), kept as its vector paths on a 24 x 24 grid
@@ -45,7 +59,7 @@ export type IconLayer=Base&{kind:'icon';icon:string;paths:string[];color:string;
 export type GroupLayer=Placed&{kind:'group'};
 export type DrawnLayer=ImageLayer|TextLayer|ShapeLayer|LineLayer|FrameLayer|IconLayer;
 export type Layer=DrawnLayer|GroupLayer;
-export type PageBackground={kind:'picture';asset:AssetKey}|{kind:'colour';colour:string};
+export type PageBackground={kind:'picture';asset:AssetKey}|{kind:'colour';colour:string;/** A gradient over the page; absent: the colour. */gradient?:Gradient};
 export type Page={id:string;background:PageBackground};
 export type EditorDoc={schemaVersion:typeof SCHEMA_VERSION;width:number;height:number;
  /** The original picture the design was made on (its id): read only, never written. */base:string;
@@ -209,6 +223,9 @@ export const edit={
   for(const [k,v] of Object.entries(rest)){
    if(v===undefined||!own.has(k))continue;
    if(k==='asset'&&!isAssetKey(v))throw new Error('Only pictures from this Studio can go on a design.');
+   if(k==='effect'){edit.setEffect(d,id,v as TextEffect);continue}
+   if(k==='gradient'){edit.setFill(d,id,{gradient:v as Gradient});continue}
+   if(typeof v==='object'&&v!==null)throw new Error('That setting isn’t part of a design.');
    if(typeof v==='string'&&k!=='text'&&LINKISH.test(v))throw new Error('A setting can’t be a link.');
    if((l as Record<string,unknown>)[k]!==v)(l as Record<string,unknown>)[k]=v;
   }
@@ -340,12 +357,32 @@ export const edit={
   const l=d.layers[id];if(!l)return;
   for(const k of ['locked','hidden'] as const){const v=flags[k];if(v===true&&l[k]!==true)l[k]=true;else if(v===false&&l[k]===true)delete l[k]}
  },
- /** A page's background: a colour, or a picture of this Studio (by its storage key). */
+ /** A text's one effect (null: none). Picking another replaces it: one effect at a time. */
+ setEffect(d:D,id:string,effect:TextEffect|null){
+  const l=d.layers[id];if(!l||l.kind!=='text')return;
+  if(effect===null||effect===undefined){if(l.effect)delete l.effect;return}
+  const bad=effectProblem(effect);if(bad)throw new Error('That effect couldn’t be set ('+bad+').');
+  if(JSON.stringify(l.effect)!==JSON.stringify(effect))l.effect=JSON.parse(JSON.stringify(effect));
+ },
+ /** A shape's fill: a colour, a gradient (null: back to the solid colour), or both. With a gradient, the solid fill is its first stop. */
+ setFill(d:D,id:string,fill:{fill?:string;gradient?:Gradient|null}){
+  const l=d.layers[id];if(!l||l.kind!=='shape')return;
+  if(fill.fill!==undefined){if(!colour(fill.fill))throw new Error('That isn’t a colour.');if(l.fill!==fill.fill)l.fill=fill.fill}
+  if(fill.gradient===null){if(l.gradient)delete l.gradient}
+  else if(fill.gradient!==undefined){
+   if(!gradientOk(fill.gradient))throw new Error('That gradient couldn’t be set.');
+   if(JSON.stringify(l.gradient)!==JSON.stringify(fill.gradient))l.gradient=JSON.parse(JSON.stringify(fill.gradient));
+   const first=[...fill.gradient.stops].sort((a,b)=>a.at-b.at)[0].colour;if(l.fill!==first)l.fill=first;
+  }
+ },
+ /** A page's background: a colour (with a gradient over it, or not), or a picture of this Studio (by its storage key). */
  setBackground(d:D,pageId:string,bg:PageBackground){
   const p=d.pages.find(x=>x.id===pageId);if(!p)throw new Error('That page is no longer in the design.');
   if(bg?.kind==='colour'){
-   if(!colour(bg.colour))throw new Error('That isn’t a colour.');
-   if(p.background.kind!=='colour'||p.background.colour!==bg.colour)p.background={kind:'colour',colour:bg.colour};
+   if(!colour(bg.colour)||bg.colour==='transparent')throw new Error('That isn’t a colour.');
+   if(bg.gradient!==undefined&&!gradientOk(bg.gradient))throw new Error('That gradient couldn’t be set.');
+   const next:PageBackground=bg.gradient?{kind:'colour',colour:bg.colour,gradient:JSON.parse(JSON.stringify(bg.gradient))}:{kind:'colour',colour:bg.colour};
+   if(JSON.stringify(p.background)!==JSON.stringify(next))p.background=next;
   }else if(bg?.kind==='picture'&&isAssetKey(bg.asset)&&bg.asset.startsWith('images/')){
    if(p.background.kind!=='picture'||p.background.asset!==bg.asset)p.background={kind:'picture',asset:bg.asset};
   }else throw new Error('Only pictures from this Studio can be a page’s background.');
@@ -450,18 +487,18 @@ export function exportPixelRatio(doc:EditorDoc,shownWidth:number){
 // ── Checking a design from outside (the routes) ──────────────────────────
 /** SVG path data: commands, numbers, separators. Nothing that could be markup or a URL. */
 const PATH_DATA=/^[MmLlHhVvCcSsQqTtAaZz0-9eE.,+\-\s]+$/,ICON_NAME=/^[a-z0-9-]{1,60}$/;
-const HEX=/^#[0-9a-f]{6}$/i,LAYER_ID=/^[A-Za-z0-9_-]{1,80}$/;
+const HEX=/^#[0-9a-f]{6}([0-9a-f]{2})?$/i,LAYER_ID=/^[A-Za-z0-9_-]{1,80}$/;
 /** An address of any kind, or the marks of a signed storage link: never in a design (only text a person typed may hold one). */
 const LINKISH=/:\/\/|x-amz-|signature=|^\/\//i;
 /** Whether a value (a string, or a list of them) holds an address or a signed link's marks. */
-const linkIn=(v:unknown):boolean=>typeof v==='string'?LINKISH.test(v):Array.isArray(v)?v.some(linkIn):false;
+const linkIn=(v:unknown,depth=0):boolean=>typeof v==='string'?LINKISH.test(v):Array.isArray(v)?v.some(x=>linkIn(x,depth+1)):!!v&&typeof v==='object'&&depth<4?Object.values(v).some(x=>linkIn(x,depth+1)):false;
 /** Each kind's own fields: what a design keeps of a layer (cleanDoc) and what a change may set (edit.update). */
 const PLACED_FIELDS=['id','name','kind','pageId','parentId','index','locked','hidden'],BOX_FIELDS=['x','y','width','height','rotation','opacity'];
 const FIELDS:Record<Layer['kind'],ReadonlySet<string>>={
  group:new Set(PLACED_FIELDS),
  image:new Set([...PLACED_FIELDS,...BOX_FIELDS,'asset','source','radius','flipX','flipY']),
- text:new Set([...PLACED_FIELDS,...BOX_FIELDS,'text','style','font','fontSize','fontWeight','color','align','lineHeight','letterSpacing']),
- shape:new Set([...PLACED_FIELDS,...BOX_FIELDS,'shape','fill','stroke','strokeWidth']),
+ text:new Set([...PLACED_FIELDS,...BOX_FIELDS,'text','style','font','fontSize','fontWeight','color','align','lineHeight','letterSpacing','italic','effect']),
+ shape:new Set([...PLACED_FIELDS,...BOX_FIELDS,'shape','fill','stroke','strokeWidth','gradient']),
  line:new Set([...PLACED_FIELDS,...BOX_FIELDS,'dash','arrow','stroke','strokeWidth']),
  frame:new Set([...PLACED_FIELDS,...BOX_FIELDS,'stroke','strokeWidth','radius']),
  icon:new Set([...PLACED_FIELDS,...BOX_FIELDS,'icon','paths','color','strokeWidth']),
@@ -472,6 +509,31 @@ const plain=(v:unknown,max:number)=>str(v,max)&&!LINKISH.test(v as string);
 const colour=(v:unknown)=>v==='transparent'||(typeof v==='string'&&HEX.test(v));
 const flag=(v:unknown)=>v===undefined||typeof v==='boolean';
 type Checked={ok:true;doc:EditorDoc}|{ok:false;reason:string};
+const pct=(v:unknown)=>num(v,0,100),solidColour=(v:unknown)=>typeof v==='string'&&HEX.test(v);
+/** Why an effect isn't one the format holds (null: it is). Only its own fields, each in range. */
+export function effectProblem(v:unknown):string|null{
+ const e=v as Record<string,unknown>;
+ if(!e||typeof e!=='object'||Array.isArray(e))return 'shape';
+ const own:Record<TextEffectKind,Record<string,(x:unknown)=>boolean>>={
+  shadow:{offset:pct,direction:x=>num(x,-360,360),blur:pct,colour:solidColour,transparency:pct},
+  outline:{thickness:x=>num(x,1,100),colour:solidColour},
+  lift:{intensity:pct},
+  neon:{intensity:pct,colour:solidColour},
+  background:{colour:solidColour,padding:pct,corner:pct,transparency:pct},
+  curve:{curve:x=>num(x,-100,100)},
+ };
+ const fields=own[e.kind as TextEffectKind];if(!fields)return 'kind';
+ for(const k of Object.keys(e))if(k!=='kind'&&!fields[k])return k;
+ for(const [k,ok] of Object.entries(fields))if(!ok(e[k]))return k;
+ return null;
+}
+/** A gradient the format holds: linear or radial, an angle, 2–4 stops in 0–1 with a colour each. */
+export function gradientOk(v:unknown):v is Gradient{
+ const g=v as Gradient;
+ if(!g||typeof g!=='object'||Array.isArray(g)||!['linear','radial'].includes(g.type)||!num(g.angle,-360,360)||!Array.isArray(g.stops)||g.stops.length<2||g.stops.length>4)return false;
+ if(Object.keys(g).some(k=>!['type','angle','stops'].includes(k)))return false;
+ return g.stops.every(s=>!!s&&typeof s==='object'&&Object.keys(s).every(k=>k==='at'||k==='colour')&&num(s.at,0,1)&&solidColour(s.colour));
+}
 
 function checkLayerBody(l:Record<string,unknown>,span:number):string|null{
  if(!num(l.x,-span,span)||!num(l.y,-span,span)||!num(l.width,0,span)||!num(l.height,0,span)||!num(l.rotation,-360,360))return 'box';
@@ -479,9 +541,9 @@ function checkLayerBody(l:Record<string,unknown>,span:number):string|null{
  const maybe=(v:unknown,ok:(v:unknown)=>boolean)=>v===undefined||ok(v);
  if(!maybe(l.opacity,v=>num(v,0,1)))return 'opacity';
  if(l.kind==='image')return isAssetKey(l.asset)&&(l.source==='logo'||l.source==='upload')&&maybe(l.radius,v=>num(v,0,span))&&flag(l.flipX)&&flag(l.flipY)?null:'image';
- if(l.kind==='text')return str(l.text,TEXT_MAX)&&plain(l.font,60)&&num(l.fontSize,1,4000)&&num(l.fontWeight,100,900)&&colour(l.color)&&['heading','subheading','body'].includes(l.style as string)&&['left','center','right'].includes(l.align as string)
-  &&maybe(l.lineHeight,v=>num(v,0.5,4))&&maybe(l.letterSpacing,v=>num(v,-1000,1000))?null:'text';
- if(l.kind==='shape')return SHAPES.includes(l.shape as ShapeKind)&&colour(l.fill)&&colour(l.stroke)&&num(l.strokeWidth,0,500)?null:'shape';
+ if(l.kind==='text')return str(l.text,TEXT_MAX)&&plain(l.font,60)&&num(l.fontSize,1,4000)&&num(l.fontWeight,1,1000)&&colour(l.color)&&['heading','subheading','body'].includes(l.style as string)&&['left','center','right'].includes(l.align as string)
+  &&maybe(l.lineHeight,v=>num(v,0.5,4))&&maybe(l.letterSpacing,v=>num(v,-1000,1000))&&flag(l.italic)&&maybe(l.effect,v=>!effectProblem(v))?null:'text';
+ if(l.kind==='shape')return SHAPES.includes(l.shape as ShapeKind)&&colour(l.fill)&&colour(l.stroke)&&num(l.strokeWidth,0,500)&&maybe(l.gradient,gradientOk)?null:'shape';
  if(l.kind==='line')return colour(l.stroke)&&num(l.strokeWidth,0,500)&&typeof l.dash==='boolean'&&['none','end','both'].includes(l.arrow as string)?null:'line';
  if(l.kind==='frame')return colour(l.stroke)&&num(l.strokeWidth,0,500)&&num(l.radius,0,span)?null:'frame';
  if(l.kind==='icon')return typeof l.icon==='string'&&ICON_NAME.test(l.icon)&&Array.isArray(l.paths)&&l.paths.length&&l.paths.length<=ICON_PATHS_MAX&&l.paths.every(p=>str(p,ICON_PATH_MAX)&&PATH_DATA.test(p as string))&&colour(l.color)&&l.color!=='transparent'&&num(l.strokeWidth,0.25,6)?null:'icon';
@@ -499,7 +561,7 @@ export function checkDoc(v:unknown):Checked{
  for(const p of d.pages){
   if(!p||typeof p!=='object'||typeof p.id!=='string'||!LAYER_ID.test(p.id)||pages.has(p.id))return {ok:false,reason:'page'};
   const b=p.background as PageBackground|undefined;
-  if(!b||(b.kind==='picture'?!isAssetKey(b.asset)||!b.asset.startsWith('images/'):b.kind==='colour'?!colour(b.colour):true))return {ok:false,reason:'background'};
+  if(!b||(b.kind==='picture'?!isAssetKey(b.asset)||!b.asset.startsWith('images/'):b.kind==='colour'?!colour(b.colour)||(b.gradient!==undefined&&!gradientOk(b.gradient)):true))return {ok:false,reason:'background'};
   pages.add(p.id);
  }
  if(!d.layers||typeof d.layers!=='object'||Array.isArray(d.layers))return {ok:false,reason:'layers'};
@@ -575,7 +637,7 @@ export function cleanDoc(doc:EditorDoc):EditorDoc{
   for(const [k,v] of Object.entries(l))if(v!==undefined&&own.has(k))out[k]=v;
   layers[key]=out as Layer;
  }
- return {schemaVersion:SCHEMA_VERSION,width:doc.width,height:doc.height,base:doc.base,pages:doc.pages.map(p=>({id:p.id,background:p.background.kind==='picture'?{kind:'picture',asset:p.background.asset}:{kind:'colour',colour:p.background.colour}})),layers};
+ return {schemaVersion:SCHEMA_VERSION,width:doc.width,height:doc.height,base:doc.base,pages:doc.pages.map(p=>({id:p.id,background:p.background.kind==='picture'?{kind:'picture',asset:p.background.asset}:p.background.gradient?{kind:'colour',colour:p.background.colour,gradient:p.background.gradient}:{kind:'colour',colour:p.background.colour}})),layers};
 }
 /** A design applied to a recipe once, outside the history (the server: a restored version). */
 export const change=(doc:EditorDoc,recipe:(d:D)=>void)=>produce(doc,recipe);

@@ -69,6 +69,7 @@ test('every scroll area in the design system is known, and none sits in a dialog
   const known = new Map([
     ['.ds-combo-list, .ds-menu-list', 'a dropdown list over the page'],
     ['.ds-dialog-body', 'the one scroll area of a dialog'],
+    ['.ds-popover-body', 'the one scroll area of an editor popover (the font list, the colour picker): a non-modal dialog over the right panel, never inside a dialog body'],
     ['.ds-tabs', 'a row of tabs, sideways'],
     ['.canvas-inspector', 'the canvas editor’s Design inspector (layers and the selected layer), beside or under the canvas; never a dialog'],
     ['.canvas-page-list', 'the canvas editor’s pages under the canvas, sideways when there are many; never in a dialog or the inspector'],

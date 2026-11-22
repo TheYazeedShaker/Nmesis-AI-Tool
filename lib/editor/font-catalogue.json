@@ -1,0 +1,7486 @@
+{
+ "about": "Built by scripts/fonts/build-catalogue.mjs from the official open font repository. Every family is OFL-1.1 or Apache-2.0; its licence file ships beside its fonts in public/fonts/<id>/.",
+ "families": [
+  {
+   "id": "inter",
+   "family": "Inter",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Rasmus Andersson",
+   "source": "https://github.com/google/fonts/tree/main/ofl/inter",
+   "upstream": "https://www.github.com/rsms/inter",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "inter-italic.woff2",
+     "bytes": 95424
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "inter-normal.woff2",
+     "bytes": 88736
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1872
+   }
+  },
+  {
+   "id": "roboto",
+   "family": "Roboto",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Christian Robertson, ParaType, Font Bureau",
+   "source": "https://github.com/google/fonts/tree/main/ofl/roboto",
+   "upstream": "https://github.com/googlefonts/roboto-classic",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "roboto-italic.woff2",
+     "bytes": 70264
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "roboto-normal.woff2",
+     "bytes": 62652
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1612
+   }
+  },
+  {
+   "id": "open-sans",
+   "family": "Open Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 300,
+    "max": 800
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Steve Matteson",
+   "source": "https://github.com/google/fonts/tree/main/ofl/opensans",
+   "upstream": "https://github.com/googlefonts/opensans",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      300,
+      800
+     ],
+     "file": "open-sans-italic.woff2",
+     "bytes": 65996
+    },
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      800
+     ],
+     "file": "open-sans-normal.woff2",
+     "bytes": 61712
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1732
+   }
+  },
+  {
+   "id": "lato",
+   "family": "Lato",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Łukasz Dziedzic",
+   "source": "https://github.com/google/fonts/tree/main/ofl/lato",
+   "upstream": "https://github.com/googlefonts/lato",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 100,
+     "file": "lato-100-italic.woff2",
+     "bytes": 39452
+    },
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "lato-200-italic.woff2",
+     "bytes": 43528
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "lato-300-italic.woff2",
+     "bytes": 43636
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "lato-400-italic.woff2",
+     "bytes": 44356
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "lato-500-italic.woff2",
+     "bytes": 43856
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "lato-600-italic.woff2",
+     "bytes": 44552
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "lato-700-italic.woff2",
+     "bytes": 44092
+    },
+    {
+     "style": "italic",
+     "weight": 800,
+     "file": "lato-800-italic.woff2",
+     "bytes": 42656
+    },
+    {
+     "style": "italic",
+     "weight": 900,
+     "file": "lato-900-italic.woff2",
+     "bytes": 44376
+    },
+    {
+     "style": "normal",
+     "weight": 100,
+     "file": "lato-100-normal.woff2",
+     "bytes": 37060
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "lato-200-normal.woff2",
+     "bytes": 41684
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "lato-300-normal.woff2",
+     "bytes": 42172
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "lato-400-normal.woff2",
+     "bytes": 42456
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "lato-500-normal.woff2",
+     "bytes": 42104
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "lato-600-normal.woff2",
+     "bytes": 42956
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "lato-700-normal.woff2",
+     "bytes": 42276
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "lato-800-normal.woff2",
+     "bytes": 40672
+    },
+    {
+     "style": "normal",
+     "weight": 900,
+     "file": "lato-900-normal.woff2",
+     "bytes": 42284
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1424
+   }
+  },
+  {
+   "id": "montserrat",
+   "family": "Montserrat",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Julieta Ulanovsky, Sol Matas, Juan Pablo del Peral, Jacques Le Bailly",
+   "source": "https://github.com/google/fonts/tree/main/ofl/montserrat",
+   "upstream": "https://github.com/JulietaUla/Montserrat",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "montserrat-italic.woff2",
+     "bytes": 81876
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "montserrat-normal.woff2",
+     "bytes": 75204
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2400
+   }
+  },
+  {
+   "id": "poppins",
+   "family": "Poppins",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Indian Type Foundry, Jonny Pinhorn, Ninad Kale",
+   "source": "https://github.com/google/fonts/tree/main/ofl/poppins",
+   "upstream": "https://github.com/itfoundry/Poppins",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 100,
+     "file": "poppins-100-italic.woff2",
+     "bytes": 11296
+    },
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "poppins-200-italic.woff2",
+     "bytes": 11792
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "poppins-300-italic.woff2",
+     "bytes": 11796
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "poppins-400-italic.woff2",
+     "bytes": 11752
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "poppins-500-italic.woff2",
+     "bytes": 11516
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "poppins-600-italic.woff2",
+     "bytes": 11860
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "poppins-700-italic.woff2",
+     "bytes": 11688
+    },
+    {
+     "style": "italic",
+     "weight": 800,
+     "file": "poppins-800-italic.woff2",
+     "bytes": 11764
+    },
+    {
+     "style": "italic",
+     "weight": 900,
+     "file": "poppins-900-italic.woff2",
+     "bytes": 11464
+    },
+    {
+     "style": "normal",
+     "weight": 100,
+     "file": "poppins-100-normal.woff2",
+     "bytes": 10144
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "poppins-200-normal.woff2",
+     "bytes": 10736
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "poppins-300-normal.woff2",
+     "bytes": 10740
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "poppins-400-normal.woff2",
+     "bytes": 10828
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "poppins-500-normal.woff2",
+     "bytes": 10560
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "poppins-600-normal.woff2",
+     "bytes": 10928
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "poppins-700-normal.woff2",
+     "bytes": 10640
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "poppins-800-normal.woff2",
+     "bytes": 10728
+    },
+    {
+     "style": "normal",
+     "weight": 900,
+     "file": "poppins-900-normal.woff2",
+     "bytes": 10364
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 904
+   }
+  },
+  {
+   "id": "raleway",
+   "family": "Raleway",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Matt McInerney, Pablo Impallari, Rodrigo Fuenzalida",
+   "source": "https://github.com/google/fonts/tree/main/ofl/raleway",
+   "upstream": "https://github.com/theleagueof/raleway",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "raleway-italic.woff2",
+     "bytes": 74372
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "raleway-normal.woff2",
+     "bytes": 69252
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2012
+   }
+  },
+  {
+   "id": "nunito",
+   "family": "Nunito",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 200,
+    "max": 1000
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Vernon Adams, Cyreal, Jacques Le Bailly",
+   "source": "https://github.com/google/fonts/tree/main/ofl/nunito",
+   "upstream": "https://github.com/googlefonts/nunito",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      200,
+      1000
+     ],
+     "file": "nunito-italic.woff2",
+     "bytes": 57104
+    },
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      1000
+     ],
+     "file": "nunito-normal.woff2",
+     "bytes": 52600
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1276
+   }
+  },
+  {
+   "id": "nunito-sans",
+   "family": "Nunito Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 200,
+    "max": 1000
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Vernon Adams, Jacques Le Bailly, Manvel Shmavonyan, Alexei Vanyashin",
+   "source": "https://github.com/google/fonts/tree/main/ofl/nunitosans",
+   "upstream": "https://github.com/googlefonts/NunitoSans",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      200,
+      1000
+     ],
+     "file": "nunito-sans-italic.woff2",
+     "bytes": 44008
+    },
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      1000
+     ],
+     "file": "nunito-sans-normal.woff2",
+     "bytes": 40952
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1784
+   }
+  },
+  {
+   "id": "work-sans",
+   "family": "Work Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Wei Huang",
+   "source": "https://github.com/google/fonts/tree/main/ofl/worksans",
+   "upstream": "https://github.com/weiweihuanghuang/Work-Sans",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "work-sans-italic.woff2",
+     "bytes": 92632
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "work-sans-normal.woff2",
+     "bytes": 97648
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2772
+   }
+  },
+  {
+   "id": "rubik",
+   "family": "Rubik",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 300,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Hubert and Fischer, Meir Sadan, Cyreal, Daniel Grumer, Omaima Dajani",
+   "source": "https://github.com/google/fonts/tree/main/ofl/rubik",
+   "upstream": "https://github.com/googlefonts/rubik",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      300,
+      900
+     ],
+     "file": "rubik-italic.woff2",
+     "bytes": 82488
+    },
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      900
+     ],
+     "file": "rubik-normal.woff2",
+     "bytes": 81152
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2444
+   }
+  },
+  {
+   "id": "noto-sans",
+   "family": "Noto Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Google",
+   "source": "https://github.com/google/fonts/tree/main/ofl/notosans",
+   "upstream": "https://github.com/notofonts/latin-greek-cyrillic",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "noto-sans-italic.woff2",
+     "bytes": 80288
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "noto-sans-normal.woff2",
+     "bytes": 74084
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2032
+   }
+  },
+  {
+   "id": "source-sans-3",
+   "family": "Source Sans 3",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 200,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Paul D. Hunt",
+   "source": "https://github.com/google/fonts/tree/main/ofl/sourcesans3",
+   "upstream": "https://github.com/adobe-fonts/source-sans",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      200,
+      900
+     ],
+     "file": "source-sans-3-italic.woff2",
+     "bytes": 53228
+    },
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      900
+     ],
+     "file": "source-sans-3-normal.woff2",
+     "bytes": 65232
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3552
+   }
+  },
+  {
+   "id": "pt-sans",
+   "family": "PT Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    400,
+    700
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "ParaType",
+   "source": "https://github.com/google/fonts/tree/main/ofl/ptsans",
+   "upstream": "https://github.com/googlefonts/ptsans",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "pt-sans-400-italic.woff2",
+     "bytes": 15212
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "pt-sans-700-italic.woff2",
+     "bytes": 14796
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "pt-sans-400-normal.woff2",
+     "bytes": 14092
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "pt-sans-700-normal.woff2",
+     "bytes": 14536
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1164
+   }
+  },
+  {
+   "id": "mulish",
+   "family": "Mulish",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 200,
+    "max": 1000
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Vernon Adams, Cyreal, Jacques Le Bailly",
+   "source": "https://github.com/google/fonts/tree/main/ofl/mulish",
+   "upstream": "https://github.com/googlefonts/mulish",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      200,
+      1000
+     ],
+     "file": "mulish-italic.woff2",
+     "bytes": 42828
+    },
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      1000
+     ],
+     "file": "mulish-normal.woff2",
+     "bytes": 39004
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1056
+   }
+  },
+  {
+   "id": "outfit",
+   "family": "Outfit",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Smartsheet Inc, Rodrigo Fuenzalida",
+   "source": "https://github.com/google/fonts/tree/main/ofl/outfit",
+   "upstream": "https://github.com/Outfitio/Outfit-Fonts",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "outfit-normal.woff2",
+     "bytes": 42384
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1324
+   }
+  },
+  {
+   "id": "manrope",
+   "family": "Manrope",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 200,
+    "max": 800
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Mikhail Sharanda",
+   "source": "https://github.com/google/fonts/tree/main/ofl/manrope",
+   "upstream": "https://github.com/googlefonts/manrope",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      800
+     ],
+     "file": "manrope-normal.woff2",
+     "bytes": 30904
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1376
+   }
+  },
+  {
+   "id": "dm-sans",
+   "family": "DM Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 1000
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Colophon Foundry",
+   "source": "https://github.com/google/fonts/tree/main/ofl/dmsans",
+   "upstream": "https://github.com/googlefonts/dm-fonts",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      1000
+     ],
+     "file": "dm-sans-italic.woff2",
+     "bytes": 48800
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      1000
+     ],
+     "file": "dm-sans-normal.woff2",
+     "bytes": 47904
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1372
+   }
+  },
+  {
+   "id": "plus-jakarta-sans",
+   "family": "Plus Jakarta Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 200,
+    "max": 800
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Tokotype",
+   "source": "https://github.com/google/fonts/tree/main/ofl/plusjakartasans",
+   "upstream": "https://github.com/tokotype/PlusJakartaSans",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      200,
+      800
+     ],
+     "file": "plus-jakarta-sans-italic.woff2",
+     "bytes": 47192
+    },
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      800
+     ],
+     "file": "plus-jakarta-sans-normal.woff2",
+     "bytes": 42980
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1900
+   }
+  },
+  {
+   "id": "figtree",
+   "family": "Figtree",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 300,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Erik Kennedy",
+   "source": "https://github.com/google/fonts/tree/main/ofl/figtree",
+   "upstream": "https://github.com/erikdkennedy/figtree",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      300,
+      900
+     ],
+     "file": "figtree-italic.woff2",
+     "bytes": 25892
+    },
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      900
+     ],
+     "file": "figtree-normal.woff2",
+     "bytes": 25376
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1108
+   }
+  },
+  {
+   "id": "urbanist",
+   "family": "Urbanist",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Corey Hu",
+   "source": "https://github.com/google/fonts/tree/main/ofl/urbanist",
+   "upstream": "https://github.com/coreyhu/Urbanist",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "urbanist-italic.woff2",
+     "bytes": 35016
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "urbanist-normal.woff2",
+     "bytes": 32732
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1256
+   }
+  },
+  {
+   "id": "lexend",
+   "family": "Lexend",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Bonnie Shaver-Troup, Thomas Jockin, Santiago Orozco, Héctor Gómez, Superunion",
+   "source": "https://github.com/google/fonts/tree/main/ofl/lexend",
+   "upstream": "https://github.com/googlefonts/lexend",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "lexend-normal.woff2",
+     "bytes": 53732
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 932
+   }
+  },
+  {
+   "id": "karla",
+   "family": "Karla",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 200,
+    "max": 800
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Jonny Pinhorn",
+   "source": "https://github.com/google/fonts/tree/main/ofl/karla",
+   "upstream": "https://github.com/googlefonts/karla",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      200,
+      800
+     ],
+     "file": "karla-italic.woff2",
+     "bytes": 43584
+    },
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      800
+     ],
+     "file": "karla-normal.woff2",
+     "bytes": 41832
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 888
+   }
+  },
+  {
+   "id": "barlow",
+   "family": "Barlow",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Jeremy Tribby",
+   "source": "https://github.com/google/fonts/tree/main/ofl/barlow",
+   "upstream": "https://github.com/jpt/barlow",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 100,
+     "file": "barlow-100-italic.woff2",
+     "bytes": 24572
+    },
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "barlow-200-italic.woff2",
+     "bytes": 24760
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "barlow-300-italic.woff2",
+     "bytes": 24928
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "barlow-400-italic.woff2",
+     "bytes": 24968
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "barlow-500-italic.woff2",
+     "bytes": 25068
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "barlow-600-italic.woff2",
+     "bytes": 24964
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "barlow-700-italic.woff2",
+     "bytes": 24768
+    },
+    {
+     "style": "italic",
+     "weight": 800,
+     "file": "barlow-800-italic.woff2",
+     "bytes": 24628
+    },
+    {
+     "style": "italic",
+     "weight": 900,
+     "file": "barlow-900-italic.woff2",
+     "bytes": 23584
+    },
+    {
+     "style": "normal",
+     "weight": 100,
+     "file": "barlow-100-normal.woff2",
+     "bytes": 21664
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "barlow-200-normal.woff2",
+     "bytes": 21828
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "barlow-300-normal.woff2",
+     "bytes": 21976
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "barlow-400-normal.woff2",
+     "bytes": 22112
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "barlow-500-normal.woff2",
+     "bytes": 22172
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "barlow-600-normal.woff2",
+     "bytes": 22408
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "barlow-700-normal.woff2",
+     "bytes": 22412
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "barlow-800-normal.woff2",
+     "bytes": 22240
+    },
+    {
+     "style": "normal",
+     "weight": 900,
+     "file": "barlow-900-normal.woff2",
+     "bytes": 21276
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1788
+   }
+  },
+  {
+   "id": "barlow-condensed",
+   "family": "Barlow Condensed",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Jeremy Tribby",
+   "source": "https://github.com/google/fonts/tree/main/ofl/barlowcondensed",
+   "upstream": "https://github.com/jpt/barlow",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 100,
+     "file": "barlow-condensed-100-italic.woff2",
+     "bytes": 23448
+    },
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "barlow-condensed-200-italic.woff2",
+     "bytes": 23668
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "barlow-condensed-300-italic.woff2",
+     "bytes": 23784
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "barlow-condensed-400-italic.woff2",
+     "bytes": 23772
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "barlow-condensed-500-italic.woff2",
+     "bytes": 23864
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "barlow-condensed-600-italic.woff2",
+     "bytes": 23456
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "barlow-condensed-700-italic.woff2",
+     "bytes": 23444
+    },
+    {
+     "style": "italic",
+     "weight": 800,
+     "file": "barlow-condensed-800-italic.woff2",
+     "bytes": 23204
+    },
+    {
+     "style": "italic",
+     "weight": 900,
+     "file": "barlow-condensed-900-italic.woff2",
+     "bytes": 22128
+    },
+    {
+     "style": "normal",
+     "weight": 100,
+     "file": "barlow-condensed-100-normal.woff2",
+     "bytes": 20440
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "barlow-condensed-200-normal.woff2",
+     "bytes": 20704
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "barlow-condensed-300-normal.woff2",
+     "bytes": 20824
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "barlow-condensed-400-normal.woff2",
+     "bytes": 20920
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "barlow-condensed-500-normal.woff2",
+     "bytes": 20928
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "barlow-condensed-600-normal.woff2",
+     "bytes": 21112
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "barlow-condensed-700-normal.woff2",
+     "bytes": 21128
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "barlow-condensed-800-normal.woff2",
+     "bytes": 20984
+    },
+    {
+     "style": "normal",
+     "weight": 900,
+     "file": "barlow-condensed-900-normal.woff2",
+     "bytes": 19820
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2420
+   }
+  },
+  {
+   "id": "archivo",
+   "family": "Archivo",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Omnibus-Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/archivo",
+   "upstream": "https://github.com/Omnibus-Type/Archivo",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "archivo-italic.woff2",
+     "bytes": 56676
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "archivo-normal.woff2",
+     "bytes": 50560
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1368
+   }
+  },
+  {
+   "id": "fira-sans",
+   "family": "Fira Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Carrois Apostrophe",
+   "source": "https://github.com/google/fonts/tree/main/ofl/firasans",
+   "upstream": "https://github.com/googlefonts/FiraGFVersion",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 100,
+     "file": "fira-sans-100-italic.woff2",
+     "bytes": 31628
+    },
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "fira-sans-200-italic.woff2",
+     "bytes": 33088
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "fira-sans-300-italic.woff2",
+     "bytes": 33036
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "fira-sans-400-italic.woff2",
+     "bytes": 32852
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "fira-sans-500-italic.woff2",
+     "bytes": 33424
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "fira-sans-600-italic.woff2",
+     "bytes": 33396
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "fira-sans-700-italic.woff2",
+     "bytes": 33484
+    },
+    {
+     "style": "italic",
+     "weight": 800,
+     "file": "fira-sans-800-italic.woff2",
+     "bytes": 33516
+    },
+    {
+     "style": "italic",
+     "weight": 900,
+     "file": "fira-sans-900-italic.woff2",
+     "bytes": 32324
+    },
+    {
+     "style": "normal",
+     "weight": 100,
+     "file": "fira-sans-100-normal.woff2",
+     "bytes": 30172
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "fira-sans-200-normal.woff2",
+     "bytes": 31592
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "fira-sans-300-normal.woff2",
+     "bytes": 31612
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "fira-sans-400-normal.woff2",
+     "bytes": 31028
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "fira-sans-500-normal.woff2",
+     "bytes": 31716
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "fira-sans-600-normal.woff2",
+     "bytes": 31532
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "fira-sans-700-normal.woff2",
+     "bytes": 31824
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "fira-sans-800-normal.woff2",
+     "bytes": 31628
+    },
+    {
+     "style": "normal",
+     "weight": 900,
+     "file": "fira-sans-900-normal.woff2",
+     "bytes": 30700
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1824
+   }
+  },
+  {
+   "id": "ibm-plex-sans",
+   "family": "IBM Plex Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 100,
+    "max": 700
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Mike Abbink, Bold Monday",
+   "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexsans",
+   "upstream": "https://github.com/googlefonts/plex",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      700
+     ],
+     "file": "ibm-plex-sans-italic.woff2",
+     "bytes": 64300
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      700
+     ],
+     "file": "ibm-plex-sans-normal.woff2",
+     "bytes": 58820
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1732
+   }
+  },
+  {
+   "id": "josefin-sans",
+   "family": "Josefin Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 100,
+    "max": 700
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Santiago Orozco",
+   "source": "https://github.com/google/fonts/tree/main/ofl/josefinsans",
+   "upstream": "https://github.com/googlefonts/josefinsans",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      700
+     ],
+     "file": "josefin-sans-italic.woff2",
+     "bytes": 40408
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      700
+     ],
+     "file": "josefin-sans-normal.woff2",
+     "bytes": 36560
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1772
+   }
+  },
+  {
+   "id": "kanit",
+   "family": "Kanit",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Cadson Demak",
+   "source": "https://github.com/google/fonts/tree/main/ofl/kanit",
+   "upstream": "https://github.com/cadsondemak/kanit",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 100,
+     "file": "kanit-100-italic.woff2",
+     "bytes": 15352
+    },
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "kanit-200-italic.woff2",
+     "bytes": 15380
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "kanit-300-italic.woff2",
+     "bytes": 15220
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "kanit-400-italic.woff2",
+     "bytes": 15444
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "kanit-500-italic.woff2",
+     "bytes": 15220
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "kanit-600-italic.woff2",
+     "bytes": 15432
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "kanit-700-italic.woff2",
+     "bytes": 15908
+    },
+    {
+     "style": "italic",
+     "weight": 800,
+     "file": "kanit-800-italic.woff2",
+     "bytes": 16132
+    },
+    {
+     "style": "italic",
+     "weight": 900,
+     "file": "kanit-900-italic.woff2",
+     "bytes": 15696
+    },
+    {
+     "style": "normal",
+     "weight": 100,
+     "file": "kanit-100-normal.woff2",
+     "bytes": 14000
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "kanit-200-normal.woff2",
+     "bytes": 14344
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "kanit-300-normal.woff2",
+     "bytes": 13892
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "kanit-400-normal.woff2",
+     "bytes": 14264
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "kanit-500-normal.woff2",
+     "bytes": 14040
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "kanit-600-normal.woff2",
+     "bytes": 14440
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "kanit-700-normal.woff2",
+     "bytes": 14068
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "kanit-800-normal.woff2",
+     "bytes": 14336
+    },
+    {
+     "style": "normal",
+     "weight": 900,
+     "file": "kanit-900-normal.woff2",
+     "bytes": 13780
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 960
+   }
+  },
+  {
+   "id": "quicksand",
+   "family": "Quicksand",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 300,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Andrew Paglinawan",
+   "source": "https://github.com/google/fonts/tree/main/ofl/quicksand",
+   "upstream": "https://github.com/ThomasJockin/QuicksandFamily",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      700
+     ],
+     "file": "quicksand-normal.woff2",
+     "bytes": 38044
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1860
+   }
+  },
+  {
+   "id": "cabin",
+   "family": "Cabin",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 400,
+    "max": 700
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Impallari Type, Rodrigo Fuenzalida",
+   "source": "https://github.com/google/fonts/tree/main/ofl/cabin",
+   "upstream": "https://github.com/impallari/Cabin",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "cabin-italic.woff2",
+     "bytes": 35744
+    },
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "cabin-normal.woff2",
+     "bytes": 33332
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1296
+   }
+  },
+  {
+   "id": "titillium-web",
+   "family": "Titillium Web",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    600,
+    700,
+    900
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Accademia di Belle Arti di Urbino",
+   "source": "https://github.com/google/fonts/tree/main/ofl/titilliumweb",
+   "upstream": "https://github.com/googlefonts/titilliumweb",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "titillium-web-200-italic.woff2",
+     "bytes": 18480
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "titillium-web-300-italic.woff2",
+     "bytes": 19952
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "titillium-web-400-italic.woff2",
+     "bytes": 20132
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "titillium-web-600-italic.woff2",
+     "bytes": 20124
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "titillium-web-700-italic.woff2",
+     "bytes": 19440
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "titillium-web-200-normal.woff2",
+     "bytes": 17052
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "titillium-web-300-normal.woff2",
+     "bytes": 17620
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "titillium-web-400-normal.woff2",
+     "bytes": 17544
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "titillium-web-600-normal.woff2",
+     "bytes": 17380
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "titillium-web-700-normal.woff2",
+     "bytes": 16552
+    },
+    {
+     "style": "normal",
+     "weight": 900,
+     "file": "titillium-web-900-normal.woff2",
+     "bytes": 13552
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1116
+   }
+  },
+  {
+   "id": "exo-2",
+   "family": "Exo 2",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Natanael Gama",
+   "source": "https://github.com/google/fonts/tree/main/ofl/exo2",
+   "upstream": "https://github.com/googlefonts/Exo-2.0",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "exo-2-italic.woff2",
+     "bytes": 58300
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "exo-2-normal.woff2",
+     "bytes": 56980
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1524
+   }
+  },
+  {
+   "id": "red-hat-display",
+   "family": "Red Hat Display",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 300,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "MCKL",
+   "source": "https://github.com/google/fonts/tree/main/ofl/redhatdisplay",
+   "upstream": "https://github.com/RedHatOfficial/RedHatFont",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      300,
+      900
+     ],
+     "file": "red-hat-display-italic.woff2",
+     "bytes": 40028
+    },
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      900
+     ],
+     "file": "red-hat-display-normal.woff2",
+     "bytes": 38620
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1568
+   }
+  },
+  {
+   "id": "sora",
+   "family": "Sora",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 100,
+    "max": 800
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Jonathan Barnbrook, Julián Moncada",
+   "source": "https://github.com/google/fonts/tree/main/ofl/sora",
+   "upstream": "https://github.com/sora-xor/sora-font",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      800
+     ],
+     "file": "sora-normal.woff2",
+     "bytes": 45468
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 988
+   }
+  },
+  {
+   "id": "space-grotesk",
+   "family": "Space Grotesk",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 300,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Florian Karsten",
+   "source": "https://github.com/google/fonts/tree/main/ofl/spacegrotesk",
+   "upstream": "https://github.com/floriankarsten/space-grotesk",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      700
+     ],
+     "file": "space-grotesk-normal.woff2",
+     "bytes": 34260
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1664
+   }
+  },
+  {
+   "id": "public-sans",
+   "family": "Public Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "USWDS, Dan Williams, Pablo Impallari, Rodrigo Fuenzalida",
+   "source": "https://github.com/google/fonts/tree/main/ofl/publicsans",
+   "upstream": "https://github.com/uswds/public-sans",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "public-sans-italic.woff2",
+     "bytes": 34460
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "public-sans-normal.woff2",
+     "bytes": 32532
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1724
+   }
+  },
+  {
+   "id": "be-vietnam-pro",
+   "family": "Be Vietnam Pro",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Lâm Bảo, Tony Le, ViệtAnh Nguyễn",
+   "source": "https://github.com/google/fonts/tree/main/ofl/bevietnampro",
+   "upstream": "https://github.com/bettergui/BeVietnamPro",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 100,
+     "file": "be-vietnam-pro-100-italic.woff2",
+     "bytes": 16656
+    },
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "be-vietnam-pro-200-italic.woff2",
+     "bytes": 18352
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "be-vietnam-pro-300-italic.woff2",
+     "bytes": 18448
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "be-vietnam-pro-400-italic.woff2",
+     "bytes": 16932
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "be-vietnam-pro-500-italic.woff2",
+     "bytes": 18392
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "be-vietnam-pro-600-italic.woff2",
+     "bytes": 18376
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "be-vietnam-pro-700-italic.woff2",
+     "bytes": 18292
+    },
+    {
+     "style": "italic",
+     "weight": 800,
+     "file": "be-vietnam-pro-800-italic.woff2",
+     "bytes": 18248
+    },
+    {
+     "style": "italic",
+     "weight": 900,
+     "file": "be-vietnam-pro-900-italic.woff2",
+     "bytes": 16540
+    },
+    {
+     "style": "normal",
+     "weight": 100,
+     "file": "be-vietnam-pro-100-normal.woff2",
+     "bytes": 16224
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "be-vietnam-pro-200-normal.woff2",
+     "bytes": 17552
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "be-vietnam-pro-300-normal.woff2",
+     "bytes": 17720
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "be-vietnam-pro-400-normal.woff2",
+     "bytes": 16464
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "be-vietnam-pro-500-normal.woff2",
+     "bytes": 17608
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "be-vietnam-pro-600-normal.woff2",
+     "bytes": 17672
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "be-vietnam-pro-700-normal.woff2",
+     "bytes": 17644
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "be-vietnam-pro-800-normal.woff2",
+     "bytes": 17672
+    },
+    {
+     "style": "normal",
+     "weight": 900,
+     "file": "be-vietnam-pro-900-normal.woff2",
+     "bytes": 16216
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1748
+   }
+  },
+  {
+   "id": "albert-sans",
+   "family": "Albert Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Andreas Rasmussen",
+   "source": "https://github.com/google/fonts/tree/main/ofl/albertsans",
+   "upstream": "https://github.com/usted/Albert-Sans",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "albert-sans-italic.woff2",
+     "bytes": 49780
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "albert-sans-normal.woff2",
+     "bytes": 46628
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1412
+   }
+  },
+  {
+   "id": "onest",
+   "family": "Onest",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Dmitri Voloshin, Andrey Kudryavtsev",
+   "source": "https://github.com/google/fonts/tree/main/ofl/onest",
+   "upstream": "https://github.com/simpals/onest",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "onest-normal.woff2",
+     "bytes": 46524
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1504
+   }
+  },
+  {
+   "id": "hanken-grotesk",
+   "family": "Hanken Grotesk",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Alfredo Marco Pradil, Hanken Design Co.",
+   "source": "https://github.com/google/fonts/tree/main/ofl/hankengrotesk",
+   "upstream": "https://github.com/marcologous/hanken-grotesk",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "hanken-grotesk-italic.woff2",
+     "bytes": 47824
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "hanken-grotesk-normal.woff2",
+     "bytes": 45380
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1624
+   }
+  },
+  {
+   "id": "instrument-sans",
+   "family": "Instrument Sans",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 400,
+    "max": 700
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Rodrigo Fuenzalida, Jordan Egstad",
+   "source": "https://github.com/google/fonts/tree/main/ofl/instrumentsans",
+   "upstream": "https://github.com/Instrument/instrument-sans",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "instrument-sans-italic.woff2",
+     "bytes": 47604
+    },
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "instrument-sans-normal.woff2",
+     "bytes": 44776
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1616
+   }
+  },
+  {
+   "id": "bricolage-grotesque",
+   "family": "Bricolage Grotesque",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 200,
+    "max": 800
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Mathieu Triay",
+   "source": "https://github.com/google/fonts/tree/main/ofl/bricolagegrotesque",
+   "upstream": "https://github.com/ateliertriay/bricolage",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      800
+     ],
+     "file": "bricolage-grotesque-normal.woff2",
+     "bytes": 57460
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2448
+   }
+  },
+  {
+   "id": "epilogue",
+   "family": "Epilogue",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Tyler Finck, ETC",
+   "source": "https://github.com/google/fonts/tree/main/ofl/epilogue",
+   "upstream": "https://github.com/Etcetera-Type-Co/Epilogue",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "epilogue-italic.woff2",
+     "bytes": 62960
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "epilogue-normal.woff2",
+     "bytes": 59252
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2260
+   }
+  },
+  {
+   "id": "syne",
+   "family": "Syne",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 400,
+    "max": 800
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Bonjour Monde, Lucas Descroix, George Triantafyllakos",
+   "source": "https://github.com/google/fonts/tree/main/ofl/syne",
+   "upstream": "https://gitlab.com/bonjour-monde/fonderie/syne-typeface",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      800
+     ],
+     "file": "syne-normal.woff2",
+     "bytes": 47256
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 928
+   }
+  },
+  {
+   "id": "chivo",
+   "family": "Chivo",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Omnibus-Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/chivo",
+   "upstream": "https://github.com/Omnibus-Type/Chivo",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "chivo-italic.woff2",
+     "bytes": 49200
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "chivo-normal.woff2",
+     "bytes": 44620
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1160
+   }
+  },
+  {
+   "id": "jost",
+   "family": "Jost",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Owen Earl",
+   "source": "https://github.com/google/fonts/tree/main/ofl/jost",
+   "upstream": "https://github.com/indestructible-type/Jost",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "jost-italic.woff2",
+     "bytes": 44512
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "jost-normal.woff2",
+     "bytes": 37368
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 884
+   }
+  },
+  {
+   "id": "prompt",
+   "family": "Prompt",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Cadson Demak",
+   "source": "https://github.com/google/fonts/tree/main/ofl/prompt",
+   "upstream": "https://github.com/cadsondemak/prompt",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 100,
+     "file": "prompt-100-italic.woff2",
+     "bytes": 15804
+    },
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "prompt-200-italic.woff2",
+     "bytes": 16452
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "prompt-300-italic.woff2",
+     "bytes": 16216
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "prompt-400-italic.woff2",
+     "bytes": 16288
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "prompt-500-italic.woff2",
+     "bytes": 16056
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "prompt-600-italic.woff2",
+     "bytes": 16320
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "prompt-700-italic.woff2",
+     "bytes": 16104
+    },
+    {
+     "style": "italic",
+     "weight": 800,
+     "file": "prompt-800-italic.woff2",
+     "bytes": 15980
+    },
+    {
+     "style": "italic",
+     "weight": 900,
+     "file": "prompt-900-italic.woff2",
+     "bytes": 16860
+    },
+    {
+     "style": "normal",
+     "weight": 100,
+     "file": "prompt-100-normal.woff2",
+     "bytes": 13664
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "prompt-200-normal.woff2",
+     "bytes": 14724
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "prompt-300-normal.woff2",
+     "bytes": 14332
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "prompt-400-normal.woff2",
+     "bytes": 14664
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "prompt-500-normal.woff2",
+     "bytes": 14116
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "prompt-600-normal.woff2",
+     "bytes": 14064
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "prompt-700-normal.woff2",
+     "bytes": 14384
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "prompt-800-normal.woff2",
+     "bytes": 14344
+    },
+    {
+     "style": "normal",
+     "weight": 900,
+     "file": "prompt-900-normal.woff2",
+     "bytes": 13540
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1004
+   }
+  },
+  {
+   "id": "archivo-narrow",
+   "family": "Archivo Narrow",
+   "kind": "sans",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 400,
+    "max": 700
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Omnibus-Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/archivonarrow",
+   "upstream": "https://github.com/Omnibus-Type/ArchivoNarrow",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "archivo-narrow-italic.woff2",
+     "bytes": 28972
+    },
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "archivo-narrow-normal.woff2",
+     "bytes": 25544
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1580
+   }
+  },
+  {
+   "id": "playfair-display",
+   "family": "Playfair Display",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 400,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Claus Eggers Sørensen",
+   "source": "https://github.com/google/fonts/tree/main/ofl/playfairdisplay",
+   "upstream": "https://github.com/aaronbell/Playfair-Display",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "playfair-display-italic.woff2",
+     "bytes": 63928
+    },
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "playfair-display-normal.woff2",
+     "bytes": 65840
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3568
+   }
+  },
+  {
+   "id": "merriweather",
+   "family": "Merriweather",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 300,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Sorkin Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/merriweather",
+   "upstream": "https://github.com/EbenSorkin/Merriweather4",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      300,
+      900
+     ],
+     "file": "merriweather-italic.woff2",
+     "bytes": 309888
+    },
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      900
+     ],
+     "file": "merriweather-normal.woff2",
+     "bytes": 305720
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2676
+   }
+  },
+  {
+   "id": "lora",
+   "family": "Lora",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 400,
+    "max": 700
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Cyreal",
+   "source": "https://github.com/google/fonts/tree/main/ofl/lora",
+   "upstream": "https://github.com/cyrealtype/Lora-Cyrillic",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "lora-italic.woff2",
+     "bytes": 50284
+    },
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "lora-normal.woff2",
+     "bytes": 47024
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1336
+   }
+  },
+  {
+   "id": "pt-serif",
+   "family": "PT Serif",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400,
+    700
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "ParaType",
+   "source": "https://github.com/google/fonts/tree/main/ofl/ptserif",
+   "upstream": "https://github.com/googlefonts/ptserif",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "pt-serif-400-italic.woff2",
+     "bytes": 16956
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "pt-serif-700-italic.woff2",
+     "bytes": 16976
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "pt-serif-400-normal.woff2",
+     "bytes": 15908
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "pt-serif-700-normal.woff2",
+     "bytes": 16036
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1316
+   }
+  },
+  {
+   "id": "noto-serif",
+   "family": "Noto Serif",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Google",
+   "source": "https://github.com/google/fonts/tree/main/ofl/notoserif",
+   "upstream": "https://github.com/notofonts/latin-greek-cyrillic",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "noto-serif-italic.woff2",
+     "bytes": 92048
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "noto-serif-normal.woff2",
+     "bytes": 73324
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2380
+   }
+  },
+  {
+   "id": "source-serif-4",
+   "family": "Source Serif 4",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 200,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Frank Grießhammer",
+   "source": "https://github.com/google/fonts/tree/main/ofl/sourceserif4",
+   "upstream": "https://github.com/adobe-fonts/source-serif",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      200,
+      900
+     ],
+     "file": "source-serif-4-italic.woff2",
+     "bytes": 74724
+    },
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      900
+     ],
+     "file": "source-serif-4-normal.woff2",
+     "bytes": 90504
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3972
+   }
+  },
+  {
+   "id": "libre-baskerville",
+   "family": "Libre Baskerville",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 400,
+    "max": 700
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Impallari Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/librebaskerville",
+   "upstream": "https://github.com/impallari/Libre-Baskerville",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "libre-baskerville-italic.woff2",
+     "bytes": 42708
+    },
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "libre-baskerville-normal.woff2",
+     "bytes": 45252
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2068
+   }
+  },
+  {
+   "id": "eb-garamond",
+   "family": "EB Garamond",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 400,
+    "max": 800
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Georg Duffner, Octavio Pardo",
+   "source": "https://github.com/google/fonts/tree/main/ofl/ebgaramond",
+   "upstream": "https://github.com/octaviopardo/EBGaramond12",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      400,
+      800
+     ],
+     "file": "eb-garamond-italic.woff2",
+     "bytes": 142068
+    },
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      800
+     ],
+     "file": "eb-garamond-normal.woff2",
+     "bytes": 125856
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 6048
+   }
+  },
+  {
+   "id": "cormorant-garamond",
+   "family": "Cormorant Garamond",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 300,
+    "max": 700
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Christian Thalmann",
+   "source": "https://github.com/google/fonts/tree/main/ofl/cormorantgaramond",
+   "upstream": "https://github.com/CatharsisFonts/Cormorant",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      300,
+      700
+     ],
+     "file": "cormorant-garamond-italic.woff2",
+     "bytes": 71620
+    },
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      700
+     ],
+     "file": "cormorant-garamond-normal.woff2",
+     "bytes": 98936
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3784
+   }
+  },
+  {
+   "id": "crimson-pro",
+   "family": "Crimson Pro",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 200,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Jacques Le Bailly",
+   "source": "https://github.com/google/fonts/tree/main/ofl/crimsonpro",
+   "upstream": "https://github.com/Fonthausen/CrimsonPro",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      200,
+      900
+     ],
+     "file": "crimson-pro-italic.woff2",
+     "bytes": 70488
+    },
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      900
+     ],
+     "file": "crimson-pro-normal.woff2",
+     "bytes": 66916
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1608
+   }
+  },
+  {
+   "id": "bitter",
+   "family": "Bitter",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Sol Matas",
+   "source": "https://github.com/google/fonts/tree/main/ofl/bitter",
+   "upstream": "https://github.com/solmatas/BitterPro",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "bitter-italic.woff2",
+     "bytes": 58008
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "bitter-normal.woff2",
+     "bytes": 58320
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1600
+   }
+  },
+  {
+   "id": "arvo",
+   "family": "Arvo",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400,
+    700
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Anton Koovit",
+   "source": "https://github.com/google/fonts/tree/main/ofl/arvo",
+   "upstream": "https://github.com/antonxheight/Arvo",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "arvo-400-italic.woff2",
+     "bytes": 10648
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "arvo-700-italic.woff2",
+     "bytes": 11016
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "arvo-400-normal.woff2",
+     "bytes": 10420
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "arvo-700-normal.woff2",
+     "bytes": 10328
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 728
+   }
+  },
+  {
+   "id": "roboto-slab",
+   "family": "Roboto Slab",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "Apache-2.0",
+   "licenceFile": "LICENSE.txt",
+   "designer": "Christian Robertson",
+   "source": "https://github.com/google/fonts/tree/main/apache/robotoslab",
+   "upstream": "https://github.com/googlefonts/robotoslab",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "roboto-slab-normal.woff2",
+     "bytes": 58876
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2456
+   }
+  },
+  {
+   "id": "zilla-slab",
+   "family": "Zilla Slab",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Typotheque",
+   "source": "https://github.com/google/fonts/tree/main/ofl/zillaslab",
+   "upstream": "https://github.com/mozilla/zilla-slab",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "zilla-slab-300-italic.woff2",
+     "bytes": 34904
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "zilla-slab-400-italic.woff2",
+     "bytes": 35484
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "zilla-slab-500-italic.woff2",
+     "bytes": 35908
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "zilla-slab-600-italic.woff2",
+     "bytes": 36032
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "zilla-slab-700-italic.woff2",
+     "bytes": 35560
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "zilla-slab-300-normal.woff2",
+     "bytes": 33148
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "zilla-slab-400-normal.woff2",
+     "bytes": 33924
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "zilla-slab-500-normal.woff2",
+     "bytes": 34228
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "zilla-slab-600-normal.woff2",
+     "bytes": 34116
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "zilla-slab-700-normal.woff2",
+     "bytes": 33828
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1804
+   }
+  },
+  {
+   "id": "dm-serif-display",
+   "family": "DM Serif Display",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Colophon Foundry",
+   "source": "https://github.com/google/fonts/tree/main/ofl/dmserifdisplay",
+   "upstream": "https://github.com/googlefonts/dm-fonts",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "dm-serif-display-400-italic.woff2",
+     "bytes": 21352
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "dm-serif-display-400-normal.woff2",
+     "bytes": 21256
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2364
+   }
+  },
+  {
+   "id": "frank-ruhl-libre",
+   "family": "Frank Ruhl Libre",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 300,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Yanek Iontef",
+   "source": "https://github.com/google/fonts/tree/main/ofl/frankruhllibre",
+   "upstream": "https://github.com/fontef/frankruhllibre",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      900
+     ],
+     "file": "frank-ruhl-libre-normal.woff2",
+     "bytes": 54128
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1996
+   }
+  },
+  {
+   "id": "spectral",
+   "family": "Spectral",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Production Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/spectral",
+   "upstream": "https://github.com/productiontype/Spectral",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "spectral-200-italic.woff2",
+     "bytes": 29448
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "spectral-300-italic.woff2",
+     "bytes": 31780
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "spectral-400-italic.woff2",
+     "bytes": 29760
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "spectral-500-italic.woff2",
+     "bytes": 32344
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "spectral-600-italic.woff2",
+     "bytes": 32356
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "spectral-700-italic.woff2",
+     "bytes": 32032
+    },
+    {
+     "style": "italic",
+     "weight": 800,
+     "file": "spectral-800-italic.woff2",
+     "bytes": 30020
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "spectral-200-normal.woff2",
+     "bytes": 27340
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "spectral-300-normal.woff2",
+     "bytes": 30296
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "spectral-400-normal.woff2",
+     "bytes": 27976
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "spectral-500-normal.woff2",
+     "bytes": 30096
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "spectral-600-normal.woff2",
+     "bytes": 30216
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "spectral-700-normal.woff2",
+     "bytes": 30256
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "spectral-800-normal.woff2",
+     "bytes": 28100
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2924
+   }
+  },
+  {
+   "id": "prata",
+   "family": "Prata",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Cyreal",
+   "source": "https://github.com/google/fonts/tree/main/ofl/prata",
+   "upstream": "https://github.com/cyrealtype/Prata",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "prata-400-normal.woff2",
+     "bytes": 12604
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 960
+   }
+  },
+  {
+   "id": "fraunces",
+   "family": "Fraunces",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Undercase Type, Phaedra Charles, Flavia Zimbardi",
+   "source": "https://github.com/google/fonts/tree/main/ofl/fraunces",
+   "upstream": "https://github.com/undercasetype/Fraunces",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "fraunces-italic.woff2",
+     "bytes": 56036
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "fraunces-normal.woff2",
+     "bytes": 45812
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3012
+   }
+  },
+  {
+   "id": "newsreader",
+   "family": "Newsreader",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 200,
+    "max": 800
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Production Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/newsreader",
+   "upstream": "https://github.com/productiontype/NewsReader",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      200,
+      800
+     ],
+     "file": "newsreader-italic.woff2",
+     "bytes": 87068
+    },
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      800
+     ],
+     "file": "newsreader-normal.woff2",
+     "bytes": 77272
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1436
+   }
+  },
+  {
+   "id": "young-serif",
+   "family": "Young Serif",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Bastien Sozeau",
+   "source": "https://github.com/google/fonts/tree/main/ofl/youngserif",
+   "upstream": "https://github.com/noirblancrouge/YoungSerif",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "young-serif-400-normal.woff2",
+     "bytes": 22088
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2384
+   }
+  },
+  {
+   "id": "instrument-serif",
+   "family": "Instrument Serif",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Rodrigo Fuenzalida, Jordan Egstad",
+   "source": "https://github.com/google/fonts/tree/main/ofl/instrumentserif",
+   "upstream": "https://github.com/Instrument/instrument-serif",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "instrument-serif-400-italic.woff2",
+     "bytes": 19248
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "instrument-serif-400-normal.woff2",
+     "bytes": 18744
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2032
+   }
+  },
+  {
+   "id": "bodoni-moda",
+   "family": "Bodoni Moda",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 400,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Owen Earl",
+   "source": "https://github.com/google/fonts/tree/main/ofl/bodonimoda",
+   "upstream": "https://github.com/indestructible-type/Bodoni",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "bodoni-moda-italic.woff2",
+     "bytes": 43888
+    },
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "bodoni-moda-normal.woff2",
+     "bytes": 37996
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2096
+   }
+  },
+  {
+   "id": "cinzel",
+   "family": "Cinzel",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 400,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Natanael Gama",
+   "source": "https://github.com/google/fonts/tree/main/ofl/cinzel",
+   "upstream": "https://github.com/NDISCOVER/Cinzel",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "cinzel-normal.woff2",
+     "bytes": 44020
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2412
+   }
+  },
+  {
+   "id": "alegreya",
+   "family": "Alegreya",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 400,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Juan Pablo del Peral, HT Fonts",
+   "source": "https://github.com/google/fonts/tree/main/ofl/alegreya",
+   "upstream": "https://github.com/huertatipografica/Alegreya",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "alegreya-italic.woff2",
+     "bytes": 73128
+    },
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "alegreya-normal.woff2",
+     "bytes": 71252
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3424
+   }
+  },
+  {
+   "id": "vollkorn",
+   "family": "Vollkorn",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 400,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Friedrich Althausen",
+   "source": "https://github.com/google/fonts/tree/main/ofl/vollkorn",
+   "upstream": "https://github.com/FAlthausen/Vollkorn-Typeface",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "vollkorn-italic.woff2",
+     "bytes": 75184
+    },
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "vollkorn-normal.woff2",
+     "bytes": 88704
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2396
+   }
+  },
+  {
+   "id": "ibm-plex-serif",
+   "family": "IBM Plex Serif",
+   "kind": "serif",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Mike Abbink, Bold Monday",
+   "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexserif",
+   "upstream": "https://github.com/googlefonts/plex",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 100,
+     "file": "ibm-plex-serif-100-italic.woff2",
+     "bytes": 20604
+    },
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "ibm-plex-serif-200-italic.woff2",
+     "bytes": 22092
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "ibm-plex-serif-300-italic.woff2",
+     "bytes": 22092
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "ibm-plex-serif-400-italic.woff2",
+     "bytes": 21452
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "ibm-plex-serif-500-italic.woff2",
+     "bytes": 22592
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "ibm-plex-serif-600-italic.woff2",
+     "bytes": 22852
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "ibm-plex-serif-700-italic.woff2",
+     "bytes": 22080
+    },
+    {
+     "style": "normal",
+     "weight": 100,
+     "file": "ibm-plex-serif-100-normal.woff2",
+     "bytes": 19488
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "ibm-plex-serif-200-normal.woff2",
+     "bytes": 20832
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "ibm-plex-serif-300-normal.woff2",
+     "bytes": 20624
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "ibm-plex-serif-400-normal.woff2",
+     "bytes": 19892
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "ibm-plex-serif-500-normal.woff2",
+     "bytes": 20868
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "ibm-plex-serif-600-normal.woff2",
+     "bytes": 20936
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "ibm-plex-serif-700-normal.woff2",
+     "bytes": 20168
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1528
+   }
+  },
+  {
+   "id": "oswald",
+   "family": "Oswald",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 200,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Vernon Adams, Kalapi Gajjar, Cyreal",
+   "source": "https://github.com/google/fonts/tree/main/ofl/oswald",
+   "upstream": "https://github.com/googlefonts/OswaldFont",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      700
+     ],
+     "file": "oswald-normal.woff2",
+     "bytes": 36536
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1268
+   }
+  },
+  {
+   "id": "bebas-neue",
+   "family": "Bebas Neue",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Ryoichi Tsunekawa",
+   "source": "https://github.com/google/fonts/tree/main/ofl/bebasneue",
+   "upstream": "https://github.com/dharmatype/Bebas-Neue",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "bebas-neue-400-normal.woff2",
+     "bytes": 10692
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1068
+   }
+  },
+  {
+   "id": "anton",
+   "family": "Anton",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Vernon Adams",
+   "source": "https://github.com/google/fonts/tree/main/ofl/anton",
+   "upstream": "https://github.com/googlefonts/AntonFont",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "anton-400-normal.woff2",
+     "bytes": 20308
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1184
+   }
+  },
+  {
+   "id": "archivo-black",
+   "family": "Archivo Black",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Omnibus-Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/archivoblack",
+   "upstream": "https://github.com/Omnibus-Type/ArchivoBlack",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "archivo-black-400-normal.woff2",
+     "bytes": 12744
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1272
+   }
+  },
+  {
+   "id": "alfa-slab-one",
+   "family": "Alfa Slab One",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "JM Solé",
+   "source": "https://github.com/google/fonts/tree/main/ofl/alfaslabone",
+   "upstream": "https://github.com/googlefonts/alfaslabone",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "alfa-slab-one-400-normal.woff2",
+     "bytes": 14912
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1448
+   }
+  },
+  {
+   "id": "righteous",
+   "family": "Righteous",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Astigmatic",
+   "source": "https://github.com/google/fonts/tree/main/ofl/righteous",
+   "upstream": "https://github.com/librefonts/righteous",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "righteous-400-normal.woff2",
+     "bytes": 11620
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1240
+   }
+  },
+  {
+   "id": "lobster",
+   "family": "Lobster",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Impallari Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/lobster",
+   "upstream": "https://github.com/impallari/The-Lobster-Font",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "lobster-400-normal.woff2",
+     "bytes": 21556
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1644
+   }
+  },
+  {
+   "id": "bungee",
+   "family": "Bungee",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "David Jonathan Ross",
+   "source": "https://github.com/google/fonts/tree/main/ofl/bungee",
+   "upstream": "https://github.com/djrrb/Bungee",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "bungee-400-normal.woff2",
+     "bytes": 30532
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1508
+   }
+  },
+  {
+   "id": "black-ops-one",
+   "family": "Black Ops One",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "James Grieshaber, Eben Sorkin",
+   "source": "https://github.com/google/fonts/tree/main/ofl/blackopsone",
+   "upstream": "https://github.com/SorkinType/Black-Ops",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "black-ops-one-400-normal.woff2",
+     "bytes": 31896
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1360
+   }
+  },
+  {
+   "id": "russo-one",
+   "family": "Russo One",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Jovanny Lemonad",
+   "source": "https://github.com/google/fonts/tree/main/ofl/russoone",
+   "upstream": "https://github.com/googlefonts/russoone",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "russo-one-400-normal.woff2",
+     "bytes": 9016
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 828
+   }
+  },
+  {
+   "id": "teko",
+   "family": "Teko",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 300,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Indian Type Foundry",
+   "source": "https://github.com/google/fonts/tree/main/ofl/teko",
+   "upstream": "https://www.github.com/googlefonts/teko",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      700
+     ],
+     "file": "teko-normal.woff2",
+     "bytes": 17652
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 928
+   }
+  },
+  {
+   "id": "fjalla-one",
+   "family": "Fjalla One",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Sorkin Type, Irina Smirnova",
+   "source": "https://github.com/google/fonts/tree/main/ofl/fjallaone",
+   "upstream": "https://github.com/SorkinType/FjallaOne",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "fjalla-one-400-normal.woff2",
+     "bytes": 54956
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1468
+   }
+  },
+  {
+   "id": "passion-one",
+   "family": "Passion One",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400,
+    700,
+    900
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Fontstage",
+   "source": "https://github.com/google/fonts/tree/main/ofl/passionone",
+   "upstream": "https://github.com/googlefonts/googlefontdirectory-hg",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "passion-one-400-normal.woff2",
+     "bytes": 8000
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "passion-one-700-normal.woff2",
+     "bytes": 7844
+    },
+    {
+     "style": "normal",
+     "weight": 900,
+     "file": "passion-one-900-normal.woff2",
+     "bytes": 7636
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 948
+   }
+  },
+  {
+   "id": "staatliches",
+   "family": "Staatliches",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Brian LaRossa, Erica Carras",
+   "source": "https://github.com/google/fonts/tree/main/ofl/staatliches",
+   "upstream": "https://github.com/googlefonts/staatliches",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "staatliches-400-normal.woff2",
+     "bytes": 13420
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1360
+   }
+  },
+  {
+   "id": "monoton",
+   "family": "Monoton",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Vernon Adams",
+   "source": "https://github.com/google/fonts/tree/main/ofl/monoton",
+   "upstream": "https://github.com/googlefonts/monoton",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "monoton-400-normal.woff2",
+     "bytes": 18248
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1020
+   }
+  },
+  {
+   "id": "orbitron",
+   "family": "Orbitron",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 400,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Matt McInerney",
+   "source": "https://github.com/google/fonts/tree/main/ofl/orbitron",
+   "upstream": "https://github.com/googlefonts/orbitron-vf",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "orbitron-normal.woff2",
+     "bytes": 14808
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1156
+   }
+  },
+  {
+   "id": "audiowide",
+   "family": "Audiowide",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Astigmatic",
+   "source": "https://github.com/google/fonts/tree/main/ofl/audiowide",
+   "upstream": "https://github.com/librefonts/audiowide",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "audiowide-400-normal.woff2",
+     "bytes": 17204
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1184
+   }
+  },
+  {
+   "id": "michroma",
+   "family": "Michroma",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Vernon Adams",
+   "source": "https://github.com/google/fonts/tree/main/ofl/michroma",
+   "upstream": "https://github.com/googlefonts/Michroma-font",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "michroma-400-normal.woff2",
+     "bytes": 14236
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1508
+   }
+  },
+  {
+   "id": "big-shoulders-display",
+   "family": "Big Shoulders Display",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Patric King",
+   "source": "https://github.com/google/fonts/tree/main/ofl/bigshouldersdisplay",
+   "upstream": "https://github.com/xotypeco/big_shoulders",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "big-shoulders-display-normal.woff2",
+     "bytes": 58724
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3892
+   }
+  },
+  {
+   "id": "unbounded",
+   "family": "Unbounded",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 200,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "NaN",
+   "source": "https://github.com/google/fonts/tree/main/ofl/unbounded",
+   "upstream": "https://github.com/googlefonts/unbounded",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      900
+     ],
+     "file": "unbounded-normal.woff2",
+     "bytes": 93760
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1480
+   }
+  },
+  {
+   "id": "chakra-petch",
+   "family": "Chakra Petch",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Cadson Demak",
+   "source": "https://github.com/google/fonts/tree/main/ofl/chakrapetch",
+   "upstream": "https://github.com/m4rc1e/Chakra-Petch",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "chakra-petch-300-italic.woff2",
+     "bytes": 14232
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "chakra-petch-400-italic.woff2",
+     "bytes": 13908
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "chakra-petch-500-italic.woff2",
+     "bytes": 14204
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "chakra-petch-600-italic.woff2",
+     "bytes": 14348
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "chakra-petch-700-italic.woff2",
+     "bytes": 14016
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "chakra-petch-300-normal.woff2",
+     "bytes": 13180
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "chakra-petch-400-normal.woff2",
+     "bytes": 12740
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "chakra-petch-500-normal.woff2",
+     "bytes": 13132
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "chakra-petch-600-normal.woff2",
+     "bytes": 13116
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "chakra-petch-700-normal.woff2",
+     "bytes": 12996
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1060
+   }
+  },
+  {
+   "id": "rajdhani",
+   "family": "Rajdhani",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Indian Type Foundry",
+   "source": "https://github.com/google/fonts/tree/main/ofl/rajdhani",
+   "upstream": "https://github.com/itfoundry/rajdhani",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "rajdhani-300-normal.woff2",
+     "bytes": 10372
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "rajdhani-400-normal.woff2",
+     "bytes": 12180
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "rajdhani-500-normal.woff2",
+     "bytes": 12156
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "rajdhani-600-normal.woff2",
+     "bytes": 12920
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "rajdhani-700-normal.woff2",
+     "bytes": 12504
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 940
+   }
+  },
+  {
+   "id": "luckiest-guy",
+   "family": "Luckiest Guy",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "Apache-2.0",
+   "licenceFile": "LICENSE.txt",
+   "designer": "Astigmatic",
+   "source": "https://github.com/google/fonts/tree/main/apache/luckiestguy",
+   "upstream": "https://github.com/googlefonts/googlefontdirectory-hg",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "luckiest-guy-400-normal.woff2",
+     "bytes": 21880
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1520
+   }
+  },
+  {
+   "id": "bangers",
+   "family": "Bangers",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Vernon Adams",
+   "source": "https://github.com/google/fonts/tree/main/ofl/bangers",
+   "upstream": "https://github.com/googlefonts/bangers",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "bangers-400-normal.woff2",
+     "bytes": 21224
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1388
+   }
+  },
+  {
+   "id": "racing-sans-one",
+   "family": "Racing Sans One",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Impallari Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/racingsansone",
+   "upstream": "https://github.com/googlefonts/racingsansone",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "racing-sans-one-400-normal.woff2",
+     "bytes": 19032
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1820
+   }
+  },
+  {
+   "id": "faster-one",
+   "family": "Faster One",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Eduardo Tunni",
+   "source": "https://github.com/google/fonts/tree/main/ofl/fasterone",
+   "upstream": "https://github.com/etunni/faster",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "faster-one-400-normal.woff2",
+     "bytes": 16280
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1552
+   }
+  },
+  {
+   "id": "oxanium",
+   "family": "Oxanium",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 200,
+    "max": 800
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Severin Meyer",
+   "source": "https://github.com/google/fonts/tree/main/ofl/oxanium",
+   "upstream": "https://github.com/sevmeyer/oxanium",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      800
+     ],
+     "file": "oxanium-normal.woff2",
+     "bytes": 14740
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 816
+   }
+  },
+  {
+   "id": "abril-fatface",
+   "family": "Abril Fatface",
+   "kind": "display",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "TypeTogether",
+   "source": "https://github.com/google/fonts/tree/main/ofl/abrilfatface",
+   "upstream": "https://github.com/googlefonts/abrilfatface",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "abril-fatface-400-normal.woff2",
+     "bytes": 17384
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1872
+   }
+  },
+  {
+   "id": "dancing-script",
+   "family": "Dancing Script",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 400,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Impallari Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/dancingscript",
+   "upstream": "https://github.com/googlefonts/DancingScript",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "dancing-script-normal.woff2",
+     "bytes": 51656
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2200
+   }
+  },
+  {
+   "id": "pacifico",
+   "family": "Pacifico",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Vernon Adams, Jacques Le Bailly, Botjo Nikoltchev, Ani Petrova",
+   "source": "https://github.com/google/fonts/tree/main/ofl/pacifico",
+   "upstream": "https://github.com/googlefonts/Pacifico",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "pacifico-400-normal.woff2",
+     "bytes": 34272
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2752
+   }
+  },
+  {
+   "id": "great-vibes",
+   "family": "Great Vibes",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Robert Leuschke",
+   "source": "https://github.com/google/fonts/tree/main/ofl/greatvibes",
+   "upstream": "https://github.com/googlefonts/great-vibes",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "great-vibes-400-normal.woff2",
+     "bytes": 47416
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3936
+   }
+  },
+  {
+   "id": "caveat",
+   "family": "Caveat",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 400,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Impallari Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/caveat",
+   "upstream": "https://github.com/googlefonts/caveat",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "caveat-normal.woff2",
+     "bytes": 83620
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3380
+   }
+  },
+  {
+   "id": "satisfy",
+   "family": "Satisfy",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "Apache-2.0",
+   "licenceFile": "LICENSE.txt",
+   "designer": "Sideshow",
+   "source": "https://github.com/google/fonts/tree/main/apache/satisfy",
+   "upstream": "https://github.com/googlefonts/satisfy",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "satisfy-400-normal.woff2",
+     "bytes": 21884
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1708
+   }
+  },
+  {
+   "id": "sacramento",
+   "family": "Sacramento",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Astigmatic",
+   "source": "https://github.com/google/fonts/tree/main/ofl/sacramento",
+   "upstream": "https://github.com/googlefonts/SacramentoFont",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "sacramento-400-normal.woff2",
+     "bytes": 26860
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2452
+   }
+  },
+  {
+   "id": "allura",
+   "family": "Allura",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Robert Leuschke",
+   "source": "https://github.com/google/fonts/tree/main/ofl/allura",
+   "upstream": "https://github.com/googlefonts/allura",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "allura-400-normal.woff2",
+     "bytes": 73132
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 4976
+   }
+  },
+  {
+   "id": "parisienne",
+   "family": "Parisienne",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Astigmatic",
+   "source": "https://github.com/google/fonts/tree/main/ofl/parisienne",
+   "upstream": "https://github.com/googlefonts/parisienne",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "parisienne-400-normal.woff2",
+     "bytes": 25288
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1848
+   }
+  },
+  {
+   "id": "kaushan-script",
+   "family": "Kaushan Script",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Impallari Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/kaushanscript",
+   "upstream": "https://github.com/googlefonts/kaushanscript",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "kaushan-script-400-normal.woff2",
+     "bytes": 29404
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2412
+   }
+  },
+  {
+   "id": "shadows-into-light",
+   "family": "Shadows Into Light",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Kimberly Geswein",
+   "source": "https://github.com/google/fonts/tree/main/ofl/shadowsintolight",
+   "upstream": "https://github.com/googlefonts/googlefontdirectory-hg",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "shadows-into-light-400-normal.woff2",
+     "bytes": 18352
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1976
+   }
+  },
+  {
+   "id": "permanent-marker",
+   "family": "Permanent Marker",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "Apache-2.0",
+   "licenceFile": "LICENSE.txt",
+   "designer": "Font Diner",
+   "source": "https://github.com/google/fonts/tree/main/apache/permanentmarker",
+   "upstream": "https://github.com/googlefonts/permanentmarker",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "permanent-marker-400-normal.woff2",
+     "bytes": 27556
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2684
+   }
+  },
+  {
+   "id": "amatic-sc",
+   "family": "Amatic SC",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400,
+    700
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Vernon Adams, Ben Nathan, Thomas Jockin",
+   "source": "https://github.com/google/fonts/tree/main/ofl/amaticsc",
+   "upstream": "https://github.com/googlefonts/AmaticSC",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "amatic-sc-400-normal.woff2",
+     "bytes": 24636
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "amatic-sc-700-normal.woff2",
+     "bytes": 23388
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1980
+   }
+  },
+  {
+   "id": "indie-flower",
+   "family": "Indie Flower",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Kimberly Geswein",
+   "source": "https://github.com/google/fonts/tree/main/ofl/indieflower",
+   "upstream": "https://github.com/googlefonts/indieflower",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "indie-flower-400-normal.woff2",
+     "bytes": 21632
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1680
+   }
+  },
+  {
+   "id": "yellowtail",
+   "family": "Yellowtail",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "Apache-2.0",
+   "licenceFile": "LICENSE.txt",
+   "designer": "Astigmatic",
+   "source": "https://github.com/google/fonts/tree/main/apache/yellowtail",
+   "upstream": "https://github.com/googlefonts/googlefontdirectory-hg",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "yellowtail-400-normal.woff2",
+     "bytes": 21900
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1628
+   }
+  },
+  {
+   "id": "alex-brush",
+   "family": "Alex Brush",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Robert Leuschke",
+   "source": "https://github.com/google/fonts/tree/main/ofl/alexbrush",
+   "upstream": "https://github.com/googlefonts/alex-brush",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "alex-brush-400-normal.woff2",
+     "bytes": 27460
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2088
+   }
+  },
+  {
+   "id": "courgette",
+   "family": "Courgette",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Karolina Lach",
+   "source": "https://github.com/google/fonts/tree/main/ofl/courgette",
+   "upstream": "https://github.com/googlefonts/courgette",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "courgette-400-normal.woff2",
+     "bytes": 22320
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1444
+   }
+  },
+  {
+   "id": "kalam",
+   "family": "Kalam",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    700
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Indian Type Foundry",
+   "source": "https://github.com/google/fonts/tree/main/ofl/kalam",
+   "upstream": "https://github.com/itfoundry/kalam",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "kalam-300-normal.woff2",
+     "bytes": 16292
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "kalam-400-normal.woff2",
+     "bytes": 17824
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "kalam-700-normal.woff2",
+     "bytes": 16192
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 940
+   }
+  },
+  {
+   "id": "patrick-hand",
+   "family": "Patrick Hand",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Patrick Wagesreiter",
+   "source": "https://github.com/google/fonts/tree/main/ofl/patrickhand",
+   "upstream": "https://github.com/googlefonts/patrickhand",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "patrick-hand-400-normal.woff2",
+     "bytes": 25648
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1844
+   }
+  },
+  {
+   "id": "pinyon-script",
+   "family": "Pinyon Script",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Nicole Fally",
+   "source": "https://github.com/google/fonts/tree/main/ofl/pinyonscript",
+   "upstream": "https://github.com/SorkinType/Pinyon",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "pinyon-script-400-normal.woff2",
+     "bytes": 32984
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2580
+   }
+  },
+  {
+   "id": "tangerine",
+   "family": "Tangerine",
+   "kind": "script",
+   "arabic": false,
+   "weights": [
+    400,
+    700
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Toshi Omagari",
+   "source": "https://github.com/google/fonts/tree/main/ofl/tangerine",
+   "upstream": "https://github.com/googlefonts/TangerineFont",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "tangerine-400-normal.woff2",
+     "bytes": 16816
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "tangerine-700-normal.woff2",
+     "bytes": 16756
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1292
+   }
+  },
+  {
+   "id": "jetbrains-mono",
+   "family": "JetBrains Mono",
+   "kind": "mono",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 100,
+    "max": 800
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "JetBrains, Philipp Nurullin, Konstantin Bulenkov",
+   "source": "https://github.com/google/fonts/tree/main/ofl/jetbrainsmono",
+   "upstream": "https://github.com/JetBrains/JetBrainsMono",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      800
+     ],
+     "file": "jetbrains-mono-italic.woff2",
+     "bytes": 50088
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      800
+     ],
+     "file": "jetbrains-mono-normal.woff2",
+     "bytes": 46980
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1532
+   }
+  },
+  {
+   "id": "fira-code",
+   "family": "Fira Code",
+   "kind": "mono",
+   "arabic": false,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 300,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "The Mozilla Foundation, Telefonica S.A., Nikita Prokopov",
+   "source": "https://github.com/google/fonts/tree/main/ofl/firacode",
+   "upstream": "https://github.com/tonsky/FiraCode",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      700
+     ],
+     "file": "fira-code-normal.woff2",
+     "bytes": 43468
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1612
+   }
+  },
+  {
+   "id": "roboto-mono",
+   "family": "Roboto Mono",
+   "kind": "mono",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 100,
+    "max": 700
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Christian Robertson",
+   "source": "https://github.com/google/fonts/tree/main/ofl/robotomono",
+   "upstream": "https://github.com/googlefonts/RobotoMono",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      100,
+      700
+     ],
+     "file": "roboto-mono-italic.woff2",
+     "bytes": 51832
+    },
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      700
+     ],
+     "file": "roboto-mono-normal.woff2",
+     "bytes": 48056
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1592
+   }
+  },
+  {
+   "id": "space-mono",
+   "family": "Space Mono",
+   "kind": "mono",
+   "arabic": false,
+   "weights": [
+    400,
+    700
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Colophon Foundry",
+   "source": "https://github.com/google/fonts/tree/main/ofl/spacemono",
+   "upstream": "https://github.com/googlefonts/spacemono",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "space-mono-400-italic.woff2",
+     "bytes": 14472
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "space-mono-700-italic.woff2",
+     "bytes": 14612
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "space-mono-400-normal.woff2",
+     "bytes": 15064
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "space-mono-700-normal.woff2",
+     "bytes": 15100
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1460
+   }
+  },
+  {
+   "id": "ibm-plex-mono",
+   "family": "IBM Plex Mono",
+   "kind": "mono",
+   "arabic": false,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Mike Abbink, Bold Monday",
+   "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexmono",
+   "upstream": "https://github.com/googlefonts/plex",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 100,
+     "file": "ibm-plex-mono-100-italic.woff2",
+     "bytes": 15188
+    },
+    {
+     "style": "italic",
+     "weight": 200,
+     "file": "ibm-plex-mono-200-italic.woff2",
+     "bytes": 15928
+    },
+    {
+     "style": "italic",
+     "weight": 300,
+     "file": "ibm-plex-mono-300-italic.woff2",
+     "bytes": 15988
+    },
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "ibm-plex-mono-400-italic.woff2",
+     "bytes": 15948
+    },
+    {
+     "style": "italic",
+     "weight": 500,
+     "file": "ibm-plex-mono-500-italic.woff2",
+     "bytes": 16320
+    },
+    {
+     "style": "italic",
+     "weight": 600,
+     "file": "ibm-plex-mono-600-italic.woff2",
+     "bytes": 16400
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "ibm-plex-mono-700-italic.woff2",
+     "bytes": 16188
+    },
+    {
+     "style": "normal",
+     "weight": 100,
+     "file": "ibm-plex-mono-100-normal.woff2",
+     "bytes": 13680
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "ibm-plex-mono-200-normal.woff2",
+     "bytes": 14148
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "ibm-plex-mono-300-normal.woff2",
+     "bytes": 14084
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "ibm-plex-mono-400-normal.woff2",
+     "bytes": 13948
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "ibm-plex-mono-500-normal.woff2",
+     "bytes": 14128
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "ibm-plex-mono-600-normal.woff2",
+     "bytes": 14320
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "ibm-plex-mono-700-normal.woff2",
+     "bytes": 14048
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1068
+   }
+  },
+  {
+   "id": "noto-kufi-arabic",
+   "family": "Noto Kufi Arabic",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Google",
+   "source": "https://github.com/google/fonts/tree/main/ofl/notokufiarabic",
+   "upstream": "https://github.com/notofonts/arabic",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "noto-kufi-arabic-normal.woff2",
+     "bytes": 150308
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2832
+   }
+  },
+  {
+   "id": "noto-naskh-arabic",
+   "family": "Noto Naskh Arabic",
+   "kind": "serif",
+   "arabic": true,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 400,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Google",
+   "source": "https://github.com/google/fonts/tree/main/ofl/notonaskharabic",
+   "upstream": "https://github.com/notofonts/arabic",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "noto-naskh-arabic-normal.woff2",
+     "bytes": 109432
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3332
+   }
+  },
+  {
+   "id": "noto-sans-arabic",
+   "family": "Noto Sans Arabic",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Google",
+   "source": "https://github.com/google/fonts/tree/main/ofl/notosansarabic",
+   "upstream": "https://github.com/notofonts/arabic",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "noto-sans-arabic-normal.woff2",
+     "bytes": 191708
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3116
+   }
+  },
+  {
+   "id": "cairo",
+   "family": "Cairo",
+   "kind": "display",
+   "arabic": true,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 200,
+    "max": 1000
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Mohamed Gaber, Accademia di Belle Arti di Urbino",
+   "source": "https://github.com/google/fonts/tree/main/ofl/cairo",
+   "upstream": "https://github.com/Gue3bara/Cairo",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      1000
+     ],
+     "file": "cairo-normal.woff2",
+     "bytes": 69284
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1896
+   }
+  },
+  {
+   "id": "tajawal",
+   "family": "Tajawal",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    700,
+    800,
+    900
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Boutros Fonts, Mourad Boutros, Soulaf Khalifeh",
+   "source": "https://github.com/google/fonts/tree/main/ofl/tajawal",
+   "upstream": "https://github.com/googlefonts/tajawal",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "tajawal-200-normal.woff2",
+     "bytes": 18068
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "tajawal-300-normal.woff2",
+     "bytes": 17676
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "tajawal-400-normal.woff2",
+     "bytes": 18416
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "tajawal-500-normal.woff2",
+     "bytes": 18108
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "tajawal-700-normal.woff2",
+     "bytes": 18520
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "tajawal-800-normal.woff2",
+     "bytes": 19276
+    },
+    {
+     "style": "normal",
+     "weight": 900,
+     "file": "tajawal-900-normal.woff2",
+     "bytes": 18196
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1496
+   }
+  },
+  {
+   "id": "ibm-plex-sans-arabic",
+   "family": "IBM Plex Sans Arabic",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Mike Abbink, Bold Monday, Khajag Apelian, Wael Morcos",
+   "source": "https://github.com/google/fonts/tree/main/ofl/ibmplexsansarabic",
+   "upstream": "https://github.com/googlefonts/plex",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 100,
+     "file": "ibm-plex-sans-arabic-100-normal.woff2",
+     "bytes": 44040
+    },
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "ibm-plex-sans-arabic-200-normal.woff2",
+     "bytes": 47348
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "ibm-plex-sans-arabic-300-normal.woff2",
+     "bytes": 47364
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "ibm-plex-sans-arabic-400-normal.woff2",
+     "bytes": 44568
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "ibm-plex-sans-arabic-500-normal.woff2",
+     "bytes": 48208
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "ibm-plex-sans-arabic-600-normal.woff2",
+     "bytes": 48424
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "ibm-plex-sans-arabic-700-normal.woff2",
+     "bytes": 45084
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2808
+   }
+  },
+  {
+   "id": "almarai",
+   "family": "Almarai",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    300,
+    400,
+    700,
+    800
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Boutros Fonts, Mourad Boutros",
+   "source": "https://github.com/google/fonts/tree/main/ofl/almarai",
+   "upstream": "https://github.com/JuergenWillrodt/Almarai",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "almarai-300-normal.woff2",
+     "bytes": 25832
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "almarai-400-normal.woff2",
+     "bytes": 26780
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "almarai-700-normal.woff2",
+     "bytes": 27636
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "almarai-800-normal.woff2",
+     "bytes": 28464
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1464
+   }
+  },
+  {
+   "id": "amiri",
+   "family": "Amiri",
+   "kind": "serif",
+   "arabic": true,
+   "weights": [
+    400,
+    700
+   ],
+   "variable": null,
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Khaled Hosny, Sebastian Kosch",
+   "source": "https://github.com/google/fonts/tree/main/ofl/amiri",
+   "upstream": "https://github.com/aliftype/amiri.git",
+   "files": [
+    {
+     "style": "italic",
+     "weight": 400,
+     "file": "amiri-400-italic.woff2",
+     "bytes": 132744
+    },
+    {
+     "style": "italic",
+     "weight": 700,
+     "file": "amiri-700-italic.woff2",
+     "bytes": 133780
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "amiri-400-normal.woff2",
+     "bytes": 130480
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "amiri-700-normal.woff2",
+     "bytes": 130980
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 4412
+   }
+  },
+  {
+   "id": "changa",
+   "family": "Changa",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 200,
+    "max": 800
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Eduardo Tunni",
+   "source": "https://github.com/google/fonts/tree/main/ofl/changa",
+   "upstream": "https://github.com/googlefonts/changa-vf",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      800
+     ],
+     "file": "changa-normal.woff2",
+     "bytes": 48200
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1852
+   }
+  },
+  {
+   "id": "el-messiri",
+   "family": "El Messiri",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 400,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Mohamed Gaber, Jovanny Lemonad",
+   "source": "https://github.com/google/fonts/tree/main/ofl/elmessiri",
+   "upstream": "https://github.com/Gue3bara/El-Messiri",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "el-messiri-normal.woff2",
+     "bytes": 44116
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2064
+   }
+  },
+  {
+   "id": "harmattan",
+   "family": "Harmattan",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "SIL International",
+   "source": "https://github.com/google/fonts/tree/main/ofl/harmattan",
+   "upstream": "https://github.com/silnrsi/font-harmattan",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "harmattan-400-normal.woff2",
+     "bytes": 135884
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "harmattan-500-normal.woff2",
+     "bytes": 142296
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "harmattan-600-normal.woff2",
+     "bytes": 141880
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "harmattan-700-normal.woff2",
+     "bytes": 131816
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2876
+   }
+  },
+  {
+   "id": "lateef",
+   "family": "Lateef",
+   "kind": "serif",
+   "arabic": true,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "SIL International",
+   "source": "https://github.com/google/fonts/tree/main/ofl/lateef",
+   "upstream": "https://github.com/silnrsi/font-lateef",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 200,
+     "file": "lateef-200-normal.woff2",
+     "bytes": 67536
+    },
+    {
+     "style": "normal",
+     "weight": 300,
+     "file": "lateef-300-normal.woff2",
+     "bytes": 70412
+    },
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "lateef-400-normal.woff2",
+     "bytes": 68092
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "lateef-500-normal.woff2",
+     "bytes": 73648
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "lateef-600-normal.woff2",
+     "bytes": 72112
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "lateef-700-normal.woff2",
+     "bytes": 74304
+    },
+    {
+     "style": "normal",
+     "weight": 800,
+     "file": "lateef-800-normal.woff2",
+     "bytes": 69824
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2316
+   }
+  },
+  {
+   "id": "markazi-text",
+   "family": "Markazi Text",
+   "kind": "serif",
+   "arabic": true,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 400,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Borna Izadpanah, Florian Runge, Fiona Ross",
+   "source": "https://github.com/google/fonts/tree/main/ofl/markazitext",
+   "upstream": "https://github.com/BornaIz/markazitext",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "markazi-text-normal.woff2",
+     "bytes": 71120
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3184
+   }
+  },
+  {
+   "id": "mada",
+   "family": "Mada",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 200,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Khaled Hosny, Paul D. Hunt",
+   "source": "https://github.com/google/fonts/tree/main/ofl/mada",
+   "upstream": "https://github.com/aliftype/mada",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      200,
+      900
+     ],
+     "file": "mada-normal.woff2",
+     "bytes": 59040
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 1768
+   }
+  },
+  {
+   "id": "reem-kufi",
+   "family": "Reem Kufi",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 400,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Khaled Hosny, Santiago Orozco",
+   "source": "https://github.com/google/fonts/tree/main/ofl/reemkufi",
+   "upstream": "https://github.com/aliftype/reem-kufi",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      700
+     ],
+     "file": "reem-kufi-normal.woff2",
+     "bytes": 38468
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2608
+   }
+  },
+  {
+   "id": "scheherazade-new",
+   "family": "Scheherazade New",
+   "kind": "serif",
+   "arabic": true,
+   "weights": [
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "SIL International",
+   "source": "https://github.com/google/fonts/tree/main/ofl/scheherazadenew",
+   "upstream": "https://github.com/silnrsi/font-scheherazade",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "scheherazade-new-400-normal.woff2",
+     "bytes": 100112
+    },
+    {
+     "style": "normal",
+     "weight": 500,
+     "file": "scheherazade-new-500-normal.woff2",
+     "bytes": 125552
+    },
+    {
+     "style": "normal",
+     "weight": 600,
+     "file": "scheherazade-new-600-normal.woff2",
+     "bytes": 127672
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "scheherazade-new-700-normal.woff2",
+     "bytes": 111916
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3748
+   }
+  },
+  {
+   "id": "readex-pro",
+   "family": "Readex Pro",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    200,
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 160,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Thomas Jockin, Nadine Chahine, Bonnie Shaver-Troup, Santiago Orozco, Héctor Gómez",
+   "source": "https://github.com/google/fonts/tree/main/ofl/readexpro",
+   "upstream": "https://github.com/ThomasJockin/readexpro",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      160,
+      700
+     ],
+     "file": "readex-pro-normal.woff2",
+     "bytes": 62188
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2380
+   }
+  },
+  {
+   "id": "alexandria",
+   "family": "Alexandria",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Mohamed Gaber, Julieta Ulanovsky",
+   "source": "https://github.com/google/fonts/tree/main/ofl/alexandria",
+   "upstream": "https://github.com/Gue3bara/Alexandria",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "alexandria-normal.woff2",
+     "bytes": 94288
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2880
+   }
+  },
+  {
+   "id": "vazirmatn",
+   "family": "Vazirmatn",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    100,
+    200,
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 100,
+    "max": 900
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Saber Rastikerdar",
+   "source": "https://github.com/google/fonts/tree/main/ofl/vazirmatn",
+   "upstream": "https://github.com/rastikerdar/vazirmatn",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      100,
+      900
+     ],
+     "file": "vazirmatn-normal.woff2",
+     "bytes": 97836
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3104
+   }
+  },
+  {
+   "id": "aref-ruqaa",
+   "family": "Aref Ruqaa",
+   "kind": "serif",
+   "arabic": true,
+   "weights": [
+    400,
+    700
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Abdullah Aref, Khaled Hosny, Hermann Zapf",
+   "source": "https://github.com/google/fonts/tree/main/ofl/arefruqaa",
+   "upstream": "https://github.com/aliftype/aref-ruqaa",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "aref-ruqaa-400-normal.woff2",
+     "bytes": 52544
+    },
+    {
+     "style": "normal",
+     "weight": 700,
+     "file": "aref-ruqaa-700-normal.woff2",
+     "bytes": 60268
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 4468
+   }
+  },
+  {
+   "id": "lalezar",
+   "family": "Lalezar",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Borna Izadpanah",
+   "source": "https://github.com/google/fonts/tree/main/ofl/lalezar",
+   "upstream": "https://github.com/BornaIz/Lalezar",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "lalezar-400-normal.woff2",
+     "bytes": 40580
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2000
+   }
+  },
+  {
+   "id": "rakkas",
+   "family": "Rakkas",
+   "kind": "display",
+   "arabic": true,
+   "weights": [
+    400
+   ],
+   "variable": null,
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Zeynep Akay",
+   "source": "https://github.com/google/fonts/tree/main/ofl/rakkas",
+   "upstream": "https://github.com/Gue3bara/Rakkas",
+   "files": [
+    {
+     "style": "normal",
+     "weight": 400,
+     "file": "rakkas-400-normal.woff2",
+     "bytes": 35092
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3004
+   }
+  },
+  {
+   "id": "lemonada",
+   "family": "Lemonada",
+   "kind": "display",
+   "arabic": true,
+   "weights": [
+    300,
+    400,
+    500,
+    600,
+    700
+   ],
+   "variable": {
+    "min": 300,
+    "max": 700
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Mohamed Gaber, Eduardo Tunni",
+   "source": "https://github.com/google/fonts/tree/main/ofl/lemonada",
+   "upstream": "https://github.com/Gue3bara/Lemonada",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      300,
+      700
+     ],
+     "file": "lemonada-normal.woff2",
+     "bytes": 71520
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 2736
+   }
+  },
+  {
+   "id": "kufam",
+   "family": "Kufam",
+   "kind": "sans",
+   "arabic": true,
+   "weights": [
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+   ],
+   "variable": {
+    "min": 400,
+    "max": 900
+   },
+   "italic": true,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Original Type, Wael Morcos, Artur Schmal",
+   "source": "https://github.com/google/fonts/tree/main/ofl/kufam",
+   "upstream": "https://github.com/originaltype/kufam",
+   "files": [
+    {
+     "style": "italic",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "kufam-italic.woff2",
+     "bytes": 97428
+    },
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      900
+     ],
+     "file": "kufam-normal.woff2",
+     "bytes": 89836
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3148
+   }
+  },
+  {
+   "id": "baloo-bhaijaan-2",
+   "family": "Baloo Bhaijaan 2",
+   "kind": "display",
+   "arabic": true,
+   "weights": [
+    400,
+    500,
+    600,
+    700,
+    800
+   ],
+   "variable": {
+    "min": 400,
+    "max": 800
+   },
+   "italic": false,
+   "licence": "OFL-1.1",
+   "licenceFile": "OFL.txt",
+   "designer": "Ek Type",
+   "source": "https://github.com/google/fonts/tree/main/ofl/baloobhaijaan2",
+   "upstream": "https://github.com/EkType/Baloo2-Variable",
+   "files": [
+    {
+     "style": "normal",
+     "weight": [
+      400,
+      800
+     ],
+     "file": "baloo-bhaijaan-2-normal.woff2",
+     "bytes": 79284
+    }
+   ],
+   "preview": {
+    "file": "preview.woff2",
+    "bytes": 3208
+   }
+  }
+ ]
+}

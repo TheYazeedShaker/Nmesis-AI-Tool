@@ -4,11 +4,16 @@ import type {Draft} from 'immer';
 import {AlignCenterHorizontal,AlignCenterVertical,AlignEndHorizontal,AlignEndVertical,AlignHorizontalSpaceAround,AlignStartHorizontal,AlignStartVertical,AlignVerticalSpaceAround,ArrowDown,ArrowUp,BringToFront,Copy,Group,SendToBack,Trash2,Type,Ungroup} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {Select,Textarea} from '@/components/ds/field';
-import {ActionRow,ChoiceRow,InspectorRow,InspectorSection,NumberField,NumberPair,SliderField,SwatchRow,ToggleRow,type Swatch} from '@/components/ds/inspector';
+import {ActionRow,ChoiceRow,InspectorRow,InspectorSection,NumberField,NumberPair,SliderField,ToggleRow,type Swatch} from '@/components/ds/inspector';
 import {useBrandKit} from '@/components/brand/brand-kit';
 import {cleanHex} from '@/lib/brand-kit';
 import {BLANK_PAGE,boundsOf,descendants,edit,lineHeightOf,lockedIn,opacityOf,pageOf,pictureKey,TEXT_MAX,type Align,type DrawnLayer,type EditorDoc,type Layer,type TextLayer} from '@/lib/editor/doc';
-import {fontChoices,knownFont,TEXT_WEIGHTS} from '@/lib/editor/fonts';
+import {fontByName,nearestWeight,weightName,weightsOf} from '@/lib/editor/fonts';
+import {LOW_CONTRAST,worstContrast} from '@/lib/editor/colour';
+import {ColourField} from './colour-picker';
+import {FontField} from './font-picker';
+import {EffectsSection} from './effects-section';
+import {fitTextHeight} from './measure';
 
 // The Design tab of the right panel (docs/editor-rules.md): what is selected
 // decides which sections show, always in the fixed order Position & size →
@@ -25,9 +30,12 @@ export type PanelActions={
  order:(to:'forward'|'backward'|'front'|'back')=>void;
  align:(how:Align)=>void;distribute:(axis:'x'|'y')=>void;
  typeOnCanvas:(id:string)=>void;
+ /** The canvas's eyedropper: the colour of the next click on it (null: cancelled). */pickFromCanvas:()=>Promise<string|null>;
+ /** Whether a font (by name) is missing (couldn't load, or isn't in the catalogue). */fontMissing:(font:string)=>boolean;
+ /** The family a text is drawn with now (to measure curved text). */family:(l:TextLayer)=>string;
+ /** The colours behind a text (its Background effect, the page's colour or gradient, or the picture under it). */behind:(l:TextLayer)=>string[];
 };
 export const LAYER_KIND:Record<Layer['kind'],string>={image:'Picture',text:'Text',shape:'Shape',line:'Line',frame:'Frame',icon:'Icon',group:'Group'};
-const WEIGHT_WORDS:Record<number,string>={400:'Regular',600:'Semibold',700:'Bold'};
 const round=(n:number,d=0)=>Math.round(n*10**d)/10**d;
 
 /** The brand kit's colours, then white and black, as swatches. */
@@ -62,7 +70,9 @@ function PagePanel({doc,page,readOnly,actions,baseTitle}:{doc:EditorDoc;page:str
    <ChoiceRow label="Background" value={bg?.kind==='colour'?'colour':'picture'} disabled={readOnly}
     choices={[{value:'picture',label:'Your picture',title:baseTitle},{value:'colour',label:'A colour'}]}
     onChange={v=>set(v==='picture'?{kind:'picture',asset:pictureKey(doc.base)}:{kind:'colour',colour})}/>
-   {bg?.kind==='colour'&&<SwatchRow label="Background colour" value={bg.colour} swatches={swatches} disabled={readOnly} onPick={hex=>set({kind:'colour',colour:hex})} onCustom={hex=>set({kind:'colour',colour:hex},'background:'+page)}/>}
+   {bg?.kind==='colour'&&<ColourField label="Background colour" value={{colour:bg.colour,gradient:bg.gradient}} gradients brand={swatches} doc={doc} disabled={readOnly} gesture={'background:'+page}
+    onEnd={actions.endGesture} pickFromCanvas={actions.pickFromCanvas}
+    onChange={(p,g)=>set(p.gradient?{kind:'colour',colour:p.colour,gradient:p.gradient}:{kind:'colour',colour:p.colour==='transparent'?BLANK_PAGE:p.colour},g)}/>}
   </InspectorSection>
   <InspectorSection section="brand" title="Brand">
    {kit&&kit.colours.length>0
@@ -78,6 +88,8 @@ function OnePanel({layer,doc,readOnly,mod,actions}:{layer:DrawnLayer;doc:EditorD
  const swatches=useSwatches(),{kit}=useBrandKit();
  const locked=lockedIn(doc,layer.id),off=readOnly||locked;
  const patch=(p:Partial<DrawnLayer>,field?:string)=>actions.change(d=>edit.update(d,layer.id,p),field?`${field}:${layer.id}`:undefined);
+ /** A colour setting through the one picker: each of its gestures is one undo step. */
+ const colourProps=(field:string)=>({brand:swatches,doc,disabled:off,gesture:`${field}:${layer.id}`,onEnd:actions.endGesture,pickFromCanvas:actions.pickFromCanvas});
  const keepRatio=layer.kind==='image'||layer.kind==='icon';
  const isText=layer.kind==='text';
  const opacity=<SliderField label="Opacity" unit="%" min={0} max={100} value={round(opacityOf(layer)*100)} disabled={off} onChange={n=>patch({opacity:n/100},'opacity')}/>;
@@ -99,16 +111,18 @@ function OnePanel({layer,doc,readOnly,mod,actions}:{layer:DrawnLayer;doc:EditorD
   </InspectorSection>}
   {(layer.kind==='shape'||layer.kind==='icon'||layer.kind==='line'||layer.kind==='frame')&&<InspectorSection section="appearance" title="Appearance">
    {layer.kind==='shape'&&<>
-    <SwatchRow label="Fill" value={layer.fill} swatches={swatches} disabled={off} onPick={fill=>patch({fill})} onCustom={fill=>patch({fill},'fill')}/>
-    <SwatchRow label="Outline" value={layer.stroke} swatches={[{hex:'transparent',name:'None'},...swatches]} disabled={off} onPick={stroke=>patch(stroke!=='transparent'&&!layer.strokeWidth?{stroke,strokeWidth:Math.max(2,Math.round(Math.min(doc.width,doc.height)*0.004))}:{stroke})} onCustom={stroke=>patch({stroke},'stroke')}/>
+    <ColourField label="Fill" value={{colour:layer.fill,gradient:layer.gradient}} gradients {...colourProps('fill')}
+     onChange={(p,g)=>actions.change(d=>edit.setFill(d,layer.id,{fill:p.colour==='transparent'?layer.fill:p.colour,gradient:p.gradient??null}),g)}/>
+    <ColourField label="Outline" value={{colour:layer.stroke}} none {...colourProps('stroke')}
+     onChange={(p,g)=>actions.change(d=>edit.update(d,layer.id,p.colour!=='transparent'&&!layer.strokeWidth?{stroke:p.colour,strokeWidth:Math.max(2,Math.round(Math.min(doc.width,doc.height)*0.004))}:{stroke:p.colour}),g)}/>
     {layer.stroke!=='transparent'&&<SliderField label="Outline width" unit="px" min={0} max={Math.max(40,Math.round(Math.min(layer.width,layer.height)/4))} value={round(layer.strokeWidth)} disabled={off} onChange={strokeWidth=>patch({strokeWidth},'strokeWidth')}/>}
    </>}
    {layer.kind==='icon'&&<>
-    <SwatchRow label="Colour" value={layer.color} swatches={swatches} disabled={off} onPick={color=>patch({color})} onCustom={color=>patch({color},'color')}/>
+    <ColourField label="Colour" value={{colour:layer.color}} {...colourProps('color')} onChange={(p,g)=>actions.change(d=>edit.update(d,layer.id,{color:p.colour}),g)}/>
     <SliderField label="Line weight" min={0.5} max={4} step={0.25} value={layer.strokeWidth} disabled={off} onChange={strokeWidth=>patch({strokeWidth},'strokeWidth')}/>
    </>}
    {(layer.kind==='line'||layer.kind==='frame')&&<>
-    <SwatchRow label="Colour" value={layer.stroke} swatches={swatches} disabled={off} onPick={stroke=>patch({stroke})} onCustom={stroke=>patch({stroke},'stroke')}/>
+    <ColourField label="Colour" value={{colour:layer.stroke}} {...colourProps('stroke')} onChange={(p,g)=>actions.change(d=>edit.update(d,layer.id,{stroke:p.colour}),g)}/>
     <SliderField label="Line weight" unit="px" min={1} max={Math.max(40,Math.round(Math.min(doc.width,doc.height)*0.05))} value={round(layer.strokeWidth)} disabled={off} onChange={strokeWidth=>patch({strokeWidth},'strokeWidth')}/>
    </>}
    {layer.kind==='line'&&<>
@@ -120,40 +134,51 @@ function OnePanel({layer,doc,readOnly,mod,actions}:{layer:DrawnLayer;doc:EditorD
   </InspectorSection>}
   {isText&&<>
    <InspectorSection section="appearance" title="Appearance">{opacity}</InspectorSection>
-   <TextSection layer={layer} swatches={swatches} kit={kit} off={off} mod={mod} actions={actions} patch={patch}/>
-   <EffectsSection/>
+   <TextSection layer={layer} doc={doc} swatches={swatches} kit={kit} off={off} mod={mod} actions={actions} patch={patch}/>
+   <EffectsSection layer={layer} doc={doc} off={off} brand={swatches} onEnd={actions.endGesture} pickFromCanvas={actions.pickFromCanvas}
+    onSet={(e,g)=>actions.change(d=>{edit.setEffect(d,layer.id,e);fitHeight(d,layer.id,actions)},g)}/>
   </>}
   <ArrangeSection one={layer} doc={doc} readOnly={readOnly} mod={mod} actions={actions}/>
  </>;
 }
 
-function TextSection({layer,swatches,kit,off,mod,actions,patch}:{layer:TextLayer;swatches:Swatch[];kit:ReturnType<typeof useBrandKit>['kit'];off:boolean;mod:string;actions:PanelActions;patch:(p:Partial<DrawnLayer>,field?:string)=>boolean}){
- const font=knownFont(layer.font),choices=fontChoices(kit),lh=lineHeightOf(layer);
- const height=(p:{fontSize?:number;lineHeight?:number;text?:string})=>Math.max(1,(p.text??layer.text).split('\n').length)*(p.fontSize??layer.fontSize)*(p.lineHeight??lh);
- return <InspectorSection section="text" title="Text" more={<>
-  <SliderField label="Line spacing" unit="×" min={0.8} max={2.5} step={0.05} value={round(lh,2)} disabled={off} onChange={lineHeight=>patch({lineHeight,height:height({lineHeight})},'lineHeight')}/>
-  <SliderField label="Letter spacing" unit="px" min={-Math.round(layer.fontSize*0.1)} max={Math.round(layer.fontSize*0.5)} value={round(layer.letterSpacing??0)} disabled={off} onChange={letterSpacing=>patch({letterSpacing},'letterSpacing')}/>
- </>}>
-  <InspectorRow label="Words" hint={`${layer.text.length} / ${TEXT_MAX}. Or double-click the text on the canvas.`}>
-   <Textarea rows={3} maxLength={TEXT_MAX} value={layer.text} disabled={off} onChange={e=>patch({text:e.target.value,height:height({text:e.target.value})},'text')}/>
-  </InspectorRow>
-  <ActionRow><Button size="sm" icon={<Type aria-hidden="true"/>} disabled={off} onClick={()=>actions.typeOnCanvas(layer.id)} title="Or press Enter with the text selected">Type on the canvas</Button></ActionRow>
-  <InspectorRow label="Font">
-   <Select value={font} disabled={off} onChange={e=>patch({font:e.target.value})}>{!choices.some(c=>c.font===font)&&<option value={font}>{font}</option>}{choices.map(c=><option key={c.font} value={c.font}>{c.label}</option>)}</Select>
-  </InspectorRow>
-  <NumberField label="Size" unit="px" min={4} max={4000} value={layer.fontSize} disabled={off} onChange={fontSize=>patch({fontSize,height:height({fontSize})},'fontSize')}/>
-  <ChoiceRow label="Weight" value={String(layer.fontWeight)} disabled={off} choices={[...TEXT_WEIGHTS].map(w=>({value:String(w),label:WEIGHT_WORDS[w]||String(w)}))} onChange={w=>patch({fontWeight:Number(w)})}/>
-  <ChoiceRow label="Alignment" value={layer.align} disabled={off} choices={[{value:'left',label:'Left'},{value:'center',label:'Centre'},{value:'right',label:'Right'}]} onChange={align=>patch({align})}/>
-  <SwatchRow label="Colour" value={layer.color} swatches={swatches} disabled={off} onPick={color=>patch({color})} onCustom={color=>patch({color},'color')}/>
-  <p className="ds-help">{mod}D duplicates; Enter types on the canvas.</p>
- </InspectorSection>;
+/** A text's box height after a change: its lines, or the arc of curved text (measured as the canvas draws it). */
+function fitHeight(d:import('immer').Draft<EditorDoc>,id:string,actions:PanelActions){
+ const l=d.layers[id];if(!l||l.kind!=='text')return;
+ const h=fitTextHeight(l as TextLayer,actions.family(l as TextLayer));
+ if(Math.abs(h-l.height)>0.01)l.height=h;
 }
 
-/** Text effects (one at a time, the owner's decision): the row is here; the effects come in a later update. */
-function EffectsSection(){
- return <InspectorSection section="effects" title="Effects">
-  <ChoiceRow label="Effect" value="none" onChange={()=>{}} choices={[{value:'none',label:'None'},{value:'shadow',label:'Shadow',title:'Coming in a later update',disabled:true},{value:'outline',label:'Outline',title:'Coming in a later update',disabled:true}]}/>
-  <p className="ds-help">One effect at a time. Shadow and Outline come in a later update.</p>
+function TextSection({layer,doc,swatches,kit,off,mod,actions,patch}:{layer:TextLayer;doc:EditorDoc;swatches:Swatch[];kit:ReturnType<typeof useBrandKit>['kit'];off:boolean;mod:string;actions:PanelActions;patch:(p:Partial<DrawnLayer>,field?:string)=>boolean}){
+ const lh=lineHeightOf(layer),family=fontByName(layer.font),weights=weightsOf(layer.font);
+ /** A change to the text and its box height together (one undo step, or part of `field`'s gesture). */
+ const fit=(p:Partial<TextLayer>,field?:string)=>actions.change(d=>{edit.update(d,layer.id,p);fitHeight(d,layer.id,actions)},field?`${field}:${layer.id}`:undefined);
+ const missing=actions.fontMissing(layer.font);
+ // The contrast hint: the text's colour over what is behind it, below 4.5:1.
+ const ratio=worstContrast(layer.color,actions.behind(layer));
+ const low=ratio!==null&&ratio<LOW_CONTRAST;
+ const weightControl=!family?.variable&&weights.length<=1?null
+  :family?.variable?<SliderField label="Weight" min={family.variable.min} max={family.variable.max} step={1} value={nearestWeight(layer.font,layer.fontWeight)} disabled={off} onChange={fontWeight=>fit({fontWeight},'fontWeight')}/>
+  :weights.length<=3?<ChoiceRow label="Weight" value={String(nearestWeight(layer.font,layer.fontWeight))} disabled={off} choices={weights.map(w=>({value:String(w),label:weightName(w)}))} onChange={w=>fit({fontWeight:Number(w)})}/>
+  :<InspectorRow label="Weight"><Select value={String(nearestWeight(layer.font,layer.fontWeight))} disabled={off} onChange={e=>fit({fontWeight:Number(e.target.value)})}>{weights.map(w=><option key={w} value={w}>{weightName(w)} ({w})</option>)}</Select></InspectorRow>;
+ return <InspectorSection section="text" title="Text" more={<>
+  <SliderField label="Line spacing" unit="×" min={0.8} max={2.5} step={0.05} value={round(lh,2)} disabled={off} onChange={lineHeight=>fit({lineHeight},'lineHeight')}/>
+  <SliderField label="Letter spacing" unit="px" min={-Math.round(layer.fontSize*0.1)} max={Math.round(layer.fontSize*0.5)} value={round(layer.letterSpacing??0)} disabled={off} onChange={letterSpacing=>fit({letterSpacing},'letterSpacing')}/>
+ </>}>
+  <InspectorRow label="Words" hint={`${layer.text.length} / ${TEXT_MAX}. Or double-click the text on the canvas.`}>
+   <Textarea rows={3} maxLength={TEXT_MAX} value={layer.text} disabled={off} dir="auto" onChange={e=>fit({text:e.target.value},'text')}/>
+  </InspectorRow>
+  <ActionRow><Button size="sm" icon={<Type aria-hidden="true"/>} disabled={off} onClick={()=>actions.typeOnCanvas(layer.id)} title="Or press Enter with the text selected">Type on the canvas</Button></ActionRow>
+  <FontField value={layer.font} missing={missing} disabled={off} kit={kit} doc={doc}
+   onPick={font=>fit({font,fontWeight:nearestWeight(font,layer.fontWeight),italic:layer.italic&&fontByName(font)?.italic?true:false})}/>
+  <NumberField label="Size" unit="px" min={4} max={4000} value={layer.fontSize} disabled={off} onChange={fontSize=>fit({fontSize},'fontSize')}/>
+  {weightControl}
+  {family?.italic&&<ToggleRow label="Italic" checked={!!layer.italic} disabled={off} onChange={italic=>fit({italic})}/>}
+  <ChoiceRow label="Alignment" value={layer.align} disabled={off} choices={[{value:'left',label:'Left'},{value:'center',label:'Centre'},{value:'right',label:'Right'}]} onChange={align=>patch({align})}/>
+  <ColourField label="Colour" value={{colour:layer.color}} brand={swatches} doc={doc} disabled={off} gesture={`color:${layer.id}`} onEnd={actions.endGesture} pickFromCanvas={actions.pickFromCanvas}
+   onChange={(p,g)=>actions.change(d=>edit.update(d,layer.id,{color:p.colour}),g)}
+   hint={low?<p className="ds-help canvas-contrast" role="status" data-low-contrast><span className="ds-badge warn">Low contrast</span> {round(ratio!,1)}:1 against what’s behind it. Text reads best at 4.5:1 or more.</p>:null}/>
+  <p className="ds-help">{mod}D duplicates; Enter types on the canvas.</p>
  </InspectorSection>;
 }
 

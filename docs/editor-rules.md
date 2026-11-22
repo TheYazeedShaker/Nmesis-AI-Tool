@@ -83,16 +83,46 @@ choices, colour swatches, "More", buttons in words, the tabs);
 
 | Selected | Sections, in order |
 |---|---|
-| Nothing | Page (its size; background: your picture or a colour), Brand (its colours and fonts) |
+| Nothing | Page (its size; background: your picture or a colour, the colour solid or a linear or radial gradient), Brand (its colours and fonts) |
 | A picture | Position & size (W/H, X/Y, rotation; More: align to the page) → Appearance (opacity, corner radius, flip left to right, flip upside down) → Arrange |
-| A text | Position & size → Appearance (opacity) → Text (words, Type on the canvas, font, size, weight, alignment, colour; More: line and letter spacing) → Effects (one at a time; the row is there, the effects come later) → Arrange |
-| A shape | Position & size → Appearance (fill, outline and its width, opacity) → Arrange |
+| A text | Position & size → Appearance (opacity) → Text (words, Type on the canvas, font (the font list), size, weight (only the weights the font has; a slider on a variable font's axis; none for a font of one weight), italic (only where the font has one), alignment, colour (with the contrast hint); More: line and letter spacing) → Effects (one at a time: None, Shadow, Outline, Lift, Neon, Background, Curve, as tiles; the chosen one's 2–5 controls) → Arrange |
+| A shape | Position & size → Appearance (fill: solid, linear or radial; outline and its width, opacity) → Arrange |
 | An icon | Position & size → Appearance (colour, line weight, opacity) → Arrange |
 | A line or a frame | Position & size → Appearance (colour, line weight; a line: dashed, arrowheads; a frame: corner radius; opacity) → Arrange |
 | A group, or several | Position & size (their box; X/Y move them together; align to each other, or a group to the page; distribute across or down) → Appearance (opacity for all) → Arrange (with Group or Ungroup) |
 
 Arrange is always Forward, Backward, Group or Ungroup where it applies,
 Duplicate and Delete; under More: To front, To back, Lock in place.
+
+## The font list and the colour picker
+
+Both open from their row in the panel as a popover: a person's own dialog
+(`role="dialog"`, not modal) that lies over the right panel, under the
+row (above it when there is no room), never over the canvas, so every change
+shows on the canvas as it is made (rule 1). The focus goes in when it opens and
+back to its row when it closes (Escape, Close, a click outside, or Tab past its
+end). Its body is its one scroll area. Built from the same tokens and pieces
+(the shared slider for every amount, rule 11). `check:ui` measures the rules
+with each open.
+
+- **The font list** (components/canvas/font-picker.tsx): Brand fonts (the
+  brand kit's) → In this design → Recent (this person's, on this device) → All
+  fonts, one search across them (a name, "serif", "script", "Arabic"). Each
+  name shows in its own font from a tiny file of its own glyphs, loaded when its
+  row is on screen. The search keeps the focus; the arrow keys, Home, End and
+  Page Up/Down move; Enter picks. The fonts are the Studio's own self-hosted
+  catalogue (about 150 open-licence families, Latin and Arabic,
+  `lib/editor/font-catalogue.json`, built by `scripts/fonts/build-catalogue.mjs`);
+  no request ever goes to a font service. A font that can't load says
+  "Missing font" on its layer, in the Layers list and in the panel, and an
+  export made with the fallback says so.
+- **The colour picker** (components/canvas/colour-picker.tsx), the same for
+  every colour (text, fill, outline, icon, line and frame, effect colours, the
+  page): Brand colours → In this design → Recent → any colour (saturation and
+  brightness, hue, hex) and its transparency. The eyedropper is the browser's
+  where it has one (after a click), else the next click on the canvas. Shapes
+  and the page may be a linear or radial gradient of 2–4 stops, with its angle.
+  A text's colour shows "Low contrast" under 4.5:1 against what is behind it.
 
 ## The Layers list
 

@@ -130,6 +130,11 @@
      light ones, the same in both themes, so white text or a black icon always shows. */
   --ds-preview-light: #f2f4f7;
   --ds-preview-dark: #23272d;
+  /* The colour picker draws colours themselves (components/canvas/colour-picker.tsx): its black and white, the hue spectrum, and a thumb that shows on any colour. */
+  --ds-picker-black: #000000;
+  --ds-picker-white: #ffffff;
+  --ds-picker-spectrum: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+  --ds-picker-edge: rgba(0, 0, 0, 0.5);
 
   /* Elevation: three steps, plus the focus halo. */
   --ds-shadow-1: 0 1px 2px light-dark(rgba(14, 17, 22, 0.06), rgba(0, 0, 0, 0.35));

@@ -23,7 +23,7 @@ import "./account.css";
 import "./canvas.css";
 import {LinkLanding} from "@/components/link-landing";
 import {StudioProviders} from "@/components/studio-providers";
-// The Nmesis fonts and every brand-kit font (app/brand-fonts.ts). preload stays
+// The Studio's interface fonts, self-hosted (app/brand-fonts.ts). preload stays
 // off, so no page fetches a font it does not draw.
 import {fontVariables} from "./brand-fonts";
 export const metadata:Metadata={title:"Nmesis Studio — Automotive key visuals",description:"Choose a vehicle view, direct the atmosphere, and create automotive campaign visuals.",icons:{icon:"/favicon.svg",shortcut:"/favicon.svg"}};

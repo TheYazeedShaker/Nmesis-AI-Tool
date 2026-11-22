@@ -22,6 +22,7 @@ type Props={
  /** One place towards the front (up in the list) or the back. */onStep:(id:string,dir:'front'|'back')=>void;
  /** Dropped among its neighbours: `index` in back-to-front order. */onPlace:(id:string,index:number)=>void;
  onDelete:()=>void;
+ /** Whether a font is missing: its text layers say "Missing font" in the list. */fontMissing?:(font:string)=>boolean;
 };
 type Row={layer:Layer;depth:number};
 
@@ -32,7 +33,7 @@ function rowsOf(doc:EditorDoc,page:string):Row[]{
  walk(null,0);return out;
 }
 
-export function LayersPanel({doc,page,selected,readOnly,mod,baseLabel,onSelect,onFlag,onRename,onStep,onPlace,onDelete}:Props){
+export function LayersPanel({doc,page,selected,readOnly,mod,baseLabel,onSelect,onFlag,onRename,onStep,onPlace,onDelete,fontMissing}:Props){
  const rows=React.useMemo(()=>rowsOf(doc,page),[doc,page]);
  const [focus,setFocus]=React.useState<string|null>(null);
  const [renaming,setRenaming]=React.useState<string|null>(null);
@@ -87,7 +88,7 @@ export function LayersPanel({doc,page,selected,readOnly,mod,baseLabel,onSelect,o
        title={`${words}. F2 renames; Alt with an arrow moves it.`}>
       <LayerThumb layer={l}/>
       <span className="canvas-layer-words ds-truncate">{words}</span>
-      <span className="canvas-layer-kind">{LAYER_KIND[l.kind]}</span>
+      {l.kind==='text'&&fontMissing?.(l.font)?<span className="ds-badge warn canvas-layer-kind" data-missing-font>Missing font</span>:<span className="canvas-layer-kind">{LAYER_KIND[l.kind]}</span>}
      </button>}
     <button type="button" className="canvas-layer-toggle" aria-pressed={!!l.hidden} tabIndex={-1} disabled={readOnly} aria-label={`Hide ${words}`} title={l.hidden?'Hidden: press to show it again':'Hide it on the canvas and in exports'}
      onClick={()=>onFlag(l.id,'hidden',!l.hidden)} onKeyDown={onToggleKey}>Hide</button>
