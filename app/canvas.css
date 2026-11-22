@@ -165,3 +165,21 @@
 .editor-result-hint svg { width: var(--ds-icon); height: var(--ds-icon); }
 .editor-result-open:hover .editor-result-hint, .editor-result-open:focus-visible .editor-result-hint { opacity: 1; }
 @media (hover: none) { .editor-result-hint { opacity: 1; } }
+
+/* Text effects (components/canvas/effects-section.tsx): one tile per effect, its preview on the text's own
+   font and colour over the canvas backdrop, its name in words below. A group of choices, like the swatches. */
+.canvas-effect-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--ds-editor-row-gap); }
+.canvas-effect-tile { display: flex; flex-direction: column; align-items: stretch; gap: var(--ds-editor-label-gap); padding: 0; min-width: 0;
+  background: transparent; border: 0; color: var(--ds-text); font: inherit; cursor: pointer; }
+.canvas-effect-sample { display: grid; place-items: center; height: calc(var(--ds-space-24) * 2); border-radius: var(--ds-radius-sm); overflow: hidden;
+  background: var(--ds-preview-dark); border: var(--ds-border-width) solid var(--ds-border); font-size: var(--ds-text-xl, 22px); line-height: 1; }
+.canvas-effect-tile[aria-checked="true"] .canvas-effect-sample { box-shadow: 0 0 0 var(--ds-space-2) var(--ds-panel), 0 0 0 var(--ds-space-4) var(--ds-text-strong); }
+.canvas-effect-tile:disabled { opacity: 0.6; cursor: not-allowed; }
+.ds-app .canvas-effect-tile:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); border-radius: var(--ds-radius-sm); }
+.canvas-effect-name { font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The contrast hint under a text's colour. */
+.canvas-contrast { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-editor-label-gap); }
+/* "Missing font" on its layer, at the layer's corner (the canvas's own overlay, never in the export). */
+.canvas-missing-font { position: absolute; z-index: var(--ds-z-raised); transform: translateY(-100%); pointer-events: none; line-height: var(--ds-leading-xs); white-space: nowrap; }
+/* Picking a colour from the canvas: the next click on it. */
+.canvas-pick { position: absolute; inset: 0; z-index: var(--ds-z-raised); cursor: crosshair; }

@@ -104,6 +104,13 @@ export const EDITOR_JOURNEYS = [
   { id: 'editor-undo-drag', role: 'owner', from: 'editor' },
   { id: 'editor-duplicate-design', role: 'owner', from: 'editor' },
   { id: 'editor-close-after-edit', role: 'owner', from: 'editor' },
+  // Editor Phase 3 (feat/editor-fonts-colour-effects): the font list (a brand font, an Arabic font typed right
+  // to left, a missing font said), every text effect on the canvas and in the export, the eyedropper from the
+  // canvas, and a gradient page background. The rule states also measure the font list and the colour picker open.
+  { id: 'editor-font-picker', role: 'owner', from: 'editor' },
+  { id: 'editor-text-effects', role: 'owner', from: 'editor' },
+  { id: 'editor-eyedropper', role: 'owner', from: 'editor' },
+  { id: 'editor-gradient-background', role: 'owner', from: 'editor' },
   { id: 'editor-performance', role: 'owner', from: 'editor' },
 ];
 export const FLOWS = [

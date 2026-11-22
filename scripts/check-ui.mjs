@@ -44,6 +44,7 @@ import { VISUAL_ID } from '../lib/work-ref.ts';
 import { EDITOR_JOURNEYS, EDITOR_VISUAL_ID, V1_DESIGN_ID, RULE_STATE_SIZES, PERF_DESIGN_ID, PERF_PICTURE_ID, PERF_LAYERS } from './ui/screens.mjs';
 import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, FLOWS, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
 import { finish } from './ui/ratchet.mjs';
+import { decode as decodePngFile } from 'fast-png';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes('--' + n);
@@ -89,6 +90,9 @@ console.log(`Studio ready in ${stack.readyMs} ms at ${stack.origin}`);
 const browser = await (WEBKIT ? webkit : chromium).launch();
 if (WEBKIT) console.log('WebKit (Safari\'s engine): counts are reported, not compared with the Chromium baseline.');
 const harnessMistakes = [];
+// Every request a page makes to the font service (the owner's privacy rule: no font from it, ever). A hard check.
+const FONT_SERVICE = /(^|\.)fonts\.googleapis\.com$|(^|\.)fonts\.gstatic\.com$/;
+const fontServiceRequests = [];
 const contexts = {};
 let exitCode = 0;
 try {
@@ -130,6 +134,10 @@ try {
     for (const f of flows) console.log(`  flow ${f.id}: ${f.ok ? 'ok' : 'FAILED: ' + f.problems.join('; ')}`);
     if (flows.some((f) => !f.ok)) { console.log('✗ A journey across screens failed (report.flows).'); exitCode = 1; }
   }
+  // No page may ask the font service for anything (fonts.googleapis.com, fonts.gstatic.com): the fonts are the Studio's own.
+  report.fontServiceRequests = fontServiceRequests;
+  if (fontServiceRequests.length) { console.log('✗ Requests to the font service: ' + JSON.stringify(fontServiceRequests.slice(0, 10))); exitCode = 1; }
+  else console.log('  no request to the font service (fonts.googleapis.com, fonts.gstatic.com) from any page');
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
   // Screens in a given state, for the PR (not counted): before/after sheets.
   if (RUN_STATES.length) await stateShots();
@@ -201,6 +209,7 @@ async function prepareContext(ctx) {
   await ctx.route('**/*', (route) => {
     const u = new URL(route.request().url());
     if (/^(localhost|127\.0\.0\.1)$/.test(u.hostname) || u.protocol === 'data:' || u.protocol === 'blob:') return route.continue();
+    if (FONT_SERVICE.test(u.hostname)) fontServiceRequests.push({ host: u.hostname, from: (() => { try { return new URL(route.request().frame().url()).pathname; } catch { return '?'; } })() });
     ctx.__blocked = ctx.__blocked || new Set(); ctx.__blocked.add(u.hostname);
     return route.abort('blockedbyclient');
   });
@@ -438,8 +447,264 @@ async function journeyPage(context, problems) {
   await p.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
   return p;
 }
+// Editor Phase 3's helpers (fonts, colour, effects).
+/** The owner's company gets a brand kit with two fonts and two colours (the font list's first section). */
+async function setBrandKit(page, problems) {
+  const r = await page.request.put('/api/brand-kit', { data: { headingFont: 'Montserrat', bodyFont: 'Lato', colours: [{ hex: '#0A84FF', name: 'Demo blue' }, { hex: '#111111', name: 'Demo ink' }] }, headers: { origin: stack.origin }, failOnStatusCode: false });
+  if (!r.ok()) problems.push(`the brand kit could not be set (${r.status()})`);
+}
+/** Opens the font list from the Text section's Font row; its listbox, or null. */
+async function openFontList(page, problems) {
+  await panelOf(page).locator('button.ds-font-button').first().click({ timeout: 5000 });
+  const dialog = page.getByRole('dialog', { name: 'Fonts' });
+  if (!(await dialog.count())) { problems.push('the Font row did not open the font list'); return null; }
+  if (!(await page.evaluate(() => document.activeElement?.getAttribute('role') === 'combobox'))) problems.push('the font list did not put the focus in its search');
+  return dialog.getByRole('listbox');
+}
+async function fontButtonText(page) { return ((await panelOf(page).locator('button.ds-font-button > span').first().textContent().catch(() => '')) || '').trim(); }
+/** Until the page has loaded a face of this family (the catalogue's own file), up to 10 s. */
+async function fontReady(page, family) {
+  return page.waitForFunction((f) => [...document.fonts].some((x) => x.family.replace(/"/g, '') === f && x.status === 'loaded'), family, { timeout: 10_000 }).then(() => true, () => false);
+}
+/** The selected layer's box (picture pixels), from Position & size. */
+async function selectedBox(page) {
+  const section = panelOf(page).locator('[data-editor-section="position"]');
+  const read = async (label) => Number(await section.getByLabel(label).first().inputValue({ timeout: 3000 }).catch(() => 'x'));
+  const [x, y, width, height] = [await read(/^X$/), await read(/^Y$/), await read(/^(W|Width)$/), await read(/^(H|Height)$/)];
+  return [x, y, width, height].every(Number.isFinite) ? { x, y, width, height } : null;
+}
+/** Download → PNG of the page, the file's bytes. */
+async function downloadPng(page) {
+  await page.locator('.canvas-bar').getByRole('button', { name: 'Download' }).click({ timeout: 5000 });
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 60_000 }), page.getByRole('menuitem', { name: /PNG/ }).first().click({ timeout: 5000 })]);
+  return fs.readFileSync(await dl.path());
+}
+function decodePng(buf) { const p = decodePngFile(buf); return { width: p.width, height: p.height, channels: p.channels, data: p.data }; }
+/** A picture's colour around (x, y) in another picture's pixels: the average of the pixels that fall in it. */
+function sampleAt(img, x0, y0, k) {
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let y = Math.floor(y0 * k); y < Math.min(img.height, Math.floor((y0 + 1) * k)); y++) for (let x = Math.floor(x0 * k); x < Math.min(img.width, Math.floor((x0 + 1) * k)); x++) {
+    const i = (y * img.width + x) * img.channels; r += img.data[i]; g += img.data[i + 1]; b += img.data[i + 2]; n++;
+  }
+  return n ? [r / n, g / n, b / n] : [0, 0, 0];
+}
+/**
+ * The export against the canvas: the canvas's own pixels as shown (its drawing layer, without the handles), and
+ * the export scaled down to them, compared around the text (its box and a margin for shadows and glows). Also how
+ * far the export is from the one with no effect, so an effect that never reached the file fails too.
+ */
+async function compareWithCanvas(page, exported, none, box) {
+  const shown = await page.evaluate(() => { const cv = window.Konva?.stages?.[0]?.getLayers()[0]?.getCanvas()._canvas; return cv ? cv.toDataURL('image/png').split(',')[1] : null; });
+  if (!shown || !box) return null;
+  const canvas = decodePng(Buffer.from(shown, 'base64')), k = exported.width / canvas.width, per = canvas.width / exported.width;
+  const m = box.height * 0.6, x1 = Math.max(0, Math.floor((box.x - m) * per)), y1 = Math.max(0, Math.floor((box.y - m) * per));
+  const x2 = Math.min(canvas.width - 1, Math.ceil((box.x + box.width + m) * per)), y2 = Math.min(canvas.height - 1, Math.ceil((box.y + box.height + m) * per));
+  let vsCanvas = 0, vsNone = 0, n = 0;
+  for (let y = y1; y <= y2; y++) for (let x = x1; x <= x2; x++) {
+    const e = sampleAt(exported, x, y, k), o = sampleAt(none, x, y, k), i = (y * canvas.width + x) * canvas.channels;
+    for (let c = 0; c < 3; c++) { vsCanvas += Math.abs(e[c] - canvas.data[i + c]); vsNone += Math.abs(e[c] - o[c]); }
+    n += 3;
+  }
+  return n ? { vsCanvas: vsCanvas / n, vsNone: vsNone / n } : null;
+}
 function pct(xs, p) { const s = [...xs].sort((a, b) => a - b); return s.length ? Math.round(s[Math.min(s.length - 1, Math.floor(s.length * p))] * 10) / 10 : 0; }
 function editorSteps() { return {
+  // Editor Phase 3 (feat/editor-fonts-colour-effects). The font list from the Text section's Font row: the brand
+  // kit's fonts come first; a brand font, then an Arabic one, load from the Studio's own files (never the font
+  // service) and draw; Arabic typed in the Words field is drawn right to left in one run (its letters join). A font
+  // that can't load says "Missing font" on its layer, in the Layers list and in the panel.
+  'editor-font-picker': async (page, problems) => {
+    await setBrandKit(page, problems);
+    await openEditor(page, EDITOR_VISUAL_ID);
+    // The other journeys' layers out of the way (one step: everything on the page, deleted).
+    await press(page, 'Control+a'); await press(page, 'Delete');
+    await press(page, 't');
+    await tab(page, 'Design');
+    const list = await openFontList(page, problems);
+    if (!list) return;
+    const titles = await list.locator('.ds-font-group-title').allTextContents();
+    if (titles[0] !== 'Brand fonts') problems.push(`the font list starts with ${JSON.stringify(titles.slice(0, 2))}, not Brand fonts`);
+    for (const t of ['In this design', 'All fonts']) if (!titles.includes(t)) problems.push(`the font list has no "${t}" section (${titles.join(', ')})`);
+    const all = await list.locator('[role="option"]').count();
+    if (all < 140) problems.push(`the font list shows ${all} names`);
+    // Each name in its own font from its tiny preview file, and only the rows on screen.
+    await page.waitForTimeout(600);
+    const previews = await page.evaluate(() => [...document.fonts].filter((f) => f.family.replace(/"/g, '').startsWith('nm-preview-') && f.status === 'loaded').length);
+    if (previews < 4) problems.push(`only ${previews} names show in their own font`);
+    if (previews > 60) problems.push(`${previews} previews loaded at once: the list should load only the rows on screen`);
+    if (SHOTS) await page.screenshot({ path: path.join(OUT, 'shots', 'phase3-font-picker--1440--light.png') }).catch(() => {});
+    const s0 = await stepsOf(page);
+    await list.locator('[role="group"]').first().locator('[role="option"][data-font="Montserrat"]').click({ timeout: 5000 });
+    await page.waitForTimeout(400);
+    if (await stepsOf(page) !== s0 + 1) problems.push(`picking a font made ${(await stepsOf(page)) - s0} undo steps, not 1`);
+    if (!(await fontReady(page, 'nm-montserrat'))) problems.push('the brand font Montserrat did not load from the Studio’s files');
+    if ((await fontButtonText(page)) !== 'Montserrat') problems.push(`the Font row says ${await fontButtonText(page)}, not Montserrat`);
+    // An Arabic font, found by search and picked with the keyboard (Enter on the first match).
+    const again = await openFontList(page, problems);
+    if (!again) return;
+    await page.keyboard.type('Noto Kufi');
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(400);
+    if ((await fontButtonText(page)) !== 'Noto Kufi Arabic') problems.push(`Enter on the search picked ${await fontButtonText(page)}, not Noto Kufi Arabic`);
+    const words = panelOf(page).locator('[data-editor-section="text"] textarea').first();
+    await words.fill('سيارة جديدة للعائلة');
+    await page.waitForTimeout(500);
+    if (!(await fontReady(page, 'nm-noto-kufi-arabic'))) problems.push('Noto Kufi Arabic did not load');
+    const drawn = await page.evaluate(() => {
+      const stage = window.Konva?.stages?.[0];
+      const t = stage?.find('Text').find((n) => /[؀-ۿ]/.test(n.text()));
+      if (!t) return null;
+      return { direction: t.direction(), family: t.fontFamily(), shaped: document.fonts.check(`400 40px "nm-noto-kufi-arabic"`, 'س') };
+    });
+    if (!drawn) problems.push('no text on the canvas holds the Arabic words');
+    else {
+      if (drawn.direction !== 'rtl') problems.push(`the Arabic text is drawn ${drawn.direction}, not right to left`);
+      if (!drawn.family.startsWith('"nm-noto-kufi-arabic"')) problems.push(`the Arabic text is drawn in ${drawn.family}`);
+      if (!drawn.shaped) problems.push('the Arabic font has no face for Arabic letters');
+    }
+    if (SHOTS) await canvasOf(page).screenshot({ path: path.join(OUT, 'shots', 'phase3-arabic-rtl--1440--light.png') }).catch(() => {});
+    // A font whose file can't load: "Missing font" on the layer, in the Layers list and in the panel; never a silent swap.
+    await page.route('**/fonts/lobster/**', (r) => r.abort('failed'));
+    const third = await openFontList(page, problems);
+    if (!third) return;
+    await page.keyboard.type('Lobster'); await page.waitForTimeout(200); await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelectorAll('[data-missing-font]').length >= 2, null, { timeout: 15_000 }).catch(() => {});
+    if (!(await panelOf(page).locator('[data-editor-section="text"] [data-missing-font]').count())) problems.push('the panel does not say "Missing font" for a font that couldn’t load');
+    if (!(await canvasOf(page).locator('[data-missing-font]').count())) problems.push('the layer on the canvas does not say "Missing font"');
+    if (!(await page.locator('[data-missing-fonts]').count())) problems.push('no notice says a font is missing');
+    await tab(page, 'Layers');
+    if (!(await panelOf(page).locator('[data-missing-font]').count())) problems.push('the Layers list does not say "Missing font"');
+    await tab(page, 'Design');
+    await page.unroute('**/fonts/lobster/**');
+  },
+  // Each text effect, one at a time: a tile replaces the effect in one undo step; a slider's drag is one step;
+  // the canvas and the exported PNG at full size draw the same picture (the export, scaled to the canvas, is
+  // compared with what the canvas shows, around the text); curved text still types on a double-click.
+  'editor-text-effects': async (page, problems) => {
+    await openEditor(page, EDITOR_VISUAL_ID);
+    await press(page, 'Control+a'); await press(page, 'Delete');
+    await press(page, 't');
+    await tab(page, 'Design');
+    await panelOf(page).locator('[data-editor-section="text"] textarea').first().fill('DEMO SUV');
+    await page.waitForTimeout(300);
+    const box = await selectedBox(page);
+    const exportOf = async () => decodePng(await downloadPng(page));
+    const none = await exportOf();
+    for (const kind of ['shadow', 'outline', 'lift', 'neon', 'background', 'curve']) {
+      const s0 = await stepsOf(page);
+      await panelOf(page).locator(`[data-editor-section="effects"] [role="radio"][data-effect="${kind}"]`).click({ timeout: 5000 });
+      await page.waitForTimeout(300);
+      if (await stepsOf(page) !== s0 + 1) problems.push(`${kind}: picking the tile made ${(await stepsOf(page)) - s0} undo steps, not 1`);
+      const checked = await panelOf(page).locator('[data-editor-section="effects"] [role="radio"][aria-checked="true"]').getAttribute('data-effect');
+      if (checked !== kind) problems.push(`${kind}: the tile chosen is ${checked}`);
+      const controls = await panelOf(page).locator('[data-editor-section="effects"] [data-editor-row]').count() - 1;
+      if (controls < 1 || controls > 5) problems.push(`${kind}: ${controls} controls`);
+      if (kind === 'shadow') {
+        // One drag of the Blur slider is one undo step.
+        const range = panelOf(page).locator('[data-editor-section="effects"] [data-editor-row]', { hasText: 'Blur' }).locator('input[type="range"]').first();
+        await range.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {}); await page.waitForTimeout(150);
+        const r = await range.boundingBox(), s1 = await stepsOf(page);
+        if (!r) problems.push("the Blur slider is not on screen");
+        if (r) { await page.mouse.move(r.x + r.width * 0.2, r.y + r.height / 2); await page.mouse.down(); for (let i = 3; i <= 9; i++) await page.mouse.move(r.x + r.width * i / 10, r.y + r.height / 2); await page.mouse.up(); await page.waitForTimeout(200); }
+        if (await stepsOf(page) !== s1 + 1) problems.push(`one drag of the Blur slider made ${(await stepsOf(page)) - s1} undo steps, not 1`);
+      }
+      await page.waitForTimeout(300);
+      const after = await selectedBox(page) || box;
+      const file = await downloadPng(page);
+      if (SHOTS) {
+        fs.writeFileSync(path.join(OUT, 'shots', `phase3-effect-${kind}--export.png`), file);
+        await canvasOf(page).screenshot({ path: path.join(OUT, 'shots', `phase3-effect-${kind}--canvas.png`) }).catch(() => {});
+      }
+      const cmp = await compareWithCanvas(page, decodePng(file), none, after);
+      if (!cmp) { problems.push(`${kind}: the export could not be compared with the canvas`); continue; }
+      if (cmp.vsCanvas > 14) problems.push(`${kind}: the export differs from the canvas around the text by ${cmp.vsCanvas.toFixed(1)} (of 255) on average`);
+      if (cmp.vsNone < 1.5) problems.push(`${kind}: the export looks the same as with no effect (${cmp.vsNone.toFixed(2)})`);
+    }
+    // Curved text still types: a double-click on it opens the text box.
+    const b = await selectedBox(page);
+    if (b) {
+      const c = await canvasOf(page).boundingBox(), s = c.width / 1536;
+      await page.mouse.dblclick(c.x + (b.x + b.width / 2) * s, c.y + (b.y + b.height / 2) * s);
+      await page.waitForTimeout(300);
+      if (!(await page.locator('.canvas-text-editor').count())) problems.push('a double-click on curved text did not open the text box');
+      await page.keyboard.press('Escape');
+    }
+    // None takes the effect off, in one step.
+    const s2 = await stepsOf(page);
+    await panelOf(page).locator('[data-editor-section="effects"] [role="radio"][data-effect="none"]').click({ timeout: 5000 });
+    if (await stepsOf(page) !== s2 + 1) problems.push('None did not take the effect off in one step');
+  },
+  // The eyedropper where the browser has none (as in Safari and Firefox): "From the canvas", then a click on the
+  // canvas, and the shape's fill is the colour under the click; one undo step.
+  'editor-eyedropper': async (page, problems) => {
+    await page.addInitScript(() => { try { delete window.EyeDropper; } catch { window.EyeDropper = undefined; } });
+    await openEditor(page, V1_DESIGN_ID);
+    const fixture = JSON.parse(fs.readFileSync('tests/fixtures/editor-v1/every-kind.json', 'utf8'));
+    const shape = fixture.layers.find((l) => l.kind === 'shape');
+    await tab(page, 'Layers');
+    await rowName(page, shape.id).click({ timeout: 5000 });
+    await tab(page, 'Design');
+    const fill = panelOf(page).locator('[data-editor-section="appearance"] button.ds-colour-button').first();
+    const before = (await fill.textContent()).trim();
+    await fill.click({ timeout: 5000 });
+    const pop = page.getByRole('dialog', { name: 'Fill' });
+    if (!(await pop.count())) { problems.push('the Fill colour picker did not open'); return; }
+    if (SHOTS) await page.screenshot({ path: path.join(OUT, 'shots', 'phase3-colour-popover--1440--light.png') }).catch(() => {});
+    await pop.getByRole('button', { name: 'From the canvas' }).click({ timeout: 5000 });
+    if (!(await page.locator('[data-picking]').count())) problems.push('no line says to click the canvas');
+    const c = await canvasOf(page).boundingBox(), at = [c.x + c.width * 0.03, c.y + c.height * 0.97];
+    const want = await page.evaluate(([x, y]) => {
+      const stage = window.Konva?.stages?.[0], layer = stage?.getLayers()[0], cv = layer?.getCanvas()._canvas, r = cv?.getBoundingClientRect();
+      if (!cv) return null;
+      const px = cv.getContext('2d').getImageData(Math.round((x - r.left) * cv.width / r.width), Math.round((y - r.top) * cv.height / r.height), 1, 1).data;
+      return '#' + [px[0], px[1], px[2]].map((n) => n.toString(16).padStart(2, '0').toUpperCase()).join('');
+    }, at);
+    const s0 = await stepsOf(page);
+    await page.mouse.click(at[0], at[1]);
+    await page.waitForTimeout(400);
+    const now = (await fill.textContent()).trim();
+    if (now === before) problems.push(`the fill is still ${before} after picking from the canvas`);
+    if (want && !now.startsWith(want)) problems.push(`the fill is ${now}, not the canvas’s ${want} under the click`);
+    if (await stepsOf(page) !== s0 + 1) problems.push(`picking from the canvas made ${(await stepsOf(page)) - s0} undo steps, not 1`);
+    await page.keyboard.press('Escape');
+  },
+  // A gradient page background: the page as a colour, then Linear in its colour picker, a third stop and a new
+  // angle; the canvas draws it, each change is one step, and the working draft keeps it.
+  'editor-gradient-background': async (page, problems, run) => {
+    await openEditor(page, EDITOR_VISUAL_ID);
+    await press(page, 'Escape');
+    await tab(page, 'Design');
+    const page1 = panelOf(page).locator('[data-editor-section="page"]');
+    await page1.getByRole('radio', { name: 'A colour' }).click({ timeout: 5000 });
+    await page.waitForTimeout(200);
+    await page1.locator('button.ds-colour-button').first().click({ timeout: 5000 });
+    const pop = page.getByRole('dialog', { name: 'Background colour' });
+    if (!(await pop.count())) { problems.push('the background colour picker did not open'); return; }
+    const s0 = await stepsOf(page);
+    await pop.getByRole('radio', { name: 'Linear' }).click({ timeout: 5000 });
+    await page.waitForTimeout(200);
+    if (await stepsOf(page) !== s0 + 1) problems.push(`Linear made ${(await stepsOf(page)) - s0} undo steps, not 1`);
+    await pop.getByRole('button', { name: 'Add a stop' }).click({ timeout: 5000 });
+    await pop.getByRole('spinbutton', { name: /^Angle/ }).fill('135');
+    await pop.getByRole('spinbutton', { name: /^Angle/ }).blur();
+    await page.waitForTimeout(300);
+    if (SHOTS) await page.screenshot({ path: path.join(OUT, 'shots', 'phase3-gradient-background--1440--light.png') }).catch(() => {});
+    // The rule counts with the colour picker open (it lies over the panel, never the canvas).
+    run.ruleStates.push({ screen: 'editor', state: 'colour-popover-gradient', role: 'owner', w: 1440, h: 900, theme: 'light', editorRules: await page.evaluate(editorRules) });
+    const bg = await page.evaluate(() => { const n = window.Konva?.stages?.[0]?.findOne('.background'); return n ? { priority: n.fillPriority(), stops: (n.fillLinearGradientColorStops() || []).length / 2 } : null; });
+    if (!bg || bg.priority !== 'linear-gradient') problems.push(`the canvas draws the page as ${JSON.stringify(bg)}, not a linear gradient`);
+    else if (bg.stops !== 3) problems.push(`the gradient has ${bg.stops} stops, not 3`);
+    await page.keyboard.press('Escape');
+    await savedWithin(page, 15_000).catch(() => problems.push('the gradient was not saved to the working draft'));
+    const r = await page.request.get(`/api/edits/${EDITOR_VISUAL_ID}/draft`, { timeout: 10_000, failOnStatusCode: false });
+    const d = await r.json().catch(() => ({}));
+    const kept = d?.draft?.doc?.pages?.[0]?.background;
+    if (kept?.gradient?.type !== 'linear' || kept.gradient.stops.length !== 3 || kept.gradient.angle !== 135) problems.push(`the draft keeps ${JSON.stringify(kept)}`);
+    // Back to the picture, so the other journeys open the design they expect.
+    await page1.getByRole('radio', { name: 'Your picture' }).click({ timeout: 5000 }).catch(() => {});
+    await savedWithin(page, 15_000).catch(() => {});
+  },
   // A design saved before format v2 opens with every layer, through the upgrade.
   'editor-open-v1-design': async (page, problems) => {
     const want = JSON.parse(fs.readFileSync('tests/fixtures/editor-v1/every-kind.json', 'utf8')).layers.length;
@@ -479,6 +744,14 @@ function editorSteps() { return {
         await rowName(page, id).click({ timeout: 5000 });
         await tab(page, 'Design');
         await measure('one-' + kind, 1);
+      }
+      // The font list and the colour picker open (each lies over the panel, never the canvas): the counts stay at zero.
+      if (one.text) {
+        await tab(page, 'Layers'); await rowName(page, one.text).click({ timeout: 5000 }); await tab(page, 'Design');
+        await panelOf(page).locator('button.ds-font-button').first().click({ timeout: 5000 });
+        await measure('font-popover', 1); await page.keyboard.press('Escape');
+        await panelOf(page).locator('[data-editor-section="text"] button.ds-colour-button').first().click({ timeout: 5000 });
+        await measure('colour-popover', 1); await page.keyboard.press('Escape');
       }
       await tab(page, 'Layers');
       await rowName(page, three[0]).click({ timeout: 5000 });
