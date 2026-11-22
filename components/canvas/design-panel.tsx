@@ -52,7 +52,9 @@ export function DesignPanel({doc,page,ids,readOnly,mod,actions,baseTitle}:{doc:E
  const layers=ids.map(id=>doc.layers[id]).filter((l):l is Layer=>!!l);
  // Leaving a field closes its undo step: typing in one field, then another, is two steps; letting go of a
  // slider closes its drag, so two drags of the same slider are two steps.
- return <div className="canvas-design" onBlur={actions.endGesture} onPointerUp={e=>{if((e.target as HTMLElement).matches?.('input[type="range"]'))actions.endGesture()}}>
+ // Pressing a slider moves its value before the focus reaches it: the blur of whatever had the focus then must not close
+ // the step that press just opened (its own gesture already started a new step), or one drag would be two steps.
+ return <div className="canvas-design" onBlur={e=>{if(!(e.relatedTarget as HTMLElement|null)?.matches?.('input[type="range"]'))actions.endGesture()}} onPointerUp={e=>{if((e.target as HTMLElement).matches?.('input[type="range"]'))actions.endGesture()}}>
   {layers.length===0?<PagePanel doc={doc} page={page} readOnly={readOnly} actions={actions} baseTitle={baseTitle}/>
    :layers.length===1&&layers[0].kind!=='group'?<OnePanel layer={layers[0] as DrawnLayer} doc={doc} readOnly={readOnly} mod={mod} actions={actions}/>
    :<ManyPanel doc={doc} layers={layers} readOnly={readOnly} mod={mod} actions={actions}/>}
