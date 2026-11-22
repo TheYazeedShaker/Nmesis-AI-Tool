@@ -1,7 +1,9 @@
 'use client';
 import * as React from 'react';
-import {canvasFontFamily,cssFontFamily,fallbackFamily,faceFamily,fileFor,FONT_LOAD_MS,fontByName,fontKey,fontsInDoc,fontUrl,previewFamily,SYSTEM_FONT,type CatalogueFont,type FontNeed,type FontResult} from '@/lib/editor/fonts';
+import {brandFontsLoaded,brandFontsVersion,canvasFontFamily,cssFontFamily,fallbackFamily,faceFamily,fileFor,FONT_LOAD_MS,fontByName,fontKey,fontsInDoc,fontUrl,onBrandFonts,previewFamily,SYSTEM_FONT,type CatalogueFont,type FontNeed,type FontResult} from '@/lib/editor/fonts';
+import {isBrandFontName} from '@/lib/brand-fonts/shared';
 import type {EditorDoc} from '@/lib/editor/doc';
+import {loadBrandFonts} from '@/components/brand/brand-fonts';
 
 // The catalogue's fonts in the browser (lib/editor/fonts.ts says why and how).
 // A family's file is registered as a FontFace, from the Studio's own address
@@ -10,6 +12,9 @@ import type {EditorDoc} from '@/lib/editor/doc';
 // glyphs (preview.woff2), loaded only when its row is on screen. A file that
 // doesn't arrive within FONT_LOAD_MS, or fails, is a missing font: never
 // silent (the layer, the panel and a notice say so; the console says which).
+// The company's uploaded fonts load the same way, from their own address
+// (/api/brand-fonts/<id>/font, a short-lived signed link to private storage),
+// once the page has listed them (components/brand/brand-fonts.ts).
 
 const faces=new Map<string,Promise<FontResult>>();
 const timeout=(ms:number)=>new Promise<'timeout'>(resolve=>setTimeout(()=>resolve('timeout'),ms));
@@ -26,10 +31,23 @@ async function loadFace(family:string,url:string,descriptors:FontFaceDescriptors
  }catch{document.fonts.delete(face);return {ok:false,reason:'failed'}}
 }
 
+/** Resolves once the company's fonts are listed (or after FONT_LOAD_MS, when they can't be). */
+function brandFontsListed():Promise<void>{
+ if(brandFontsLoaded())return Promise.resolve();
+ void loadBrandFonts();
+ return new Promise(resolve=>{const stop=onBrandFonts(()=>{if(brandFontsLoaded()){stop();clearTimeout(t);resolve()}});const t=setTimeout(()=>{stop();resolve()},FONT_LOAD_MS)});
+}
 /** Loads the one file that draws this font, weight and style (once per page). System and a loaded file answer at once. */
 export function loadCanvasFont(need:FontNeed):Promise<FontResult>{
  if(need.font===SYSTEM_FONT)return Promise.resolve({ok:true});
+ // An uploaded font is known once the company's fonts are listed; until then it is neither loaded nor missing.
+ if(isBrandFontName(need.font)&&!brandFontsLoaded())return brandFontsListed().then(()=>brandFontsLoaded()?loadCanvasFont(need):{ok:false,reason:'missing'} as FontResult);
  const f=fontByName(need.font);
+ if(!f&&isBrandFontName(need.font)){
+  // Not (or no longer) one of the company's fonts: missing, asked again whenever the list changes.
+  console.warn('[editor] a font is missing',{font:need.font,reason:'unknown'});
+  return Promise.resolve({ok:false,reason:'unknown'});
+ }
  if(!f){
   const key='unknown|'+need.font;
   if(!faces.has(key)){console.warn('[editor] a font is missing',{font:need.font,reason:'unknown'});faces.set(key,Promise.resolve({ok:false,reason:'unknown'}))}
@@ -37,7 +55,7 @@ export function loadCanvasFont(need:FontNeed):Promise<FontResult>{
  }
  const file=fileFor(f,need.weight,need.italic),key=f.id+'/'+file.file,known=faces.get(key);if(known)return known;
  const weight=Array.isArray(file.weight)?`${file.weight[0]} ${file.weight[1]}`:String(file.weight);
- const work=loadFace(faceFamily(f),fontUrl(f,file.file),{weight,style:file.style}).then(r=>{
+ const work=loadFace(faceFamily(f),file.src??fontUrl(f,file.file),{weight,style:file.style}).then(r=>{
   if(!r.ok)console.warn('[editor] a font is missing',{font:need.font,file:file.file,reason:r.reason});
   return r;
  });
@@ -48,7 +66,7 @@ export function loadCanvasFont(need:FontNeed):Promise<FontResult>{
 /** The font list's preview of a family: its name in its own font, a few kilobytes. */
 export function loadPreview(f:CatalogueFont):Promise<FontResult>{
  const key='preview/'+f.id,known=faces.get(key);if(known)return known;
- const work=loadFace(previewFamily(f),fontUrl(f,f.preview.file),{weight:'400',style:'normal'});
+ const work=loadFace(previewFamily(f),f.preview.src??fontUrl(f,f.preview.file),{weight:'400',style:'normal'});
  faces.set(key,work);return work;
 }
 
@@ -77,14 +95,17 @@ export type CanvasFonts={
 export function useCanvasFonts(doc:Pick<EditorDoc,'layers'>):CanvasFonts{
  const needs=fontsInDoc(doc),wanted=JSON.stringify(needs);
  const [settled,setSettled]=React.useState<Record<string,FontResult>>({});
+ // The company's fonts: listed with the editor, and every font asked again when the list changes (an upload, a removal).
+ const brandVersion=React.useSyncExternalStore(onBrandFonts,brandFontsVersion,()=>0);
+ React.useEffect(()=>{void loadBrandFonts()},[]);
  React.useEffect(()=>{
   let live=true;
   for(const n of JSON.parse(wanted) as FontNeed[]){
    const k=fontKey(n);
-   void loadCanvasFont(n).then(r=>{if(live)setSettled(s=>s[k]===r?s:{...s,[k]:r})});
+   void loadCanvasFont(n).then(r=>{if(live)setSettled(s=>s[k]===r||(s[k]&&s[k].ok===r.ok&&r.ok)?s:{...s,[k]:r})});
   }
   return()=>{live=false};
- },[wanted]);
+ },[wanted,brandVersion]);
  const ready=needs.every(n=>settled[fontKey(n)]);
  const failed=[...new Set(needs.filter(n=>settled[fontKey(n)]&&!settled[fontKey(n)].ok).map(n=>n.font))];
  const failedKey=failed.join('|');

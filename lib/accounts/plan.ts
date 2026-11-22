@@ -67,6 +67,8 @@ export const ROUTE_FEATURES:RouteRule[]=[
  // Your own name (Your account): the person's sign-in profile, not company work. Every role may change it
  // (ownProfile); the route itself still refuses staff viewing a company, whose session there is read-only.
  {path:/^\/api\/account\/profile$/,methods:['PATCH'],feature:null,ownProfile:true},
+ // The editor's recent fonts and colours: the person's own list (their storage folder in the company), read and added to from the editor.
+ {path:/^\/api\/account\/recent$/,methods:['GET','PUT'],feature:null},
  {path:/^\/api\/assets$/,feature:null},
  // The canvas editor saves a design as a new picture (nothing generated, no credits).
  {path:/^\/api\/edits$/,methods:['POST'],feature:null},

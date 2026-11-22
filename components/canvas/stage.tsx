@@ -1,6 +1,7 @@
 'use client';
 import * as React from 'react';
-import {Arrow,Ellipse,Group,Image as KImage,Layer as KLayer,Line,Path,Rect,Stage,Text,TextPath,Transformer} from 'react-konva';
+import {Arrow,Ellipse,Group,Image as KImage,Layer as KLayer,Line,Path,Rect,Shape,Stage,Text,TextPath,Transformer} from 'react-konva';
+import {hasArabic,placeOnArc,shapePieces,visualOrder} from '@/lib/editor/curve-shaping';
 import Konva from 'konva';
 import {assetSrc,boundsOf,descendants,drawOrder,hiddenIn,ICON_GRID,lineHeightOf,lockedIn,opacityOf,pageOf,snapBox,topOf,type DrawnLayer,type EditorDoc,type Gap,type Guide} from '@/lib/editor/doc';
 import {backgroundBox,curveGeometry,neonGlow,textPaint} from '@/lib/editor/effects';
@@ -69,6 +70,18 @@ function TextBody({layer,fonts}:{layer:Extract<DrawnLayer,{kind:'text'}>;fonts:C
  if(e?.kind==='curve'){
   const line=oneLine(layer.text),geo=curveGeometry(lineWidth(layer,family),layer.fontSize,e.curve,layer.width);
   // A full-size box behind the arc, so a click anywhere on it picks the text (the letters alone are thin).
+  if(hasArabic(line)){
+   // Arabic: shaped first (each letter with the joiners its neighbours give it), then placed on the arc (lib/editor/curve-shaping.ts).
+   const pieces=visualOrder(shapePieces(line)),font=`${fontStyle} ${layer.fontSize}px ${family}`;
+   return <>
+    <Rect width={layer.width} height={geo.height} fill="transparent"/>
+    <Shape key={key} listening={false} data-curve-shaped sceneFunc={ctx=>{
+     ctx.setAttr('font',font);ctx.setAttr('fillStyle',layer.color);ctx.setAttr('textBaseline','middle');ctx.setAttr('textAlign','center');
+     const placed=placeOnArc(pieces,{advance:d=>ctx.measureText(d).width,letterSpacing:layer.letterSpacing??0,fontSize:layer.fontSize,curve:e.curve,boxWidth:layer.width,height:geo.height,radius:geo.radius});
+     for(const g of placed){ctx.save();ctx.translate(g.x,g.y);ctx.rotate(g.rotation);ctx.setAttr('direction',g.rtl?'rtl':'ltr');ctx.fillText(g.draw,0,0);ctx.restore()}
+    }}/>
+   </>;
+  }
   return <>
    <Rect width={layer.width} height={geo.height} fill="transparent"/>
    <TextPath key={key} data={geo.path} text={line} fontSize={layer.fontSize} fontFamily={family} fontStyle={fontStyle} letterSpacing={layer.letterSpacing??0} fill={layer.color} align="center" textBaseline="middle" direction={direction}/>

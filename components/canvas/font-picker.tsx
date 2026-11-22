@@ -1,8 +1,12 @@
 'use client';
 import * as React from 'react';
-import {ChevronDown,Search} from 'lucide-react';
+import {ChevronDown,Search,Upload} from 'lucide-react';
+import {Button} from '@/components/ds/button';
+import {Dialog} from '@/components/ds/dialog';
 import {Input} from '@/components/ds/field';
-import {brandRole,FONT_KINDS,fontSections,type CatalogueFont} from '@/lib/editor/fonts';
+import {brandRole,FONT_KINDS,fontLabel,fontSections,type CatalogueFont} from '@/lib/editor/fonts';
+import {useBrandFonts} from '@/components/brand/brand-fonts';
+import {FontUploader,uploadBlocker} from '@/components/brand/brand-fonts-section';
 import type {EditorDoc} from '@/lib/editor/doc';
 import {Popover} from './popover';
 import {loadPreview,useFontFace} from './fonts';
@@ -15,22 +19,30 @@ import {useRecent} from './recent';
 // screen, so the list never downloads whole fonts; the chosen font's files load
 // when it is picked. Keyboard: the search field keeps the focus, the arrow keys
 // move through the list (Home and End too), Enter picks, Escape closes.
+// The company's uploaded fonts come first under Brand fonts; an owner may
+// upload one from here ("Upload a font", a dialog with the licence
+// confirmation); anyone else is told who can, or which plan has it.
 
 const MISSING='Missing font';
 
 /** The Font row: the font's name, in its font, opening the list. A missing font says so here and on its layer. */
 export function FontField({value,missing,disabled,kit,doc,onPick}:{value:string;missing:boolean;disabled?:boolean;kit:{headingFont:string;bodyFont:string}|null;doc:EditorDoc;onPick:(family:string)=>void}){
- const [open,setOpen]=React.useState(false),button=React.useRef<HTMLButtonElement>(null),id=React.useId();
- const face=useFontFace(value);
+ const [open,setOpen]=React.useState(false),[uploading,setUploading]=React.useState(false),button=React.useRef<HTMLButtonElement>(null),id=React.useId();
+ const face=useFontFace(value),label=fontLabel(value);
  return <div className="ds-inspector-row" data-editor-row>
   <span className="ds-inspector-label" data-editor-label id={id}>Font</span>
   <button ref={button} type="button" className="ds-font-button" aria-haspopup="dialog" aria-expanded={open} aria-labelledby={`${id} ${id}-value`} disabled={disabled} onClick={()=>setOpen(o=>!o)}>
-   <span id={`${id}-value`} className="ds-truncate" style={{fontFamily:face.family}}>{value}</span>
+   <span id={`${id}-value`} className="ds-truncate" style={{fontFamily:face.family}}>{label}</span>
    {missing&&<span className="ds-badge warn" data-missing-font>{MISSING}</span>}
    <ChevronDown aria-hidden="true"/>
   </button>
-  {missing&&<p className="ds-help" role="status">{value} couldn’t load. It shows in Inter on the canvas and in downloads until it can; pick another font to change it.</p>}
-  {open&&<FontPopover open anchor={button} value={value} kit={kit} doc={doc} onClose={()=>setOpen(false)} onPick={f=>{onPick(f);setOpen(false);button.current?.focus({preventScroll:true})}}/>}
+  {missing&&<p className="ds-help" role="status">{label} couldn’t load{label!==value?' (it may have been removed from your brand fonts)':''}. It shows in Inter on the canvas and in downloads until it can; pick another font to change it.</p>}
+  {open&&<FontPopover open anchor={button} value={value} kit={kit} doc={doc} onClose={()=>setOpen(false)} onPick={f=>{onPick(f);setOpen(false);button.current?.focus({preventScroll:true})}}
+   onUpload={()=>{setOpen(false);setUploading(true)}}/>}
+  <Dialog open={uploading} onClose={()=>{setUploading(false);button.current?.focus({preventScroll:true})}} title="Upload a font"
+   footer={<Button onClick={()=>{setUploading(false);setOpen(true)}}>Done</Button>}>
+   {uploading&&<FontUploader/>}
+  </Dialog>
  </div>;
 }
 
@@ -44,14 +56,16 @@ function Option({font,id,active,chosen,role,onPick,onHover}:{font:CatalogueFont;
  React.useEffect(()=>{if(active)ref.current?.scrollIntoView({block:'nearest'})},[active]);
  return <li ref={ref} id={id} role="option" aria-selected={chosen} data-active={active||undefined} data-font={font.family} className="ds-font-option"
   onPointerDown={e=>e.preventDefault()} onClick={onPick} onPointerMove={onHover}>
-  <span className="ds-font-name" style={shown?{fontFamily:`"nm-preview-${font.id}", var(--ds-font-sans)`}:undefined}>{font.family}</span>
+  <span className="ds-font-name" style={shown?{fontFamily:`"nm-preview-${font.id}", var(--ds-font-sans)`}:undefined}>{font.label??font.family}</span>
   <span className="ds-font-meta">{role||FONT_KINDS[font.kind]}{font.arabic&&<span className="ds-font-arabic" lang="ar" style={shown?{fontFamily:`"nm-preview-${font.id}", var(--ds-font-sans)`}:undefined}> · أبجد<span className="ds-sr-only"> (Arabic)</span></span>}</span>
  </li>;
 }
 
-function FontPopover({open,anchor,value,kit,doc,onClose,onPick}:{open:boolean;anchor:React.RefObject<HTMLButtonElement|null>;value:string;kit:{headingFont:string;bodyFont:string}|null;doc:EditorDoc;onClose:()=>void;onPick:(family:string)=>void}){
+function FontPopover({open,anchor,value,kit,doc,onClose,onPick,onUpload}:{open:boolean;anchor:React.RefObject<HTMLButtonElement|null>;value:string;kit:{headingFont:string;bodyFont:string}|null;doc:EditorDoc;onClose:()=>void;onPick:(family:string)=>void;onUpload:()=>void}){
  const [query,setQuery]=React.useState(''),recent=useRecent('fonts'),search=React.useRef<HTMLInputElement>(null),base=React.useId().replace(/[^a-zA-Z0-9]/g,'');
- const sections=React.useMemo(()=>fontSections({kit,doc,recent:recent.list,query}),[kit,doc,recent.list,query]);
+ const brand=useBrandFonts(),blocker=uploadBlocker(brand.state);
+ // Worked out on every render (a few hundred names): the company's uploaded fonts change it too (useBrandFonts re-renders on a new list).
+ const sections=fontSections({kit,doc,recent:recent.list,query});
  const flat=sections.flatMap(s=>s.fonts.map(f=>({section:s.id,font:f})));
  // It opens on the chosen font; a new search puts the list on its first match.
  const [at,setAt]=React.useState(()=>Math.max(0,flat.findIndex(x=>x.font.family===value)));
@@ -79,6 +93,9 @@ function FontPopover({open,anchor,value,kit,doc,onClose,onPick}:{open:boolean;an
    </span>
   </label>
   <p className="ds-help" role="status" aria-live="polite">{query?(n?`${count} ${families===1?'matches':'match'} “${query}”.`:`No font matches “${query}”. Try a shorter name, or “serif”, “script” or “Arabic”.`):`${count}, every one free to use.`}</p>
+  {brand.state&&<div className="ds-font-upload-row" data-font-upload-row>
+   {blocker??<Button size="sm" icon={<Upload aria-hidden="true"/>} onClick={onUpload}>Upload a font</Button>}
+  </div>}
   <div id={`${base}-list`} role="listbox" aria-label="Fonts" className="ds-font-list">
    {sections.map(s=>{const hid=`${base}-${s.id}`;
     return <ul key={s.id} role="group" aria-labelledby={hid} className="ds-font-group">

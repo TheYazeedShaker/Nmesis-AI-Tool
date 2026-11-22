@@ -111,6 +111,10 @@ export const EDITOR_JOURNEYS = [
   { id: 'editor-text-effects', role: 'owner', from: 'editor' },
   { id: 'editor-eyedropper', role: 'owner', from: 'editor' },
   { id: 'editor-gradient-background', role: 'owner', from: 'editor' },
+  // Editor Phase 4 (feat/brand-font-upload): the company's own fonts, uploaded on the Brand page (licence first,
+  // several files at once), picked first under Brand fonts, typed, weighted, exported, curved in Arabic with its
+  // letters joined, and removed (the design then says "Missing font").
+  { id: 'editor-brand-fonts', role: 'owner', from: 'editor' },
   { id: 'editor-performance', role: 'owner', from: 'editor' },
 ];
 export const FLOWS = [

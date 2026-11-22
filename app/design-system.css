@@ -1109,6 +1109,7 @@
 .ds-font-name { font-size: var(--ds-text-md, var(--ds-text-base)); line-height: 1.3; color: var(--ds-text-strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The font list is the taller popover; the colour picker keeps its sections close. */
 .ds-font-popover .ds-popover-body { gap: var(--ds-editor-row-gap); }
+.ds-font-upload-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-editor-row-gap); min-width: 0; }
 .ds-colour-popover .ds-popover-body { gap: var(--ds-editor-pad); }
 .ds-font-search { flex: none; }
 .ds-font-arabic { font-size: var(--ds-text-sm); }

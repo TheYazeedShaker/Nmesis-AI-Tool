@@ -118,3 +118,13 @@
 
 /* The way to the editor (owners and creators), or who can change the kit. */
 .brand-panel-foot { padding-top: var(--ds-space-16); border-top: var(--ds-border-width) solid var(--ds-border); }
+
+/* Your fonts (components/brand/brand-fonts-section.tsx): the company's own font
+   files by family, each name in its own font, and the owners' upload. */
+.brand-font-upload { max-width: var(--ds-measure); }
+.brand-font-families { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(20rem, 100%), 1fr)); gap: var(--ds-space-16); margin: 0; padding: 0; list-style: none; min-width: 0; }
+.brand-font-card { display: flex; flex-direction: column; gap: var(--ds-space-8); padding: var(--ds-space-16); border: var(--ds-border-width) solid var(--ds-border); border-radius: var(--ds-radius-md); min-width: 0; }
+.brand-font-family { margin: 0; font-size: var(--ds-text-lg); font-weight: var(--ds-weight-medium); overflow-wrap: anywhere; }
+.brand-font-files { display: flex; flex-direction: column; gap: var(--ds-space-8); margin: 0; padding: 0; list-style: none; min-width: 0; }
+.brand-font-file { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ds-space-8); min-width: 0; }
+.brand-font-text { display: flex; flex-direction: column; flex: 1 1 10rem; min-width: 0; }

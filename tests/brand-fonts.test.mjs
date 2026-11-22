@@ -25,7 +25,7 @@ const B_OWNER={id:id(0xb1),email:'b-owner@example.test'},C_OWNER={id:id(0xc1),em
 const features={'studio.enabled':true,'studio.key_visuals':true,'studio.brand_fonts':true};
 const plan=f=>({legacy:false,status:'active',planId:'growth',planName:'Growth',endsOn:null,features:f});
 const ORIGIN='http://studio.test';
-const ROUTES={fonts:'app/api/brand-fonts/route.ts',font:'app/api/brand-fonts/[id]/route.ts',file:'app/api/brand-fonts/[id]/[file]/route.ts',uploads:'app/api/uploads/route.ts'};
+const ROUTES={fonts:'app/api/brand-fonts/route.ts',font:'app/api/brand-fonts/[id]/route.ts',file:'app/api/brand-fonts/[id]/font/route.ts',preview:'app/api/brand-fonts/[id]/preview/route.ts',uploads:'app/api/uploads/route.ts',recent:'app/api/account/recent/route.ts'};
 const LICENCE='I confirm my company holds a licence that allows this font to be used in our designs and exports.';
 let s3,store,san,sfnt,shared,demo,routes={};const realFetch=globalThis.fetch;
 
@@ -170,7 +170,7 @@ test('an owner uploads Regular, Bold and Italic (several at once); they join one
  for(const row of rows()){assert.ok(row.woff2_key.startsWith(`orgs/${ORG_A}/brand/fonts/${row.id}/`));assert.equal(row.org_id,ORG_A);assert.equal(row.created_by,OWNER.id)}
  // The file a browser loads is the sanitised one, never the original.
  const regular=r.body.fonts.find(f=>f.style==='Regular');
- const file=await call('GET',regular.url,ROUTES.file,{params:{id:regular.id,file:'font'}});
+ const file=await call('GET',regular.url,ROUTES.file,{params:{id:regular.id}});
  assert.equal(file.status,307);assert.ok(file.location.startsWith(s3.url),'a signed link to private storage');
  const got=await realFetch(file.location);assert.equal(got.status,200);
  const bytes=new Uint8Array(await got.arrayBuffer());
@@ -228,7 +228,7 @@ test('only owners upload or remove: a creator, a viewer and staff viewing the co
   r=await call('DELETE','/api/brand-fonts/'+font.id,ROUTES.font,{params:{id:font.id}});assert.equal(r.status,403,who);
   r=await list();assert.equal(r.status,200);assert.equal(r.body.mayUpload,false,who);assert.equal(r.body.fonts.length,1,who+' sees the company’s fonts');
   // …and loads them, like everyone in the company.
-  assert.equal((await call('GET',font.url,ROUTES.file,{params:{id:font.id,file:'font'}})).status,307,who);
+  assert.equal((await call('GET',font.url,ROUTES.file,{params:{id:font.id}})).status,307,who);
  }
  assert.equal(rows().length,1,'nothing more recorded');
 });
@@ -238,7 +238,7 @@ test('another company never sees or loads a company’s font, even by its id',as
  const {body:{font}}=await upload(demo.regular,'DemoSans-Regular.ttf');
  as(B_OWNER);
  assert.deepEqual((await list()).body.fonts,[]);
- for(const file of ['font','preview'])assert.equal((await call('GET',`/api/brand-fonts/${font.id}/${file}`,ROUTES.file,{params:{id:font.id,file}})).status,404,file);
+ for(const file of ['font','preview'])assert.equal((await call('GET',`/api/brand-fonts/${font.id}/${file}`,file==='font'?ROUTES.file:ROUTES.preview,{params:{id:font.id}})).status,404,file);
  assert.equal((await call('DELETE','/api/brand-fonts/'+font.id,ROUTES.font,{params:{id:font.id}})).status,404,'nor removes it');
  // Its own upload of the same file is its own font, in its own folder.
  const r=await upload(demo.regular,'DemoSans-Regular.ttf');assert.equal(r.status,200,r.text);
@@ -252,7 +252,7 @@ test('removing a font (owner) is soft: it leaves the list, no browser can load i
  const r=await call('DELETE','/api/brand-fonts/'+font.id,ROUTES.font,{params:{id:font.id}});
  assert.equal(r.status,200,r.text);
  assert.deepEqual((await list()).body.fonts,[]);
- assert.equal((await call('GET',font.url,ROUTES.file,{params:{id:font.id,file:'font'}})).status,404);
+ assert.equal((await call('GET',font.url,ROUTES.file,{params:{id:font.id}})).status,404);
  const [row]=rows();assert.ok(row.deleted_at>0);assert.equal(row.deleted_by,OWNER.id);assert.equal(row.licence_text,LICENCE);
  assert.equal((await call('DELETE','/api/brand-fonts/'+font.id,ROUTES.font,{params:{id:font.id}})).status,404,'once');
  assert.equal((await upload(demo.regular,'DemoSans-Regular.ttf')).status,200,'the same file can come back');
@@ -288,4 +288,22 @@ test('the routes are in the route table: reads for every member (the library may
  assert.equal(plan.routeRule('/api/brand-fonts/0000aaaa-0000','DELETE').feature,null,'removing never needs the plan');
  assert.equal(plan.routeRule('/api/brand-fonts/0000aaaa-0000/original','GET'),null,'the original has no address');
  const uploads=await import('@/lib/portable/uploads.ts');assert.equal(uploads.uploadTarget('/api/brand-fonts'),true);
+});
+
+// ── Recent fonts and colours with the account (Phase 3 follow-up) ─────────
+test('recents sync across two browsers: what one browser picks, the other lists; both picking at once keeps both; nobody else sees them',async()=>{
+ as(OWNER);
+ const browserA=body=>call('PUT','/api/account/recent',ROUTES.recent,{body}),browserB=()=>call('GET','/api/account/recent',ROUTES.recent);
+ assert.deepEqual((await browserB()).body.recent,{fonts:[],colours:[]});
+ assert.equal((await browserA({kind:'fonts',value:'brand:Demo Sans'})).status,200);
+ assert.equal((await browserA({kind:'colours',value:'#0a84ff'})).status,200);
+ assert.deepEqual((await browserB()).body.recent,{fonts:['brand:Demo Sans'],colours:['#0A84FF']},'the second browser lists the first one’s picks');
+ await Promise.all([browserA({kind:'fonts',value:'Inter'}),call('PUT','/api/account/recent',ROUTES.recent,{body:{kind:'fonts',value:'Cairo'}})]);
+ const fonts=(await browserB()).body.recent.fonts;
+ assert.deepEqual([...fonts.slice(0,2)].sort(),['Cairo','Inter']);assert.equal(fonts[2],'brand:Demo Sans');
+ for(const body of [{kind:'fonts',value:'https://example.test/x.woff2'},{kind:'colours',value:'blue'},{kind:'other',value:'x'}])assert.equal((await browserA(body)).status,400,JSON.stringify(body));
+ // Kept in the person's own folder, and only theirs.
+ assert.deepEqual(await stored(`orgs/${ORG_A}/users/${OWNER.id}/settings/`),[`orgs/${ORG_A}/users/${OWNER.id}/settings/editor-recent.json`]);
+ as(CREATOR);assert.deepEqual((await browserB()).body.recent,{fonts:[],colours:[]},'a teammate has their own');
+ as(B_OWNER);assert.deepEqual((await browserB()).body.recent,{fonts:[],colours:[]});
 });

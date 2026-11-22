@@ -578,6 +578,100 @@ function editorSteps() { return {
     await tab(page, 'Design');
     await page.unroute('**/fonts/lobster/**');
   },
+  // The company's own fonts (editor Phase 4): uploaded on the Brand page by an owner (the licence first, three
+  // files at once), joined into families by their own names; picked first under Brand fonts; typed, weighted and
+  // exported in their own face (from a short-lived signed link); curved Arabic with its letters joined (checked in
+  // this browser: the joiners give fewer separate ink shapes than letters drawn alone); and removed, after which
+  // the design says "Missing font" and is never drawn in another font without saying so.
+  'editor-brand-fonts': async (page, problems) => {
+    const fx = await import('../tests/support/font-fixtures.mjs');
+    const demo = await fx.demoSans(), arabic = await fx.demoArabic();
+    await page.goto('/company/brand', { waitUntil: 'load', timeout: 30_000 });
+    const section = page.locator('[data-brand-fonts]');
+    await section.waitFor({ timeout: 15_000 });
+    const input = section.locator('[data-brand-font-upload] input[type="file"]');
+    if (!(await input.count())) { problems.push('Brand → Your fonts has no upload for an owner'); return; }
+    if (!(await section.locator('[data-brand-font-upload] .ds-drop-zone button').first().isDisabled())) problems.push('fonts can be added before the licence is confirmed');
+    await section.locator('input[data-licence]').check({ timeout: 5000 });
+    await input.setInputFiles([
+      { name: 'DemoSans-Regular.ttf', mimeType: 'font/ttf', buffer: Buffer.from(demo.regular) },
+      { name: 'DemoSans-Bold.ttf', mimeType: 'font/ttf', buffer: Buffer.from(demo.bold) },
+      { name: 'DemoArabic.ttf', mimeType: 'font/ttf', buffer: Buffer.from(arabic) },
+    ]);
+    await page.waitForFunction(() => document.querySelectorAll('[data-brand-font][data-status="ready"]').length >= 3, null, { timeout: 60_000 }).catch(() => {});
+    const families = await section.locator('.brand-font-card').evaluateAll((cards) => cards.map((c) => [c.querySelector('.brand-font-family')?.textContent, c.querySelectorAll('[data-brand-font]').length]));
+    if (JSON.stringify(families) !== JSON.stringify([['Demo Arabic', 1], ['Demo Sans', 2]])) problems.push(`the uploads are listed as ${JSON.stringify(families)}, not Demo Arabic (1 file) and Demo Sans (Regular and Bold)`);
+    if (SHOTS) await section.screenshot({ path: path.join(OUT, 'shots', 'phase4-brand-fonts--1440--light.png') }).catch(() => {});
+    // Pick, type and weigh in the editor.
+    await openEditor(page, EDITOR_VISUAL_ID);
+    await press(page, 'Control+a'); await press(page, 'Delete');
+    await press(page, 't');
+    await tab(page, 'Design');
+    const list = await openFontList(page, problems);
+    if (!list) return;
+    const brand = await list.locator('[role="group"]').first().locator('[role="option"]').evaluateAll((os) => os.map((o) => o.getAttribute('data-font')));
+    if (brand[0] !== 'brand:Demo Arabic' || brand[1] !== 'brand:Demo Sans') problems.push(`Brand fonts start with ${JSON.stringify(brand.slice(0, 3))}, not the uploads`);
+    if (!(await page.getByRole('dialog', { name: 'Fonts' }).getByRole('button', { name: 'Upload a font' }).count())) problems.push('the font list has no "Upload a font" for an owner');
+    const s0 = await stepsOf(page);
+    await list.locator('[role="option"][data-font="brand:Demo Sans"]').first().click({ timeout: 5000 });
+    await page.waitForTimeout(400);
+    if (await stepsOf(page) !== s0 + 1) problems.push(`picking an uploaded font made ${(await stepsOf(page)) - s0} undo steps, not 1`);
+    if ((await fontButtonText(page)) !== 'Demo Sans') problems.push(`the Font row says ${await fontButtonText(page)}, not Demo Sans`);
+    await panelOf(page).locator('[data-editor-section="text"] textarea').first().fill('DEMO SUV');
+    const loaded = await page.waitForFunction(() => [...document.fonts].some((f) => f.family.replace(/"/g, '').startsWith('nm-brand-') && f.status === 'loaded'), null, { timeout: 15_000 }).then(() => true, () => false);
+    if (!loaded) problems.push('the uploaded font did not load from its signed link');
+    const weights = await panelOf(page).locator('[data-editor-section="text"]').getByRole('radio').allTextContents().catch(() => []);
+    if (!weights.includes('Bold') || !weights.includes('Regular')) problems.push(`the Weight row offers ${JSON.stringify(weights)}, not the family's Regular and Bold`);
+    const drawnIn = await page.evaluate(() => window.Konva?.stages?.[0]?.find('Text').find((n) => n.text() === 'DEMO SUV')?.fontFamily() || '');
+    if (!drawnIn.startsWith('"nm-brand-')) problems.push(`the text is drawn in ${drawnIn}, not the uploaded font`);
+    // The export waits for the font and says nothing is missing.
+    const png = decodePng(await downloadPng(page));
+    if (!(png.width > 0)) problems.push('the export made no picture');
+    if (await page.getByText(/Made with Inter in place of/).count()) problems.push('the export was made with the fallback, not the uploaded font');
+    // Curved Arabic in the uploaded Arabic font: drawn shaped, letters joined.
+    await press(page, 't');
+    const again = await openFontList(page, problems);
+    if (!again) return;
+    await again.locator('[role="option"][data-font="brand:Demo Arabic"]').first().click({ timeout: 5000 });
+    await panelOf(page).locator('[data-editor-section="text"] textarea').first().fill('محمد سيارة');
+    await panelOf(page).locator('[data-editor-section="effects"] [role="radio"][data-effect="curve"]').click({ timeout: 5000 });
+    await page.waitForTimeout(600);
+    const curved = await page.evaluate(() => {
+      const stage = window.Konva?.stages?.[0];
+      const shaped = (stage?.find((n) => n.getClassName() === 'Shape') || []).length;
+      // In this browser: one word drawn letter by letter, alone and then with the joiners its neighbours give each letter.
+      const families = [...document.fonts].filter((f) => f.family.replace(/"/g, '').startsWith('nm-brand-') && f.status === 'loaded').map((f) => f.family);
+      const shapes = (pieces) => {
+        const c = document.createElement('canvas'); c.width = 600; c.height = 160;
+        const x = c.getContext('2d'); x.fillStyle = '#000'; x.font = `96px ${families.map((f) => JSON.stringify(f.replace(/"/g, ''))).join(', ')}, sans-serif`; x.textBaseline = 'middle'; x.direction = 'rtl';
+        let at = 560; for (const p of pieces) { const w = x.measureText(p).width; x.fillText(p, at, 80); at -= w; }
+        const d = x.getImageData(0, 0, 600, 160).data, seen = new Uint8Array(600 * 160); let n = 0;
+        for (let i = 0; i < seen.length; i++) {
+          if (seen[i] || d[i * 4 + 3] < 128) continue; n++; const stack = [i]; seen[i] = 1;
+          while (stack.length) { const k = stack.pop(), px = k % 600, py = (k - px) / 600; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const qx = px + dx, qy = py + dy, q = qy * 600 + qx; if (qx >= 0 && qx < 600 && qy >= 0 && qy < 160 && !seen[q] && d[q * 4 + 3] >= 128) { seen[q] = 1; stack.push(q); } } }
+        }
+        return n;
+      };
+      return { shaped, alone: shapes(['م', 'ح', 'م', 'د']), joined: shapes(['م‍', '‍ح‍', '‍م‍', '‍د']) };
+    });
+    if (!curved.shaped) problems.push('curved Arabic is not drawn by the shaping drawer');
+    if (!(curved.joined < curved.alone)) problems.push(`curved Arabic letters don't join in this browser (${curved.joined} ink shapes joined, ${curved.alone} alone)`);
+    if (SHOTS) await canvasOf(page).screenshot({ path: path.join(OUT, 'shots', 'phase4-curved-arabic--1440--light.png') }).catch(() => {});
+    await savedWithin(page, 15_000).catch(() => problems.push('the design was not saved before removing the font'));
+    // Remove Demo Sans (both files, as an owner on the Brand page would): the design says "Missing font".
+    const listed = await page.request.get('/api/brand-fonts', { failOnStatusCode: false }).then((r) => r.json()).catch(() => ({ fonts: [] }));
+    for (const f of (listed.fonts || []).filter((x) => x.family === 'Demo Sans')) {
+      const r = await page.request.delete('/api/brand-fonts/' + f.id, { headers: { origin: stack.origin }, failOnStatusCode: false });
+      if (!r.ok()) problems.push(`removing ${f.style} answered ${r.status()}`);
+    }
+    await openEditor(page, EDITOR_VISUAL_ID);
+    await page.waitForFunction(() => document.querySelectorAll('[data-missing-fonts]').length > 0, null, { timeout: 15_000 }).catch(() => {});
+    const notice = (await page.locator('[data-missing-fonts]').first().textContent().catch(() => '')) || '';
+    if (!/Missing font: Demo Sans/.test(notice)) problems.push(`after removing Demo Sans the editor says ${JSON.stringify(notice.slice(0, 80))}, not "Missing font: Demo Sans"`);
+    if (!(await canvasOf(page).locator('[data-missing-font]').count())) problems.push('the layer using the removed font does not say "Missing font"');
+    // Clean up for the next run: the Arabic font too.
+    for (const f of (listed.fonts || []).filter((x) => x.family !== 'Demo Sans')) await page.request.delete('/api/brand-fonts/' + f.id, { headers: { origin: stack.origin }, failOnStatusCode: false }).catch(() => {});
+  },
   // Each text effect, one at a time: a tile replaces the effect in one undo step; a slider's drag is one step;
   // the canvas and the exported PNG at full size draw the same picture (the export, scaled to the canvas, is
   // compared with what the canvas shows, around the text); curved text still types on a double-click.
