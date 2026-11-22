@@ -3,7 +3,7 @@
 // share one answer. The admin owns the plan data; the Studio only reads it.
 export const MEMBER_ROLES=['owner','creator','viewer'] as const;
 export type Role=typeof MEMBER_ROLES[number];
-export const FEATURES=['studio.key_visuals','studio.lineups','studio.area_edit','studio.object_select','studio.pinterest','studio.smart_reference','studio.upscale','studio.film','studio.swap','studio.storyboards','studio.own_keys'] as const;
+export const FEATURES=['studio.key_visuals','studio.lineups','studio.area_edit','studio.object_select','studio.pinterest','studio.smart_reference','studio.upscale','studio.film','studio.swap','studio.storyboards','studio.own_keys','studio.brand_fonts'] as const;
 export type FeatureKey=typeof FEATURES[number];
 // The answer of accounts.entitlements(org), as the Studio reads it.
 // `noPlan`: a client company with no active subscription (the admin's "legacy"
@@ -16,9 +16,9 @@ export function studioEntitlements(e:Entitlements,orgKind:string):Entitlements{
  if(orgKind==='internal'||!e.legacy)return e;
  return {legacy:false,status:'none',planId:null,planName:null,endsOn:null,features:{'studio.enabled':false},noPlan:true};
 }
-export const FEATURE_LABELS:Record<FeatureKey,string>={'studio.key_visuals':'Key visuals','studio.lineups':'Line-ups','studio.area_edit':'Area edit','studio.object_select':'Object select','studio.pinterest':'Pinterest','studio.smart_reference':'Smart references','studio.upscale':'Upscale','studio.film':'Film Studio','studio.swap':'Car swap','studio.storyboards':'Storyboards','studio.own_keys':'Your own provider keys'};
+export const FEATURE_LABELS:Record<FeatureKey,string>={'studio.key_visuals':'Key visuals','studio.lineups':'Line-ups','studio.area_edit':'Area edit','studio.object_select':'Object select','studio.pinterest':'Pinterest','studio.smart_reference':'Smart references','studio.upscale':'Upscale','studio.film':'Film Studio','studio.swap':'Car swap','studio.storyboards':'Storyboards','studio.own_keys':'Your own provider keys','studio.brand_fonts':'Brand fonts'};
 // The smallest plan that includes each feature, for the upsell chip.
-export const UPSELL_PLAN:Record<FeatureKey,'Growth'|'Enterprise'>={'studio.key_visuals':'Growth','studio.lineups':'Growth','studio.area_edit':'Growth','studio.object_select':'Growth','studio.pinterest':'Growth','studio.smart_reference':'Growth','studio.upscale':'Growth','studio.film':'Enterprise','studio.swap':'Enterprise','studio.storyboards':'Enterprise','studio.own_keys':'Enterprise'};
+export const UPSELL_PLAN:Record<FeatureKey,'Growth'|'Enterprise'>={'studio.key_visuals':'Growth','studio.lineups':'Growth','studio.area_edit':'Growth','studio.object_select':'Growth','studio.pinterest':'Growth','studio.smart_reference':'Growth','studio.upscale':'Growth','studio.film':'Enterprise','studio.swap':'Enterprise','studio.storyboards':'Enterprise','studio.own_keys':'Enterprise','studio.brand_fonts':'Growth'};
 const ENDED=new Set(['ended','cancelled']);
 // Accepts the raw jsonb document; anything unexpected reads as "everything off".
 export function readEntitlements(raw:unknown):Entitlements{
@@ -83,6 +83,11 @@ export const ROUTE_FEATURES:RouteRule[]=[
  // The company's brand kit (logos, colours, fonts, voice): everyone in the company reads; owners and creators change it (lib/accounts/can.ts).
  {path:/^\/api\/brand-kit(\/logos(\/[a-z0-9-]{8,80})?)?$/,methods:['GET'],feature:null,library:true},
  {path:/^\/api\/brand-kit(\/logos(\/[a-z0-9-]{8,80})?)?$/,feature:null},
+ // The company's own font files (lib/brand-fonts): everyone in the company lists and loads them (short-lived signed links);
+ // uploading needs the plan's studio.brand_fonts and an owner; removing needs an owner (the routes check the owner).
+ {path:/^\/api\/brand-fonts(\/[a-z0-9-]{8,80}\/(font|preview))?$/,methods:['GET'],feature:null,library:true},
+ {path:/^\/api\/brand-fonts$/,methods:['POST'],feature:'studio.brand_fonts'},
+ {path:/^\/api\/brand-fonts\/[a-z0-9-]{8,80}$/,methods:['DELETE'],feature:null},
  // Reference photos from a provider (lib/references): searching and bringing one into the Studio's storage.
  {path:/^\/api\/references(\/import)?$/,feature:null},
  // Who can see a piece of work, and its public view link (lib/shares).
