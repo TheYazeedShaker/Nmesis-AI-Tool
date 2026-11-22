@@ -14,6 +14,8 @@ import {Layer} from '@/components/ds/layer';
 
 export type PopoverAnchor=React.RefObject<HTMLElement|null>;
 const GAP=8,WIDTH=320;
+/** What Tab stops on: not a control that is off, and not one a group's arrow keys reach instead (tabindex -1). */
+const TABBABLE=':is(input,button,select,textarea,[tabindex]):not([disabled]):not([tabindex="-1"])';
 
 function place(anchor:HTMLElement|null):React.CSSProperties{
  if(!anchor||typeof window==='undefined')return {};
@@ -37,7 +39,7 @@ export function Popover({open,anchor,title,onClose,onEnd,children,initialFocus,h
  // The focus goes in once, as it opens (never again while it is open).
  React.useEffect(()=>{
   if(!open)return;
-  const el=initialFocus?.current||ref.current?.querySelector<HTMLElement>('.ds-popover-body :is(input,button:not([disabled]),[tabindex="0"])');
+  const el=initialFocus?.current||ref.current?.querySelector<HTMLElement>('.ds-popover-body '+TABBABLE);
   el?.focus({preventScroll:true});
  },[open,initialFocus]);
  React.useEffect(()=>{
@@ -55,7 +57,7 @@ export function Popover({open,anchor,title,onClose,onEnd,children,initialFocus,h
     if(e.key==='Escape'){e.preventDefault();e.stopPropagation();close();return}
     if(e.key==='Tab'){
      // Tab past the last control (or Shift+Tab before the first) closes it and goes back to its button.
-     const all=[...ref.current!.querySelectorAll<HTMLElement>('input:not([disabled]),button:not([disabled]),[tabindex="0"]')].filter(x=>x.offsetParent!==null);
+     const all=[...ref.current!.querySelectorAll<HTMLElement>(TABBABLE)].filter(x=>x.offsetParent!==null);
      const at=all.indexOf(document.activeElement as HTMLElement);
      if((!e.shiftKey&&at===all.length-1)||(e.shiftKey&&at===0)){e.preventDefault();close()}
     }

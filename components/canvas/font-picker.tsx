@@ -57,7 +57,8 @@ function FontPopover({open,anchor,value,kit,doc,onClose,onPick}:{open:boolean;an
  const [at,setAt]=React.useState(()=>Math.max(0,flat.findIndex(x=>x.font.family===value)));
  const pick=(family:string)=>{recent.add(family);setQuery('');onPick(family)};
  const optionId=(i:number)=>`${base}-o${i}`;
- const n=flat.length,count=n===1?'1 font':`${n} fonts`;
+ // Options may repeat across sections (a brand font is in All fonts too): the count is of families.
+ const n=flat.length,families=sections.find(x=>x.id==='all')?.fonts.length??0,count=families===1?'1 font':`${families} fonts`;
  let i=-1;
  return <Popover open={open} anchor={anchor} title="Fonts" onClose={()=>{setQuery('');onClose()}} initialFocus={search} className="ds-font-popover">
   <label className="ds-popover-field ds-font-search">
@@ -77,7 +78,7 @@ function FontPopover({open,anchor,value,kit,doc,onClose,onPick}:{open:boolean;an
      }}/>
    </span>
   </label>
-  <p className="ds-help" role="status" aria-live="polite">{query?(n?`${count} match “${query}”.`:`No font matches “${query}”. Try a shorter name, or “serif”, “script” or “Arabic”.`):`${count} in all sections. Every font is free to use.`}</p>
+  <p className="ds-help" role="status" aria-live="polite">{query?(n?`${count} ${families===1?'matches':'match'} “${query}”.`:`No font matches “${query}”. Try a shorter name, or “serif”, “script” or “Arabic”.`):`${count}, every one free to use.`}</p>
   <div id={`${base}-list`} role="listbox" aria-label="Fonts" className="ds-font-list">
    {sections.map(s=>{const hid=`${base}-${s.id}`;
     return <ul key={s.id} role="group" aria-labelledby={hid} className="ds-font-group">

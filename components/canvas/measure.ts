@@ -13,12 +13,17 @@ const context=()=>{if(!ctx&&typeof document!=='undefined')ctx=document.createEle
 export const contextFont=(l:Pick<TextLayer,'fontSize'|'fontWeight'|'italic'>,family:string)=>`${l.italic?'italic ':''}${l.fontWeight} ${l.fontSize}px ${family}`;
 /** Curved text is one line: its line breaks are spaces. */
 export const oneLine=(text:string)=>text.replace(/\s*\n\s*/g,' ').trim();
-/** The width of the text drawn as one line, in picture pixels. */
+/**
+ * The width of the text drawn as one line along a path, in picture pixels: letter by letter, as
+ * Konva's TextPath lays it out (no kerning between letters), with a little room to spare, since a
+ * letter that doesn't fit on the path entirely is not drawn at all.
+ */
 export function lineWidth(l:Pick<TextLayer,'text'|'fontSize'|'fontWeight'|'italic'|'letterSpacing'>,family:string):number{
- const c=context(),line=oneLine(l.text);
- if(!c)return line.length*l.fontSize*0.55;
+ const c=context(),chars=[...oneLine(l.text)];
+ if(!c)return chars.length*l.fontSize*0.6;
  c.font=contextFont(l,family);
- return c.measureText(line).width+(l.letterSpacing??0)*Math.max(0,[...line].length);
+ const own=chars.reduce((s,ch)=>s+c.measureText(ch).width,0)+(l.letterSpacing??0)*chars.length;
+ return own*1.03+l.fontSize*0.1;
 }
 /** Whether the text reads right to left (its first letter that has a direction is Arabic, Hebrew…). */
 export function isRtl(text:string){

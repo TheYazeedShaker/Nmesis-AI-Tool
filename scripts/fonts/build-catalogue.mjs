@@ -78,7 +78,9 @@ function parseMetadata(text) {
   const num = (src, key) => { const m = new RegExp(`^\\s*${key}:\\s*(-?[0-9.]+)`, 'm').exec(src); return m ? Number(m[1]) : null; };
   const blocks = (key) => { const out = []; const re = new RegExp(`^${key} \\{([\\s\\S]*?)^\\}`, 'gm'); let m; while ((m = re.exec(text))) out.push(m[1]); return out; };
   return {
-    name: one(text, 'name'), designer: one(text, 'designer'), license: one(text, 'license'), category: one(text, 'category'),
+    name: one(text, 'name'), designer: one(text, 'designer'), license: one(text, 'license'),
+    // A family may be listed under several kinds ("DISPLAY" and "SANS_SERIF"): its own kind wins over display.
+    category: (() => { const all = [...text.matchAll(/^category:\s*"([^"]+)"/gm)].map((m) => m[1]); return all.find((c) => c !== 'DISPLAY') || all[0] || null; })(),
     fonts: blocks('fonts').map((b) => ({ style: one(b, 'style'), weight: num(b, 'weight'), filename: one(b, 'filename') })),
     axes: blocks('axes').map((b) => ({ tag: one(b, 'tag'), min: num(b, 'min_value'), max: num(b, 'max_value') })),
     subsets: [...text.matchAll(/^subsets:\s*"([^"]+)"/gm)].map((m) => m[1]),

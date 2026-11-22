@@ -600,7 +600,9 @@ function editorSteps() { return {
       if (kind === 'shadow') {
         // One drag of the Blur slider is one undo step.
         const range = panelOf(page).locator('[data-editor-section="effects"] [data-editor-row]', { hasText: 'Blur' }).locator('input[type="range"]').first();
+        await range.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {}); await page.waitForTimeout(150);
         const r = await range.boundingBox(), s1 = await stepsOf(page);
+        if (!r) problems.push("the Blur slider is not on screen");
         if (r) { await page.mouse.move(r.x + r.width * 0.2, r.y + r.height / 2); await page.mouse.down(); for (let i = 3; i <= 9; i++) await page.mouse.move(r.x + r.width * i / 10, r.y + r.height / 2); await page.mouse.up(); await page.waitForTimeout(200); }
         if (await stepsOf(page) !== s1 + 1) problems.push(`one drag of the Blur slider made ${(await stepsOf(page)) - s1} undo steps, not 1`);
       }

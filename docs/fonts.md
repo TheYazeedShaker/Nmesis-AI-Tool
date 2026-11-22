@@ -137,7 +137,7 @@ The canvas editor's font catalogue: 155 families, 17.0 MB of WOFF2, every one un
 | Noto Kufi Arabic | Sans serif | Latin, Arabic | 100–900 (variable) | OFL-1.1 | [folder](https://github.com/google/fonts/tree/main/ofl/notokufiarabic) |
 | Noto Naskh Arabic | Serif | Latin, Arabic | 400–700 (variable) | OFL-1.1 | [folder](https://github.com/google/fonts/tree/main/ofl/notonaskharabic) |
 | Noto Sans Arabic | Sans serif | Latin, Arabic | 100–900 (variable) | OFL-1.1 | [folder](https://github.com/google/fonts/tree/main/ofl/notosansarabic) |
-| Cairo | Display | Latin, Arabic | 200–1000 (variable) | OFL-1.1 | [folder](https://github.com/google/fonts/tree/main/ofl/cairo) |
+| Cairo | Sans serif | Latin, Arabic | 200–1000 (variable) | OFL-1.1 | [folder](https://github.com/google/fonts/tree/main/ofl/cairo) |
 | Tajawal | Sans serif | Latin, Arabic | 200, 300, 400, 500, 700, 800, 900 | OFL-1.1 | [folder](https://github.com/google/fonts/tree/main/ofl/tajawal) |
 | IBM Plex Sans Arabic | Sans serif | Latin, Arabic | 100, 200, 300, 400, 500, 600, 700 | OFL-1.1 | [folder](https://github.com/google/fonts/tree/main/ofl/ibmplexsansarabic) |
 | Almarai | Sans serif | Latin, Arabic | 300, 400, 700, 800 | OFL-1.1 | [folder](https://github.com/google/fonts/tree/main/ofl/almarai) |

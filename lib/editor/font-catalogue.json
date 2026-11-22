@@ -6510,7 +6510,7 @@
   {
    "id": "cairo",
    "family": "Cairo",
-   "kind": "display",
+   "kind": "sans",
    "arabic": true,
    "weights": [
     200,
