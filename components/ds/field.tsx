@@ -124,14 +124,36 @@ export function Switch({ label, checked, onChange, className, ...rest }: ChoiceP
   );
 }
 
-/** A range with its value printed beside it. `format` turns the number into words ("4 s"). */
-export function Slider({ value, onValueChange, min = 0, max = 100, step = 1, format, className, ...rest }:
-  Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onChange'> & { value: number; onValueChange: (v: number) => void; min?: number; max?: number; step?: number; format?: (v: number) => string }) {
+/** A range with its value printed beside it. `format` turns the number into words ("4 s").
+ *  `editable`: the number beside it is a box to type in (with its unit), as the editor's panel needs
+ *  (docs/editor-rules.md, rule 11). Still the one slider: the same range, keys and look. */
+export function Slider({ value, onValueChange, min = 0, max = 100, step = 1, format, editable, className, ...rest }:
+  Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onChange'> & { value: number; onValueChange: (v: number) => void; min?: number; max?: number; step?: number; format?: (v: number) => string;
+    editable?: { label: string; unit?: string } }) {
   const text = format ? format(value) : value.toLocaleString('en-US');
   return (
-    <span className={dsClass('ds-slider', className)}>
+    <span className={dsClass('ds-slider', editable && 'ds-slider-edit', className)}>
       <input type="range" min={min} max={max} step={step} value={value} aria-valuetext={text} onChange={(e) => onValueChange(Number(e.target.value))} {...rest} />
-      <output className="ds-slider-value" aria-hidden="true">{text}</output>
+      {editable
+        ? <SliderNumber value={value} min={min} max={max} step={step} label={editable.label} unit={editable.unit} disabled={rest.disabled} onValueChange={onValueChange} />
+        : <output className="ds-slider-value" aria-hidden="true">{text}</output>}
     </span>
   );
+}
+
+/** The slider's number, typed: kept as typed until it is a number in range, then applied. */
+function SliderNumber({ value, min, max, step, label, unit, disabled, onValueChange }: { value: number; min: number; max: number; step: number; label: string; unit?: string; disabled?: boolean; onValueChange: (v: number) => void }) {
+  const [text, setText] = React.useState<string | null>(null);
+  const decimals = Math.max(0, -Math.floor(Math.log10(step)));
+  const props = {
+    type: 'number', inputMode: 'decimal' as const, min, max, step, disabled, 'aria-label': label,
+    value: text ?? String(Math.round(value * 10 ** decimals) / 10 ** decimals),
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+      setText(e.target.value);
+      const n = Number(e.target.value);
+      if (e.target.value.trim() !== '' && Number.isFinite(n) && n >= min && n <= max) onValueChange(n);
+    },
+    onBlur: () => setText(null),
+  };
+  return unit ? <AffixInput className="ds-slider-number" affix={unit} {...props} /> : <Input className="ds-slider-number" {...props} />;
 }

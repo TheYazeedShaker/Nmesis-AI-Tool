@@ -1,6 +1,6 @@
 'use client';
 import * as React from 'react';
-import {TEXT_LINE_HEIGHT,TEXT_MAX,type TextLayer} from '@/lib/editor/doc';
+import {lineHeightOf,TEXT_MAX,type TextLayer} from '@/lib/editor/doc';
 
 // Typing on the canvas: a double click (or tap, or Enter on a selected text
 // layer) opens this box exactly over the text, in the same font (the brand
@@ -18,11 +18,11 @@ export function TextEditor({layer,scale,family,onType,onDone}:{layer:TextLayer;s
  // Opens with the words selected, ready to be typed over (the sample text, mostly).
  React.useEffect(()=>{const el=ref.current;if(!el)return;el.focus({preventScroll:true});el.select()},[]);
  // The box grows with its lines, as the text on the canvas does.
- React.useLayoutEffect(()=>{const el=ref.current;if(!el)return;el.style.height='0px';el.style.height=el.scrollHeight+'px'},[layer.text,scale,family,layer.fontSize]);
+ React.useLayoutEffect(()=>{const el=ref.current;if(!el)return;el.style.height='0px';el.style.height=el.scrollHeight+'px'},[layer.text,scale,family,layer.fontSize,layer.lineHeight,layer.letterSpacing]);
  const style:React.CSSProperties={
   left:layer.x*scale,top:layer.y*scale,width:Math.max(layer.width*scale,8),
   transform:layer.rotation?`rotate(${layer.rotation}deg)`:undefined,
-  fontFamily:family,fontSize:layer.fontSize*scale,fontWeight:layer.fontWeight,lineHeight:TEXT_LINE_HEIGHT,
+  fontFamily:family,fontSize:layer.fontSize*scale,fontWeight:layer.fontWeight,lineHeight:lineHeightOf(layer),letterSpacing:(layer.letterSpacing??0)*scale,
   color:layer.color,textAlign:layer.align,
  };
  return <textarea ref={ref} className="canvas-text-editor" style={style} value={layer.text} maxLength={TEXT_MAX} rows={1} spellCheck

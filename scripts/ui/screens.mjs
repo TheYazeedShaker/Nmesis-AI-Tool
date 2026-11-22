@@ -78,6 +78,34 @@ export const SCREEN_IDS = SCREENS.map((s) => s.id);
 // ratchet. Each runs once at 1440, in the run or shard that checks its first screen as its person.
 // Edit from Projects: the Projects filters pick the picture, its first tile opens the viewer, Edit opens
 // the canvas editor, which must load that picture (no error state). Selects are named by their labels.
+// The canvas editor's journeys (feat/editor-core-v2; scripts/check-ui.mjs runEditorJourneys): hard checks
+// at 1440 as the owner, in the run or shard that checks the editor as the owner. A design saved by the v1
+// editor opens with every layer (the seed keeps tests/fixtures/editor-v1/every-kind.json as V1_DESIGN_ID);
+// one drag is one undo step; "Duplicate design" switches to "Copy of …" in place and the copy keeps being edited.
+export const V1_DESIGN_ID = '00000000-0000-4000-8000-000000010900';
+// The rebuilt panel (feat/editor-panel-rules): the panel measured against the editor rules in each kind of
+// selection on the v1 design (nothing, one layer of each kind, three layers, the Layers tab), at these sizes
+// (the rule states: counted in the ratchet under the editor screen); the layers list by keyboard only;
+// Ctrl+A, Ctrl+G and one undo; the shortcuts sheet; snapping to the page centre, and not with Ctrl held;
+// and a design of 50 layers on a 3840 x 2160 picture (PERF_DESIGN_ID, over PERF_PICTURE_ID), timed. Closing the
+// tab right after a change keeps it: in the Studio (keepalive), or restored from the device when offline.
+export const RULE_STATE_SIZES = [[1440, 900], [1191, 786], [1024, 768]];
+export const PERF_PICTURE_ID = '00000000-0000-4000-8000-000000010901';
+export const PERF_DESIGN_ID = '00000000-0000-4000-8000-000000010902';
+export const PERF_UPLOAD_ID = '00000000-0000-4000-8000-000000010903';
+export const PERF_LAYERS = 50;
+export const EDITOR_JOURNEYS = [
+  { id: 'editor-open-v1-design', role: 'owner', from: 'editor' },
+  { id: 'editor-rule-states', role: 'owner', from: 'editor' },
+  { id: 'editor-layers-keyboard', role: 'owner', from: 'editor' },
+  { id: 'editor-group-undo', role: 'owner', from: 'editor' },
+  { id: 'editor-shortcuts-sheet', role: 'owner', from: 'editor' },
+  { id: 'editor-snapping', role: 'owner', from: 'editor' },
+  { id: 'editor-undo-drag', role: 'owner', from: 'editor' },
+  { id: 'editor-duplicate-design', role: 'owner', from: 'editor' },
+  { id: 'editor-close-after-edit', role: 'owner', from: 'editor' },
+  { id: 'editor-performance', role: 'owner', from: 'editor' },
+];
 export const FLOWS = [
   { id: 'edit-own-key-visual', role: 'owner', from: 'library', filters: { Tool: 'Key visual', Person: 'You' } },
   { id: 'edit-line-up', role: 'owner', from: 'library', filters: { Tool: 'Line-up' }, expect: LINEUP_VISUAL_ID },
