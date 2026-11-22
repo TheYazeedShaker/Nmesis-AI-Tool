@@ -24,7 +24,7 @@ const PASSWORD='local-test-password-0123456789';
 // Stands in for hosted Supabase's SQL-editor user (not a superuser; CREATEROLE).
 const SETUP_ROLE='studio_setup_test';
 const TABLES=['film_budgets','films','swap_jobs','storyboards','image_jobs','topaz_jobs','staff_access_log','folders','folder_items','library_items'];
-const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql','0006_folders.sql','0007_library_index.sql','0008_alert_recipients.sql','0009_library_backfills.sql','0010_brand_kits.sql','0011_shares.sql','0012_designs.sql'];
+const MIGRATIONS=['0001_studio.sql','0002_accounts_access.sql','0003_credits.sql','0004_environment.sql','0005_trash.sql','0006_folders.sql','0007_library_index.sql','0008_alert_recipients.sql','0009_library_backfills.sql','0010_brand_kits.sql','0011_shares.sql','0012_designs.sql','0013_brand_fonts.sql'];
 // Client work, filtered by environment (0004); the holds and the staff log record it.
 // The tables 0004 scoped (they existed before it); 0006 adds folders scoped the same way from the start.
 const SCOPED_0004=['films','swap_jobs','storyboards','image_jobs','topaz_jobs','film_budgets'];
@@ -35,6 +35,8 @@ const MARKS=['library_backfills'];
 MARKS.push('brand_kits','brand_logos','work_access','share_links');
 // 0012 (the editor's version history and soft lock): company records, scoped and RLS-checked like client work.
 MARKS.push('design_versions','design_presence');
+// 0013 (the company's own font files): members read, only owners write; scoped and RLS-checked like client work.
+MARKS.push('brand_fonts');
 const RECORDED=['credit_holds','staff_access_log'];
 // The environment these tests run as: no VERCEL_ENV, not production.
 const ENV='development';
@@ -147,11 +149,16 @@ test('every table has org_id and RLS; anon/authenticated are refused; studio_app
  assert.deepEqual(tables.map(t=>t.relname).sort(),['__studio_migrations','car_settings',...TABLES,...MARKS,...CREDIT_TABLES].sort());
  const envColumns=(await admin`select table_name from information_schema.columns where table_schema='studio' and column_name='environment' and is_nullable='NO'`).map(r=>r.table_name).sort();
  assert.deepEqual(envColumns,[...SCOPED,...MARKS,...RECORDED].sort(),'client work and the shared records carry their environment');
- for(const t of [...SCOPED,...MARKS]){const [{q}]=await admin`select pg_get_expr(p.polqual,p.polrelid) as q from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relname=${t}`;assert.match(q,/environment = \( SELECT studio\.request_env\(\)/,t+' policy filters by environment')}
+ // Every policy of each scoped table: its condition, or its check for an insert policy (which has no condition).
+ for(const t of [...SCOPED,...MARKS]){
+  const policies=await admin`select p.polname, coalesce(pg_get_expr(p.polqual,p.polrelid),pg_get_expr(p.polwithcheck,p.polrelid)) as q from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relname=${t} order by p.polname`;
+  assert.ok(policies.length>0,t+' has a policy');
+  for(const {polname,q} of policies)assert.match(q,/environment = \( SELECT studio\.request_env\(\)/,t+' policy '+polname+' filters by environment');
+ }
  for(const t of tables){assert.equal(t.relrowsecurity,true,t.relname+' RLS');assert.equal(t.owner,'studio_app');if(!['__studio_migrations','car_settings'].includes(t.relname))assert.equal(t.org_id,true,t.relname+' org_id')}
  const forced=await admin`select c.relname, c.relforcerowsecurity as forced, (select count(*)::int from pg_policy p where p.polrelid=c.oid) as policies
    from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='studio' and c.relkind='r' and c.relname<>'__studio_migrations'`;
- for(const t of forced){assert.equal(t.forced,true,t.relname+' forced RLS');assert.equal(t.policies,['support_grants','alert_recipients'].includes(t.relname)?4:t.relname==='share_links'?4:t.relname==='library_items'?2:1,t.relname+' policies')}
+ for(const t of forced){assert.equal(t.forced,true,t.relname+' forced RLS');assert.equal(t.policies,['support_grants','alert_recipients'].includes(t.relname)?4:t.relname==='share_links'?4:t.relname==='library_items'?2:t.relname==='brand_fonts'?3:1,t.relname+' policies')}
  const [role]=await admin`select rolsuper,rolbypassrls,rolinherit,rolcanlogin from pg_roles where rolname='studio_app'`;
  assert.deepEqual({...role},{rolsuper:false,rolbypassrls:false,rolinherit:false,rolcanlogin:true});
  for(const api of ['anon','authenticated'])for(const table of [...TABLES,...MARKS,...CREDIT_TABLES])
@@ -681,5 +688,71 @@ test('public links (0011): the page reads only a live link’s neutral copy; the
   // A member of company A sees A's links only (the routes' own view).
   const member=await new StudioDatabase(sql).forUser(USER_A).prepare('SELECT id FROM share_links ORDER BY id').all();
   assert.deepEqual(member.results.map(r=>r.id),['live','off']);
+ }finally{await sql.end({timeout:5})}
+});
+
+// The company's own font files (0013): everyone in the company reads them; only
+// its owners add or remove one, and nothing ever deletes a row (the licence
+// record stays). Another company, or the other environment, sees nothing.
+test('brand fonts (0013): members read; only owners add or remove; creators, staff and other companies cannot; rows are never deleted',{skip},async()=>{
+ await setup();
+ await admin.unsafe('delete from studio.brand_fonts');
+ const sql=connect(appUrl),base=new StudioDatabase(sql);
+ const owner=base.forUser(USER_C),creator=base.forUser(USER_D),staff=base.forUser(STAFF),other=base.forUser(USER_A),nobody=base;
+ const previewOwner=new StudioDatabase(sql,null,'preview').forUser(USER_C);
+ const now=Date.now(),LICENCE='I confirm my company holds a licence that allows this font to be used in our designs and exports.';
+ const font=(id,o={})=>{
+  const f={org:ORG_C,family:'Demo Sans',style:'Regular',weight:400,italic:0,variable:0,axes:'[]',min:null,max:null,format:'otf',size:2048,sha:'a'.repeat(64),fsType:0,embedding:'installable',status:'ready',reason:null,...o};
+  const dir=o.dir??`orgs/${f.org}/brand/fonts/${id}/`;
+  return [id,f.org,f.family,f.style,f.weight,f.italic,f.variable,f.axes,f.min,f.max,f.format,f.size,f.sha,dir+'original.'+f.format,f.status==='ready'?dir+'font.woff2':null,f.status==='ready'?dir+'preview.woff2':null,USER_C,now,'2026-11-22',LICENCE,f.fsType,f.embedding,f.status,f.reason,USER_C,now];
+ };
+ const add=(db,values)=>db.prepare(`INSERT INTO brand_fonts(id,org_id,family,style,weight,italic,variable,axes,weight_min,weight_max,format,size,sha256,original_key,woff2_key,preview_key,licence_by,licence_at,licence_version,licence_text,fs_type,embedding,status,reason,created_by,created_at)
+  VALUES(?,?,?,?,CAST(? AS INTEGER),CAST(? AS INTEGER),CAST(? AS INTEGER),?,CAST(? AS INTEGER),CAST(? AS INTEGER),?,CAST(? AS BIGINT),?,?,?,?,?,CAST(? AS BIGINT),?,?,CAST(? AS INTEGER),?,?,?,?,CAST(? AS BIGINT))`).bind(...values).run();
+ const ids=async db=>(await db.prepare('SELECT id FROM brand_fonts ORDER BY id').all()).results.map(r=>r.id);
+ try{
+  // Only an owner of the company adds a font.
+  await assert.rejects(()=>add(creator,font('f-creator')),/row-level security/,'a creator cannot upload');
+  await assert.rejects(()=>add(staff,font('f-staff')),/row-level security/,'staff cannot upload into a client company');
+  await assert.rejects(()=>add(other,font('f-other')),/row-level security/,'an owner of another company cannot upload into this one');
+  await assert.rejects(()=>add(nobody,font('f-nobody')),/row-level security|null value in column "environment"/,'no signed-in person writes nothing');
+  assert.equal((await add(owner,font('f-regular'))).meta.changes,1,'the owner uploads');
+  assert.equal((await add(owner,font('f-bold',{style:'Bold',weight:700,sha:'b'.repeat(64)}))).meta.changes,1);
+  assert.equal((await add(owner,font('f-italic',{style:'Italic',italic:1,sha:'c'.repeat(64)}))).meta.changes,1);
+  assert.equal((await add(owner,font('f-refused',{status:'refused',embedding:'restricted',fsType:2,reason:'This font’s licence doesn’t allow it to be embedded.',sha:'d'.repeat(64)}))).meta.changes,1,'a refused font is recorded with its reason');
+  // The licence confirmation is stored as given: who, when, the version and the words.
+  const [rec]=await admin`select licence_by, licence_at, licence_version, licence_text, environment from studio.brand_fonts where id='f-regular'`;
+  assert.deepEqual({...rec},{licence_by:USER_C,licence_at:now,licence_version:'2026-11-22',licence_text:LICENCE,environment:ENV});
+  // The company's members read every font; staff read (support opens read-only); nobody else does.
+  const all=['f-bold','f-italic','f-refused','f-regular'];
+  assert.deepEqual(await ids(owner),all);
+  assert.deepEqual(await ids(creator),all,'a creator reads the company’s fonts');
+  assert.deepEqual(await ids(staff),all,'staff read them');
+  assert.deepEqual(await ids(other),[],'another company sees nothing');
+  assert.deepEqual(await ids(nobody),[],'no signed-in person sees nothing');
+  assert.deepEqual(await ids(previewOwner),[],'the other environment sees nothing');
+  // Only an owner changes one; naming it directly does nothing for anyone else.
+  const remove=(db,id)=>db.prepare('UPDATE brand_fonts SET deleted_at=CAST(? AS BIGINT),deleted_by=? WHERE id=? AND deleted_at IS NULL').bind(now+1,USER_C,id).run();
+  for(const [db,who] of [[creator,'a creator'],[staff,'staff'],[other,'another company'],[previewOwner,'the other environment']])
+   assert.equal((await remove(db,'f-bold')).meta.changes,0,who+' cannot remove a font');
+  await assert.rejects(()=>owner.prepare('UPDATE brand_fonts SET org_id=? WHERE id=?').bind(ORG_A,'f-bold').run(),/row-level security/,'a font cannot move to another company');
+  // No one deletes a row, the owner included: removing is soft.
+  for(const db of [owner,staff])assert.equal((await db.prepare('DELETE FROM brand_fonts WHERE id=?').bind('f-bold').run()).meta.changes,0,'rows are never deleted');
+  assert.equal((await remove(owner,'f-bold')).meta.changes,1,'the owner removes it (soft)');
+  const [gone]=await admin`select deleted_at, deleted_by, licence_text from studio.brand_fonts where id='f-bold'`;
+  assert.deepEqual({...gone},{deleted_at:now+1,deleted_by:USER_C,licence_text:LICENCE},'the row and its licence record stay');
+  // What the server checks, held by the table as well.
+  const e64='e'.repeat(64);
+  await assert.rejects(()=>add(owner,font('f-outside',{dir:`orgs/${ORG_A}/brand/fonts/f-outside/`,sha:e64})),/brand_fonts_keys_ck/,'a key outside the company’s font folder');
+  await assert.rejects(()=>add(owner,font('f-users',{dir:`orgs/${ORG_C}/users/${USER_C}/`,sha:e64})),/brand_fonts_keys_ck/,'a key in a person’s folder');
+  await assert.rejects(()=>add(owner,font('f-restricted',{embedding:'restricted',fsType:2,sha:e64})),/brand_fonts_status_ck/,'a restricted font is never ready');
+  await assert.rejects(()=>add(owner,font('f-noreason',{status:'refused',sha:e64})),/brand_fonts_status_ck/,'a refusal says why');
+  await assert.rejects(()=>add(owner,font('f-big',{size:10*1024*1024+1,sha:e64})),/brand_fonts_file_ck/,'over 10 MB');
+  await assert.rejects(()=>add(owner,font('f-format',{format:'svg',sha:e64})),/brand_fonts_file_ck/,'a format that is not a font');
+  await assert.rejects(()=>add(owner,font('f-range',{variable:1,min:700,max:300,sha:e64})),/brand_fonts_shape_ck/,'a weight range upside down');
+  await assert.rejects(()=>add(owner,font('f-fixed-range',{variable:0,min:100,max:900,sha:e64})),/brand_fonts_shape_ck/,'a range on a font that is not variable');
+  assert.equal((await add(owner,font('f-variable',{variable:1,axes:'[{"tag":"wght","min":100,"default":400,"max":900}]',min:100,max:900,sha:e64}))).meta.changes,1,'a variable font with its weight range');
+  // The same file twice is one font, until it is removed.
+  await assert.rejects(()=>add(owner,font('f-again')),/brand_fonts_env_org_file/,'the same file again');
+  assert.equal((await add(owner,font('f-bold-again',{style:'Bold',weight:700,sha:'b'.repeat(64)}))).meta.changes,1,'a removed font’s file can come back');
  }finally{await sql.end({timeout:5})}
 });
