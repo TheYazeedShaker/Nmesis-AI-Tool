@@ -256,7 +256,7 @@ test('the editor: one patch history, autosave status in the canvas bar, page str
  assert.match(page,/Edit anyway/);assert.match(src('components/canvas/use-presence.ts'),/Being edited by /);
  assert.match(page,/ZIP of PNGs/);
  // Typing (on the canvas and in the side field) joins one step per session; designs are read through the one upgrade.
- assert.match(page,/change\(d=>edit\.update\(d,l\.id,\{text,height:textHeight\(l,text\)\}\),typingKey\(l\.id\)\)/);
+ assert.match(page,/change\(d=>edit\.update\(d,l\.id,\{text,height:fitTextHeight\(\{\.\.\.l,text\},fonts\.family\(l\.font,l\.fontWeight,l\.italic\)\.family\)\}\),typingKey\(l\.id\)\)/);
  assert.match(page,/const read=r\.ok\?readDoc\(d\.design\):null/);assert.match(page,/if\(d\.draft\)\{const read=readDoc\(d\.draft\.doc\)/);
  assert.doesNotMatch(page,/checkDoc\(/,'the editor never reads a design without the upgrade');
 });

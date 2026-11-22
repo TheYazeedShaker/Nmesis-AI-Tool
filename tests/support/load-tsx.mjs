@@ -1,6 +1,6 @@
 // A tiny CommonJS loader for components in the tests: TypeScript → CJS,
 // '@/…' and relative imports resolved inside the repository, packages from
-// node_modules (the same loader as tests/design-system.test.mjs). `stubs` maps
+// node_modules (the same loader as tests/design-system.test.mjs), JSON as its data. `stubs` maps
 // an import to a module object, for a part a test replaces.
 import { readFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -22,6 +22,8 @@ export function tsxLoader(stubs = {}) {
       if (spec in stubs) return stubs[spec];
       const target = spec.startsWith('@/') ? path.join(rootPath, spec.slice(2)) : spec.startsWith('.') ? path.resolve(path.dirname(abs), spec) : null;
       if (!target) return nodeRequire(spec);
+      // A JSON file (the font catalogue): its data, as the bundler gives it.
+      if (target.endsWith('.json') && existsSync(target)) return JSON.parse(readFileSync(target, 'utf8'));
       for (const ext of ['', '.tsx', '.ts', '/index.ts']) if (existsSync(target + ext) && !target.endsWith('/') && (ext || /\.(tsx?|mjs|js)$/.test(target))) return load(target + ext);
       throw new Error(`Cannot resolve ${spec} from ${abs}`);
     };

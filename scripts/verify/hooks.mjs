@@ -2,6 +2,7 @@
 // TypeScript sources, with three additions registered by studio-flow.mjs:
 //  - '@/…' resolves to the repository root (the tsconfig "@/*" path);
 //  - extensionless relative imports from the studio's sources try .ts, .tsx, /index.ts;
+//  - a .json file of the studio's sources is a module whose default export is its data;
 //  - stand-ins: '@/lib/studio-context' resolves to ./auth-stub.mjs (sign-in is stubbed
 //    here only); a caller may pass other stand-ins with register(…, {data:{stubs}}).
 // .ts/.tsx files outside node_modules are transpiled with the repository's TypeScript.
@@ -34,6 +35,8 @@ export async function resolve(specifier,context,next){
 }
 
 export async function load(url,context,next){
+ // A JSON file of the studio's sources (the font catalogue), imported as the bundler does: its default export.
+ if(url.endsWith('.json')&&isSource(url))return {format:'module',source:'export default '+await readFile(fileURLToPath(url),'utf8')+';',shortCircuit:true};
  if(/\.tsx?$/.test(url)&&isSource(url)){
   const path=fileURLToPath(url);
   const {outputText}=ts.transpileModule(await readFile(path,'utf8'),{fileName:path,compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,sourceMap:false}});

@@ -19,72 +19,14 @@ register('../scripts/verify/hooks.mjs',{parentURL:import.meta.url,data:{stubs:{
  'next/headers':new URL('./support/stub-headers.mjs',import.meta.url).href,
 }}});
 // Loaded after the hooks: these import their neighbours without an extension, as the app does.
-const F=await import('../lib/editor/fonts.ts'),I=await import('../lib/editor/icons.ts'),{BRAND_FONTS}=await import('../lib/brand-kit.ts');
+const I=await import('../lib/editor/icons.ts');
 const read=(rel)=>readFileSync(new URL('../'+rel,import.meta.url),'utf8');
 // Every file of the canvas (components/canvas), read as one: a check holds wherever the editor keeps it.
 const canvasSource=()=>readdirSync(new URL('../components/canvas/',import.meta.url)).filter(f=>/\.tsx?$/.test(f)).map(f=>read('components/canvas/'+f)).join('\n');
 const P='page-1',drawn=(doc)=>D.drawOrder(doc,P);
 const PICTURE={id:'00000000-0000-4000-8000-000000020000',src:'/api/assets/00000000-0000-4000-8000-000000020000',width:1536,height:864};
 
-// ── Brand fonts ──────────────────────────────────────────────────────────
-// What the page resolves Next's font variables to (the hashed family, then its fallback face).
-const PAGE_VARS=Object.fromEntries(Object.entries(F.FONT_VARS).filter(([,v])=>v).map(([font,v])=>{const h=font.replace(/\s/g,'_');return [v,`'__${h}_a1b2c3', '__${h}_Fallback_a1b2c3'`]}));
-const resolve=(v)=>PAGE_VARS[v]||'';
-
-test('every brand-kit font has its own files and draws as itself, not only Inter and Outfit',()=>{
- const served=read('app/brand-fonts.ts'),layout=read('app/layout.tsx');
- for(const font of BRAND_FONTS){
-  const v=F.FONT_VARS[font];
-  if(font==='System'){assert.equal(v,null,'the device’s own font: nothing to load');continue}
-  assert.match(served,new RegExp(`variable:"${v}"`),`${font} is served by the Studio (${v})`);
-  const family=F.canvasFontFamily(font,resolve);
-  assert.ok(family.startsWith(`'__${font.replace(/\s/g,'_')}_a1b2c3'`),`${font} draws in its own family first: ${family}`);
-  assert.ok(family.endsWith('sans-serif'));
-  assert.equal(F.firstFamily(resolve(v)),`__${font.replace(/\s/g,'_')}_a1b2c3`,'the family the font set loads');
- }
- assert.match(layout,/className=\{fontVariables\}/,'every font’s variable is on <html>');
- assert.match(served,/preload:false/,'a page downloads a font only when it draws it');
- assert.equal(F.knownFont('Comic Demo'),'Inter','an unknown name draws in the Studio’s font');
- assert.match(F.cssFontFamily('Poppins'),/^var\(--font-poppins, "Poppins"\), var\(--ds-font-sans\)$/,'panels preview the same files');
- assert.deepEqual(F.fontChoices({headingFont:'Poppins',bodyFont:'Lato'}).slice(0,2).map(c=>c.label),['Poppins (brand headings)','Lato (brand body text)']);
- assert.equal(F.fontChoices(null).length,BRAND_FONTS.length-1,'every font but System');
-});
-
-test('the export waits for the brand font and draws in it',async()=>{
- let doc=D.createDoc(PICTURE);
- doc=D.addLayer(doc,{kind:'text',style:'heading',font:'Playfair Display'},'h');
- doc=D.addLayer(doc,{kind:'text',style:'body',font:'Oswald'},'b');
- doc=D.addLayer(doc,{kind:'text',style:'subheading',font:'Playfair Display'},'s');
- assert.deepEqual(F.fontsInDoc(doc),[{font:'Playfair Display',weight:700},{font:'Oswald',weight:400},{font:'Playfair Display',weight:600}],'each font and weight once');
- // A stand-in canvas: it draws each text layer with whatever family is loaded at that moment.
- const loaded=new Set(),events=[];
- const load=(n)=>new Promise(resolve=>setTimeout(()=>{loaded.add(F.fontKey(n));events.push('loaded '+F.fontKey(n));resolve({ok:true})},5));
- const draw=async()=>{events.push('draw');return drawn(doc).map(l=>loaded.has(F.fontKey({font:l.font,weight:l.fontWeight}))?F.canvasFontFamily(l.font,resolve):F.fallbackFamily(resolve))};
- const {file,failed}=await F.exportWithFonts(doc,{load,ready:async()=>{events.push('ready')},draw});
- assert.deepEqual(failed,[]);
- assert.equal(events.indexOf('draw'),events.length-1,'nothing is drawn before every font has loaded and the canvas shows it');
- assert.ok(events.indexOf('ready')<events.indexOf('draw'));
- assert.ok(file[0].startsWith("'__Playfair_Display_a1b2c3'"),'the heading is drawn in the brand’s heading font');
- assert.ok(file[1].startsWith("'__Oswald_a1b2c3'"),'the body text in the brand’s body font');
-});
-
-test('a font that can’t load falls back to the Studio’s font, and says so',async()=>{
- const doc=D.addLayer(D.addLayer(D.createDoc(PICTURE),{kind:'text',style:'heading',font:'Montserrat'},'h'),{kind:'text',style:'body',font:'Lato'},'b');
- const load=async(n)=>n.font==='Montserrat'?{ok:false,reason:'timeout'}:{ok:true};
- assert.deepEqual(await F.settleFonts(doc,load),{failed:['Montserrat']});
- assert.deepEqual(await F.settleFonts(doc,async()=>{throw new Error('offline')}),{failed:['Montserrat','Lato']},'never rejects: a failed load is a fallback');
- assert.equal(F.fallbackNotice(['Montserrat']),'Montserrat couldn’t load, so its text shows in Inter here and in your downloads. Check your connection, then reopen the editor.');
- assert.match(F.fallbackNotice(['Montserrat','Lato']),/^Montserrat and Lato couldn’t load, so their text/);
- assert.equal(F.fallbackNotice([]),null);
- assert.ok(F.fallbackFamily(resolve).startsWith("'__Inter_a1b2c3'"));
- // The browser side: one load per font and weight, a timeout, and never silent (a notice and the console).
- const browser=read('components/canvas/fonts.ts'),editor=canvasSource(),stage=read('components/canvas/stage.tsx');
- assert.match(browser,/document\.fonts\.load\(spec\)/);assert.match(browser,/timeout\(FONT_LOAD_MS\)/);
- assert.match(browser,/console\.warn\('\[editor\] a brand font fell back'/);
- assert.match(editor,/fallbackNotice\(fonts\.failed\)/);assert.match(editor,/canvas-notice/);
- assert.match(editor,/exportWithFonts\(\w+,\{load:loadCanvasFont,ready:fonts\.whenReady,draw:/,'Save, Duplicate and Download all export through the font wait');
- assert.match(stage,/<Text key=\{key\}/,'the text is measured again once its font arrives');
-});
+// Brand fonts on the canvas and in the export: tests/editor-fonts-colour-effects.test.mjs (the font catalogue).
 
 // ── Typing: one undo step ────────────────────────────────────────────────
 test('typing on the canvas is one undo step; redo brings it back; a new edit starts a new step',()=>{
@@ -110,7 +52,7 @@ test('typing on the canvas is one undo step; redo brings it back; a new edit sta
  assert.match(editor,/e\.key==='Enter'/);assert.match(editor,/startTyping\(/);
  assert.match(box,/e\.stopPropagation\(\);\n   if\(e\.key==='Escape'\)\{e\.preventDefault\(\);finish\(\)\}/);
  assert.doesNotMatch(box,/e\.key==='Enter'/,'Enter adds a line (the text box’s own)');
- assert.match(box,/fontFamily:family,fontSize:layer\.fontSize\*scale,fontWeight:layer\.fontWeight,lineHeight:lineHeightOf\(layer\),letterSpacing:\(layer\.letterSpacing\?\?0\)\*scale/,'typed in the brand font, at the canvas’s size, with the text’s own line and letter spacing');
+ assert.match(box,/fontFamily:family,fontSize:layer\.fontSize\*scale,fontWeight:layer\.fontWeight,fontStyle:layer\.italic\?'italic':undefined,lineHeight:lineHeightOf\(layer\),letterSpacing:\(layer\.letterSpacing\?\?0\)\*scale/,'typed in the brand font, at the canvas’s size, with the text’s own line and letter spacing');
 });
 
 // ── Icons ────────────────────────────────────────────────────────────────

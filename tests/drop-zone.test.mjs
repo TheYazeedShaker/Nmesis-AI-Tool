@@ -30,6 +30,7 @@ function loader(stubs = {}) {
       if (spec in stubs) return stubs[spec];
       const target = spec.startsWith('@/') ? path.join(rootPath, spec.slice(2)) : spec.startsWith('.') ? path.resolve(path.dirname(abs), spec) : null;
       if (!target) return nodeRequire(spec);
+      if (target.endsWith('.json') && existsSync(target)) return JSON.parse(readFileSync(target, 'utf8'));
       for (const ext of ['.tsx', '.ts', '/index.ts', '']) if (existsSync(target + ext) && /\.(tsx?|mjs|js)$/.test(target + ext)) return load(target + ext);
       throw new Error(`Cannot resolve ${spec} from ${abs}`);
     };

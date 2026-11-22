@@ -1,10 +1,13 @@
 'use client';
 import * as React from 'react';
-import {Arrow,Ellipse,Group,Image as KImage,Layer as KLayer,Line,Path,Rect,Stage,Text,Transformer} from 'react-konva';
-import type Konva from 'konva';
+import {Arrow,Ellipse,Group,Image as KImage,Layer as KLayer,Line,Path,Rect,Stage,Text,TextPath,Transformer} from 'react-konva';
+import Konva from 'konva';
 import {assetSrc,boundsOf,descendants,drawOrder,hiddenIn,ICON_GRID,lineHeightOf,lockedIn,opacityOf,pageOf,snapBox,topOf,type DrawnLayer,type EditorDoc,type Gap,type Guide} from '@/lib/editor/doc';
+import {backgroundBox,curveGeometry,neonGlow,textPaint} from '@/lib/editor/effects';
+import {konvaGradient} from '@/lib/editor/colour';
 import {useCanvasImage} from './images';
 import type {CanvasFonts} from './fonts';
+import {isRtl,lineWidth,oneLine} from './measure';
 
 // The canvas (Konva, drawn by react-konva). The stage is scaled to fit the
 // space it is given; every layer keeps the picture's own pixels, so exporting
@@ -24,9 +27,16 @@ import type {CanvasFonts} from './fonts';
 // behind, in the same undo step. The handles resize and rotate the whole
 // selection (one undo step). Double-click text to type in it, in place
 // (components/canvas/text-editor.tsx). Guides and handles live on their own
-// layer, hidden while exporting.
+// layer, hidden while exporting. Text effects (lib/editor/effects.ts), gradients
+// (lib/editor/colour.ts) and the fonts are Konva settings on these same nodes, so
+// the export (the same stage at the picture's pixel ratio) draws exactly what the
+// canvas shows. Right-to-left text (Arabic) is drawn in one run, so its letters join.
 
-export type StageHandle={stage:Konva.Stage|null;ui:Konva.Layer|null};
+export type StageHandle={stage:Konva.Stage|null;ui:Konva.Layer|null;
+ /** The colour drawn at a point of the page (picture pixels), without the handles: the eyedropper's fallback. */
+ colourAt:(x:number,y:number)=>string|null;
+ /** The page's background under a box (picture pixels), averaged: what a text over a picture is read against. */
+ averageUnder:(box:{x:number;y:number;width:number;height:number})=>string|null};
 type Props={
  doc:EditorDoc;pageId:string;shownWidth:number;
  /** What is selected: layers and groups on this page. */selected:readonly string[];
@@ -51,14 +61,34 @@ const polygon=(w:number,h:number,sides:number)=>Array.from({length:sides},(_,i)=
 const round2=(n:number)=>Math.round(n*100)/100;
 const noSnap=(e:{evt?:unknown})=>{const v=e.evt as MouseEvent|undefined;return !!(v&&(v.ctrlKey||v.metaKey))};
 
+function TextBody({layer,fonts}:{layer:Extract<DrawnLayer,{kind:'text'}>;fonts:CanvasFonts}){
+ // A new key when the font arrives (or is missing): the text is measured again in the font it is drawn in.
+ const {family,key}=fonts.family(layer.font,layer.fontWeight,layer.italic);
+ const fontStyle=(layer.italic?'italic ':'')+layer.fontWeight,direction=isRtl(layer.text)?'rtl':'ltr';
+ const e=layer.effect;
+ if(e?.kind==='curve'){
+  const line=oneLine(layer.text),geo=curveGeometry(lineWidth(layer,family),layer.fontSize,e.curve,layer.width);
+  // A full-size box behind the arc, so a click anywhere on it picks the text (the letters alone are thin).
+  return <>
+   <Rect width={layer.width} height={geo.height} fill="transparent"/>
+   <TextPath key={key} data={geo.path} text={line} fontSize={layer.fontSize} fontFamily={family} fontStyle={fontStyle} letterSpacing={layer.letterSpacing??0} fill={layer.color} align="center" textBaseline="middle" direction={direction}/>
+  </>;
+ }
+ const common={width:layer.width,text:layer.text,fontSize:layer.fontSize,fontFamily:family,fontStyle,align:layer.align,lineHeight:lineHeightOf(layer),letterSpacing:layer.letterSpacing??0,wrap:'word',direction};
+ // The Background effect's box follows the text's own drawn height (its wrapped lines).
+ const height=e?.kind==='background'?new Konva.Text(common).height():0;
+ const box=backgroundBox(layer,layer.width,height),glow=neonGlow(layer);
+ return <>
+  {box&&<Rect {...box}/>}
+  {glow&&<Text {...common} {...glow} listening={false}/>}
+  <Text key={key} {...common} {...textPaint(layer)}/>
+ </>;
+}
+
 function Body({layer,scale,fonts}:{layer:DrawnLayer;scale:number;fonts:CanvasFonts}){
  const {width:w,height:h}=layer,hit=Math.max(12/scale,1);
  if(layer.kind==='image')return <PictureBody layer={layer}/>;
- if(layer.kind==='text'){
-  // A new key when the font arrives (or falls back): the text is measured again in the font it is drawn in.
-  const {family,key}=fonts.family(layer.font,layer.fontWeight);
-  return <Text key={key} width={w} text={layer.text} fontSize={layer.fontSize} fontFamily={family} fontStyle={String(layer.fontWeight)} fill={layer.color} align={layer.align} lineHeight={lineHeightOf(layer)} letterSpacing={layer.letterSpacing??0} wrap="word"/>;
- }
+ if(layer.kind==='text')return <TextBody layer={layer} fonts={fonts}/>;
  if(layer.kind==='icon'){
   // The icon's own 24 x 24 grid scaled to the layer: vector paths, drawn sharp at any size and at export.
   return <Group scaleX={w/ICON_GRID} scaleY={h/ICON_GRID}>
@@ -73,11 +103,11 @@ function Body({layer,scale,fonts}:{layer:DrawnLayer;scale:number;fonts:CanvasFon
    :<Arrow points={points} stroke={layer.stroke} fill={layer.stroke} strokeWidth={layer.strokeWidth} pointerLength={layer.strokeWidth*4} pointerWidth={layer.strokeWidth*4} pointerAtBeginning={layer.arrow==='both'} dash={layer.dash?[layer.strokeWidth*3,layer.strokeWidth*2]:undefined} hitStrokeWidth={hit}/>;
  }
  if(layer.kind==='frame')return <Rect width={w} height={h} stroke={layer.stroke} strokeWidth={layer.strokeWidth} cornerRadius={layer.radius} hitStrokeWidth={hit} fillEnabled={false}/>;
- const paint={fill:layer.fill,stroke:layer.stroke==='transparent'?undefined:layer.stroke,strokeWidth:layer.strokeWidth};
- if(layer.shape==='circle')return <Ellipse x={w/2} y={h/2} radiusX={w/2} radiusY={h/2} {...paint}/>;
- if(layer.shape==='rect'||layer.shape==='rounded')return <Rect width={w} height={h} cornerRadius={layer.shape==='rounded'?Math.min(w,h)*0.18:0} {...paint}/>;
+ const paint=(ox=0,oy=0)=>({fill:layer.fill,stroke:layer.stroke==='transparent'?undefined:layer.stroke,strokeWidth:layer.strokeWidth,...(layer.gradient?konvaGradient(layer.gradient,w,h,ox,oy):{})});
+ if(layer.shape==='circle')return <Ellipse x={w/2} y={h/2} radiusX={w/2} radiusY={h/2} {...paint(w/2,h/2)}/>;
+ if(layer.shape==='rect'||layer.shape==='rounded')return <Rect width={w} height={h} cornerRadius={layer.shape==='rounded'?Math.min(w,h)*0.18:0} {...paint()}/>;
  const points=layer.shape==='triangle'?[w/2,0,w,h,0,h]:layer.shape==='star'?star(w,h):polygon(w,h,6);
- return <Line points={points} closed {...paint}/>;
+ return <Line points={points} closed {...paint()}/>;
 }
 
 function PictureBody({layer}:{layer:Extract<DrawnLayer,{kind:'image'}>}){
@@ -141,7 +171,7 @@ function LayerNode({layer,doc,pageId,scale,reducedMotion,fonts,editing,readOnly,
 function Background({doc,pageId}:{doc:EditorDoc;pageId:string}){
  const bg=pageOf(doc,pageId)?.background;
  const {img}=useCanvasImage(bg?.kind==='picture'?assetSrc(bg.asset):null);
- if(bg?.kind==='colour')return <Rect name="background" width={doc.width} height={doc.height} fill={bg.colour}/>;
+ if(bg?.kind==='colour')return <Rect name="background" width={doc.width} height={doc.height} fill={bg.colour} {...(bg.gradient?konvaGradient(bg.gradient,doc.width,doc.height):{})}/>;
  return img?<KImage name="background" image={img} width={doc.width} height={doc.height}/>:<Rect name="background" width={doc.width} height={doc.height} fill="gray" opacity={0.2}/>;
 }
 
@@ -164,7 +194,28 @@ export default function CanvasStage({doc,pageId,shownWidth,selected,reducedMotio
  const [marks,setMarks]=React.useState<{guides:Guide[];gaps:Gap[]}>({guides:[],gaps:[]});
  const onGuides=React.useCallback((guides:Guide[],gaps:Gap[])=>setMarks(m=>!guides.length&&!gaps.length&&!m.guides.length&&!m.gaps.length?m:{guides,gaps}),[]);
  const register=React.useCallback((id:string,node:Konva.Group|null)=>{if(node)nodes.current.set(id,node);else nodes.current.delete(id)},[]);
- React.useImperativeHandle(handle,()=>({get stage(){return stageRef.current},get ui(){return uiRef.current}}),[]);
+ const contentRef=React.useRef<Konva.Layer|null>(null);
+ React.useImperativeHandle(handle,()=>({get stage(){return stageRef.current},get ui(){return uiRef.current},
+  colourAt(x:number,y:number){
+   const layer=contentRef.current;if(!layer)return null;
+   const c=layer.toCanvas({x:x*scale,y:y*scale,width:1,height:1,pixelRatio:1}).getContext('2d')?.getImageData(0,0,1,1).data;
+   if(!c)return null;
+   const hex=(n:number)=>n.toString(16).padStart(2,'0').toUpperCase();
+   return '#'+hex(c[0])+hex(c[1])+hex(c[2]);
+  },
+  averageUnder(box){
+   const bg=contentRef.current?.findOne('.background');if(!bg||!(box.width>0&&box.height>0))return null;
+   try{
+    const w=Math.max(1,Math.round(box.width*scale)),h=Math.max(1,Math.round(box.height*scale)),ratio=Math.min(1,24/Math.max(w,h));
+    const canvas=bg.toCanvas({x:box.x*scale,y:box.y*scale,width:w,height:h,pixelRatio:ratio}),ctx=canvas.getContext('2d');
+    const d=ctx?.getImageData(0,0,canvas.width,canvas.height).data;if(!d||!d.length)return null;
+    let r=0,g=0,b=0,n=0;for(let i=0;i<d.length;i+=4){if(!d[i+3])continue;r+=d[i];g+=d[i+1];b+=d[i+2];n++}
+    if(!n)return null;
+    const hex=(v:number)=>Math.round(v/n).toString(16).padStart(2,'0').toUpperCase();
+    return '#'+hex(r)+hex(g)+hex(b);
+   // The picture not drawn yet (or unreadable): no hint until it is.
+   }catch{return null}
+  }}),[scale]);
  const drawn=drawOrder(doc,pageId).filter(l=>!hiddenIn(doc,l.id));
  const chosen=React.useMemo(()=>new Set(selected),[selected]);
  // The layers the handles hold: everything selected, groups opened, minus what is hidden or being typed in.
@@ -230,7 +281,7 @@ export default function CanvasStage({doc,pageId,shownWidth,selected,reducedMotio
  const clearIfPage=(e:Konva.KonvaEventObject<MouseEvent|TouchEvent>)=>{if(e.target===e.target.getStage()||e.target.name()==='background')onSelect(null,'replace')};
  return <Stage ref={stageRef} width={shownWidth} height={Math.round(doc.height*scale)} scaleX={scale} scaleY={scale}
   onMouseDown={e=>{pressed.current=true;clearIfPage(e)}} onMouseUp={()=>{pressed.current=false}} onTouchStart={e=>{pressed.current=true;clearIfPage(e)}} onTouchEnd={()=>{pressed.current=false}}>
-  <KLayer>
+  <KLayer ref={contentRef}>
    <Background doc={doc} pageId={pageId}/>
    {drawn.map(l=><LayerNode key={l.id} layer={l} doc={doc} pageId={pageId} scale={scale} reducedMotion={reducedMotion} fonts={fonts} editing={l.id===editing} readOnly={readOnly}
     draggable={!lockedIn(doc,l.id)&&!(several&&held.some(h=>h.id===l.id))&&(l.parentId===null||chosen.has(l.id))}

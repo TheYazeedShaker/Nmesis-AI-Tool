@@ -3,7 +3,7 @@ import * as React from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {useRouter,useSearchParams} from 'next/navigation';
-import {ArrowLeft,ClockArrowDown,Clock,Copy,Download,ImageOff,Info,Keyboard,Lightbulb,Monitor,Redo2,Save,Share2,Undo2,Users} from 'lucide-react';
+import {ArrowLeft,ClockArrowDown,Clock,Copy,Download,ImageOff,Info,Keyboard,Lightbulb,Monitor,Pipette,Redo2,Save,Share2,Undo2,Users} from 'lucide-react';
 import {Button,IconButton} from '@/components/ds/button';
 import {Loading,State} from '@/components/ds/feedback';
 import {Menu,MenuItem,MenuSeparator} from '@/components/ds/menu';
@@ -16,9 +16,10 @@ import {can} from '@/lib/accounts/can';
 import {studioFetch} from '@/lib/studio-fetch';
 import {dateTime} from '@/lib/ds/words';
 import type {Visual} from '@/lib/studio';
-import {assetSrc,boundsOf,createDoc,drawOrder,duplicateOffset,edit,exportPixelRatio,hiddenIn,lineHeightOf,lockedIn,pageIndex,readDoc,siblings,type Align,type CanvasAdd,type EditorDoc,type TextLayer} from '@/lib/editor/doc';
+import {assetSrc,boundsOf,createDoc,drawOrder,duplicateOffset,edit,exportPixelRatio,hiddenIn,lockedIn,pageIndex,readDoc,siblings,type Align,type CanvasAdd,type EditorDoc,type TextLayer} from '@/lib/editor/doc';
 import {apply,canRedo,canUndo,end,redo,startHistory,undo,type History} from '@/lib/editor/history';
-import {exportWithFonts,fallbackNotice} from '@/lib/editor/fonts';
+import {exportFallbackNotice,exportWithFonts,fallbackNotice} from '@/lib/editor/fonts';
+import {sortedStops} from '@/lib/editor/colour';
 import {editFileName,EDITS_PATH} from '@/lib/editor/save';
 import {zipStored} from '@/lib/editor/zip';
 import {answerProblem,CANT_OPEN,linkProblem,type CantOpen} from '@/lib/editor/cant-open';
@@ -26,6 +27,7 @@ import {viewerHref} from '@/lib/work-ref';
 import {loadImage} from './images';
 import {loadCanvasFont,useCanvasFonts} from './fonts';
 import {TextEditor} from './text-editor';
+import {fitTextHeight} from './measure';
 import {editorHref} from './open-in-editor';
 import {PageStrip} from './page-strip';
 import {SaveStatus} from './save-status';
@@ -173,8 +175,6 @@ function PhoneNote({id}:{id:string|null}){
  </div>;
 }
 
-/** A text layer's height for its lines (the canvas measures wrapping itself; guides use this). */
-const textHeight=(l:TextLayer,text:string)=>Math.max(1,text.split('\n').length)*l.fontSize*lineHeightOf(l);
 const uuid=()=>crypto.randomUUID();
 const isMac=()=>typeof navigator!=='undefined'&&/Mac|iP(hone|ad)/.test(navigator.platform||navigator.userAgent);
 const HINT_KEY='nmesis.editor.hint.v1';
@@ -212,7 +212,7 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
  const [keysOpen,setKeysOpen]=React.useState(false);
  const [tab,setTab]=React.useState<'design'|'layers'>('design');
  const [hint,setHint]=React.useState(()=>mayEdit&&!hintSeen());
- const canvasBox=React.useRef<HTMLDivElement>(null),handle=React.useRef<StageHandle>({stage:null,ui:null});
+ const canvasBox=React.useRef<HTMLDivElement>(null),handle=React.useRef<StageHandle>({stage:null,ui:null,colourAt:()=>null,averageUnder:()=>null});
  // The soft lock: someone else editing opens it read only, with "Edit anyway".
  const presence=usePresence(visual.id,mayEdit);
  const readOnly=!mayEdit||!presence.checked||!presence.editing;
@@ -245,7 +245,7 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
   setSession(n=>n+1);setPicked([id]);setEditing(id);
  }
  const typingKey=(id:string)=>`type:${id}:${session}`;
- const type=(text:string)=>{if(!editingLayer)return;const l=editingLayer;change(d=>edit.update(d,l.id,{text,height:textHeight(l,text)}),typingKey(l.id))};
+ const type=(text:string)=>{if(!editingLayer)return;const l=editingLayer;change(d=>edit.update(d,l.id,{text,height:fitTextHeight({...l,text},fonts.family(l.font,l.fontWeight,l.italic).family)}),typingKey(l.id))};
  function stopTyping(){
   const l=editingLayer;setEditing(null);
   // Text typed away to nothing is removed, in the same undo step as the typing.
@@ -254,6 +254,19 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
   canvasBox.current?.focus({preventScroll:true});
  }
  function pickPage(id:string){setPageId(id);setPicked([]);setEditing(null)}
+
+ // The eyedropper where the browser has none (Safari, Firefox): the next click on the canvas gives its colour. Esc cancels.
+ const [picking,setPicking]=React.useState<((hex:string|null)=>void)|null>(null);
+ const pickFromCanvas=React.useCallback(()=>new Promise<string|null>(resolve=>{setPicking(()=>(hex:string|null)=>{setPicking(null);resolve(hex)})}),[]);
+ React.useEffect(()=>{if(!picking)return;const esc=(e:KeyboardEvent)=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();picking(null)}};window.addEventListener('keydown',esc,true);return()=>window.removeEventListener('keydown',esc,true)},[picking]);
+ /** The colours behind a text, for the contrast hint: its own Background effect, else the page's colour (each stop of a gradient), else the picture under it. */
+ const behind=React.useCallback((l:TextLayer):string[]=>{
+  if(l.effect?.kind==='background')return [l.effect.colour];
+  const bg=live.current.present.pages.find(p=>p.id===l.pageId)?.background;
+  if(bg?.kind==='colour')return bg.gradient?sortedStops(bg.gradient).map(s=>s.colour):[bg.colour];
+  const c=handle.current.averageUnder({x:l.x,y:l.y,width:l.width,height:l.height});
+  return c?[c]:[];
+ },[]);
 
  // The shell's panels add here while the editor is open.
  const add=React.useCallback(async(what:CanvasAdd)=>{
@@ -370,7 +383,7 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
   if(!shownWidth)throw new Error('The canvas isn’t ready yet.');
   await showPage(id);
   // Every font in the design is loaded (or has fallen back, and the notice says so) before anything is drawn.
-  const {file}=await exportWithFonts(doc,{load:loadCanvasFont,ready:fonts.whenReady,draw:async()=>{
+  const {file,failed}=await exportWithFonts(doc,{load:loadCanvasFont,ready:fonts.whenReady,draw:async()=>{
    const {stage,ui}=handle.current;if(!stage)throw new Error('The canvas isn’t ready yet.');
    const ratio=exportPixelRatio(doc,shownWidth),scale=shownWidth/doc.width;
    ui?.hide();
@@ -380,6 +393,8 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
     return blob;
    }finally{ui?.show()}
   }});
+  // Made with the fallback for a missing font: said, never silent.
+  const note=exportFallbackNotice(failed);if(note)toaster.toast({kind:'info',message:note});
   return file;
  }
  /** Save (a new version of the picture opened) or Duplicate design (a separate copy). Page 1 is the picture; every page is kept. */
@@ -451,7 +466,9 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
  const picked1=selection.length===1?doc.layers[selection[0]]:null;
  const selectedWords=!selection.length?'':picked1?`, ${picked1.name} selected`:`, ${selection.length} layers selected`;
  const baseLabel=bg?.kind==='colour'?'A plain colour':doc.base!==visual.id?'The original picture (kept as it is)':'Your picture (kept as it is)';
- const actions:PanelActions={change,endGesture,duplicate:duplicateSelected,remove:removeSelected,group,ungroup,order,align,distribute,typeOnCanvas:startTyping};
+ const actions:PanelActions={change,endGesture,duplicate:duplicateSelected,remove:removeSelected,group,ungroup,order,align,distribute,typeOnCanvas:startTyping,
+  pickFromCanvas,fontMissing:fonts.missing,family:l=>fonts.family(l.font,l.fontWeight,l.italic).family,behind};
+ const scaleNow=shownWidth>0?shownWidth/doc.width:0;
  const focusCanvas=()=>canvasBox.current?.focus({preventScroll:true});
 
  return <div className="canvas-editor">
@@ -480,14 +497,20 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
     {target.original&&<div className="ds-banner canvas-notice" role="status" data-copy-notice><Copy aria-hidden="true"/><span>You’re now editing the copy, “{visual.title}”.</span><Button size="sm" kind="quiet" onClick={()=>{void autosave.flush().finally(()=>onBack(target.original!.id))}}>Back to original</Button></div>}
     {mayEdit&&busyNote&&<div className="ds-banner warn canvas-notice" role="status" data-soft-lock><Users aria-hidden="true"/><span>{busyNote}.{readOnly?' It’s open read only for you.':' You’re both editing; each change is kept as its own draft.'}</span>{readOnly&&<Button size="sm" kind="quiet" onClick={presence.editAnyway}>Edit anyway</Button>}</div>}
     {opened.layersLost&&<div className="ds-banner warn canvas-notice" role="status"><Info aria-hidden="true"/><span>This picture’s layers didn’t load, so it opens as one flat picture. Saving still makes a new version.</span><Button size="sm" kind="quiet" onClick={onRetry}>Try again</Button></div>}
-    {fontNote&&<div className="ds-banner warn canvas-notice" role="status"><Info aria-hidden="true"/><span>{fontNote}</span></div>}
+    {fontNote&&<div className="ds-banner warn canvas-notice" role="status" data-missing-fonts><Info aria-hidden="true"/><span>{fontNote}</span></div>}
+    {picking&&<div className="ds-banner canvas-notice" role="status" data-picking><Pipette aria-hidden="true"/><span>Click anywhere on the canvas to take its colour. Esc cancels.</span><Button size="sm" kind="quiet" onClick={()=>picking(null)}>Cancel</Button></div>}
     {hint&&!readOnly&&<div className="ds-banner canvas-notice" role="note" data-editor-hint><Lightbulb aria-hidden="true"/><span>Click anything on the picture to change it on the right. Drag to move it, press T for text, and ? for every shortcut.</span><Button size="sm" kind="quiet" onClick={()=>{rememberHint();setHint(false);focusCanvas()}}>Got it</Button></div>}
     <div className="canvas-fit">
     <div ref={canvasBox} className="canvas-box" tabIndex={0} role="application" aria-roledescription="design canvas" data-editable={readOnly?undefined:'true'} data-undo-steps={history.past.length} data-selected-count={selection.length}
      aria-label={`Canvas, page ${pageIndex(doc,page)+1} of ${doc.pages.length}, ${drawn.length} ${drawn.length===1?'layer':'layers'}${selectedWords}`} aria-describedby="canvas-keys" onKeyDown={onKey} style={{['--canvas-ratio' as string]:String(doc.width/doc.height)} as React.CSSProperties}>
      {shownWidth>0&&<CanvasStage doc={doc} pageId={page} shownWidth={shownWidth} selected={selection} reducedMotion={reduced} fonts={fonts} editing={editing} readOnly={readOnly} handle={handle}
       onSelect={(id,mode)=>select(id,mode)} onChange={(lid,patch,gesture)=>change(d=>edit.update(d,lid,patch),gesture)} onEditText={startTyping} onAltDrag={altDrag} onGestureEnd={endGesture}/>}
-     {editingLayer&&shownWidth>0&&<TextEditor key={editingLayer.id+':'+session} layer={editingLayer} scale={shownWidth/doc.width} family={fonts.family(editingLayer.font,editingLayer.fontWeight).family} onType={type} onDone={stopTyping}/>}
+     {editingLayer&&shownWidth>0&&<TextEditor key={editingLayer.id+':'+session} layer={editingLayer} scale={shownWidth/doc.width} family={fonts.family(editingLayer.font,editingLayer.fontWeight,editingLayer.italic).family} onType={type} onDone={stopTyping}/>}
+     {scaleNow>0&&drawn.filter(l=>l.kind==='text'&&fonts.missing(l.font)&&!hiddenIn(doc,l.id)).map(l=><span key={l.id} className="ds-badge warn canvas-missing-font" data-missing-font style={{left:l.x*scaleNow,top:l.y*scaleNow}} aria-hidden="true">Missing font</span>)}
+     {picking&&<div className="canvas-pick" data-pick-overlay aria-hidden="true" onPointerDown={e=>{
+      e.preventDefault();const r=e.currentTarget.getBoundingClientRect();
+      picking(handle.current.colourAt((e.clientX-r.left)/scaleNow,(e.clientY-r.top)/scaleNow));
+     }}/>}
     </div>
     </div>
     <PageStrip doc={doc} current={page} readOnly={readOnly} onPick={pickPage} onAdd={addPage} onDuplicate={duplicatePage} onMove={movePage} onRemove={removePage}/>
@@ -504,7 +527,7 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
         onRename={(id,name)=>change(d=>edit.rename(d,id,name))}
         onStep={(id,dir)=>change(d=>edit.reorder(d,id,dir==='front'?'forward':'backward'))}
         onPlace={(id,index)=>change(d=>edit.place(d,id,index))}
-        onDelete={removeSelected}/>}
+        onDelete={removeSelected} fontMissing={fonts.missing}/>}
     </InspectorTabPanel>
    </aside>
   </div>
