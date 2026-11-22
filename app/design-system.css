@@ -1062,6 +1062,9 @@
 .ds-popover-hex { display: flex; align-items: flex-end; gap: var(--ds-editor-row-gap); }
 .ds-popover-hex > .ds-popover-field { flex: 1 1 auto; }
 .ds-popover-actions { display: flex; flex-wrap: wrap; gap: var(--ds-editor-row-gap); }
+/* The swatches as the panel draws them (the design-system gallery has a .ds-swatches grid of its own). */
+.ds-popover .ds-swatches { display: flex; flex-wrap: wrap; gap: var(--ds-editor-label-gap); }
+.ds-popover .ds-swatch { display: inline-grid; place-items: center; gap: 0; }
 .ds-popover .ds-segmented { display: flex; width: 100%; }
 .ds-popover .ds-segmented > button { flex: 1 1 0; min-width: 0; }
 

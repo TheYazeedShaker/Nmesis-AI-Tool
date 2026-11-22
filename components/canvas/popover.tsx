@@ -13,7 +13,7 @@ import {Layer} from '@/components/ds/layer';
 // outside it, or Tab past its last control. Its body is its one scroll area.
 
 export type PopoverAnchor=React.RefObject<HTMLElement|null>;
-const GAP=8,WIDTH=320;
+const GAP=8,WIDTH=320,MAX_HEIGHT=520;
 /** What Tab stops on: not a control that is off, and not one a group's arrow keys reach instead (tabindex -1). */
 const TABBABLE=':is(input,button,select,textarea,[tabindex]):not([disabled]):not([tabindex="-1"])';
 
@@ -23,7 +23,8 @@ function place(anchor:HTMLElement|null):React.CSSProperties{
  const right=panel?Math.max(GAP,window.innerWidth-panel.right+GAP):Math.max(GAP,window.innerWidth-r.right);
  const below=window.innerHeight-r.bottom-GAP,above=r.top-GAP;
  // Below the row when it fits a useful height, else wherever there is more room.
- return below>=360||below>=above?{right,top:r.bottom+GAP/2,maxHeight:Math.max(200,below)}:{right,bottom:window.innerHeight-r.top+GAP/2,maxHeight:Math.max(200,above)};
+ // At most MAX_HEIGHT tall, so it never covers the canvas bar's actions from a row low in the panel.
+ return below>=360||below>=above?{right,top:r.bottom+GAP/2,maxHeight:Math.min(MAX_HEIGHT,Math.max(200,below))}:{right,bottom:window.innerHeight-r.top+GAP/2,maxHeight:Math.min(MAX_HEIGHT,Math.max(200,above))};
 }
 
 export function Popover({open,anchor,title,onClose,onEnd,children,initialFocus,hidden,className}:{open:boolean;anchor:PopoverAnchor;title:string;onClose:()=>void;

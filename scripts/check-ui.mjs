@@ -516,6 +516,8 @@ function editorSteps() { return {
   'editor-font-picker': async (page, problems) => {
     await setBrandKit(page, problems);
     await openEditor(page, EDITOR_VISUAL_ID);
+    // The other journeys' layers out of the way (one step: everything on the page, deleted).
+    await press(page, 'Control+a'); await press(page, 'Delete');
     await press(page, 't');
     await tab(page, 'Design');
     const list = await openFontList(page, problems);
@@ -581,6 +583,7 @@ function editorSteps() { return {
   // compared with what the canvas shows, around the text); curved text still types on a double-click.
   'editor-text-effects': async (page, problems) => {
     await openEditor(page, EDITOR_VISUAL_ID);
+    await press(page, 'Control+a'); await press(page, 'Delete');
     await press(page, 't');
     await tab(page, 'Design');
     await panelOf(page).locator('[data-editor-section="text"] textarea').first().fill('DEMO SUV');
