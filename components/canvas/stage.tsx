@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import {Arrow,Ellipse,Group,Image as KImage,Layer as KLayer,Line,Path,Rect,Shape,Stage,Text,TextPath,Transformer} from 'react-konva';
-import {hasArabic,placeOnArc,shapePieces,visualOrder} from '@/lib/editor/curve-shaping';
+import {drawTatweel,hasArabic,joinPieces,placeOnArc,shapePieces,visualOrder,withJoiner} from '@/lib/editor/curve-shaping';
 import Konva from 'konva';
 import {assetSrc,boundsOf,descendants,drawOrder,hiddenIn,ICON_GRID,lineHeightOf,lockedIn,opacityOf,pageOf,snapBox,topOf,type DrawnLayer,type EditorDoc,type Gap,type Guide} from '@/lib/editor/doc';
 import {backgroundBox,curveGeometry,neonGlow,textPaint} from '@/lib/editor/effects';
@@ -72,13 +72,24 @@ function TextBody({layer,fonts}:{layer:Extract<DrawnLayer,{kind:'text'}>;fonts:C
   // A full-size box behind the arc, so a click anywhere on it picks the text (the letters alone are thin).
   if(hasArabic(line)){
    // Arabic: shaped first (each letter with the joiners its neighbours give it), then placed on the arc (lib/editor/curve-shaping.ts).
-   const pieces=visualOrder(shapePieces(line)),font=`${fontStyle} ${layer.fontSize}px ${family}`;
+   // The joiner is the one this browser draws exactly in this font (joinPieces): measured where it is drawn, the export too.
+   const pieces=visualOrder(shapePieces(line)),font=`${fontStyle} ${layer.fontSize}px ${family}`,bleed=Math.max(0.5,layer.fontSize*0.015);
    return <>
     <Rect width={layer.width} height={geo.height} fill="transparent"/>
-    <Shape key={key} listening={false} data-curve-shaped sceneFunc={ctx=>{
+    <Shape key={key} listening={false} width={layer.width} height={geo.height} data-curve-shaped data-font={font} sceneFunc={ctx=>{
      ctx.setAttr('font',font);ctx.setAttr('fillStyle',layer.color);ctx.setAttr('textBaseline','middle');ctx.setAttr('textAlign','center');
-     const placed=placeOnArc(pieces,{advance:d=>ctx.measureText(d).width,letterSpacing:layer.letterSpacing??0,fontSize:layer.fontSize,curve:e.curve,boxWidth:layer.width,height:geo.height,radius:geo.radius});
-     for(const g of placed){ctx.save();ctx.translate(g.x,g.y);ctx.rotate(g.rotation);ctx.setAttr('direction',g.rtl?'rtl':'ltr');ctx.fillText(g.draw,0,0);ctx.restore()}
+     const {joiner,widths,tatweel}=joinPieces(pieces,line,(s,rtl)=>{ctx.setAttr('direction',rtl?'rtl':'ltr');return ctx.measureText(s).width});
+     const placed=placeOnArc(pieces,{widths,letterSpacing:layer.letterSpacing??0,fontSize:layer.fontSize,curve:e.curve,boxWidth:layer.width,height:geo.height,radius:geo.radius});
+     for(const g of placed){
+      ctx.save();ctx.translate(g.x,g.y);ctx.rotate(g.rotation);ctx.setAttr('direction',g.piece.rtl?'rtl':'ltr');
+      if(joiner==='tatweel'&&(g.piece.joinsPrev||g.piece.joinsNext)){
+       // The tatweels' own strokes are cut away: the letter is drawn in its joined form, to its own width.
+       const t=drawTatweel(g.piece,g.width,tatweel,bleed),far=layer.fontSize*4,left=Math.max(t.left,-far),right=Math.min(t.right,far);
+       ctx.beginPath();ctx.rect(left,-far,right-left,far*2);ctx.clip();
+       ctx.fillText(withJoiner(g.piece,'tatweel'),t.x,0);
+      }else ctx.fillText(g.piece.draw,0,0);
+      ctx.restore();
+     }
     }}/>
    </>;
   }

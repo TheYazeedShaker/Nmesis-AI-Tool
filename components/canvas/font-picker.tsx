@@ -4,7 +4,7 @@ import {ChevronDown,Search,Upload} from 'lucide-react';
 import {Button} from '@/components/ds/button';
 import {Dialog} from '@/components/ds/dialog';
 import {Input} from '@/components/ds/field';
-import {brandRole,FONT_KINDS,fontLabel,fontSections,type CatalogueFont} from '@/lib/editor/fonts';
+import {brandFontsLoaded,brandRole,FONT_KINDS,fontLabel,fontSections,type CatalogueFont} from '@/lib/editor/fonts';
 import {useBrandFonts} from '@/components/brand/brand-fonts';
 import {FontUploader,uploadBlocker} from '@/components/brand/brand-fonts-section';
 import type {EditorDoc} from '@/lib/editor/doc';
@@ -63,7 +63,7 @@ function Option({font,id,active,chosen,role,onPick,onHover}:{font:CatalogueFont;
 
 function FontPopover({open,anchor,value,kit,doc,onClose,onPick,onUpload}:{open:boolean;anchor:React.RefObject<HTMLButtonElement|null>;value:string;kit:{headingFont:string;bodyFont:string}|null;doc:EditorDoc;onClose:()=>void;onPick:(family:string)=>void;onUpload:()=>void}){
  const [query,setQuery]=React.useState(''),recent=useRecent('fonts'),search=React.useRef<HTMLInputElement>(null),base=React.useId().replace(/[^a-zA-Z0-9]/g,'');
- const brand=useBrandFonts(),blocker=uploadBlocker(brand.state);
+ const brand=useBrandFonts(),blocker=uploadBlocker(brand.state),listing=!brandFontsLoaded();
  // Worked out on every render (a few hundred names): the company's uploaded fonts change it too (useBrandFonts re-renders on a new list).
  const sections=fontSections({kit,doc,recent:recent.list,query});
  const flat=sections.flatMap(s=>s.fonts.map(f=>({section:s.id,font:f})));
@@ -93,10 +93,13 @@ function FontPopover({open,anchor,value,kit,doc,onClose,onPick,onUpload}:{open:b
    </span>
   </label>
   <p className="ds-help" role="status" aria-live="polite">{query?(n?`${count} ${families===1?'matches':'match'} “${query}”.`:`No font matches “${query}”. Try a shorter name, or “serif”, “script” or “Arabic”.`):`${count}, every one free to use.`}</p>
-  {brand.state&&<div className="ds-font-upload-row" data-font-upload-row>
-   {blocker??<Button size="sm" icon={<Upload aria-hidden="true"/>} onClick={onUpload}>Upload a font</Button>}
-  </div>}
-  <div id={`${base}-list`} role="listbox" aria-label="Fonts" className="ds-font-list">
+  {brand.state
+   ?<div className="ds-font-upload-row" data-font-upload-row>
+    {blocker??<Button size="sm" icon={<Upload aria-hidden="true"/>} onClick={onUpload}>Upload a font</Button>}
+   </div>
+   :listing&&<div className="ds-font-upload-row" data-font-upload-row><p className="ds-help">Loading your brand fonts…</p></div>}
+  {/* Busy until the company's fonts are listed: they come first under Brand fonts, so the rows would move under the pointer. */}
+  <div id={`${base}-list`} role="listbox" aria-label="Fonts" aria-busy={listing||undefined} className="ds-font-list">
    {sections.map(s=>{const hid=`${base}-${s.id}`;
     return <ul key={s.id} role="group" aria-labelledby={hid} className="ds-font-group">
      <li role="presentation" id={hid} className="ds-label-caps ds-font-group-title">{s.title}</li>

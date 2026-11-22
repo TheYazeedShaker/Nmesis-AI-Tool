@@ -115,12 +115,59 @@ test('curved Arabic keeps its letters joined: each letter drawn with the joiners
 });
 
 test('the shaped pieces sit on the same arc as the curve, centred, turned with it',()=>{
- const pieces=C.shapePieces('ساس');
- const flat=C.placeOnArc(pieces,{advance:()=>10,letterSpacing:0,fontSize:40,curve:0,boxWidth:200,height:40,radius:Infinity});
- assert.deepEqual(flat.map(p=>[p.x,p.y,p.rotation]),[[90,20,0],[100,20,0],[110,20,0]]);
- const up=C.placeOnArc(pieces,{advance:()=>10,letterSpacing:0,fontSize:40,curve:50,boxWidth:200,height:60,radius:100});
+ const pieces=C.shapePieces('ساس'),widths=[10,10,10];
+ const flat=C.placeOnArc(pieces,{widths,letterSpacing:0,fontSize:40,curve:0,boxWidth:200,height:40,radius:Infinity});
+ assert.deepEqual(flat.map(p=>[p.x,p.y,p.rotation,p.width]),[[90,20,0,10],[100,20,0,10],[110,20,0,10]]);
+ assert.equal(flat[1].piece,pieces[1],'each place keeps its piece');
+ const up=C.placeOnArc(pieces,{widths,letterSpacing:0,fontSize:40,curve:50,boxWidth:200,height:60,radius:100});
  assert.equal(up[1].x,100);assert.equal(up[1].rotation,0);assert.ok(up[0].rotation<0&&up[2].rotation>0,'over the top: turned outwards');
  assert.ok(up[0].y>up[1].y&&up[2].y>up[1].y,'the middle is highest');
- const down=C.placeOnArc(pieces,{advance:()=>10,letterSpacing:0,fontSize:40,curve:-50,boxWidth:200,height:60,radius:100});
+ const down=C.placeOnArc(pieces,{widths,letterSpacing:0,fontSize:40,curve:-50,boxWidth:200,height:60,radius:100});
  assert.ok(down[0].y<down[1].y&&down[2].y<down[1].y,'under: the middle is lowest');
+});
+
+// What the browsers measured for one word, محمد, at 100 px (Chromium and WebKit, 2026-11-22): the joiner is exact in
+// Chromium; in WebKit, in a font without one, the letters come out in another font (narrower); the tatweel's width taken
+// off is exact in such a font, while a font that lengthens it beside a letter comes out wider.
+const ZWJ='‍',T='ـ';
+const font=({zwjOff=0,tatweelOff=0}={})=>{
+ const letter={'م':60,'ح':70,'د':55};
+ return s=>{
+  if(s==='محمد')return 245;
+  if(s===T)return 25;
+  const chars=[...s],own=chars.filter(c=>letter[c]).reduce((a,c)=>a+letter[c],0);
+  const joins=chars.filter(c=>c===ZWJ).length,tatweels=chars.filter(c=>c===T).length;
+  return own+(joins?zwjOff:0)+tatweels*25+(tatweels?tatweelOff:0);
+ };
+};
+test('curved Arabic: the joiner this browser draws exactly in this font is used, measured against the word drawn whole',()=>{
+ const pieces=C.shapePieces('محمد');
+ assert.deepEqual(pieces.map(p=>[p.joinsPrev,p.joinsNext]),[[false,true],[true,true],[true,true],[true,false]]);
+ assert.deepEqual(pieces.map(p=>C.withJoiner(p,'tatweel')),['م'+T,T+'ح'+T,T+'م'+T,T+'د']);
+ assert.deepEqual(pieces.map(p=>C.withJoiner(p,'zwj')),pieces.map(p=>p.draw));
+ // Both exact (Chromium): the joiner, as before.
+ const both=C.joinPieces(pieces,'محمد',font());
+ assert.equal(both.joiner,'zwj');assert.deepEqual(both.widths,[60,70,60,55]);
+ // WebKit, a font without a joiner: each joined letter measures 4 px narrow (drawn in another font) → the tatweel.
+ const webkit=C.joinPieces(pieces,'محمد',font({zwjOff:-4}));
+ assert.equal(webkit.joiner,'tatweel');assert.deepEqual(webkit.widths,[60,70,60,55],'the tatweels’ width is taken off');assert.equal(webkit.tatweel,25);
+ // A font that lengthens the tatweel beside a letter: the joiner.
+ assert.equal(C.joinPieces(pieces,'محمد',font({tatweelOff:15})).joiner,'zwj');
+ // Within half a pixel is a tie: the joiner.
+ assert.equal(C.joinPieces(pieces,'محمد',font({zwjOff:-0.1})).joiner,'zwj');
+ // Nothing joins (Latin, or letters that join only to the right): the joiner, never measured against the line.
+ const latin=C.joinPieces(C.shapePieces('GT'),'GT',s=>{if(s==='GT')throw new Error('the line was measured');return 10});
+ assert.equal(latin.joiner,'zwj');assert.deepEqual(latin.widths,[10,10]);
+ // Each string is measured in the direction it is drawn in (measured left to right, Chromium shapes an edge joiner apart).
+ const asked=[];C.joinPieces(C.visualOrder(C.shapePieces('محمد GT')),'محمد GT',(s,rtl)=>{asked.push([s,rtl]);return 10});
+ for(const [s,rtl] of asked)assert.equal(rtl,!/^[GT ]$/.test(s),`${JSON.stringify(s)} measured ${rtl?'right to left':'left to right'}`);
+});
+test('curved Arabic drawn with tatweels: the letter centred on its place, the tatweels cut away, a free side never cut',()=>{
+ const [first,mid,,last]=C.shapePieces('محمد');
+ // Right to left, [tatweel][letter][tatweel] from left to right; the letter's own width is 70, a tatweel 25.
+ assert.deepEqual(C.drawTatweel(mid,70,25,1),{x:0,left:-36,right:36});
+ // The first letter joins only the next (on its left): drawn 12.5 to the left, cut on the left only.
+ assert.deepEqual(C.drawTatweel(first,60,25,1),{x:-12.5,left:-31,right:Infinity});
+ // The last joins only the one before (on its right): drawn 12.5 to the right, a tail on its left kept.
+ assert.deepEqual(C.drawTatweel(last,55,25,1),{x:12.5,left:-Infinity,right:28.5});
 });

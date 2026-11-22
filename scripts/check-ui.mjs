@@ -578,27 +578,41 @@ function editorSteps() { return {
     await tab(page, 'Design');
     await page.unroute('**/fonts/lobster/**');
   },
-  // The company's own fonts (editor Phase 4): uploaded on the Brand page by an owner (the licence first, three
-  // files at once), joined into families by their own names; picked first under Brand fonts; typed, weighted and
-  // exported in their own face (from a short-lived signed link); curved Arabic with its letters joined (checked in
-  // this browser: the joiners give fewer separate ink shapes than letters drawn alone); and removed, after which
-  // the design says "Missing font" and is never drawn in another font without saying so.
+  // The company's own fonts (editor Phase 4): uploaded on the Brand page by an owner (the licence first; two files
+  // chosen at once, a third dropped on the area), joined into families by their own names; picked first under Brand
+  // fonts; typed, weighted and exported in their own face (from a short-lived signed link); curved Arabic with its
+  // letters joined (the canvas's own drawing, laid flat, shows the same ink shapes as the line drawn whole in this
+  // browser); and removed, after which the design says "Missing font" and is never drawn in another font without saying so.
   'editor-brand-fonts': async (page, problems) => {
     const fx = await import('../tests/support/font-fixtures.mjs');
     const demo = await fx.demoSans(), arabic = await fx.demoArabic();
     await page.goto('/company/brand', { waitUntil: 'load', timeout: 30_000 });
     const section = page.locator('[data-brand-fonts]');
     await section.waitFor({ timeout: 15_000 });
+    // The section shows itself before the company's fonts are listed ("Loading your fonts"): what an owner may do is known after.
+    await section.locator('[aria-busy="true"]').first().waitFor({ state: 'detached', timeout: 20_000 }).catch(() => problems.push('Brand → Your fonts was still loading after 20 s'));
     const input = section.locator('[data-brand-font-upload] input[type="file"]');
-    if (!(await input.count())) { problems.push('Brand → Your fonts has no upload for an owner'); return; }
-    if (!(await section.locator('[data-brand-font-upload] .ds-drop-zone button').first().isDisabled())) problems.push('fonts can be added before the licence is confirmed');
+    if (!(await input.count())) { problems.push(`Brand → Your fonts has no upload for an owner (it says ${JSON.stringify(((await section.textContent()) || '').replace(/\s+/g, ' ').trim().slice(0, 160))})`); return; }
+    const zone = section.locator('[data-brand-font-upload] .ds-drop-zone');
+    if (!(await zone.locator('button').first().isDisabled())) problems.push('fonts can be added before the licence is confirmed');
     await section.locator('input[data-licence]').check({ timeout: 5000 });
+    const readyFonts = (n) => page.waitForFunction((k) => document.querySelectorAll('[data-brand-font][data-status="ready"]').length >= k, n, { timeout: 60_000 }).then(() => true, () => false);
     await input.setInputFiles([
       { name: 'DemoSans-Regular.ttf', mimeType: 'font/ttf', buffer: Buffer.from(demo.regular) },
-      { name: 'DemoSans-Bold.ttf', mimeType: 'font/ttf', buffer: Buffer.from(demo.bold) },
       { name: 'DemoArabic.ttf', mimeType: 'font/ttf', buffer: Buffer.from(arabic) },
     ]);
-    await page.waitForFunction(() => document.querySelectorAll('[data-brand-font][data-status="ready"]').length >= 3, null, { timeout: 60_000 }).catch(() => {});
+    if (!(await readyFonts(2))) problems.push('two fonts chosen at once were not both added');
+    // Dropped on the area, as from the desktop: the area takes the drag (it lights up) and adds the file.
+    const dropped = await page.evaluateHandle(([name, b64]) => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], name, { type: 'font/ttf' }));
+      return dt;
+    }, ['DemoSans-Bold.ttf', Buffer.from(demo.bold).toString('base64')]);
+    await zone.dispatchEvent('dragenter', { dataTransfer: dropped });
+    await zone.dispatchEvent('dragover', { dataTransfer: dropped });
+    if ((await zone.getAttribute('data-drag')) !== 'true') problems.push('the upload area does not take a font file dragged over it');
+    await zone.dispatchEvent('drop', { dataTransfer: dropped });
+    if (!(await readyFonts(3))) problems.push('a font dropped on the upload area was not added');
     const families = await section.locator('.brand-font-card').evaluateAll((cards) => cards.map((c) => [c.querySelector('.brand-font-family')?.textContent, c.querySelectorAll('[data-brand-font]').length]));
     if (JSON.stringify(families) !== JSON.stringify([['Demo Arabic', 1], ['Demo Sans', 2]])) problems.push(`the uploads are listed as ${JSON.stringify(families)}, not Demo Arabic (1 file) and Demo Sans (Regular and Bold)`);
     if (SHOTS) await section.screenshot({ path: path.join(OUT, 'shots', 'phase4-brand-fonts--1440--light.png') }).catch(() => {});
@@ -609,6 +623,8 @@ function editorSteps() { return {
     await tab(page, 'Design');
     const list = await openFontList(page, problems);
     if (!list) return;
+    // The list says it is busy until the company's fonts are listed (they come first, so the rows would move).
+    await page.waitForFunction(() => !document.querySelector('[role="listbox"][aria-label="Fonts"][aria-busy="true"]'), null, { timeout: 15_000 }).catch(() => problems.push('the font list was still listing the company’s fonts after 15 s'));
     const brand = await list.locator('[role="group"]').first().locator('[role="option"]').evaluateAll((os) => os.map((o) => o.getAttribute('data-font')));
     if (brand[0] !== 'brand:Demo Arabic' || brand[1] !== 'brand:Demo Sans') problems.push(`Brand fonts start with ${JSON.stringify(brand.slice(0, 3))}, not the uploads`);
     if (!(await page.getByRole('dialog', { name: 'Fonts' }).getByRole('button', { name: 'Upload a font' }).count())) problems.push('the font list has no "Upload a font" for an owner');
@@ -634,29 +650,39 @@ function editorSteps() { return {
     if (!again) return;
     await again.locator('[role="option"][data-font="brand:Demo Arabic"]').first().click({ timeout: 5000 });
     await panelOf(page).locator('[data-editor-section="text"] textarea').first().fill('محمد سيارة');
-    await panelOf(page).locator('[data-editor-section="effects"] [role="radio"][data-effect="curve"]').click({ timeout: 5000 });
+    const effects = panelOf(page).locator('[data-editor-section="effects"]');
+    await effects.locator('[role="radio"][data-effect="curve"]').click({ timeout: 5000 });
     await page.waitForTimeout(600);
-    const curved = await page.evaluate(() => {
-      const stage = window.Konva?.stages?.[0];
-      const shaped = (stage?.find((n) => n.getClassName() === 'Shape') || []).length;
-      // In this browser: one word drawn letter by letter, alone and then with the joiners its neighbours give each letter.
-      const families = [...document.fonts].filter((f) => f.family.replace(/"/g, '').startsWith('nm-brand-') && f.status === 'loaded').map((f) => f.family);
-      const shapes = (pieces) => {
-        const c = document.createElement('canvas'); c.width = 600; c.height = 160;
-        const x = c.getContext('2d'); x.fillStyle = '#000'; x.font = `96px ${families.map((f) => JSON.stringify(f.replace(/"/g, ''))).join(', ')}, sans-serif`; x.textBaseline = 'middle'; x.direction = 'rtl';
-        let at = 560; for (const p of pieces) { const w = x.measureText(p).width; x.fillText(p, at, 80); at -= w; }
-        const d = x.getImageData(0, 0, 600, 160).data, seen = new Uint8Array(600 * 160); let n = 0;
+    const shapedDrawer = () => page.evaluate(() => (window.Konva?.stages?.[0]?.find((n) => n.getClassName() === 'Shape' && n.getAttr('data-curve-shaped')) || []).length);
+    if (!(await shapedDrawer())) problems.push('curved Arabic is not drawn by the shaping drawer');
+    if (SHOTS) await canvasOf(page).screenshot({ path: path.join(OUT, 'shots', 'phase4-curved-arabic--1440--light.png') }).catch(() => {});
+    // Laid flat (Curve 0), the drawer's letters must show exactly what this browser draws for the line whole, in the same
+    // font and size: the same number of separate ink shapes. A letter drawn alone, or in another font, breaks a join.
+    const curve = effects.getByRole('spinbutton', { name: /^Curve/ });
+    await curve.fill('0'); await curve.blur(); await page.waitForTimeout(500);
+    const flat = await page.evaluate((line) => {
+      const shape = window.Konva?.stages?.[0]?.find((n) => n.getClassName() === 'Shape' && n.getAttr('data-curve-shaped'))[0];
+      if (!shape) return null;
+      const inkShapes = (c) => {
+        const W = c.width, H = c.height, d = c.getContext('2d').getImageData(0, 0, W, H).data, seen = new Uint8Array(W * H); let n = 0;
         for (let i = 0; i < seen.length; i++) {
           if (seen[i] || d[i * 4 + 3] < 128) continue; n++; const stack = [i]; seen[i] = 1;
-          while (stack.length) { const k = stack.pop(), px = k % 600, py = (k - px) / 600; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const qx = px + dx, qy = py + dy, q = qy * 600 + qx; if (qx >= 0 && qx < 600 && qy >= 0 && qy < 160 && !seen[q] && d[q * 4 + 3] >= 128) { seen[q] = 1; stack.push(q); } } }
+          while (stack.length) { const k = stack.pop(), px = k % W, py = (k - px) / W; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const qx = px + dx, qy = py + dy, q = qy * W + qx; if (qx >= 0 && qx < W && qy >= 0 && qy < H && !seen[q] && d[q * 4 + 3] >= 128) { seen[q] = 1; stack.push(q); } } }
         }
         return n;
       };
-      return { shaped, alone: shapes(['م', 'ح', 'م', 'د']), joined: shapes(['م‍', '‍ح‍', '‍م‍', '‍د']) };
-    });
-    if (!curved.shaped) problems.push('curved Arabic is not drawn by the shaping drawer');
-    if (!(curved.joined < curved.alone)) problems.push(`curved Arabic letters don't join in this browser (${curved.joined} ink shapes joined, ${curved.alone} alone)`);
-    if (SHOTS) await canvasOf(page).screenshot({ path: path.join(OUT, 'shots', 'phase4-curved-arabic--1440--light.png') }).catch(() => {});
+      // Both at about 96 px type (thin strokes at the editor's zoom would decide by a pixel), with room round the box.
+      const font = shape.getAttr('data-font'), size = parseFloat(/(\d+(?:\.\d+)?)px/.exec(font)?.[1] || '0'), scale = shape.getAbsoluteScale().x;
+      const k = Math.max(1, 96 / (size * scale)), r = shape.getClientRect();
+      const drawn = shape.toCanvas({ x: r.x - r.width, y: r.y - r.height, width: r.width * 3, height: r.height * 3, pixelRatio: k });
+      const whole = document.createElement('canvas'); whole.width = drawn.width; whole.height = drawn.height;
+      const x = whole.getContext('2d'); x.setTransform(scale * k, 0, 0, scale * k, r.width * k, r.height * k);
+      x.font = font; x.textBaseline = 'middle'; x.textAlign = 'center'; x.direction = 'rtl'; x.fillStyle = '#000';
+      x.fillText(line, shape.width() / 2, size / 2);
+      return { drawn: inkShapes(drawn), whole: inkShapes(whole), size: [drawn.width, drawn.height] };
+    }, 'محمد سيارة');
+    if (!flat) problems.push('curved Arabic laid flat is not drawn by the shaping drawer');
+    else if (!flat.whole || flat.drawn !== flat.whole) problems.push(`curved Arabic letters don't join in this browser: laid flat they make ${flat.drawn} separate ink shapes, the line drawn whole ${flat.whole} (${flat.size.join(' x ')} px)`);
     await savedWithin(page, 15_000).catch(() => problems.push('the design was not saved before removing the font'));
     // Remove Demo Sans (both files, as an owner on the Brand page would): the design says "Missing font".
     const listed = await page.request.get('/api/brand-fonts', { failOnStatusCode: false }).then((r) => r.json()).catch(() => ({ fonts: [] }));

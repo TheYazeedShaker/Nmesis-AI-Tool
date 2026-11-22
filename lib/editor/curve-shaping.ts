@@ -3,12 +3,13 @@
 // browser never sees a letter's neighbours and draws each in its isolated
 // form. Here the text is shaped first and then placed: each letter (with its
 // marks; lam with the alef after it as their one ligature) is drawn with a
-// zero-width joiner on each side that joins a neighbour, so the browser's own
-// shaping picks the same initial, medial or final form it would in one run.
-// Those shaped pieces are then laid on the arc, right to left.
+// joiner on each side that joins a neighbour, so the browser's own shaping
+// picks the same initial, medial or final form it would in one run (joinPieces
+// says which joiner this browser and font draw exactly). Those shaped pieces
+// are then laid on the arc, right to left.
 // Plain module: the canvas (components/canvas/stage.tsx) and the tests share it.
 
-const ZWJ='‍';
+const ZWJ='‍',TATWEEL='ـ';
 export const hasArabic=(s:string)=>/[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/.test(s);
 
 type Joining='D'|'R'|'C'|'U'|'T';
@@ -47,7 +48,8 @@ export function piecesOf(line:string):string[]{
  return out;
 }
 
-export type ShapedPiece={text:string;draw:string;rtl:boolean};
+/** A piece of the line; `draw` is it with a zero-width joiner on each side that joins a neighbour. */
+export type ShapedPiece={text:string;draw:string;rtl:boolean;joinsPrev:boolean;joinsNext:boolean};
 /** Each piece with the joiners its neighbours give it: what to draw so it shows the form it has in the whole word. */
 export function shapePieces(line:string):ShapedPiece[]{
  const pieces=piecesOf(line),info=pieces.map(ends);
@@ -55,8 +57,38 @@ export function shapePieces(line:string):ShapedPiece[]{
   const me=info[i],prev=info[i-1],next=info[i+1];
   const joinsPrev=!!prev&&(prev.last==='D'||prev.last==='C')&&(me.first==='D'||me.first==='R'||me.first==='C');
   const joinsNext=!!next&&(me.last==='D'||me.last==='C')&&(next.first==='D'||next.first==='R'||next.first==='C');
-  return {text,draw:(joinsPrev?ZWJ:'')+text+(joinsNext?ZWJ:''),rtl:hasArabic(text)};
+  return {text,draw:(joinsPrev?ZWJ:'')+text+(joinsNext?ZWJ:''),rtl:hasArabic(text),joinsPrev,joinsNext};
  });
+}
+
+export type Joiner='zwj'|'tatweel';
+/** A piece as drawn with this joiner on each side that joins a neighbour. */
+export const withJoiner=(p:ShapedPiece,joiner:Joiner)=>joiner==='zwj'?p.draw:(p.joinsPrev?TATWEEL:'')+p.text+(p.joinsNext?TATWEEL:'');
+/**
+ * Which joiner draws each letter's form exactly in this browser and font, and each piece's width on the line.
+ * - The zero-width joiner (U+200D) is exact in Chromium and Firefox, which shape it with its letter, and in WebKit (Safari)
+ *   when the font has one. In a font without one, WebKit takes it from another font: the letter is then drawn alone, or in that font.
+ * - The tatweel (U+0640) is a letter of the font itself, so every browser shapes it with its neighbour; the drawer cuts its own
+ *   stroke away (drawTatweel). Its width is taken off the piece's, which is exact unless the font lengthens it beside a letter.
+ * Exact, the pieces' widths add up to the line as the browser draws it whole: the closer way is used, the joiner when they tie
+ * (both exact, or neither: a ligature the font only draws in the whole word).
+ * `measure` measures a string in the direction it is drawn in: a joiner at the edge of a string measured left to right is
+ * shaped apart from its letter in Chromium, and the letter's width comes out as if it stood alone.
+ */
+export function joinPieces(pieces:readonly ShapedPiece[],line:string,measure:(s:string,rtl:boolean)=>number):{joiner:Joiner;widths:number[];tatweel:number}{
+ const zwj=pieces.map(p=>measure(p.draw,p.rtl)),tatweel=measure(TATWEEL,true);
+ if(!pieces.some(p=>p.joinsPrev||p.joinsNext))return {joiner:'zwj',widths:zwj,tatweel};
+ const tat=pieces.map(p=>measure(withJoiner(p,'tatweel'),p.rtl)-tatweel*((p.joinsPrev?1:0)+(p.joinsNext?1:0)));
+ const whole=measure(line,true),off=(w:number[])=>Math.abs(w.reduce((a,b)=>a+b,0)-whole);
+ return off(tat)+0.5<off(zwj)?{joiner:'tatweel',widths:tat,tatweel}:{joiner:'zwj',widths:zwj,tatweel};
+}
+/**
+ * Drawn with tatweels, a right-to-left piece is [tatweel][letter][tatweel] from left to right: where to draw it (centred) so the
+ * letter's own width is centred on the piece's place, and the edges past which the tatweels are cut away (with `bleed` more, so
+ * the joins meet). A side that joins nothing is never cut: a tail or swash there is the letter's own.
+ */
+export function drawTatweel(p:ShapedPiece,width:number,tatweel:number,bleed:number):{x:number;left:number;right:number}{
+ return {x:tatweel*((p.joinsPrev?1:0)-(p.joinsNext?1:0))/2,left:p.joinsNext?-width/2-bleed:-Infinity,right:p.joinsPrev?width/2+bleed:Infinity};
 }
 const ltrStrong=(s:string)=>/[\p{L}\p{N}]/u.test(s)&&!hasArabic(s);
 /**
@@ -74,20 +106,20 @@ export function visualOrder(pieces:readonly ShapedPiece[]):ShapedPiece[]{
  return runs.reverse().flatMap(r=>r.ltr?r.items:[...r.items].reverse());
 }
 
-export type Placed={draw:string;rtl:boolean;x:number;y:number;rotation:number};
+export type Placed={piece:ShapedPiece;width:number;x:number;y:number;rotation:number};
 /**
  * Where each piece goes on the curve's arc (the same circle as curveGeometry in lib/editor/effects.ts):
- * its centre at its distance along the arc, turned to the arc's direction there. `advance` measures a piece as drawn.
+ * its centre at its distance along the arc, turned to the arc's direction there. `widths` are the pieces' own (joinPieces).
  */
-export function placeOnArc(pieces:readonly ShapedPiece[],{advance,letterSpacing,fontSize,curve,boxWidth,height,radius}:{advance:(draw:string)=>number;letterSpacing:number;fontSize:number;curve:number;boxWidth:number;height:number;radius:number}):Placed[]{
- const widths=pieces.map(p=>advance(p.draw)),total=widths.reduce((a,b)=>a+b,0)+letterSpacing*Math.max(0,pieces.length-1);
+export function placeOnArc(pieces:readonly ShapedPiece[],{widths,letterSpacing,fontSize,curve,boxWidth,height,radius}:{widths:readonly number[];letterSpacing:number;fontSize:number;curve:number;boxWidth:number;height:number;radius:number}):Placed[]{
+ const total=widths.reduce((a,b)=>a+b,0)+letterSpacing*Math.max(0,pieces.length-1);
  const cx=boxWidth/2,out:Placed[]=[];let s=-total/2;
- pieces.forEach((p,i)=>{
-  const mid=s+widths[i]/2;s+=widths[i]+letterSpacing;
-  if(!Number.isFinite(radius)){out.push({draw:p.draw,rtl:p.rtl,x:cx+mid,y:fontSize/2,rotation:0});return}
+ pieces.forEach((piece,i)=>{
+  const width=widths[i],mid=s+width/2;s+=width+letterSpacing;
+  if(!Number.isFinite(radius)){out.push({piece,width,x:cx+mid,y:fontSize/2,rotation:0});return}
   const phi=mid/radius;
-  if(curve>0){const cy=fontSize/2+radius;out.push({draw:p.draw,rtl:p.rtl,x:cx+radius*Math.sin(phi),y:cy-radius*Math.cos(phi),rotation:phi})}
-  else{const cy=height-fontSize/2-radius;out.push({draw:p.draw,rtl:p.rtl,x:cx+radius*Math.sin(phi),y:cy+radius*Math.cos(phi),rotation:-phi})}
+  if(curve>0){const cy=fontSize/2+radius;out.push({piece,width,x:cx+radius*Math.sin(phi),y:cy-radius*Math.cos(phi),rotation:phi})}
+  else{const cy=height-fontSize/2-radius;out.push({piece,width,x:cx+radius*Math.sin(phi),y:cy+radius*Math.cos(phi),rotation:-phi})}
  });
  return out;
 }

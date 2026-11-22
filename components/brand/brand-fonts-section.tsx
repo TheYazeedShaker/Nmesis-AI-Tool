@@ -5,7 +5,7 @@ import {Button} from '@/components/ds/button';
 import {useConfirm} from '@/components/ds/dialog';
 import {DropZone} from '@/components/ds/drop-zone';
 import {Checkbox} from '@/components/ds/field';
-import {Badge,Upsell} from '@/components/ds/feedback';
+import {Badge,Loading,SkeletonRow,Upsell} from '@/components/ds/feedback';
 import {Section} from '@/components/ds/layout';
 import {useToast} from '@/components/ds/toast';
 import {brandFontName,EMBEDDING_HELP,EMBEDDING_LABELS,FONT_ACCEPT,LICENCE_TEXT,MAX_BRAND_FONTS,MAX_FONT_MB,WORDS,type BrandFontFile,type BrandFontsState} from '@/lib/brand-fonts/shared';
@@ -99,6 +99,8 @@ export function BrandFontsSection(){
  return <Section title="Your fonts" count={state?.ready?`${ready.length} of ${MAX_BRAND_FONTS}`:undefined}>
   <div className="ds-stack" data-brand-fonts>
    <p className="brand-line">Your company’s own font files, for its designs only. Every file is checked and made safe before anyone’s browser loads it.</p>
+   {/* Until the list answers: said, and the space kept, so the upload and the list don't appear from nothing. */}
+   {!state&&!error&&<Loading label="Loading your fonts" className="ds-stack"><SkeletonRow/><SkeletonRow/></Loading>}
    {error&&!state&&<p className="ds-error" role="alert">{error} <Button size="sm" onClick={()=>void reload()}>Try again</Button></p>}
    {state&&(uploadBlocker(state)??<FontUploader/>)}
    {state?.ready&&(families.length
