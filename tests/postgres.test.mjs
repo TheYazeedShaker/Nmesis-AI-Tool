@@ -721,7 +721,8 @@ test('brand fonts (0013): members read; only owners add or remove; creators, sta
   assert.equal((await add(owner,font('f-refused',{status:'refused',embedding:'restricted',fsType:2,reason:'This font’s licence doesn’t allow it to be embedded.',sha:'d'.repeat(64)}))).meta.changes,1,'a refused font is recorded with its reason');
   // The licence confirmation is stored as given: who, when, the version and the words.
   const [rec]=await admin`select licence_by, licence_at, licence_version, licence_text, environment from studio.brand_fonts where id='f-regular'`;
-  assert.deepEqual({...rec},{licence_by:USER_C,licence_at:now,licence_version:'2026-11-22',licence_text:LICENCE,environment:ENV});
+  // (The superuser connection reads bigint as text; the Studio's adapter reads it as a number.)
+  assert.deepEqual({...rec,licence_at:Number(rec.licence_at)},{licence_by:USER_C,licence_at:now,licence_version:'2026-11-22',licence_text:LICENCE,environment:ENV});
   // The company's members read every font; staff read (support opens read-only); nobody else does.
   const all=['f-bold','f-italic','f-refused','f-regular'];
   assert.deepEqual(await ids(owner),all);
@@ -734,12 +735,12 @@ test('brand fonts (0013): members read; only owners add or remove; creators, sta
   const remove=(db,id)=>db.prepare('UPDATE brand_fonts SET deleted_at=CAST(? AS BIGINT),deleted_by=? WHERE id=? AND deleted_at IS NULL').bind(now+1,USER_C,id).run();
   for(const [db,who] of [[creator,'a creator'],[staff,'staff'],[other,'another company'],[previewOwner,'the other environment']])
    assert.equal((await remove(db,'f-bold')).meta.changes,0,who+' cannot remove a font');
-  await assert.rejects(()=>owner.prepare('UPDATE brand_fonts SET org_id=? WHERE id=?').bind(ORG_A,'f-bold').run(),/row-level security/,'a font cannot move to another company');
+  await assert.rejects(()=>owner.prepare('UPDATE brand_fonts SET org_id=? WHERE id=?').bind(ORG_A,'f-bold').run(),/row-level security|brand_fonts_keys_ck/,'a font cannot move to another company');
   // No one deletes a row, the owner included: removing is soft.
   for(const db of [owner,staff])assert.equal((await db.prepare('DELETE FROM brand_fonts WHERE id=?').bind('f-bold').run()).meta.changes,0,'rows are never deleted');
   assert.equal((await remove(owner,'f-bold')).meta.changes,1,'the owner removes it (soft)');
   const [gone]=await admin`select deleted_at, deleted_by, licence_text from studio.brand_fonts where id='f-bold'`;
-  assert.deepEqual({...gone},{deleted_at:now+1,deleted_by:USER_C,licence_text:LICENCE},'the row and its licence record stay');
+  assert.deepEqual({...gone,deleted_at:Number(gone.deleted_at)},{deleted_at:now+1,deleted_by:USER_C,licence_text:LICENCE},'the row and its licence record stay');
   // What the server checks, held by the table as well.
   const e64='e'.repeat(64);
   await assert.rejects(()=>add(owner,font('f-outside',{dir:`orgs/${ORG_A}/brand/fonts/f-outside/`,sha:e64})),/brand_fonts_keys_ck/,'a key outside the company’s font folder');
@@ -750,6 +751,7 @@ test('brand fonts (0013): members read; only owners add or remove; creators, sta
   await assert.rejects(()=>add(owner,font('f-format',{format:'svg',sha:e64})),/brand_fonts_file_ck/,'a format that is not a font');
   await assert.rejects(()=>owner.prepare("UPDATE brand_fonts SET kind='fancy' WHERE id='f-regular'").run(),/brand_fonts_shape_ck/,'a kind the font list doesn’t have');
   await assert.rejects(()=>add(owner,font('f-range',{variable:1,min:700,max:300,sha:e64})),/brand_fonts_shape_ck/,'a weight range upside down');
+  await assert.rejects(()=>add(owner,font('f-half-range',{variable:1,min:100,max:null,sha:e64})),/brand_fonts_shape_ck/,'half a weight range (a NULL never passes)');
   await assert.rejects(()=>add(owner,font('f-fixed-range',{variable:0,min:100,max:900,sha:e64})),/brand_fonts_shape_ck/,'a range on a font that is not variable');
   assert.equal((await add(owner,font('f-variable',{variable:1,axes:'[{"tag":"wght","min":100,"default":400,"max":900}]',min:100,max:900,sha:e64}))).meta.changes,1,'a variable font with its weight range');
   // The same file twice is one font, until it is removed.

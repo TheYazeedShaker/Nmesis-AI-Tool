@@ -58,7 +58,9 @@ test('migration 0013: what the server checks, held by the table (keys in the com
  assert.match(code,/format in \('otf', 'ttf', 'woff', 'woff2'\) and size between 1 and 10485760/);
  assert.match(code,/embedding in \('installable', 'editable', 'preview-print', 'restricted'\)/);
  assert.match(code,/status = 'ready' and woff2_key is not null and preview_key is not null and reason is null and embedding <> 'restricted'/);
- assert.match(code,/status = 'refused' and woff2_key is null and preview_key is null and char_length\(reason\) between 1 and 300/);
+ assert.match(code,/status = 'refused' and woff2_key is null and preview_key is null and reason is not null and char_length\(reason\) between 1 and 300/);
+ // A check that comes out NULL passes in Postgres: every nullable column a branch needs is named "is not null".
+ assert.match(code,/variable = 1 and weight_min is not null and weight_max is not null/);
  assert.match(code,/char_length\(licence_text\) between 1 and 1000/);
  assert.match(code,/kind in \('sans', 'serif', 'display', 'script', 'mono'\)/);assert.match(code,/arabic in \(0, 1\)/);
 });

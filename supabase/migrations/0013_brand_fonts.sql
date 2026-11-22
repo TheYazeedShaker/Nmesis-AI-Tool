@@ -91,7 +91,9 @@ create policy owners_change on studio.brand_fonts for update
   with check (environment = (select studio.request_env())
     and org_id = any (coalesce((select studio.request_owner_orgs()), '{}'::text[])));
 
--- What the server checks, held by the database as well.
+-- What the server checks, held by the database as well. A check that comes out
+-- NULL passes in Postgres, so every nullable column a branch needs is named
+-- "is not null" in it.
 do $$
 begin
   if not exists (select 1 from pg_constraint where conname = 'brand_fonts_environment_ck') then
@@ -105,7 +107,8 @@ begin
       weight between 1 and 1000 and italic in (0, 1) and variable in (0, 1) and arabic in (0, 1)
       and kind in ('sans', 'serif', 'display', 'script', 'mono')
       and ((weight_min is null and weight_max is null)
-        or (variable = 1 and weight_min between 1 and 1000 and weight_max between weight_min and 1000)));
+        or (variable = 1 and weight_min is not null and weight_max is not null
+          and weight_min between 1 and 1000 and weight_max between weight_min and 1000)));
   end if;
   if not exists (select 1 from pg_constraint where conname = 'brand_fonts_file_ck') then
     alter table studio.brand_fonts add constraint brand_fonts_file_ck check (
@@ -131,7 +134,7 @@ begin
   if not exists (select 1 from pg_constraint where conname = 'brand_fonts_status_ck') then
     alter table studio.brand_fonts add constraint brand_fonts_status_ck check (
       (status = 'ready' and woff2_key is not null and preview_key is not null and reason is null and embedding <> 'restricted')
-      or (status = 'refused' and woff2_key is null and preview_key is null and char_length(reason) between 1 and 300));
+      or (status = 'refused' and woff2_key is null and preview_key is null and reason is not null and char_length(reason) between 1 and 300));
   end if;
   if not exists (select 1 from pg_constraint where conname = 'brand_fonts_deleted_ck') then
     alter table studio.brand_fonts add constraint brand_fonts_deleted_ck check ((deleted_at is null) = (deleted_by is null));
