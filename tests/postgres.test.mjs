@@ -748,6 +748,7 @@ test('brand fonts (0013): members read; only owners add or remove; creators, sta
   await assert.rejects(()=>add(owner,font('f-noreason',{status:'refused',sha:e64})),/brand_fonts_status_ck/,'a refusal says why');
   await assert.rejects(()=>add(owner,font('f-big',{size:10*1024*1024+1,sha:e64})),/brand_fonts_file_ck/,'over 10 MB');
   await assert.rejects(()=>add(owner,font('f-format',{format:'svg',sha:e64})),/brand_fonts_file_ck/,'a format that is not a font');
+  await assert.rejects(()=>owner.prepare("UPDATE brand_fonts SET kind='fancy' WHERE id='f-regular'").run(),/brand_fonts_shape_ck/,'a kind the font list doesn’t have');
   await assert.rejects(()=>add(owner,font('f-range',{variable:1,min:700,max:300,sha:e64})),/brand_fonts_shape_ck/,'a weight range upside down');
   await assert.rejects(()=>add(owner,font('f-fixed-range',{variable:0,min:100,max:900,sha:e64})),/brand_fonts_shape_ck/,'a range on a font that is not variable');
   assert.equal((await add(owner,font('f-variable',{variable:1,axes:'[{"tag":"wght","min":100,"default":400,"max":900}]',min:100,max:900,sha:e64}))).meta.changes,1,'a variable font with its weight range');

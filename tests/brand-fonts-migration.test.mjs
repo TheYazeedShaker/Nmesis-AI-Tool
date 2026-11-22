@@ -60,12 +60,13 @@ test('migration 0013: what the server checks, held by the table (keys in the com
  assert.match(code,/status = 'ready' and woff2_key is not null and preview_key is not null and reason is null and embedding <> 'restricted'/);
  assert.match(code,/status = 'refused' and woff2_key is null and preview_key is null and char_length\(reason\) between 1 and 300/);
  assert.match(code,/char_length\(licence_text\) between 1 and 1000/);
+ assert.match(code,/kind in \('sans', 'serif', 'display', 'script', 'mono'\)/);assert.match(code,/arabic in \(0, 1\)/);
 });
 
 test('migration 0013: the SQLite stand-in builds the table with every column the routes use',()=>{
  const db=new DatabaseSync(':memory:');db.exec(studioSchemaSql());
  const cols=db.prepare('PRAGMA table_info(brand_fonts)').all().map(c=>c.name);
- assert.deepEqual(cols,['id','environment','org_id','family','style','weight','italic','variable','axes','weight_min','weight_max','format','size','sha256','original_key','woff2_key','preview_key','licence_by','licence_at','licence_version','licence_text','fs_type','embedding','status','reason','created_by','created_at','deleted_at','deleted_by']);
+ assert.deepEqual(cols,['id','environment','org_id','family','style','weight','italic','variable','axes','weight_min','weight_max','kind','arabic','format','size','sha256','original_key','woff2_key','preview_key','licence_by','licence_at','licence_version','licence_text','fs_type','embedding','status','reason','created_by','created_at','deleted_at','deleted_by']);
  const indexes=db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='brand_fonts' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(r=>r.name);
  assert.deepEqual(indexes,['brand_fonts_env_org_family','brand_fonts_env_org_file']);
  db.close();
