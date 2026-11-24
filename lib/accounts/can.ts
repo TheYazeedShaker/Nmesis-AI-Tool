@@ -4,9 +4,11 @@
 // work and brand; viewers look. A member of staff viewing a client's Studio is
 // always read-only, whatever the role says.
 export type Role='owner'|'creator'|'viewer';
-export type Action='brand.edit'|'share.manage'|'uploads.add'|'work.create';
+export type Action='brand.edit'|'fonts.upload'|'share.manage'|'uploads.add'|'work.create';
 const RULES:Record<Action,readonly Role[]>={
  'brand.edit':['owner','creator'],
+ // The company's own font files: owners only (they confirm the company holds the licence).
+ 'fonts.upload':['owner'],
  'share.manage':['owner','creator'],
  'uploads.add':['owner','creator'],
  'work.create':['owner','creator'],
