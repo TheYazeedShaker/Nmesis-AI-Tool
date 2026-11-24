@@ -106,14 +106,19 @@ end). Its body is its one scroll area. Built from the same tokens and pieces
 with each open.
 
 - **The font list** (components/canvas/font-picker.tsx): Brand fonts (the
-  brand kit's) → In this design → Recent (this person's, on this device) → All
+  company's own uploaded fonts first, then the brand kit's two) → In this design
+  → Recent (this person's, kept with their account and on this device) → All
   fonts, one search across them (a name, "serif", "script", "Arabic"). Each
   name shows in its own font from a tiny file of its own glyphs, loaded when its
   row is on screen. The search keeps the focus; the arrow keys, Home, End and
   Page Up/Down move; Enter picks. The fonts are the Studio's own self-hosted
   catalogue (about 150 open-licence families, Latin and Arabic,
   `lib/editor/font-catalogue.json`, built by `scripts/fonts/build-catalogue.mjs`);
-  no request ever goes to a font service. A font that can't load says
+  no request ever goes to a font service. A company's owners may add their own
+  font files ("Upload a font" here, or Brand → Your fonts), each sanitised on the
+  server first (docs/brand-fonts.md); they follow the same weight and italic
+  rules and load from short-lived signed links. A font that can't load (or one
+  that was removed) says
   "Missing font" on its layer, in the Layers list and in the panel, and an
   export made with the fallback says so.
 - **The colour picker** (components/canvas/colour-picker.tsx), the same for
@@ -123,6 +128,7 @@ with each open.
   where it has one (after a click), else the next click on the canvas. Shapes
   and the page may be a linear or radial gradient of 2–4 stops, with its angle.
   A text's colour shows "Low contrast" under 4.5:1 against what is behind it.
+  Recent colours are kept with the person's account, like recent fonts.
 
 ## The Layers list
 

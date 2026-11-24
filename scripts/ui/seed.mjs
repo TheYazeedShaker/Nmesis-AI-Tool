@@ -59,11 +59,13 @@ const PLAN_FEATURES = {
   growth: {
     'studio.enabled': true, 'studio.key_visuals': true, 'studio.lineups': true, 'studio.area_edit': true, 'studio.object_select': true,
     'studio.pinterest': true, 'studio.smart_reference': true, 'studio.upscale': true, 'studio.credits_monthly': 2000, 'studio.max_output': '4k',
+    // Brand fonts (editor Phase 4): as the owner adds the key in the admin's Plans page. Starter has none (the upsell).
+    'studio.brand_fonts': true,
   },
   enterprise: {
     'studio.enabled': true, 'studio.key_visuals': true, 'studio.lineups': true, 'studio.area_edit': true, 'studio.object_select': true,
     'studio.pinterest': true, 'studio.smart_reference': true, 'studio.upscale': true, 'studio.film': true, 'studio.swap': true,
-    'studio.storyboards': true, 'studio.own_keys': true, 'studio.credits_monthly': 10000000, 'studio.max_output': null,
+    'studio.storyboards': true, 'studio.own_keys': true, 'studio.credits_monthly': 10000000, 'studio.max_output': null, 'studio.brand_fonts': true,
   },
 };
 

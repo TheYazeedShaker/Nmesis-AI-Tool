@@ -13,6 +13,7 @@ import {api} from '@/components/company/api';
 import {loadAccount,useAccount} from '@/components/studio-account';
 import {can} from '@/lib/accounts/can';
 import {studioFetch} from '@/lib/studio-fetch';
+import {BrandFontsSection} from './brand-fonts-section';
 import {BRAND_FONTS,cleanHex,COLOUR_NAME_MAX,LOGO_MAX_BYTES,LOGO_NAME_MAX,MAX_COLOURS,MAX_LOGOS,NOT_YET,ONLY_EDITORS,parseKit,parseLogoName,PICKER_FALLBACK,TOO_MANY_LOGOS,VOICE_MAX,type BrandFont,type BrandKit,type BrandLogo} from '@/lib/brand-kit';
 
 // The company's brand kit (Settings → Brand kit, /company/brand): logos,
@@ -271,6 +272,7 @@ export function BrandKitScreen(){
     {mayEdit&&!kit.ready&&<p className="brand-line">{NOT_YET}</p>}
     <LogosSection kit={kit} editable={editable}/>
     <KitForm key={kit.updatedAt??'new'} kit={kit} editable={editable}/>
+    <BrandFontsSection/>
    </>}
  </div>;
 }

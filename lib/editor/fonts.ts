@@ -18,16 +18,55 @@
 // Plain module, no React and no DOM: the editor, the panels and the tests share it.
 import CATALOGUE from './font-catalogue.json';
 import type {EditorDoc,TextLayer} from './doc';
+import {BRAND_FONT_PREFIX,EMBEDDING_LABELS,isBrandFontName,type BrandFontFile,type Embedding} from '../brand-fonts/shared';
 
 export type FontKind='sans'|'serif'|'display'|'script'|'mono';
-export type FontFile={style:'normal'|'italic';/** One weight, or a variable file's weight range. */weight:number|[number,number];file:string;bytes:number};
+export type FontFile={style:'normal'|'italic';/** One weight, or a variable file's weight range. */weight:number|[number,number];file:string;bytes:number;
+ /** An uploaded font's file: the Studio's own address that answers with a short-lived signed link. */src?:string};
 export type CatalogueFont={id:string;family:string;kind:FontKind;arabic:boolean;
  /** The weights a person may pick: a variable family's stops on its axis, or the weights it really has. */weights:number[];
  /** A variable family's weight axis. */variable:{min:number;max:number}|null;italic:boolean;
- licence:string;licenceFile:string;designer:string;source:string;upstream:string|null;files:FontFile[];preview:{file:string;bytes:number}};
+ licence:string;licenceFile:string;designer:string;source:string;upstream:string|null;files:FontFile[];preview:{file:string;bytes:number;src?:string};
+ /** An uploaded font (the company's own): its name without the `brand:` prefix, and its embedding permission. */label?:string;brand?:true;embedding?:Embedding};
 export const FONTS:readonly CatalogueFont[]=(CATALOGUE as {families:CatalogueFont[]}).families;
 const BY_NAME=new Map(FONTS.map(f=>[f.family,f]));
-export const fontByName=(name:unknown):CatalogueFont|null=>typeof name==='string'?BY_NAME.get(name)??null:null;
+export const fontByName=(name:unknown):CatalogueFont|null=>typeof name==='string'?(isBrandFontName(name)?BRAND.get(name):BY_NAME.get(name))??null:null;
+/** What a person reads for a font name: an uploaded font without its `brand:` prefix. */
+export const fontLabel=(name:string)=>isBrandFontName(name)?name.slice(BRAND_FONT_PREFIX.length):name;
+
+// ── The company's own fonts (uploaded, lib/brand-fonts) ───────────────────
+// A design names an uploaded font `brand:<family>` (a plain name, never an
+// address). Its files are the company's, so they are known only once the page
+// has listed them (setBrandFonts, components/brand/brand-fonts.ts): before that
+// a brand name is neither known nor missing, and once listed, a family that
+// isn't there (removed) is a missing font, never another font in its place.
+let BRAND=new Map<string,CatalogueFont>(),brandLoaded=false,brandVersion=0;
+const brandListeners=new Set<()=>void>();
+const STOPS=[100,200,300,400,500,600,700,800,900,1000];
+const hashOf=(s:string)=>{let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)};
+/** One family from its uploaded files (ready ones): weights, italic and the weight axis by the catalogue's rules. */
+export function brandFamily(family:string,files:readonly BrandFontFile[]):CatalogueFont{
+ const own=files.filter(f=>f.family===family&&f.status==='ready'&&f.url);
+ const upright=own.filter(f=>!f.italic),pool=upright.length?upright:own;
+ const ranged=pool.find(f=>f.weightRange)?.weightRange??null;
+ const weights=ranged?STOPS.filter(w=>w>=ranged[0]&&w<=ranged[1]):[...new Set(pool.map(f=>f.weight))].sort((a,b)=>a-b);
+ const near=[...pool].sort((a,b)=>Math.abs(a.weight-400)-Math.abs(b.weight-400))[0];
+ return {id:'brand-'+hashOf(family),family:BRAND_FONT_PREFIX+family,label:family,brand:true,kind:own[0]?.kind??'sans',arabic:own.some(f=>f.arabic),weights:weights.length?weights:[400],
+  variable:ranged?{min:ranged[0],max:ranged[1]}:null,italic:own.some(f=>f.italic),licence:'',licenceFile:'',designer:'',source:'Uploaded by your company',upstream:null,embedding:near?.embedding,
+  files:own.map(f=>({style:f.italic?'italic':'normal',weight:f.weightRange??f.weight,file:f.id,bytes:f.size,src:f.url!})),
+  preview:{file:near?.id??'',bytes:0,src:near?.previewUrl??undefined}};
+}
+/** The company's uploaded fonts, as the page listed them (null: not listed, or no longer). */
+export function setBrandFonts(files:readonly BrandFontFile[]|null){
+ const families=[...new Set((files||[]).filter(f=>f.status==='ready'&&f.url).map(f=>f.family))].sort((a,b)=>a.localeCompare(b));
+ BRAND=new Map(families.map(name=>{const f=brandFamily(name,files!);return [f.family,f]}));
+ brandLoaded=files!==null;brandVersion++;
+ for(const l of brandListeners)l();
+}
+export const brandFonts=():CatalogueFont[]=>[...BRAND.values()];
+export const brandFontsLoaded=()=>brandLoaded;
+export const brandFontsVersion=()=>brandVersion;
+export function onBrandFonts(listener:()=>void){brandListeners.add(listener);return()=>{brandListeners.delete(listener)}}
 export const SYSTEM_FONT='System';
 /** What a missing font draws in (the Studio's own sans serif, from the catalogue). */
 export const FALLBACK_FONT='Inter';
@@ -44,6 +83,8 @@ export const previewFamily=(f:Pick<CatalogueFont,'id'>)=>`nm-preview-${f.id}`;
 export const fontUrl=(f:Pick<CatalogueFont,'id'>,file:string)=>`/fonts/${f.id}/${file}`;
 /** A name a design may hold: System or a family in the catalogue. */
 export const isKnownFont=(name:unknown)=>name===SYSTEM_FONT||!!fontByName(name);
+/** The name a person reads in a list of fonts. */
+const labelOf=(f:Pick<CatalogueFont,'family'|'label'>)=>f.label??f.family;
 
 /** The family list a font is drawn with: its own files, then the fallback's, then the device's sans serif. */
 export function canvasFontFamily(name:unknown):string{
@@ -111,7 +152,7 @@ export async function exportWithFonts<T>(doc:Pick<EditorDoc,'layers'>,{load,read
  await ready();
  return {file:await draw(),failed};
 }
-const list=(names:readonly string[])=>names.length===1?names[0]:`${names.slice(0,-1).join(', ')} and ${names[names.length-1]}`;
+const list=(raw:readonly string[])=>{const names=raw.map(fontLabel);return names.length===1?names[0]:`${names.slice(0,-1).join(', ')} and ${names[names.length-1]}`};
 /** The notice above the canvas while a font is missing. */
 export function fallbackNotice(failed:readonly string[]):string|null{
  if(!failed.length)return null;
@@ -127,19 +168,20 @@ export type FontSection={id:'brand'|'design'|'recent'|'all';title:string;fonts:C
 /** Whether a family answers a search: its name, the start of its kind ("serif" is serif, not sans serif; "script"), or "arabic". */
 export function matches(f:CatalogueFont,query:string):boolean{
  const q=query.trim().toLowerCase();if(!q)return true;
- return f.family.toLowerCase().includes(q)||FONT_KINDS[f.kind].toLowerCase().startsWith(q)||(f.arabic&&('arabic'.startsWith(q)||q.includes('عرب')));
+ return labelOf(f).toLowerCase().includes(q)||(!!f.brand&&'brand'.startsWith(q))||FONT_KINDS[f.kind].toLowerCase().startsWith(q)||(f.arabic&&('arabic'.startsWith(q)||q.includes('عرب')));
 }
 /**
- * The font list's sections, in order: Brand fonts (the brand kit's), In this design, Recent (this
+ * The font list's sections, in order: Brand fonts (the company's uploaded fonts first, then the brand kit's), In this design, Recent (this
  * person's), All fonts. A search narrows every section; a section with nothing to show is left out.
  */
 export function fontSections({kit,doc,recent,query}:{kit:{headingFont:string;bodyFont:string}|null|undefined;doc:Pick<EditorDoc,'layers'>;recent:readonly string[];query:string}):FontSection[]{
  const pick=(names:readonly string[])=>[...new Set(names)].flatMap(n=>{const f=fontByName(n);return f&&matches(f,query)?[f]:[]});
  const out:FontSection[]=[
-  {id:'brand',title:'Brand fonts',fonts:pick(kit?[kit.headingFont,kit.bodyFont]:[])},
+  {id:'brand',title:'Brand fonts',fonts:pick([...brandFonts().map(f=>f.family),...kit?[kit.headingFont,kit.bodyFont]:[]])},
   {id:'design',title:'In this design',fonts:pick(fontNamesInDoc(doc))},
   {id:'recent',title:'Recent',fonts:pick(recent.slice(0,RECENT_MAX))},
   {id:'all',title:'All fonts',fonts:[...FONTS].filter(f=>matches(f,query)).sort((a,b)=>a.family.localeCompare(b.family))},
+  // (An uploaded font is in Brand fonts only: All fonts is the catalogue.)
  ];
  return out.filter(s=>s.fonts.length);
 }
@@ -149,6 +191,8 @@ export const withRecent=(recent:readonly string[],name:string)=>[...new Set([nam
 
 /** The brand kit's role for a font, if any ("Brand headings"). */
 export function brandRole(name:string,kit:{headingFont:string;bodyFont:string}|null|undefined):string|null{
+ const own=isBrandFontName(name)?fontByName(name):null;
+ if(own)return 'Uploaded'+(own.embedding?' · '+EMBEDDING_LABELS[own.embedding]:'');
  if(!kit)return null;
  if(kit.headingFont===name&&kit.bodyFont===name)return 'Brand headings and body';
  return kit.headingFont===name?'Brand headings':kit.bodyFont===name?'Brand body text':null;

@@ -1,6 +1,6 @@
 'use client';
 import * as React from 'react';
-import { AlertCircle, Film, ImagePlus, Upload } from 'lucide-react';
+import { AlertCircle, Film, ImagePlus, Type, Upload } from 'lucide-react';
 import { Button, dsClass } from './button';
 import { clipboardImage, validateClipboardImage } from '@/lib/clipboard-image';
 
@@ -19,8 +19,8 @@ export type DropZoneProps = {
   label: React.ReactNode;
   /** What is added, for the buttons' names ("Replace car picture"). */
   name: string;
-  /** image (default): PNG/JPEG/WebP and paste; video: a file chosen or dropped. */
-  kind?: 'image' | 'video';
+  /** image (default): PNG/JPEG/WebP and paste; video and font: a file chosen or dropped (font: give `accept`). */
+  kind?: 'image' | 'video' | 'font';
   accept?: string;
   maxBytes?: number;
   /** One file; may return a promise (the area is busy until it settles, and shows its error). */
@@ -77,7 +77,7 @@ export function DropZone({
   function check(file: File, pasted = false) {
     // A pasted picture keeps the clipboard's own words (lib/clipboard-image.ts).
     if (pasted) validateClipboardImage(file);
-    if (!accepted(file, types)) throw new Error(kind === 'video' ? 'Choose an MP4 video.' : 'Choose a PNG, JPEG or WebP picture.');
+    if (!accepted(file, types)) throw new Error(kind === 'video' ? 'Choose an MP4 video.' : kind === 'font' ? 'Choose an OTF, TTF, WOFF or WOFF2 font file.' : 'Choose a PNG, JPEG or WebP picture.');
     if (!file.size || file.size > maxBytes) throw new Error(`Choose a file up to ${mb(maxBytes)} MB.`);
     return file;
   }
@@ -100,8 +100,8 @@ export function DropZone({
   const choose = () => { if (!off) input.current?.click(); };
   const isFiles = (e: React.DragEvent) => Array.from(e.dataTransfer?.types || []).includes('Files');
 
-  const status = typeof busy === 'string' && busy ? busy : isBusy ? (kind === 'video' ? 'Adding video…' : 'Adding picture…') : '';
-  const Icon = kind === 'video' ? Film : ImagePlus;
+  const status = typeof busy === 'string' && busy ? busy : isBusy ? (kind === 'video' ? 'Adding video…' : kind === 'font' ? 'Adding fonts…' : 'Adding picture…') : '';
+  const Icon = kind === 'video' ? Film : kind === 'font' ? Type : ImagePlus;
 
   return (
     <div className={dsClass('ds-drop', className)}>
