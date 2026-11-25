@@ -25,7 +25,12 @@ How it works:
 - The icon data ships with the Studio (`public/icons/<set>.json`, built from the
   sets' published data by `node --experimental-strip-types scripts/icons/build-icons.mjs`).
   No request goes to an icon service, from the server or the browser.
-- A set's file loads only when its category opens in the panel.
+- Browsing: a set's file loads only when its category opens in the panel.
+- Searching looks in every set at once, through a small index of names and tags
+  (`public/icons/index.json`: each icon's other names, its category where the set
+  has them, the Studio's plain words; no drawings), loaded the first time someone
+  searches. Exact names come first. Each result loads its drawing (its set's chunk
+  of 64, `public/icons/<set>/<n>.json`) only when it scrolls into view.
 - An icon goes on a design as its own vector paths on its set's grid
   (`lib/editor/doc.ts` IconLayer: `grid`, and `fill` for a solid icon), so
   it stays sharp at any size, recolours from the right panel and needs nothing

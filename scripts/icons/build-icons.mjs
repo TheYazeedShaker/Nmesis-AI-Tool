@@ -23,7 +23,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 register('../verify/hooks.mjs',{parentURL:import.meta.url,data:{stubs:{}}});
-const {shapeToPath}=await import('@/lib/editor/icons.ts');
+const {shapeToPath,ICON_WORDS}=await import('@/lib/editor/icons.ts');
 const {ICON_PATHS_MAX,ICON_PATH_MAX}=await import('@/lib/editor/doc.ts');
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
@@ -83,7 +83,9 @@ async function licenceText(set){
 
 const out=path.join(ROOT,'public/icons');
 fs.mkdirSync(out,{recursive:true});
-const manifest=[];
+const manifest=[],index=[];
+/** Icons a search-result chunk holds (lib/editor/icon-sets.ts ICON_CHUNK). */
+const CHUNK=64;
 for(const set of SETS){
  const data=JSON.parse(fs.readFileSync(require.resolve(set.pkg+'/icons.json'),'utf8'));
  const info=JSON.parse(fs.readFileSync(require.resolve(set.pkg+'/info.json'),'utf8'));
@@ -103,12 +105,30 @@ for(const set of SETS){
  }
  const file=`${set.id}.json`,json=JSON.stringify({id:set.id,grid,icons});
  fs.writeFileSync(path.join(out,file),json);
+ // The search across every set: the drawings again in chunks of CHUNK icons in the set's order
+ // (public/icons/<set>/<n>.json), so a search result loads only its own chunk when it scrolls into view.
+ const dir=path.join(out,set.id);
+ fs.rmSync(dir,{recursive:true,force:true});fs.mkdirSync(dir);
+ for(let n=0;n*CHUNK<icons.length;n++)fs.writeFileSync(path.join(dir,`${n}.json`),JSON.stringify(icons.slice(n*CHUNK,(n+1)*CHUNK)));
+ // The search index: names in the same order, and each icon's tags (its other names in the set, its
+ // category where the set has them, the Studio's own plain words), each word once and none of the name's own.
+ const fromOf=new Map(set.pick(Object.keys(data.icons)).map(([name,from])=>[from,name]));
+ const words=new Map(icons.map(([name])=>[name,new Set()]));
+ const tag=(name,text)=>{const w=words.get(name);if(!w)return;for(const t of String(text).toLowerCase().split(/[^a-z0-9]+/))if(t&&!name.split('-').includes(t))w.add(t)};
+ for(const [alias,{parent}] of Object.entries(data.aliases||{}))tag(fromOf.get(parent)??parent,alias);
+ const meta=JSON.parse(fs.readFileSync(require.resolve(set.pkg+'/metadata.json'),'utf8'));
+ for(const [category,names] of Object.entries(meta.categories||{}))for(const n of names)tag(fromOf.get(n)??n,category);
+ for(const [name,plain] of Object.entries(ICON_WORDS))tag(name,plain);
+ index.push({id:set.id,names:icons.map(([name])=>name),tags:Object.fromEntries([...words].filter(([,w])=>w.size).map(([n,w])=>[n,[...w].join(' ')]))});
  fs.writeFileSync(path.join(out,`${set.id}.LICENSE.txt`),await licenceText(set));
  manifest.push({id:set.id,label:set.label,style:set.style,licence:info.license.title,spdx,licenceUrl:info.license.url,version:info.version||require(set.pkg+'/package.json').version,
   count:icons.length,grid,file:`/icons/${file}`,licenceFile:`/icons/${set.id}.LICENSE.txt`,bytes:Buffer.byteLength(json)});
  console.log(`${set.id}: ${icons.length} icons, ${(Buffer.byteLength(json)/1e6).toFixed(2)} MB; left out ${JSON.stringify(skipped)}`);
 }
 fs.writeFileSync(path.join(ROOT,'lib/editor/icon-sets.json'),JSON.stringify(manifest,null,1)+'\n');
+const indexJson=JSON.stringify({chunk:CHUNK,sets:index});
+fs.writeFileSync(path.join(out,'index.json'),indexJson);
+console.log(`search index: ${(Buffer.byteLength(indexJson)/1e3).toFixed(0)} kB`);
 
 const rows=manifest.map(s=>`| ${s.label} | ${s.style} | ${s.count.toLocaleString('en')} | ${s.licence} (\`${s.spdx}\`) | ${s.version} | [\`public${s.licenceFile}\`](../public${s.licenceFile}) |`).join('\n');
 fs.writeFileSync(path.join(ROOT,'docs/icons.md'),`# Icons: the editor's icon sets
@@ -135,7 +155,12 @@ How it works:
 - The icon data ships with the Studio (\`public/icons/<set>.json\`, built from the
   sets' published data by \`node --experimental-strip-types scripts/icons/build-icons.mjs\`).
   No request goes to an icon service, from the server or the browser.
-- A set's file loads only when its category opens in the panel.
+- Browsing: a set's file loads only when its category opens in the panel.
+- Searching looks in every set at once, through a small index of names and tags
+  (\`public/icons/index.json\`: each icon's other names, its category where the set
+  has them, the Studio's plain words; no drawings), loaded the first time someone
+  searches. Exact names come first. Each result loads its drawing (its set's chunk
+  of 64, \`public/icons/<set>/<n>.json\`) only when it scrolls into view.
 - An icon goes on a design as its own vector paths on its set's grid
   (\`lib/editor/doc.ts\` IconLayer: \`grid\`, and \`fill\` for a solid icon), so
   it stays sharp at any size, recolours from the right panel and needs nothing

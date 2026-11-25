@@ -1118,10 +1118,14 @@ function editorSteps() { return {
     const nav = (name) => page.locator('button.studio-side-item', { hasText: name }).first();
     const shot = (name) => SHOTS ? page.screenshot({ path: path.join(OUT, 'shots', `phase5-${name}--1440--light.png`) }).catch(() => {}) : null;
 
-    // Photos: before a search (which libraries are on), a search, the masonry grid.
+    // Photos: it opens with results for "cars" (written in the box, no typing), says which libraries are off,
+    // then a search with none, a search, the masonry grid.
     await nav('Photos').click({ timeout: 5000 });
     const panel = page.locator('#studio-panel');
     await panel.getByRole('searchbox', { name: 'Search photos' }).waitFor({ timeout: 10_000 });
+    const opening = await panel.getByRole('searchbox', { name: 'Search photos' }).inputValue().catch(() => '');
+    if (opening !== 'cars') problems.push(`the Photos search box opens with ${JSON.stringify(opening)}, not "cars"`);
+    await panel.locator('button.photos-add').first().waitFor({ timeout: 15_000 }).catch(() => problems.push('the Photos panel opened with no results'));
     await panel.locator('[data-library="unsplash"]').waitFor({ timeout: 10_000 }).catch(() => problems.push('the Photos panel did not say Unsplash is off'));
     const offWords = ((await panel.locator('[data-library="unsplash"]').textContent().catch(() => '')) || '').trim();
     if (!/Unsplash is off/.test(offWords)) problems.push(`Unsplash (no key) reads ${JSON.stringify(offWords)}, not that it is off`);
@@ -1160,23 +1164,31 @@ function editorSteps() { return {
     if (!dropped.ok || Math.abs(dropped.x - drop.x * k) > docWidth * 0.03 || Math.abs(dropped.y - drop.y * k) > docWidth * 0.03) problems.push(`the dropped photo's middle is at ${JSON.stringify(dropped)}, not where it was dropped (${Math.round(drop.x * k)}, ${Math.round(drop.y * k)})`);
     await shot('photos-dropped');
 
-    // Icons: a set opens (its file only now), a search, one clicked in; another set, a solid icon dragged in.
+    // Icons: browsing a set (its file only now); then one search across every set (one list, each result
+    // labelled with its set, the exact name first), one clicked in; a solid icon found by its exact name, dragged in.
     await nav('Icons').click({ timeout: 5000 });
     const icons = panel.locator('button.icons-add');
     await icons.first().waitFor({ timeout: 15_000 }).catch(() => problems.push('the Icons panel showed no icons'));
-    await panel.getByRole('searchbox', { name: /Search .* icons/ }).fill('car');
-    await page.waitForTimeout(500);
-    await icons.first().waitFor({ timeout: 5000 }).catch(() => {});
+    await panel.getByRole('button', { name: 'Phosphor' }).click({ timeout: 5000 });
+    await panel.getByRole('list', { name: 'Phosphor icons' }).locator('button.icons-add').first().waitFor({ timeout: 15_000 }).catch(() => problems.push('browsing Phosphor showed nothing'));
+    const search = panel.getByRole('searchbox', { name: 'Search icons' });
+    await search.fill('car');
+    const found = panel.locator('button.icons-add[data-set]');
+    await found.first().waitFor({ timeout: 15_000 }).catch(() => problems.push('searching every set for "car" found nothing'));
+    const sets = await found.evaluateAll((els) => [...new Set(els.slice(0, 40).map((e) => e.getAttribute('data-set')))]);
+    if (sets.length < 2) problems.push(`the search across every set shows ${JSON.stringify(sets)}, not several sets`);
+    if (await found.first().getAttribute('data-icon') !== 'car') problems.push(`the first result for "car" is ${await found.first().getAttribute('data-icon')}, not the exact name`);
+    if (!(await found.first().locator('.icons-set').count())) problems.push('a result does not say its set');
+    await found.first().locator('svg.icons-art').waitFor({ timeout: 15_000 }).catch(() => problems.push('a result\'s drawing did not load as it came into view'));
     await shot('icons-search');
-    await icons.first().click({ timeout: 5000 });
-    await page.waitForTimeout(400);
+    await found.first().click({ timeout: 5000 });
+    await page.waitForTimeout(600);
     if (await layersOf(page) !== start + 3) problems.push(`clicking an icon left ${await layersOf(page)} layers, not ${start + 3}`);
     if (!(await panelOf(page).locator('[data-editor-section="appearance"]').getByText('Colour').count())) problems.push('a placed icon has no Colour in the right panel');
-    await panel.getByRole('button', { name: 'Phosphor' }).click({ timeout: 5000 });
-    await panel.getByRole('searchbox', { name: 'Search Phosphor icons' }).fill('star-fill');
-    await page.waitForTimeout(500);
-    const solid = panel.locator('button.icons-add[data-icon="star-fill"]');
-    await solid.waitFor({ timeout: 15_000 }).catch(() => problems.push('the Phosphor set did not load'));
+    await search.fill('star-fill');
+    const solid = panel.locator('button.icons-add[data-set="phosphor"][data-icon="star-fill"]');
+    await solid.waitFor({ timeout: 15_000 }).catch(() => problems.push('searching "star-fill" did not find Phosphor\'s'));
+    await solid.locator('svg.icons-art').waitFor({ timeout: 15_000 }).catch(() => {});
     await solid.dragTo(canvasOf(page), { targetPosition: { x: canvasBox.width * 0.75, y: canvasBox.height * 0.7 }, timeout: 10_000 }).catch((e) => problems.push('dragging an icon failed: ' + String(e.message).split('\n')[0]));
     await page.waitForTimeout(500);
     if (await layersOf(page) !== start + 4) problems.push(`dropping an icon left ${await layersOf(page)} layers, not ${start + 4}`);

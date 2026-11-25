@@ -17,10 +17,15 @@ import type {ReferencePhoto} from '@/lib/references/provider';
 // the page, or drag it onto the canvas. Either way it is first copied into the
 // person's own storage (POST /api/references/import, the upload path), so a
 // design never depends on a library's address; the layer keeps the credit.
-// Every state is drawn on purpose: before a search, loading (a placeholder
-// grid), no results, a library off or failing, and all of them off.
+// It opens with results already: a search for OPENING_SEARCH, written in the
+// box so the person can change it (an ordinary search: Pixabay's 24-hour cache
+// covers it too). Every state is drawn on purpose: loading (a placeholder
+// grid), no results, a library off or failing, all of them off (the "off"
+// message, never an empty grid), and an empty box (ideas to search).
 // Styles: app/elements.css ("Photos").
 
+/** What the panel searches as it opens, shown in its search box. */
+export const OPENING_SEARCH='cars';
 const SEARCH_MS=20_000,IMPORT_MS=45_000,DEBOUNCE_MS=350,QUERY_MAX=100;
 const IDEAS=['Mountain road','City at night','Desert dunes','Studio lighting','Coastline','Forest'];
 type Library={id:string;label:string;on:boolean;notice?:string};
@@ -81,7 +86,7 @@ function Skeletons({count,from=0}:{count:number;from?:number}){
 
 export function PhotosPanel(){
  const {toast}=useToast();
- const [typed,setTyped]=React.useState(''),[query,setQuery]=React.useState('');
+ const [typed,setTyped]=React.useState(OPENING_SEARCH),[query,setQuery]=React.useState(OPENING_SEARCH);
  // The last answer, for the search (and the attempt) it answered: anything else on screen is still loading.
  const [got,setGot]=React.useState<{q:string;attempt:number;answer:Results|{error:string};more:'idle'|'loading'|'error'}|null>(null);
  const [status,setStatus]=React.useState<Library[]|null>(null);

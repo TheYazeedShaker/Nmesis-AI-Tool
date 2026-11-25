@@ -283,11 +283,48 @@ test('every icon set is MIT, Apache 2.0, ISC or CC0, ships with its licence, and
  assert.equal(iconSets.readIconSet({id:'lucide',grid:24,icons:[['ok',0,['M1 1L2 2']],['bad',0,['<script>']],['x',2,['M1 1']]]},sets[0]).icons.length,1);
 });
 
-test('a search within a set puts the closest names first; no words shows the whole set',()=>{
- const set=iconSets.readIconSet({id:'lucide',grid:24,icons:[['car',0,['M1 1']],['car-front',0,['M1 1']],['scar',0,['M1 1']],['star',0,['M1 1']]]},{id:'lucide',grid:24});
- assert.deepEqual(iconSets.iconsFor(set,'car').map(i=>i.name),['car','car-front','scar']);
- assert.equal(iconSets.iconsFor(set,'  ').length,4);
- assert.deepEqual(iconSets.iconsFor(set,'boat'),[]);
+test('one search across every set: results from several sets, exact names first, tags matched, drawings left to their chunks',()=>{
+ const raw=fs.readFileSync(path.join(rootPath,'public',iconSets.ICON_INDEX_FILE),'utf8');
+ const index=iconSets.readIconIndex(JSON.parse(raw));
+ assert.ok(index);
+ assert.deepEqual(index.sets.map(s=>s.id),iconSets.ICON_SETS.map(s=>s.id));
+ // Names and tags only: no drawing in the index, and it stays small.
+ assert.ok(!/"M[0-9]/.test(raw)&&Buffer.byteLength(raw)<600_000,'the index holds no drawings');
+ for(const s of index.sets)assert.equal(s.names.length,iconSets.ICON_SETS.find(i=>i.id===s.id).count,s.id);
+ // "car": one list from more than one set, every exact "car" before any other.
+ const car=iconSets.searchAllSets(index,'car');
+ assert.ok(new Set(car.map(h=>h.set)).size>1,'results from more than one set');
+ const exact=car.filter(h=>h.name==='car');
+ assert.ok(exact.length>1,'"car" is a name in more than one set');
+ assert.deepEqual(car.slice(0,exact.length).map(h=>h.name),exact.map(()=>'car'),'exact names first');
+ // "steering" finds the steering icons in every set that has one.
+ const steering=iconSets.searchAllSets(index,'steering');
+ assert.ok(new Set(steering.map(h=>h.set)).size>=3,JSON.stringify(steering.slice(0,6)));
+ assert.ok(steering.every(h=>/steering/.test(h.name)||/steering/.test(index.sets.find(s=>s.id===h.set).tags[h.name]||'')));
+ // A tag finds an icon its name doesn't (the Studio's plain words: "ev" → electric icons).
+ const ev=iconSets.searchAllSets(index,'ev');
+ assert.ok(ev.some(h=>h.name==='battery-charging'),'"ev" finds the charging battery by its tag');
+ assert.deepEqual(iconSets.searchAllSets(index,'  '),[]);
+ assert.deepEqual(iconSets.searchAllSets(index,'zzzqqq'),[]);
+ // Each hit's drawing is in its set's chunk, at its place.
+ for(const hit of [...car.slice(0,3),...steering.slice(0,3)]){
+  const chunk=iconSets.readIconChunk(JSON.parse(fs.readFileSync(path.join(rootPath,'public','icons',hit.set,`${Math.floor(hit.at/index.chunk)}.json`),'utf8')));
+  assert.ok(chunk.some(i=>i.name===hit.name),hit.set+':'+hit.name);
+ }
+});
+
+test('the Photos panel opens with results for "cars", written in its search box',async()=>{
+ const React=(await import('react')).default,{renderToStaticMarkup}=await import('react-dom/server');
+ const panel=tsxLoader({'@/components/ds/toast':{useToast:()=>({toast(){}})}})('components/canvas/photos-panel.tsx');
+ assert.equal(panel.OPENING_SEARCH,'cars');
+ const html=renderToStaticMarkup(React.createElement(panel.PhotosPanel));
+ // The search is already running as it opens (a placeholder grid), with no typing.
+ assert.match(html,/<input[^>]*type="search"[^>]*value="cars"/);
+ assert.match(html,/aria-busy="true" aria-label="Loading photos"/);
+ assert.ok(!html.includes('Find a photo'),'no empty start: results come at once');
+ // The search box stays the person's to change, and every library off still wins over any grid.
+ const src=fs.readFileSync(path.join(rootPath,'components/canvas/photos-panel.tsx'),'utf8');
+ assert.match(src,/\{allOff\?<State kind="empty" title="Photos aren’t set up yet">/);
 });
 
 test('no icon or font service is named anywhere the Studio runs: the icon data is its own',()=>{
@@ -296,5 +333,10 @@ test('no icon or font service is named anywhere the Studio runs: the icon data i
  for(const dir of ['app','components','lib'])for(const f of walk(path.join(rootPath,dir)).filter(f=>/\.(tsx?|css|json)$/.test(f)))
   assert.ok(!hosts.test(fs.readFileSync(f,'utf8')),path.relative(rootPath,f));
  const panel=fs.readFileSync(path.join(rootPath,'components/canvas/icons-panel.tsx'),'utf8');
- assert.match(panel,/fetch\(info\.file/,'a set loads from the Studio\'s own address');
+ // A set, the search index and a result's chunk: each from the Studio's own address, and nothing else is fetched.
+ assert.match(panel,/once\(sets,info\.id,info\.file,/,'a set loads from the Studio\'s own address');
+ assert.match(panel,/once\(indexes,'index',ICON_INDEX_FILE,/);
+ assert.match(panel,/`\/icons\/\$\{set\}\/\$\{n\}\.json`/);
+ assert.equal((panel.match(/fetch\(/g)||[]).length,1,'one fetch, inside once()');
+ assert.equal(iconSets.ICON_INDEX_FILE,'/icons/index.json');
 });

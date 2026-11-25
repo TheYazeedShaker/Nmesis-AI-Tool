@@ -29,6 +29,9 @@ else changes.
 
 ## The editor's Photos panel
 
+It opens with results already: a search for "cars", written in the search box so
+the person can change it (an ordinary search, so Pixabay's 24-hour cache covers it;
+with every library off it shows the "off" message, never an empty grid).
 One search over every library that is on (`GET /api/references?provider=all`:
 each library's own search, their photos taken in turn; a library that is off or
 fails says so in its own line and the others still answer). Results show in a
