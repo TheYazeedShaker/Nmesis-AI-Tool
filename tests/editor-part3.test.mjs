@@ -83,7 +83,9 @@ test('icons: lucide’s own drawing becomes vector paths the design keeps',async
  const blue=D.updateLayer(doc,'i',{color:'#123456',width:400,height:400}).layers.i;
  assert.deepEqual(blue.paths,l.paths);assert.equal(blue.color,'#123456');
  const stage=read('components/canvas/stage.tsx');
- assert.match(stage,/<Group scaleX=\{w\/ICON_GRID\} scaleY=\{h\/ICON_GRID\}>/,'drawn as vectors scaled to the box: sharp at any size and in the export');
+ // Its own grid (24 unless the icon says so: editor Phase 5's sets), scaled to the box.
+ assert.match(stage,/const grid=layer\.grid\?\?ICON_GRID;/);
+ assert.match(stage,/<Group scaleX=\{w\/grid\} scaleY=\{h\/grid\}>/,'drawn as vectors scaled to the box: sharp at any size and in the export');
  assert.match(stage,/<Path key=\{i\} data=\{d\} stroke=\{layer\.color\}/);
 });
 

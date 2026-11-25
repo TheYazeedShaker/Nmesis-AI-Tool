@@ -73,8 +73,8 @@ after(()=>{globalThis.fetch=realFetch;s3?.server.closeAllConnections();s3?.serve
 beforeEach(()=>{lib.forgetUnsplash();libraryCalls=[];libraryAnswer=null;state.user=OWNER;state.chosenOrg=null;state.chosenBrand=null;process.env.UNSPLASH_ACCESS_KEY=KEY});
 
 // ── The providers ───────────────────────────────────────────────────────────
-test('the registry offers Unsplash first, then Pinterest, and knows no other id',()=>{
- assert.deepEqual(providers.REFERENCE_PROVIDERS.map(p=>p.id),['unsplash','pinterest']);
+test('the registry offers Unsplash first, then Pixabay and Pinterest, and knows no other id',()=>{
+ assert.deepEqual(providers.REFERENCE_PROVIDERS.map(p=>p.id),['unsplash','pixabay','pinterest']);
  assert.equal(providers.referenceProvider('unsplash'),unsplash);
  for(const v of ['nope','',null,undefined,{},'UNSPLASH'])assert.equal(providers.referenceProvider(v),null);
 });
@@ -106,10 +106,10 @@ test('a search maps Unsplash\'s fields, keeps only photos on its own image host,
   id:'demo-photo-1',provider:'unsplash',
   thumb:'https://images.unsplash.com/photo-demo-photo-1?ixid=demo&w=400',src:'https://images.unsplash.com/photo-demo-photo-1?ixid=demo&w=1080',
   width:4000,height:3000,alt:'A demo SUV on a coastal road',
-  credit:{name:'Demo Photographer',href:`https://unsplash.com/@demo_photographer?${UTM}`,source:'Unsplash',sourceHref:`https://unsplash.com/?${UTM}`},
+  credit:{name:'Demo Photographer',href:`https://unsplash.com/@demo_photographer?${UTM}`,source:'Unsplash',sourceHref:`https://unsplash.com/?${UTM}`,page:`https://unsplash.com/photos/demo-photo-1?${UTM}`},
  });
  assert.equal(page.photos[1].alt,'Demo hatch at dusk');
- assert.deepEqual(page.photos[1].credit,{name:'Second Person',href:`https://unsplash.com/@second.person?${UTM}`,source:'Unsplash',sourceHref:`https://unsplash.com/?${UTM}`});
+ assert.deepEqual(page.photos[1].credit,{name:'Second Person',href:`https://unsplash.com/@second.person?${UTM}`,source:'Unsplash',sourceHref:`https://unsplash.com/?${UTM}`,page:`https://unsplash.com/photos/demo-photo-2?${UTM}`});
  // One request, to the official API, with the key in the header only.
  assert.equal(f.calls.length,1);
  const [call]=f.calls,url=new URL(call.url);
@@ -316,7 +316,7 @@ test('POST /api/references/import stores the photo as the person\'s own asset, t
  assert.equal(r.status,200,r.text);
  assert.match(r.body.id,/^[a-z0-9-]{8,80}$/);
  assert.equal(r.body.url,'/api/assets/'+r.body.id);
- assert.deepEqual(r.body.credit,{name:'Demo Photographer',href:`https://unsplash.com/@demo_photographer?${UTM}`,source:'Unsplash',sourceHref:`https://unsplash.com/?${UTM}`});
+ assert.deepEqual(r.body.credit,{name:'Demo Photographer',href:`https://unsplash.com/@demo_photographer?${UTM}`,source:'Unsplash',sourceHref:`https://unsplash.com/?${UTM}`,page:`https://unsplash.com/photos/demo-route-7?${UTM}`});
  const head=await store.head(`orgs/${ORG_A}/users/${OWNER.id}/images/${r.body.id}`);
  assert.ok(head,'stored under the person\'s own prefix');
  assert.equal(head.httpMetadata.contentType,'image/jpeg');

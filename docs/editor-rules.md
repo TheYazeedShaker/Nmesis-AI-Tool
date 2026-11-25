@@ -84,10 +84,10 @@ choices, colour swatches, "More", buttons in words, the tabs);
 | Selected | Sections, in order |
 |---|---|
 | Nothing | Page (its size; background: your picture or a colour, the colour solid or a linear or radial gradient), Brand (its colours and fonts) |
-| A picture | Position & size (W/H, X/Y, rotation; More: align to the page) → Appearance (opacity, corner radius, flip left to right, flip upside down) → Arrange |
+| A picture | Position & size (W/H, X/Y, rotation; More: align to the page) → Appearance (opacity, corner radius, flip left to right, flip upside down) → Arrange → Credit (a photo from the Photos panel only: "Photo by <name> on <library>", both linked; information, not a setting, so it comes after the settings) |
 | A text | Position & size → Appearance (opacity) → Text (words, Type on the canvas, font (the font list), size, weight (only the weights the font has; a slider on a variable font's axis; none for a font of one weight), italic (only where the font has one), alignment, colour (with the contrast hint); More: line and letter spacing) → Effects (one at a time: None, Shadow, Outline, Lift, Neon, Background, Curve, as tiles; the chosen one's 2–5 controls) → Arrange |
 | A shape | Position & size → Appearance (fill: solid, linear or radial; outline and its width, opacity) → Arrange |
-| An icon | Position & size → Appearance (colour, line weight, opacity) → Arrange |
+| An icon | Position & size → Appearance (colour, line weight (not for a solid icon), opacity) → Arrange |
 | A line or a frame | Position & size → Appearance (colour, line weight; a line: dashed, arrowheads; a frame: corner radius; opacity) → Arrange |
 | A group, or several | Position & size (their box; X/Y move them together; align to each other, or a group to the page; distribute across or down) → Appearance (opacity for all) → Arrange (with Group or Ungroup) |
 
@@ -134,7 +134,7 @@ with each open.
 
 The Layers list is the right panel's second tab (Design, Layers), not a left
 panel. The left panels are for adding things (Brand, Elements, Text,
-Uploads); the layers are the selection's other view, so they share the
+Photos, Icons, Uploads); the layers are the selection's other view, so they share the
 selection's one home (rule 2), and the canvas keeps its width at 1024 px
 (rule 1: a fourth panel beside it would squeeze it). The tab stays as it is
 when something is selected, so picking in the list never jumps away.

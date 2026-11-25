@@ -45,6 +45,7 @@ import { EDITOR_JOURNEYS, EDITOR_VISUAL_ID, V1_DESIGN_ID, RULE_STATE_SIZES, PERF
 import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, FLOWS, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
 import { finish } from './ui/ratchet.mjs';
 import { decode as decodePngFile } from 'fast-png';
+import { PHOTO_HOSTS, standinPng } from './ui/photo-standin.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes('--' + n);
@@ -209,6 +210,8 @@ async function prepareContext(ctx) {
   await ctx.route('**/*', (route) => {
     const u = new URL(route.request().url());
     if (/^(localhost|127\.0\.0\.1)$/.test(u.hostname) || u.protocol === 'data:' || u.protocol === 'blob:') return route.continue();
+    // The photo library's pictures in the Photos panel's grid: the stand-in's (scripts/ui/photo-standin.mjs).
+    if (u.protocol === 'https:' && PHOTO_HOSTS.test(u.hostname)) return route.fulfill({ status: 200, contentType: 'image/png', body: standinPng() });
     if (FONT_SERVICE.test(u.hostname)) fontServiceRequests.push({ host: u.hostname, from: (() => { try { return new URL(route.request().frame().url()).pathname; } catch { return '?'; } })() });
     ctx.__blocked = ctx.__blocked || new Set(); ctx.__blocked.add(u.hostname);
     return route.abort('blockedbyclient');
@@ -1098,6 +1101,106 @@ function editorSteps() { return {
       if (await layersOf(last) !== shown + 2) problems.push(`the next opening shows ${await layersOf(last)} layers, not ${shown + 2}: the offline change was not restored`);
       if (!(await studioHas(context, origin, held + 2, 15_000))) problems.push('the restored change never reached the Studio');
     } finally { await last.close().catch(() => {}); }
+  },
+  // Editor Phase 5 (feat/editor-photos-icons): the Photos panel searches every library that is on (Pixabay,
+  // answered by scripts/ui/photo-standin.mjs; Unsplash has no key, so it says it is off), a photo is clicked in
+  // (the middle of the page) and another dragged onto the canvas (where it is dropped); each is copied into the
+  // Studio's storage and keeps its credit (shown in the right panel), never the library's address. The Icons
+  // panel: a search, an icon clicked in, another set opened and a solid icon dragged in. Then the export, where
+  // the dragged photo's colour is found, and every addition undone.
+  'editor-photos-icons': async (page, problems, run) => {
+    const { PHOTO_COLOUR } = await import('./ui/photo-standin.mjs');
+    await openEditor(page, EDITOR_VISUAL_ID);
+    await press(page, 'Escape');
+    const start = await layersOf(page), steps0 = await stepsOf(page);
+    const docWidth = await page.evaluate(() => { const s = window.Konva?.stages?.[0]; return s ? s.width() / s.scaleX() : 0; });
+    const canvasBox = await canvasOf(page).boundingBox();
+    const nav = (name) => page.locator('button.studio-side-item', { hasText: name }).first();
+    const shot = (name) => SHOTS ? page.screenshot({ path: path.join(OUT, 'shots', `phase5-${name}--1440--light.png`) }).catch(() => {}) : null;
+
+    // Photos: before a search (which libraries are on), a search, the masonry grid.
+    await nav('Photos').click({ timeout: 5000 });
+    const panel = page.locator('#studio-panel');
+    await panel.getByRole('searchbox', { name: 'Search photos' }).waitFor({ timeout: 10_000 });
+    await panel.locator('[data-library="unsplash"]').waitFor({ timeout: 10_000 }).catch(() => problems.push('the Photos panel did not say Unsplash is off'));
+    const offWords = ((await panel.locator('[data-library="unsplash"]').textContent().catch(() => '')) || '').trim();
+    if (!/Unsplash is off/.test(offWords)) problems.push(`Unsplash (no key) reads ${JSON.stringify(offWords)}, not that it is off`);
+    await shot('photos-start');
+    await panel.getByRole('searchbox', { name: 'Search photos' }).fill('nothing at all');
+    await panel.getByText(/No photos match/).first().waitFor({ timeout: 15_000 }).catch(() => problems.push('a search with no results did not say so'));
+    await shot('photos-none');
+    await panel.getByRole('searchbox', { name: 'Search photos' }).fill('demo road');
+    const tiles = panel.locator('button.photos-add');
+    await tiles.nth(5).waitFor({ timeout: 15_000 }).catch(() => problems.push('the search showed fewer than 6 photos'));
+    if (await tiles.count() < 6) return;
+    if (await panel.locator('img[src*="pixabay.com/get/"]').count() === 0) problems.push('the grid does not show the library\'s own pictures');
+    await tiles.first().hover();
+    await page.waitForTimeout(300);
+    const credit = await tiles.first().locator('.photos-credit').evaluate((el) => ({ text: el.textContent, opacity: Number(getComputedStyle(el).opacity) })).catch(() => null);
+    if (!credit || credit.opacity < 0.9 || !/demo_maker/.test(credit.text) || !/Pixabay/.test(credit.text)) problems.push(`hovering a photo shows ${JSON.stringify(credit)}, not its photographer and library`);
+    await shot('photos-results');
+    // Infinite scroll: the end of the grid loads the next page.
+    const first = await tiles.count();
+    await panel.locator('.photos-end').scrollIntoViewIfNeeded().catch(() => {});
+    await page.waitForFunction((n) => document.querySelectorAll('#studio-panel button.photos-add').length > n, first, { timeout: 15_000 }).catch(() => problems.push('scrolling to the end of the photos loaded no more'));
+
+    // Click: the middle of the page; the layer keeps its credit, and the right panel says it.
+    await tiles.first().click({ timeout: 5000 });
+    await page.waitForFunction((n) => { const l = /(\d+) layers?/.exec(document.querySelector('.canvas-box[data-editable="true"]')?.getAttribute('aria-label') || ''); return l && Number(l[1]) === n; }, start + 1, { timeout: 30_000 }).catch(() => problems.push('clicking a photo added no layer'));
+    const creditSection = panelOf(page).locator('[data-editor-section="credit"]');
+    const creditWords = ((await creditSection.textContent({ timeout: 5000 }).catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+    if (!/Photo by demo_maker on Pixabay/.test(creditWords)) problems.push(`the right panel's credit reads ${JSON.stringify(creditWords)}`);
+    run.ruleStates.push({ screen: 'editor', state: 'photo-with-credit', role: 'owner', w: 1440, h: 900, theme: 'light', editorRules: await page.evaluate(editorRules) });
+
+    // Drag: where it is dropped (its middle on the pointer), in picture pixels.
+    const drop = { x: canvasBox.width * 0.25, y: canvasBox.height * 0.3 };
+    await tiles.nth(1).dragTo(canvasOf(page), { targetPosition: drop, timeout: 10_000 }).catch((e) => problems.push('dragging a photo failed: ' + String(e.message).split('\n')[0]));
+    await page.waitForFunction((n) => { const l = /(\d+) layers?/.exec(document.querySelector('.canvas-box[data-editable="true"]')?.getAttribute('aria-label') || ''); return l && Number(l[1]) === n; }, start + 2, { timeout: 30_000 }).catch(() => problems.push('dropping a photo on the canvas added no layer'));
+    const dropped = await centreOf(page), k = docWidth / canvasBox.width;
+    if (!dropped.ok || Math.abs(dropped.x - drop.x * k) > docWidth * 0.03 || Math.abs(dropped.y - drop.y * k) > docWidth * 0.03) problems.push(`the dropped photo's middle is at ${JSON.stringify(dropped)}, not where it was dropped (${Math.round(drop.x * k)}, ${Math.round(drop.y * k)})`);
+    await shot('photos-dropped');
+
+    // Icons: a set opens (its file only now), a search, one clicked in; another set, a solid icon dragged in.
+    await nav('Icons').click({ timeout: 5000 });
+    const icons = panel.locator('button.icons-add');
+    await icons.first().waitFor({ timeout: 15_000 }).catch(() => problems.push('the Icons panel showed no icons'));
+    await panel.getByRole('searchbox', { name: /Search .* icons/ }).fill('car');
+    await page.waitForTimeout(500);
+    await icons.first().waitFor({ timeout: 5000 }).catch(() => {});
+    await shot('icons-search');
+    await icons.first().click({ timeout: 5000 });
+    await page.waitForTimeout(400);
+    if (await layersOf(page) !== start + 3) problems.push(`clicking an icon left ${await layersOf(page)} layers, not ${start + 3}`);
+    if (!(await panelOf(page).locator('[data-editor-section="appearance"]').getByText('Colour').count())) problems.push('a placed icon has no Colour in the right panel');
+    await panel.getByRole('button', { name: 'Phosphor' }).click({ timeout: 5000 });
+    await panel.getByRole('searchbox', { name: 'Search Phosphor icons' }).fill('star-fill');
+    await page.waitForTimeout(500);
+    const solid = panel.locator('button.icons-add[data-icon="star-fill"]');
+    await solid.waitFor({ timeout: 15_000 }).catch(() => problems.push('the Phosphor set did not load'));
+    await solid.dragTo(canvasOf(page), { targetPosition: { x: canvasBox.width * 0.75, y: canvasBox.height * 0.7 }, timeout: 10_000 }).catch((e) => problems.push('dragging an icon failed: ' + String(e.message).split('\n')[0]));
+    await page.waitForTimeout(500);
+    if (await layersOf(page) !== start + 4) problems.push(`dropping an icon left ${await layersOf(page)} layers, not ${start + 4}`);
+    if (await panelOf(page).getByText('Line weight').count()) problems.push('a solid icon offers a Line weight');
+    if (await stepsOf(page) !== steps0 + 4) problems.push(`four additions made ${(await stepsOf(page)) - steps0} undo steps, not 4`);
+
+    // The design keeps storage keys and credits, never a library's picture address.
+    await savedWithin(page, 20_000).catch(() => problems.push('the additions were not saved'));
+    const draft = await page.request.get(`/api/edits/${EDITOR_VISUAL_ID}/draft`, { failOnStatusCode: false }).then((r) => r.json()).catch(() => null);
+    const layers = Object.values(draft?.draft?.doc?.layers || {});
+    const photos = layers.filter((l) => l.kind === 'image' && l.credit?.provider === 'pixabay');
+    if (photos.length !== 2 || !photos.every((l) => /^images\//.test(l.asset))) problems.push(`the draft holds ${photos.length} credited photos in the Studio's storage, not 2`);
+    if (JSON.stringify(draft || {}).includes('pixabay.com/get')) problems.push('the draft holds a library picture address');
+    if (!layers.some((l) => l.kind === 'icon' && l.grid === 256 && l.fill === true)) problems.push('the solid icon was not kept with its grid and fill');
+
+    // The export: the dragged photo is in it, from the Studio's copy.
+    const exported = decodePng(await downloadPng(page));
+    const ek = exported.width / docWidth, [r, g, b] = sampleAt(exported, Math.round(dropped.x * ek), Math.round(dropped.y * ek), 1);
+    if ([r - PHOTO_COLOUR[0], g - PHOTO_COLOUR[1], b - PHOTO_COLOUR[2]].some((d) => Math.abs(d) > 16)) problems.push(`the export shows rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}) where the photo was dropped, not the photo`);
+
+    // Leave the design as it was for the journeys after this one.
+    for (let i = 0; i < 4; i++) await press(page, process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+    if (await layersOf(page) !== start) problems.push(`undoing the four additions left ${await layersOf(page)} layers, not ${start}`);
+    await savedWithin(page, 20_000).catch(() => {});
   },
   // The editor under load: a design of 50 layers on a 3840 x 2160 picture (scripts/ui/seed.mjs perfDesign).
   // Timed: until the canvas holds every layer, until the picture has arrived, the frames during a 30-move drag

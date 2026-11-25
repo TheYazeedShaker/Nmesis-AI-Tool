@@ -135,3 +135,75 @@
 .elements-search > input { width: 100%; }
 .elements-icons > .ds-help { margin: 0; min-height: calc(var(--ds-text-sm) * var(--ds-leading-sm)); font-variant-numeric: var(--ds-numeric); }
 .elements-icons > .ds-btn { align-self: flex-start; }
+
+/* ─── Photos (components/canvas/photos-panel.tsx), inside the editor ───
+   A search, then a masonry grid of two columns. Each photo's place is written
+   as grid rows by the panel (its shape, from the library), in units of a
+   fiftieth of a column, so the results keep their order for the keyboard.
+   The photographer and the library show over a photo on hover and on focus. */
+.photos-panel, .icons-panel { display: flex; flex-direction: column; gap: var(--ds-space-12); min-width: 0; }
+.photos-search { min-width: 0; }
+.photos-start { display: flex; flex-direction: column; gap: var(--ds-space-12); }
+.photos-ideas { display: flex; flex-wrap: wrap; gap: var(--ds-space-8); }
+.photos-libraries { display: flex; flex-direction: column; gap: var(--ds-space-4); margin: 0; padding: 0; list-style: none; }
+.photos-libraries > li { display: flex; align-items: flex-start; gap: var(--ds-space-8); }
+.photos-libraries svg { flex: none; width: var(--ds-space-16); height: var(--ds-space-16); }
+.photos-box { container-type: inline-size; min-width: 0; }
+.photos-grid {
+  --photos-unit: calc((100cqi - var(--ds-space-8)) / 2 / 50);
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: var(--photos-unit);
+  column-gap: var(--ds-space-8); row-gap: 0; margin: 0; padding: 0; list-style: none; min-width: 0;
+}
+/* Three units at the foot of each photo are the gap to the next one. */
+.photos-tile { position: relative; min-width: 0; }
+.photos-add, .photos-skeleton {
+  position: absolute; inset: 0 0 calc(var(--photos-unit) * 3) 0;
+  display: block; border-radius: var(--ds-radius-md); overflow: hidden;
+}
+.photos-add {
+  margin: 0; padding: 0; border: 0; background: var(--ds-media-bg); color: var(--ds-on-media);
+  font: inherit; text-align: left; cursor: grab;
+}
+.photos-add:active { cursor: grabbing; }
+.photos-add > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.photos-add:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.photos-add:disabled { cursor: progress; }
+.photos-add:disabled:not([data-busy]) > img { opacity: 0.6; }
+.photos-credit {
+  position: absolute; inset: auto 0 0 0; display: flex; flex-direction: column; gap: 0;
+  padding: var(--ds-space-16) var(--ds-space-8) var(--ds-space-8);
+  background: linear-gradient(to top, var(--ds-media-shade), transparent);
+  font-size: var(--ds-text-xs); line-height: var(--ds-leading-xs);
+  opacity: 0; transition: opacity var(--ds-dur-fast) var(--ds-ease);
+}
+.photos-credit-name { font-weight: var(--ds-weight-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photos-add:hover > .photos-credit, .photos-add:focus-visible > .photos-credit, .photos-add[data-busy] > .photos-credit { opacity: 1; }
+/* Touch screens have no hover: the credit always shows. */
+@media (hover: none) { .photos-credit { opacity: 1; } }
+.photos-adding {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: var(--ds-scrim); font-size: var(--ds-text-sm); font-weight: var(--ds-weight-semibold);
+}
+.photos-end { display: flex; justify-content: center; min-height: var(--ds-space-8); }
+.photos-sources { margin: 0; }
+
+/* ─── Icons (components/canvas/icons-panel.tsx), inside the editor ───
+   The sets as categories (the Elements bar), a search, then four icons a row. */
+.icons-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--ds-space-8);
+  margin: 0; padding: 0; list-style: none; min-width: 0;
+}
+.icons-add, .icons-skeleton {
+  display: grid; place-items: center; width: 100%; aspect-ratio: 1 / 1; min-width: 0;
+  border-radius: var(--ds-radius-md);
+}
+.icons-add {
+  margin: 0; padding: var(--ds-space-12);
+  border: var(--ds-border-width) solid var(--ds-border); background: var(--ds-panel-2); color: var(--ds-text);
+  cursor: grab; transition: border-color var(--ds-dur-fast) var(--ds-ease), background-color var(--ds-dur-fast) var(--ds-ease);
+}
+.icons-add:hover { border-color: var(--ds-border-strong); background: var(--ds-panel-3); }
+.icons-add:active { cursor: grabbing; }
+.icons-add:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-2); }
+.icons-art { display: block; width: 100%; height: 100%; }
+@media (prefers-reduced-motion: reduce) { .photos-credit, .icons-add { transition: none; } }

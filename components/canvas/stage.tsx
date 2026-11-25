@@ -114,10 +114,14 @@ function Body({layer,scale,fonts}:{layer:DrawnLayer;scale:number;fonts:CanvasFon
  if(layer.kind==='image')return <PictureBody layer={layer}/>;
  if(layer.kind==='text')return <TextBody layer={layer} fonts={fonts}/>;
  if(layer.kind==='icon'){
-  // The icon's own 24 x 24 grid scaled to the layer: vector paths, drawn sharp at any size and at export.
-  return <Group scaleX={w/ICON_GRID} scaleY={h/ICON_GRID}>
-   <Rect width={ICON_GRID} height={ICON_GRID} fill="transparent"/>
-   {layer.paths.map((d,i)=><Path key={i} data={d} stroke={layer.color} strokeWidth={layer.strokeWidth} lineCap="round" lineJoin="round" fillEnabled={false} hitStrokeWidth={Math.max(layer.strokeWidth,hit*ICON_GRID/Math.max(w,1))}/>)}
+  // The icon's own grid (24 x 24 unless it says) scaled to the layer: vector paths, drawn sharp at any size and at
+  // export; lines in its colour, or filled with it (a solid set).
+  const grid=layer.grid??ICON_GRID;
+  return <Group scaleX={w/grid} scaleY={h/grid}>
+   <Rect width={grid} height={grid} fill="transparent"/>
+   {layer.paths.map((d,i)=>layer.fill
+    ?<Path key={i} data={d} fill={layer.color} strokeEnabled={false}/>
+    :<Path key={i} data={d} stroke={layer.color} strokeWidth={layer.strokeWidth} lineCap="round" lineJoin="round" fillEnabled={false} hitStrokeWidth={Math.max(layer.strokeWidth,hit*grid/Math.max(w,1))}/>)}
   </Group>;
  }
  if(layer.kind==='line'){

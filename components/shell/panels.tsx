@@ -17,13 +17,15 @@ import {canvasAddSaid,imageSize,uploadCanvasAdd} from '@/lib/elements';
 import {addAsReference,addToCanvas,closePanel,useShell,type ShellPanel} from './shell-state';
 import {ElementsPanel} from './elements-panel';
 import {TextPanel} from './text-panel';
+import {PhotosPanel} from '@/components/canvas/photos-panel';
+import {IconsPanel} from '@/components/canvas/icons-panel';
 
 // The one secondary-panel slot, beside the left navigation: References, Brand,
-// Elements or Uploads, only inside a tool's view (lib/shell-nav.ts). On wide
+// Elements, Text, Photos, Icons or Uploads, only inside a tool's view (lib/shell-nav.ts). On wide
 // screens a column next to the navigation (the page stays usable beside it);
 // below 768px a sheet under the slim top bar. Either way it sits on the panel
 // layer (--ds-z-panel), so menus and drawers open over it, never under it.
-const TITLE:Record<ShellPanel,string>={references:'References',brand:'Brand',elements:'Elements',text:'Text',uploads:'Uploads'};
+const TITLE:Record<ShellPanel,string>={references:'References',brand:'Brand',elements:'Elements',text:'Text',photos:'Photos',icons:'Icons',uploads:'Uploads'};
 
 function Body({panel}:{panel:ShellPanel}){
  const {tool}=useShell();
@@ -31,6 +33,8 @@ function Body({panel}:{panel:ShellPanel}){
  if(panel==='brand')return <BrandPanel/>;
  if(panel==='elements')return <ElementsPanel/>;
  if(panel==='text')return <TextPanel/>;
+ if(panel==='photos')return <PhotosPanel/>;
+ if(panel==='icons')return <IconsPanel/>;
  return <UploadsPanel/>;
 }
 

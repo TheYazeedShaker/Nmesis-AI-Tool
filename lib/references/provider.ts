@@ -9,11 +9,12 @@
 // Plain fields and relative .ts imports: tests load these files under Node's
 // strip-only TypeScript mode.
 
-export type ProviderId='unsplash'|'pinterest';
+export type ProviderId='unsplash'|'pixabay'|'pinterest';
 export type ReferenceEnv=Record<string,string|undefined>;
 
-/** Shown with the photo wherever it appears: "Photo by <name> on <source>", both linked. */
-export type ReferenceCredit={name:string;href:string;source:string;sourceHref:string};
+/** Shown with the photo wherever it appears: "Photo by <name> on <source>", both linked.
+ *  `page` is the photo's own page on the library (kept with a picture placed on a design). */
+export type ReferenceCredit={name:string;href:string;source:string;sourceHref:string;page?:string};
 
 export type ReferencePhoto={
  id:string;provider:ProviderId;
@@ -27,8 +28,11 @@ export type ReferencePhoto={
 export type SearchQuery={query:string;page:number;perPage:number};
 export type SearchPage={photos:ReferencePhoto[];nextPage:number|null;
  /** A plain sentence when the library has nothing to say about this search on purpose (a provider that is off). */notice?:string};
-/** What a call may bring: the request's own signal (the person left), the environment and a fetch (tests). */
-export type ProviderCall={signal?:AbortSignal;env?:ReferenceEnv;fetch?:typeof fetch};
+/** Search answers kept for every server of one Studio (the route keeps them in the Studio's own storage), for a
+ *  library whose rules ask for answers to be kept (Pixabay: 24 hours). A failure to read or write is a miss. */
+export type SearchCache={get(key:string):Promise<unknown>;set(key:string,value:unknown):Promise<void>};
+/** What a call may bring: the request's own signal (the person left), the environment, a fetch and a clock (tests), and the shared cache. */
+export type ProviderCall={signal?:AbortSignal;env?:ReferenceEnv;fetch?:typeof fetch;now?:()=>number;cache?:SearchCache};
 export type PhotoForUse={bytes:Uint8Array;type:string;photo:ReferencePhoto};
 
 export interface ReferenceProvider{

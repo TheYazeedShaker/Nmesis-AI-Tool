@@ -1,11 +1,11 @@
 import {cleanHex,isBrandFont,type BrandKit,type BrandLogo} from './brand-kit';
-import type {CanvasAdd,ShapeKind,TextStyle} from './editor/doc';
+import {photoCreditOk,type CanvasAdd,type ShapeKind,type TextStyle} from './editor/doc';
 import type {Upload} from './uploads';
 // The Elements panel's catalogue (components/shell/elements-panel.tsx): the
 // categories, the built-in elements and one pure filter. No React here: the
 // panel draws each element from its id, and the tests load this file as is.
 // Outside the canvas editor the panel only shows and filters. Inside it the
-// panels (Brand, Elements, Text, Uploads) add to the design: what each one
+// panels (Brand, Elements, Text, Photos, Icons, Uploads) add to the design: what each one
 // adds is decided by the pure functions at the end of this file.
 
 export const ELEMENT_CATEGORIES=[
@@ -196,6 +196,16 @@ export function logoCanvasAdd(logo:Pick<BrandLogo,'id'|'name'|'url'>|null|undefi
 export function uploadCanvasAdd(upload:Pick<Upload,'id'|'src'>|null|undefined,size?:ImageSize):CanvasAdd|null{
  if(!upload||typeof upload!=='object'||typeof upload.id!=='string'||!ASSET_ID.test(upload.id)||upload.src!=='/api/assets/'+upload.id||!ASSET_SRC.test(upload.src))return null;
  return {kind:'image',src:upload.src,assetId:upload.id,name:'Upload',source:'upload',...size};
+}
+
+/** A photo library's photo once it is in the person's own storage (POST /api/references/import: its asset id and the
+ *  Studio's own address), as an image to add, with its shape and its credit (kept on the layer). Null unless the
+ *  address is that asset's; a credit that isn't one a design may keep (doc.ts photoCreditOk) is left off. */
+export function photoCanvasAdd(stored:{id?:unknown;url?:unknown;credit?:{name?:unknown;href?:unknown;page?:unknown;sourceHref?:unknown}|null},photo:{provider:string;width:number;height:number}):Extract<CanvasAdd,{kind:'image'}>|null{
+ const add=uploadCanvasAdd({id:stored.id as string,src:stored.url as string},photo.width>0&&photo.height>0?{naturalWidth:photo.width,naturalHeight:photo.height}:undefined);
+ if(!add||add.kind!=='image')return null;
+ const c=stored.credit,credit={provider:photo.provider,name:typeof c?.name==='string'?c.name:'',href:c?.href,page:c?.page??c?.sourceHref};
+ return {...add,name:credit.name?`Photo by ${credit.name}`.slice(0,80):'Photo',...(photoCreditOk(credit)?{credit}:{})};
 }
 
 /** Text in the brand's look: the kit's heading font (heading, subheading) or

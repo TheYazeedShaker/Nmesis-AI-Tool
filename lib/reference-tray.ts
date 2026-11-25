@@ -13,7 +13,7 @@ import type {ToolId} from './tools';
 export type TrayItem={
  /** provider:id, e.g. "unsplash:abc123" or "upload:<asset id>". */key:string;
  src:string;thumb?:string;name:string;
- provider:'unsplash'|'pinterest'|'upload'|'brand';
+ provider:'unsplash'|'pixabay'|'pinterest'|'upload'|'brand';
  assetId?:string;
  /** Shown with the picture wherever it appears (the provider's attribution rules). */credit?:{name:string;href:string;source:string;sourceHref:string};
  /** Added by Smart pick rather than by hand. */picked?:boolean;
@@ -30,7 +30,7 @@ function read():TrayItem[]{
  try{const raw=JSON.parse(sessionStorage.getItem(STORE)||'[]');items=Array.isArray(raw)?raw.filter(valid).slice(0,TRAY_LIMIT):[]}catch{items=[]}
  return items;
 }
-function valid(v:unknown):v is TrayItem{const i=v as TrayItem;return !!i&&typeof i.key==='string'&&typeof i.src==='string'&&typeof i.name==='string'&&['unsplash','pinterest','upload','brand'].includes(i.provider)&&(i.src.startsWith('https://')||i.src.startsWith('/api/'))}
+function valid(v:unknown):v is TrayItem{const i=v as TrayItem;return !!i&&typeof i.key==='string'&&typeof i.src==='string'&&typeof i.name==='string'&&['unsplash','pixabay','pinterest','upload','brand'].includes(i.provider)&&(i.src.startsWith('https://')||i.src.startsWith('/api/'))}
 function write(next:TrayItem[]){
  items=next.slice(0,TRAY_LIMIT);
  try{sessionStorage.setItem(STORE,JSON.stringify(items))}catch{/* private mode: the tray still works for this page */}

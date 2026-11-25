@@ -115,6 +115,10 @@ export const EDITOR_JOURNEYS = [
   // several files at once), picked first under Brand fonts, typed, weighted, exported, curved in Arabic with its
   // letters joined, and removed (the design then says "Missing font").
   { id: 'editor-brand-fonts', role: 'owner', from: 'editor' },
+  // Editor Phase 5 (feat/editor-photos-icons): the Photos panel (a library off, no results, results with their
+  // credit on hover, more as it scrolls, a photo clicked in and one dropped, copied into the Studio's storage with
+  // its credit) and the Icons panel (a search, a set opened, a solid icon dropped), then the export.
+  { id: 'editor-photos-icons', role: 'owner', from: 'editor' },
   { id: 'editor-performance', role: 'owner', from: 'editor' },
 ];
 export const FLOWS = [

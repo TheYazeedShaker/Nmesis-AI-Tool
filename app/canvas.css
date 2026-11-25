@@ -44,6 +44,8 @@
 /* A notice above the canvas (a font that fell back, layers that didn't load): one line where it fits. */
 .canvas-notice { width: min(100%, var(--ds-measure)); flex: none; }
 .canvas-box:focus-visible { outline: var(--ds-focus-width) solid var(--ds-ring); outline-offset: var(--ds-space-4); }
+/* A photo or an icon from its panel is being dragged over the canvas: it lands here. */
+.canvas-box[data-dropping] { outline: var(--ds-focus-width) dashed var(--ds-ring); outline-offset: var(--ds-space-4); }
 .canvas-keys { max-width: var(--ds-measure); text-align: center; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--ds-space-8); }
 .canvas-skeleton { width: min(100%, var(--ds-page-max)); aspect-ratio: 16 / 9; border-radius: var(--ds-radius-md); background: var(--ds-skeleton); }
 .canvas-editor > .canvas-skeleton, .canvas-editor-state { margin: auto; padding: var(--ds-space-24); }

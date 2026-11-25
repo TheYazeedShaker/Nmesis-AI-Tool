@@ -7,7 +7,7 @@ import {Select,Textarea} from '@/components/ds/field';
 import {ActionRow,ChoiceRow,InspectorRow,InspectorSection,NumberField,NumberPair,SliderField,ToggleRow,type Swatch} from '@/components/ds/inspector';
 import {useBrandKit} from '@/components/brand/brand-kit';
 import {cleanHex} from '@/lib/brand-kit';
-import {BLANK_PAGE,boundsOf,descendants,edit,lineHeightOf,lockedIn,opacityOf,pageOf,pictureKey,TEXT_MAX,type Align,type DrawnLayer,type EditorDoc,type Layer,type TextLayer} from '@/lib/editor/doc';
+import {BLANK_PAGE,boundsOf,descendants,edit,lineHeightOf,lockedIn,opacityOf,pageOf,pictureKey,TEXT_MAX,type Align,type DrawnLayer,type EditorDoc,type Layer,type PhotoCredit,type TextLayer} from '@/lib/editor/doc';
 import {fontByName,nearestWeight,weightName,weightsOf} from '@/lib/editor/fonts';
 import {LOW_CONTRAST,worstContrast} from '@/lib/editor/colour';
 import {ColourField} from './colour-picker';
@@ -121,7 +121,8 @@ function OnePanel({layer,doc,readOnly,mod,actions}:{layer:DrawnLayer;doc:EditorD
    </>}
    {layer.kind==='icon'&&<>
     <ColourField label="Colour" value={{colour:layer.color}} {...colourProps('color')} onChange={(p,g)=>actions.change(d=>edit.update(d,layer.id,{color:p.colour}),g)}/>
-    <SliderField label="Line weight" min={0.5} max={4} step={0.25} value={layer.strokeWidth} disabled={off} onChange={strokeWidth=>patch({strokeWidth},'strokeWidth')}/>
+    {/* A solid icon has no lines to weigh. */}
+    {!layer.fill&&<SliderField label="Line weight" min={0.5} max={4} step={0.25} value={layer.strokeWidth} disabled={off} onChange={strokeWidth=>patch({strokeWidth},'strokeWidth')}/>}
    </>}
    {(layer.kind==='line'||layer.kind==='frame')&&<>
     <ColourField label="Colour" value={{colour:layer.stroke}} {...colourProps('stroke')} onChange={(p,g)=>actions.change(d=>edit.update(d,layer.id,{stroke:p.colour}),g)}/>
@@ -141,7 +142,17 @@ function OnePanel({layer,doc,readOnly,mod,actions}:{layer:DrawnLayer;doc:EditorD
     onSet={(e,g)=>actions.change(d=>{edit.setEffect(d,layer.id,e);fitHeight(d,layer.id,actions)},g)}/>
   </>}
   <ArrangeSection one={layer} doc={doc} readOnly={readOnly} mod={mod} actions={actions}/>
+  {layer.kind==='image'&&layer.credit&&<CreditSection credit={layer.credit}/>}
  </>;
+}
+
+/** Who took a photo placed from a photo library, after the settings (it is not one): "Photo by <name> on
+ *  <library>", the name linked to their page and the library to the photo's own page. */
+function CreditSection({credit}:{credit:PhotoCredit}){
+ const library=credit.provider.charAt(0).toUpperCase()+credit.provider.slice(1);
+ return <InspectorSection section="credit" title="Credit">
+  <p className="ds-help">Photo by <a className="ds-link" href={credit.href} target="_blank" rel="noopener noreferrer">{credit.name}</a> on <a className="ds-link" href={credit.page} target="_blank" rel="noopener noreferrer">{library}</a></p>
+ </InspectorSection>;
 }
 
 /** A text's box height after a change: its lines, or the arc of curved text (measured as the canvas draws it). */
