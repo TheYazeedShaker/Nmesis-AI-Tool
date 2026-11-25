@@ -273,6 +273,9 @@ test('every icon set is MIT, Apache 2.0, ISC or CC0, ships with its licence, and
   assert.match(licence,s.spdx==='Apache-2.0'?/Apache License/:s.spdx==='MIT'?/MIT License/:/ISC License/);
   const set=iconSets.readIconSet(JSON.parse(fs.readFileSync(path.join(rootPath,'public',s.file),'utf8')),s);
   assert.ok(set,s.id);assert.equal(set.icons.length,s.count,s.id);assert.ok(s.count>1000,s.id);
+  // No company's logo (a trademark, and a third-party brand name in a public repository).
+  const logos=set.icons.map(i=>i.name).filter(n=>/^brand-|(^|-)logo(-|$)|(^|-)(google|android|youtube|facebook|instagram|github|nintendo|lego)(-|$)/.test(n));
+  assert.deepEqual(logos,[],s.id);
   for(const icon of set.icons.slice(0,50))assert.equal(doc.checkDoc(doc.addLayer(doc.createDoc({id:'demo-visual-4',width:100,height:100}),{kind:'icon',icon:icon.name,name:icon.name,paths:icon.paths,grid:set.grid,fill:icon.fill},'x')).ok,true,s.id+':'+icon.name);
  }
  // Another set's file, or a damaged one, is not read as this one.

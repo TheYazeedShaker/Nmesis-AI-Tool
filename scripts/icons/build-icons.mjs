@@ -44,6 +44,10 @@ const SETS=[
   pick:names=>{const all=new Set(names);return names.filter(n=>!/-(outline|rounded|sharp|outline-rounded|outline-sharp)$/.test(n)).map(n=>[n,all.has(n+'-outline')?n+'-outline':n])}},
 ];
 
+// Companies' own logos are left out of every set: a logo is its owner's trademark (not the set's to licence),
+// and this public repository holds no third-party brand names. By name: a set's logo naming (brand-…, …-logo)
+// and the words of the logos the sets carry.
+const BRAND=/^brand-|^pixel-[0-9]|(^|-)logo(-|$)|(^|-)(google|googler|googleone|android|youtube|chrome|chromium|chromecast|chromebook|facebook|instagram|twitter|github|gitlab|linkedin|slack|figma|codepen|codesandbox|dribbble|framer|trello|twitch|pocket|microsoft|amazon|whatsapp|discord|tiktok|paypal|spotify|dropbox|reddit|pinterest|snapchat|telegram|skype|bitcoin|ethereum|xbox|playstation|steam|nintendo|lego|nest|fitbit|stadia|gmail)(-|$)/;
 const ATTR=/([a-zA-Z-]+)="([^"]*)"/g;
 const SHAPES=new Set(['path','circle','ellipse','rect','line','polyline','polygon']);
 /** One icon's body (SVG markup) as [filled, paths], or the reason it is left out. */
@@ -92,6 +96,7 @@ for(const set of SETS){
   const icon=data.icons[from];
   if((icon.width&&icon.width!==grid)||(icon.height&&icon.height!==grid)||icon.left||icon.top){skipped.grid=(skipped.grid||0)+1;continue}
   if(!/^[a-z0-9-]{1,60}$/.test(name)){skipped.name=(skipped.name||0)+1;continue}
+  if(BRAND.test(name)||BRAND.test(from)){skipped.logo=(skipped.logo||0)+1;continue}
   const c=convert(icon.body);
   if(typeof c==='string'){skipped[c]=(skipped[c]||0)+1;continue}
   icons.push([name,c[0]?1:0,c[1]]);
@@ -121,6 +126,9 @@ Left out on purpose:
 
 - **Remix Icon**: its current releases are under its own "Remix Icon License",
   not one of the four above, so it is not offered.
+- **Companies' logos** in any set (Tabler's \`brand-…\`, Phosphor's \`…-logo\`, and the
+  like): a logo is its owner's trademark, not the set's to licence, and this
+  repository holds no third-party brand names.
 
 How it works:
 
