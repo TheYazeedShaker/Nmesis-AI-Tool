@@ -3,6 +3,7 @@ import * as React from 'react';
 import {brandFontsLoaded,brandFontsVersion,canvasFontFamily,cssFontFamily,fallbackFamily,faceFamily,fileFor,FONT_LOAD_MS,fontByName,fontKey,fontsInDoc,fontUrl,onBrandFonts,previewFamily,SYSTEM_FONT,type CatalogueFont,type FontNeed,type FontResult} from '@/lib/editor/fonts';
 import {isBrandFontName} from '@/lib/brand-fonts/shared';
 import type {EditorDoc} from '@/lib/editor/doc';
+import type {FontState} from '@/lib/editor/render-signal';
 import {loadBrandFonts} from '@/components/brand/brand-fonts';
 
 // The catalogue's fonts in the browser (lib/editor/fonts.ts says why and how).
@@ -85,8 +86,9 @@ export type CanvasFonts={
  failed:string[];
  /** Whether a font (by name) is missing. */
  missing:(font:string)=>boolean;
- /** The family a text layer draws with now, and a key that changes when it does (the text is measured again). */
- family:(font:string,weight:number,italic?:boolean)=>{family:string;key:string};
+ /** The family a text layer draws with now, a key that changes when it does (the text is measured again), and
+  *  whether its own font has loaded (`missing`: drawn in the fallback; `loading`: not drawn in it yet). */
+ family:(font:string,weight:number,italic?:boolean)=>{family:string;key:string;state:FontState};
  /** Resolves once ready (the export waits here). */
  whenReady:()=>Promise<void>;
 };
@@ -118,8 +120,8 @@ export function useCanvasFonts(doc:Pick<EditorDoc,'layers'>):CanvasFonts{
  const whenReady=React.useCallback(()=>gate.current.ready?Promise.resolve():new Promise<void>(resolve=>{gate.current.waiters.push(resolve)}),[]);
  const family=React.useCallback((font:string,weight:number,italic=false)=>{
   const k=fontKey({font,weight,italic}),r=settled[k];
-  if(r&&!r.ok)return {family:fallbackFamily(),key:k+':missing'};
-  return {family:canvasFontFamily(font),key:k+(r?':loaded':':loading')};
+  if(r&&!r.ok)return {family:fallbackFamily(),key:k+':missing',state:'missing' as const};
+  return {family:canvasFontFamily(font),key:k+(r?':loaded':':loading'),state:r?'loaded' as const:'loading' as const};
  },[settled]);
  const missing=React.useCallback((font:string)=>failedKey.split('|').includes(font),[failedKey]);
  return {ready,failed,missing,family,whenReady};

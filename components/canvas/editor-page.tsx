@@ -506,6 +506,8 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
     <div ref={canvasBox} className="canvas-box" tabIndex={0} role="application" aria-roledescription="design canvas" data-editable={readOnly?undefined:'true'} data-undo-steps={history.past.length} data-selected-count={selection.length}
      aria-label={`Canvas, page ${pageIndex(doc,page)+1} of ${doc.pages.length}, ${drawn.length} ${drawn.length===1?'layer':'layers'}${selectedWords}`} aria-describedby="canvas-keys" onKeyDown={onKey} style={{['--canvas-ratio' as string]:String(doc.width/doc.height)} as React.CSSProperties}
      data-dropping={dropping?'true':undefined}
+     // Which copy the design opened from: the Studio's, or this device's unsent one (then it says "Restored…").
+     data-opened-from={opened.unsent?'device':'studio'}
      // A photo or an icon dragged from its panel lands where it is dropped (its middle on the pointer).
      onDragOver={e=>{if(!isCarrying())return;e.preventDefault();e.dataTransfer.dropEffect='copy';if(!dropping)setDropping(true)}}
      onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node|null))setDropping(false)}}

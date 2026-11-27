@@ -9,6 +9,7 @@ import {konvaGradient} from '@/lib/editor/colour';
 import {useCanvasImage} from './images';
 import type {CanvasFonts} from './fonts';
 import {isRtl,lineWidth,oneLine} from './measure';
+import {drawnTextToken,renderStateOf,RENDER_ATTR,TEXT_DRAWN_ATTR,type DrawnText,type FontState,type TextDrawer} from '@/lib/editor/render-signal';
 
 // The canvas (Konva, drawn by react-konva). The stage is scaled to fit the
 // space it is given; every layer keeps the picture's own pixels, so exporting
@@ -62,9 +63,14 @@ const polygon=(w:number,h:number,sides:number)=>Array.from({length:sides},(_,i)=
 const round2=(n:number)=>Math.round(n*100)/100;
 const noSnap=(e:{evt?:unknown})=>{const v=e.evt as MouseEvent|undefined;return !!(v&&(v.ctrlKey||v.metaKey))};
 
+/** The pieces the shaping drawer placed in its last drawing, per shape (what `data-text-drawn` reports). */
+const shapedMarks=new WeakMap<Konva.Node,number>();
+/** The attributes that say which drawer draws a text layer (read after each drawing, lib/editor/render-signal.ts). */
+const drawnAs=(layer:{id:string;effect?:{kind:string}},drawer:TextDrawer,font:FontState)=>({'data-text-of':layer.id,'data-effect':layer.effect?.kind??'none','data-drawer':drawer,'data-font-state':font});
+
 function TextBody({layer,fonts}:{layer:Extract<DrawnLayer,{kind:'text'}>;fonts:CanvasFonts}){
  // A new key when the font arrives (or is missing): the text is measured again in the font it is drawn in.
- const {family,key}=fonts.family(layer.font,layer.fontWeight,layer.italic);
+ const {family,key,state}=fonts.family(layer.font,layer.fontWeight,layer.italic);
  const fontStyle=(layer.italic?'italic ':'')+layer.fontWeight,direction=isRtl(layer.text)?'rtl':'ltr';
  const e=layer.effect;
  if(e?.kind==='curve'){
@@ -76,7 +82,7 @@ function TextBody({layer,fonts}:{layer:Extract<DrawnLayer,{kind:'text'}>;fonts:C
    const pieces=visualOrder(shapePieces(line)),font=`${fontStyle} ${layer.fontSize}px ${family}`,bleed=Math.max(0.5,layer.fontSize*0.015);
    return <>
     <Rect width={layer.width} height={geo.height} fill="transparent"/>
-    <Shape key={key} listening={false} width={layer.width} height={geo.height} data-curve-shaped data-font={font} sceneFunc={ctx=>{
+    <Shape key={key} listening={false} width={layer.width} height={geo.height} data-curve-shaped data-font={font} {...drawnAs(layer,'shaped',state)} sceneFunc={(ctx,shape)=>{
      ctx.setAttr('font',font);ctx.setAttr('fillStyle',layer.color);ctx.setAttr('textBaseline','middle');ctx.setAttr('textAlign','center');
      const {joiner,widths,tatweel}=joinPieces(pieces,line,(s,rtl)=>{ctx.setAttr('direction',rtl?'rtl':'ltr');return ctx.measureText(s).width});
      const placed=placeOnArc(pieces,{widths,letterSpacing:layer.letterSpacing??0,fontSize:layer.fontSize,curve:e.curve,boxWidth:layer.width,height:geo.height,radius:geo.radius});
@@ -90,12 +96,13 @@ function TextBody({layer,fonts}:{layer:Extract<DrawnLayer,{kind:'text'}>;fonts:C
       }else ctx.fillText(g.piece.draw,0,0);
       ctx.restore();
      }
+     shapedMarks.set(shape,placed.length);
     }}/>
    </>;
   }
   return <>
    <Rect width={layer.width} height={geo.height} fill="transparent"/>
-   <TextPath key={key} data={geo.path} text={line} fontSize={layer.fontSize} fontFamily={family} fontStyle={fontStyle} letterSpacing={layer.letterSpacing??0} fill={layer.color} align="center" textBaseline="middle" direction={direction}/>
+   <TextPath key={key} {...drawnAs(layer,'path',state)} data={geo.path} text={line} fontSize={layer.fontSize} fontFamily={family} fontStyle={fontStyle} letterSpacing={layer.letterSpacing??0} fill={layer.color} align="center" textBaseline="middle" direction={direction}/>
   </>;
  }
  const common={width:layer.width,text:layer.text,fontSize:layer.fontSize,fontFamily:family,fontStyle,align:layer.align,lineHeight:lineHeightOf(layer),letterSpacing:layer.letterSpacing??0,wrap:'word',direction};
@@ -105,8 +112,20 @@ function TextBody({layer,fonts}:{layer:Extract<DrawnLayer,{kind:'text'}>;fonts:C
  return <>
   {box&&<Rect {...box}/>}
   {glow&&<Text {...common} {...glow} listening={false}/>}
-  <Text key={key} {...common} {...textPaint(layer)}/>
+  <Text key={key} {...drawnAs(layer,'text',state)} {...common} {...textPaint(layer)}/>
  </>;
+}
+
+/** After a drawing of the content layer: what it drew, on the stage's element (lib/editor/render-signal.ts). */
+function sayDrawn(layer:Konva.Layer,el:HTMLElement){
+ const texts=layer.find((n:Konva.Node)=>!!n.getAttr('data-drawer')).map((n):DrawnText=>{
+  const drawer=n.getAttr('data-drawer') as TextDrawer;
+  return {id:String(n.getAttr('data-text-of')),effect:String(n.getAttr('data-effect')),drawer,font:n.getAttr('data-font-state') as FontState,
+   marks:drawer==='shaped'?shapedMarks.get(n)??0:String(n.getAttr('text')??'').length};
+ });
+ const said=texts.map(drawnTextToken).filter(Boolean).join(' '),state=renderStateOf(texts);
+ if(el.getAttribute(TEXT_DRAWN_ATTR)!==said)el.setAttribute(TEXT_DRAWN_ATTR,said);
+ if(el.getAttribute(RENDER_ATTR)!==state)el.setAttribute(RENDER_ATTR,state);
 }
 
 function Body({layer,scale,fonts}:{layer:DrawnLayer;scale:number;fonts:CanvasFonts}){
@@ -223,6 +242,19 @@ export default function CanvasStage({doc,pageId,shownWidth,selected,reducedMotio
  const onGuides=React.useCallback((guides:Guide[],gaps:Gap[])=>setMarks(m=>!guides.length&&!gaps.length&&!m.guides.length&&!m.gaps.length?m:{guides,gaps}),[]);
  const register=React.useCallback((id:string,node:Konva.Group|null)=>{if(node)nodes.current.set(id,node);else nodes.current.delete(id)},[]);
  const contentRef=React.useRef<Konva.Layer|null>(null);
+ // The canvas says when it has drawn what it holds now (lib/editor/render-signal.ts). Each drawing of the content
+ // layer reports what it drew; each commit (the canvas nodes are already updated when this runs) says "drawing"
+ // and asks for a drawing, so "ready" always follows the latest change. Pictures arrive on their own time.
+ React.useLayoutEffect(()=>{
+  const layer=contentRef.current,el=stageRef.current?.container();if(!layer||!el)return;
+  layer.on('draw.render',()=>sayDrawn(layer,el));
+  return()=>{layer.off('draw.render')};
+ },[]);
+ React.useLayoutEffect(()=>{
+  const layer=contentRef.current,el=stageRef.current?.container();if(!layer||!el)return;
+  if(el.getAttribute(RENDER_ATTR)!=='drawing')el.setAttribute(RENDER_ATTR,'drawing');
+  layer.batchDraw();
+ });
  React.useImperativeHandle(handle,()=>({get stage(){return stageRef.current},get ui(){return uiRef.current},
   colourAt(x:number,y:number){
    const layer=contentRef.current;if(!layer)return null;
