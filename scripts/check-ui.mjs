@@ -1114,7 +1114,20 @@ function editorSteps() { return {
     await press(page, 'Escape');
     const start = await layersOf(page), steps0 = await stepsOf(page);
     const docWidth = await page.evaluate(() => { const s = window.Konva?.stages?.[0]; return s ? s.width() / s.scaleX() : 0; });
-    const canvasBox = await canvasOf(page).boundingBox();
+    // The canvas as shown now: an open left panel narrows it, so it is measured right before each drop.
+    const boxNow = () => canvasOf(page).boundingBox();
+    // A drag onto the canvas at a share of its width and height; a failed one lets go of the mouse, so the
+    // checks after it report their own problems, not a button still held.
+    const dragOnCanvas = async (tile, share, what) => {
+      const box = await boxNow(), at = { x: box.width * share[0], y: box.height * share[1] };
+      await tile.dragTo(canvasOf(page), { targetPosition: at, timeout: 10_000 }).catch(async (e) => { problems.push(`dragging ${what} failed: ` + String(e.message).split('\n')[0]); await page.mouse.up().catch(() => {}); });
+      return { x: at.x * (docWidth / box.width), y: at.y * (docWidth / box.width) };
+    };
+    const landedAt = async (want, what) => {
+      const c = await centreOf(page);
+      if (!c.ok || Math.abs(c.x - want.x) > docWidth * 0.03 || Math.abs(c.y - want.y) > docWidth * 0.03) problems.push(`the dropped ${what}'s middle is at ${JSON.stringify(c)}, not where it was dropped (${Math.round(want.x)}, ${Math.round(want.y)})`);
+      return c;
+    };
     const nav = (name) => page.locator('button.studio-side-item', { hasText: name }).first();
     const shot = (name) => SHOTS ? page.screenshot({ path: path.join(OUT, 'shots', `phase5-${name}--1440--light.png`) }).catch(() => {}) : null;
 
@@ -1157,11 +1170,9 @@ function editorSteps() { return {
     run.ruleStates.push({ screen: 'editor', state: 'photo-with-credit', role: 'owner', w: 1440, h: 900, theme: 'light', editorRules: await page.evaluate(editorRules) });
 
     // Drag: where it is dropped (its middle on the pointer), in picture pixels.
-    const drop = { x: canvasBox.width * 0.25, y: canvasBox.height * 0.3 };
-    await tiles.nth(1).dragTo(canvasOf(page), { targetPosition: drop, timeout: 10_000 }).catch((e) => problems.push('dragging a photo failed: ' + String(e.message).split('\n')[0]));
+    const photoDrop = await dragOnCanvas(tiles.nth(1), [0.25, 0.3], 'a photo');
     await page.waitForFunction((n) => { const l = /(\d+) layers?/.exec(document.querySelector('.canvas-box[data-editable="true"]')?.getAttribute('aria-label') || ''); return l && Number(l[1]) === n; }, start + 2, { timeout: 30_000 }).catch(() => problems.push('dropping a photo on the canvas added no layer'));
-    const dropped = await centreOf(page), k = docWidth / canvasBox.width;
-    if (!dropped.ok || Math.abs(dropped.x - drop.x * k) > docWidth * 0.03 || Math.abs(dropped.y - drop.y * k) > docWidth * 0.03) problems.push(`the dropped photo's middle is at ${JSON.stringify(dropped)}, not where it was dropped (${Math.round(drop.x * k)}, ${Math.round(drop.y * k)})`);
+    const dropped = await landedAt(photoDrop, 'photo');
     await shot('photos-dropped');
 
     // Icons: browsing a set (its file only now); then one search across every set (one list, each result
@@ -1189,9 +1200,10 @@ function editorSteps() { return {
     const solid = panel.locator('button.icons-add[data-set="phosphor"][data-icon="star-fill"]');
     await solid.waitFor({ timeout: 15_000 }).catch(() => problems.push('searching "star-fill" did not find Phosphor\'s'));
     await solid.locator('svg.icons-art').waitFor({ timeout: 15_000 }).catch(() => {});
-    await solid.dragTo(canvasOf(page), { targetPosition: { x: canvasBox.width * 0.75, y: canvasBox.height * 0.7 }, timeout: 10_000 }).catch((e) => problems.push('dragging an icon failed: ' + String(e.message).split('\n')[0]));
+    const iconDrop = await dragOnCanvas(solid, [0.75, 0.7], 'an icon');
     await page.waitForTimeout(500);
     if (await layersOf(page) !== start + 4) problems.push(`dropping an icon left ${await layersOf(page)} layers, not ${start + 4}`);
+    else await landedAt(iconDrop, 'icon');
     if (await panelOf(page).getByText('Line weight').count()) problems.push('a solid icon offers a Line weight');
     if (await stepsOf(page) !== steps0 + 4) problems.push(`four additions made ${(await stepsOf(page)) - steps0} undo steps, not 4`);
 
