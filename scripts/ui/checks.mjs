@@ -330,13 +330,14 @@ export function providerNamesOnPage({ source }) {
 }
 
 // The editor rules that can be measured (docs/editor-rules.md), on any page with the
-// canvas editor: the right panel's width (rule 2), nothing from a panel over the canvas
-// (rule 1), the section order (rule 3), spacing from the four editor tokens and no margins
-// on single elements (rule 4), a plain-word label on every control (rule 5), one vertical
+// canvas editor: the right panel's width (rule 2), nothing from a panel over the canvas and
+// no toast over a panel or a control of the canvas (rule 1), the section order (rule 3),
+// spacing from the four editor tokens and no margins on single elements (rule 4), a
+// plain-word label on every control (rule 5), one vertical
 // scroll with nothing nested or sideways (rule 8) and the save status in the canvas bar
 // (rule 9). Self-contained: it runs in the page. Each list holds what broke the rule.
 export function editorRules() {
-  const out = { editorPanelWidth: [], editorPanelOverCanvas: [], editorSectionOrder: [], editorSpacing: [], editorUnlabelled: [], editorNestedScroll: [], editorSaveStatus: [] };
+  const out = { editorPanelWidth: [], editorPanelOverCanvas: [], editorToastOverPanels: [], editorSectionOrder: [], editorSpacing: [], editorUnlabelled: [], editorNestedScroll: [], editorSaveStatus: [] };
   const editor = document.querySelector('.canvas-editor:not(.canvas-editor-state)');
   if (!editor || !editor.getBoundingClientRect().width) return out;
   const describe = (el) => {
@@ -354,6 +355,20 @@ export function editorRules() {
   // Rule 9: the save status, always visible in the canvas bar.
   const status = editor.querySelector('.canvas-bar [data-save-status]');
   if (!status || !words(status)) out.editorSaveStatus.push({ el: status ? describe(status) : 'no [data-save-status] in .canvas-bar' });
+  // Rule 1, for toasts (fix/editor-toasts): a toast lies only in the canvas column, over its light table (the
+  // editor's ToastSlot), never over a panel (the left navigation and its panel, the right panel) or a control of
+  // the canvas (the bar, a notice, the page strip, the keys line). One entry per toast and box it covers.
+  const toasts = [...document.querySelectorAll('.ds-toasts .ds-toast')].filter(shown);
+  if (toasts.length) {
+    const kept = [...document.querySelectorAll('.studio-side, .studio-panel, .canvas-inspector, .canvas-bar, .canvas-notice, .canvas-pages, .canvas-keys')].filter(shown);
+    for (const t of toasts) {
+      const a = t.getBoundingClientRect();
+      for (const el of kept) {
+        const r = el.getBoundingClientRect();
+        if (a.left < r.right - 0.5 && a.right > r.left + 0.5 && a.top < r.bottom - 0.5 && a.bottom > r.top + 0.5) out.editorToastOverPanels.push({ toast: describe(t), over: describe(el) });
+      }
+    }
+  }
   if (!panel || !shown(panel)) return out;
   const p = panel.getBoundingClientRect(), beside = box && box.getBoundingClientRect().right <= p.left + 1;
   // Rule 2: 340 px whenever the panel sits beside the canvas (desktop widths).

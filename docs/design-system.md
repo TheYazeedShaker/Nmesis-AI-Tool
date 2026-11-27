@@ -236,7 +236,7 @@ All in [`components/ds/`](../components/ds); each has a section in the gallery.
 | `Button`, `IconButton` | `button.tsx` | `primary` (one per screen) · `secondary` · `quiet` · `danger` (never the default) · `danger-quiet` · `sm` · `busy` (the words stay) · an icon alone always has a `label` |
 | `useConfirm()` / `ConfirmProvider` | `dialog.tsx` | the dialog that asks; replaces `confirm()` (section 4) |
 | `Dialog` (`modal` · `drawer` · `sheet`) | `dialog.tsx` | modal: finish or abandon; drawer: work beside the list; sheet: an editor's settings on a phone. Keyboard stays inside, the page does not scroll, focus returns |
-| `useToast()` / `ToastProvider` | `toast.tsx` | one stack, polite, six seconds, held while pointed at or focused; `undo(message, run)` |
+| `useToast()` / `ToastProvider` / `ToastSlot` | `toast.tsx` | one stack, polite, six seconds, held while pointed at or focused; `undo(message, run)`. Bottom right of the window; a screen with panels down its sides gives it a `ToastSlot` (the canvas editor: its canvas column) and the stack sits in that box's bottom right corner instead |
 | `JobCard` | `job-card.tsx` | every long-running AI job (section 5) |
 | `MediaTile`, `MediaGrid`, `BulkBar` | `media.tsx` | the library and every list of results |
 | `Viewer` | `media.tsx` | one item full screen: ← →, Escape, Download, Make a variation, Move to…, Move to trash |

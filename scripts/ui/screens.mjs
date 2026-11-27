@@ -90,6 +90,9 @@ export const V1_DESIGN_ID = '00000000-0000-4000-8000-000000010900';
 // and a design of 50 layers on a 3840 x 2160 picture (PERF_DESIGN_ID, over PERF_PICTURE_ID), timed. Closing the
 // tab right after a change keeps it: in the Studio (keepalive), or restored from the device when offline.
 export const RULE_STATE_SIZES = [[1440, 900], [1191, 786], [1024, 768]];
+// Toasts in the editor (fix/editor-toasts): four shown at once, with and without the left panel open, at these
+// sizes; each a rule state, so a toast over a panel or a control of the canvas counts (editorToastOverPanels).
+export const TOAST_SIZES = [[1440, 900], [1280, 800], [1024, 768]];
 export const PERF_PICTURE_ID = '00000000-0000-4000-8000-000000010901';
 export const PERF_DESIGN_ID = '00000000-0000-4000-8000-000000010902';
 export const PERF_UPLOAD_ID = '00000000-0000-4000-8000-000000010903';
@@ -97,6 +100,7 @@ export const PERF_LAYERS = 50;
 export const EDITOR_JOURNEYS = [
   { id: 'editor-open-v1-design', role: 'owner', from: 'editor' },
   { id: 'editor-rule-states', role: 'owner', from: 'editor' },
+  { id: 'editor-toasts', role: 'owner', from: 'editor' },
   { id: 'editor-layers-keyboard', role: 'owner', from: 'editor' },
   { id: 'editor-group-undo', role: 'owner', from: 'editor' },
   { id: 'editor-shortcuts-sheet', role: 'owner', from: 'editor' },

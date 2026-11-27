@@ -13,7 +13,7 @@ follows the plans data.
 
 | # | Rule | Measured by `check:ui` |
 |---|---|---|
-| 1 | **The canvas is central.** Panels are fixed and never float over it. | `editorPanelOverCanvas` |
+| 1 | **The canvas is central.** Panels are fixed and never float over it. | `editorPanelOverCanvas`, `editorToastOverPanels` |
 | 2 | **Selection settings live in one place:** the right panel, 340 px, fixed width. | `editorPanelWidth` |
 | 3 | **Fixed section order:** Position & size → Appearance → Text → Effects → Arrange. W/H and X/Y stay together. | `editorSectionOrder` |
 | 4 | **Spacing uses tokens only:** 4 (label to control), 8 (within a section), 16 (panel padding), 24 (between sections). The container sets the spacing, never margins on single elements. | `editorSpacing` |
@@ -31,6 +31,11 @@ follows the plans data.
 1. The canvas column and the panels are grid tracks of `.canvas-body`. Nothing
    positioned (`fixed`, `absolute`, `sticky`) from a panel may cover the
    canvas box. Menus and dialogs opened by a person are not panels.
+   Toasts lie in the canvas column only (the editor's `ToastSlot`: between
+   the notices and the page strip), in its bottom right corner, at most four,
+   six seconds each: over the light table, and where the picture fills the
+   column over its corner while they show, never over the left navigation or
+   its panel, the right panel, the canvas bar, a notice or the page strip.
 2. `.canvas-inspector` is `--ds-editor-panel` wide (340 px) at every desktop
    width, whatever is selected. Below 768 px the editor is not offered.
 3. Sections are `<section data-editor-section="…">` in that order; a section
@@ -159,8 +164,10 @@ Cmd while dragging moves freely. A group, or several layers, snap as one box.
 
 `check:ui` measures the rules it can on every editor page and in each kind of
 selection (nothing, a text, a picture, a shape, an icon, a line, a frame,
-several, and the Layers tab) at 1440 × 900, 1191 × 786 and 1024 × 768. The
-counts gate: each is held at zero, so any break fails the pull request.
+several, and the Layers tab) at 1440 × 900, 1191 × 786 and 1024 × 768, and
+with four toasts shown (with and without the left panel open) at 1440 × 900,
+1280 × 800 and 1024 × 768. The counts gate: each is held at zero, so any break
+fails the pull request.
 
 ## Spacing tokens
 

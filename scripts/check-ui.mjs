@@ -41,7 +41,7 @@ import { initScript, quietFor, vitals, layoutChecks, shellOutsideProbe, focusSta
 import { PROVIDER_PATTERN } from '../lib/provider-words.ts';
 import { runPerf } from './ui/perf.mjs';
 import { VISUAL_ID } from '../lib/work-ref.ts';
-import { EDITOR_JOURNEYS, EDITOR_VISUAL_ID, V1_DESIGN_ID, RULE_STATE_SIZES, PERF_DESIGN_ID, PERF_PICTURE_ID, PERF_LAYERS } from './ui/screens.mjs';
+import { EDITOR_JOURNEYS, EDITOR_VISUAL_ID, V1_DESIGN_ID, RULE_STATE_SIZES, TOAST_SIZES, PERF_DESIGN_ID, PERF_PICTURE_ID, PERF_LAYERS } from './ui/screens.mjs';
 import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, FLOWS, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
 import { finish } from './ui/ratchet.mjs';
 import { decode as decodePngFile } from 'fast-png';
@@ -997,6 +997,39 @@ function editorSteps() { return {
       await measure('layers-tab', three.length);
       await tab(page, 'Design');
       await measure('several', three.length);
+    }
+  },
+  // Toasts in the editor (fix/editor-toasts): four at once lie in the canvas column (the editor's ToastSlot, over
+  // its light table), never over the right panel, the left navigation or its panel, the canvas bar, a notice or
+  // the page strip: each size, with nothing open on the left and then with Elements open, is a rule state
+  // (editorToastOverPanels, ratcheted at zero under the editor screen). Ctrl+G with nothing selected says
+  // "Choose two or more layers…" and changes nothing, so four of them are four toasts and no undo step. Where
+  // the column is too short for four (as at 1024 x 768 with Elements open), the older ones fold; the newest shows.
+  'editor-toasts': async (page, problems, run) => {
+    const toasts = page.locator('.ds-toasts .ds-toast');
+    const elements = page.locator('.studio-side').getByRole('button', { name: 'Elements', exact: true });
+    for (const [w, h] of TOAST_SIZES) {
+      await page.setViewportSize({ width: w, height: h });
+      await openEditor(page, EDITOR_VISUAL_ID);
+      for (const state of ['four-toasts', 'four-toasts-elements-open']) {
+        if (state === 'four-toasts-elements-open') {
+          await elements.click({ timeout: 5000 });
+          await page.locator('.studio-panel').waitFor({ timeout: 5000 }).catch(() => problems.push(`Elements did not open its panel at ${w} x ${h}`));
+        }
+        const s0 = await stepsOf(page);
+        for (let i = 0; i < 4; i++) await press(page, 'Control+g');
+        await toasts.nth(3).waitFor({ timeout: 5000 }).catch(() => {});
+        const n = await toasts.count();
+        if (n !== 4) problems.push(`${state} at ${w} x ${h}: ${n} toasts, not 4`);
+        if (!(await page.locator('.ds-toasts .ds-toast:not([data-folded])').last().isVisible().catch(() => false))) problems.push(`${state} at ${w} x ${h}: the newest toast is not shown`);
+        if (await stepsOf(page) !== s0) problems.push(`${state} at ${w} x ${h}: Ctrl+G with nothing selected changed the design`);
+        if (!(await page.locator('.ds-toasts[data-placed]').count())) problems.push(`${state} at ${w} x ${h}: the toasts are in the window's corner, not the canvas column`);
+        if (SHOTS) await page.screenshot({ path: path.join(OUT, 'shots', `editor-${state}--${w}--light.png`) }).catch(() => {});
+        run.ruleStates.push({ screen: 'editor', state, role: 'owner', w, h, theme: 'light', editorRules: await page.evaluate(editorRules) });
+        // Dismissed newest first (older ones may be folded in a narrow column, and unfold as room comes back).
+        for (let i = 0; i < 6 && await toasts.count(); i++) await page.locator('.ds-toasts .ds-toast:not([data-folded]) .ds-toast-close').last().click({ timeout: 2000 }).catch(() => {});
+      }
+      if (await elements.getAttribute('aria-pressed') === 'true') await elements.click({ timeout: 5000 }).catch(() => {});
     }
   },
   // The layers list with the keyboard only: Tab reaches the tabs and then the list (one tab stop), the arrow

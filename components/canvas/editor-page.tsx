@@ -7,7 +7,7 @@ import {ArrowLeft,ClockArrowDown,Clock,Copy,Download,ImageOff,Info,Keyboard,Ligh
 import {Button,IconButton} from '@/components/ds/button';
 import {Loading,State} from '@/components/ds/feedback';
 import {Menu,MenuItem,MenuSeparator} from '@/components/ds/menu';
-import {useToast} from '@/components/ds/toast';
+import {ToastSlot,useToast} from '@/components/ds/toast';
 import {AccountNotices,accountKnown,loadAccount,useAccount} from '@/components/studio-account';
 import {WorkspaceFrame} from '@/components/workspace/frame';
 import {SharePanel} from '@/components/share/share-panel';
@@ -521,6 +521,7 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
       picking(handle.current.colourAt((e.clientX-r.left)/scaleNow,(e.clientY-r.top)/scaleNow));
      }}/>}
     </div>
+    <ToastSlot/>
     </div>
     <PageStrip doc={doc} current={page} readOnly={readOnly} onPick={pickPage} onAdd={addPage} onDuplicate={duplicatePage} onMove={movePage} onRemove={removePage}/>
     <p className="ds-help canvas-keys" id="canvas-keys"><span>Shift-click picks several; drag to move (hold {mod.replace('+','')} to stop snapping). {mod}D duplicates, {mod}G groups, {mod}Z undoes.</span><Button size="sm" kind="quiet" icon={<Keyboard aria-hidden="true"/>} onClick={()=>setKeysOpen(true)} title="All the keys (?)">Shortcuts</Button></p>

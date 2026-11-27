@@ -629,6 +629,14 @@
 @media (max-width: 768px) {
   .ds-toasts { right: var(--ds-space-16); left: var(--ds-space-16); width: auto; bottom: calc(var(--ds-phone-nav-h) + var(--ds-space-12)); }
 }
+/* A screen's own place for the stack (ToastSlot in components/ds/toast.tsx): the slot is an empty box that
+   nothing hits; the stack, still the one fixed region, sits in its bottom right corner (the provider measures
+   it) and is never wider than the slot. The canvas editor's is its canvas column: off both panels, the canvas
+   bar and the page strip (docs/editor-rules.md, rule 1). */
+.ds-toast-slot { position: absolute; inset: 0; pointer-events: none; }
+.ds-toasts[data-placed] { left: auto; right: var(--ds-toasts-right); bottom: var(--ds-toasts-bottom); width: min(400px, var(--ds-toasts-room)); }
+/* Older toasts that would reach past the slot's top wait folded (the provider marks them) until there is room. */
+.ds-toasts[data-placed] > .ds-toast[data-folded] { display: none; }
 
 /* ── Job card: queued / running / done / failed / cancelled ────────────── */
 .ds-job {
