@@ -462,6 +462,8 @@ function focusIs(page, kind, arg = null) {
     return false;
   }, [kind, arg], 3000);
 }
+/** Until the focus is inside an open dialog (it takes it once shown), so a key such as Escape goes to it. */
+function focusInDialog(page) { return until(page, () => !!document.activeElement?.closest('[role="dialog"]'), null, 3000); }
 /** Tab (only the Tab key) until the focus is what `want` accepts; false after `max` presses. */
 async function tabUntil(page, want, max = 80) {
   // Tab moves the focus as part of the key press (the browser's own action), so it is read straight after.
@@ -490,6 +492,17 @@ async function studioLayers(context, origin) {
   const r = await context.request.get(`${origin}/api/edits/${EDITOR_VISUAL_ID}/draft`, { timeout: 10_000, failOnStatusCode: false });
   const d = await r.json().catch(() => ({}));
   return d?.draft?.doc?.layers ? Object.keys(d.draft.doc.layers).length : -1;
+}
+/** The Studio's draft of the editor's picture, as a failure message says it: its layers, change count and session. */
+async function studioDraftOf(context, origin) {
+  const r = await context.request.get(`${origin}/api/edits/${EDITOR_VISUAL_ID}/draft`, { timeout: 10_000, failOnStatusCode: false }).catch(() => null);
+  if (!r) return 'unreachable';
+  const d = await r.json().catch(() => ({}));
+  return d?.draft?.doc?.layers ? { layers: Object.keys(d.draft.doc.layers).length, rev: d.draft.rev, session: d.draft.session ?? null } : { status: r.status() };
+}
+/** This device's copy of a picture's design (what the next opening may restore): its layers, change count and session. */
+function deviceCopyOf(page, id) {
+  return page.evaluate((k) => { try { const c = JSON.parse(localStorage.getItem('nmesis.editor.draft.' + k) || 'null'); return c ? { layers: Object.keys(c.doc?.layers || {}).length, rev: c.rev, session: c.session ?? null } : null; } catch { return 'unreadable'; } }, id).catch(() => 'unreadable');
 }
 /** Until the Studio's draft holds `want` layers (a request leaving with a closed page is on its own time). */
 async function studioHas(context, origin, want, ms = 10_000) {
@@ -617,17 +630,17 @@ function editorSteps() { return {
     await words.fill('سيارة جديدة للعائلة');
     await drawn(page);
     if (!(await fontReady(page, 'nm-noto-kufi-arabic'))) problems.push('Noto Kufi Arabic did not load');
-    const drawn = await page.evaluate(() => {
+    const arabic = await page.evaluate(() => {
       const stage = window.Konva?.stages?.[0];
       const t = stage?.find('Text').find((n) => /[؀-ۿ]/.test(n.text()));
       if (!t) return null;
       return { direction: t.direction(), family: t.fontFamily(), shaped: document.fonts.check(`400 40px "nm-noto-kufi-arabic"`, 'س') };
     });
-    if (!drawn) problems.push('no text on the canvas holds the Arabic words');
+    if (!arabic) problems.push('no text on the canvas holds the Arabic words');
     else {
-      if (drawn.direction !== 'rtl') problems.push(`the Arabic text is drawn ${drawn.direction}, not right to left`);
-      if (!drawn.family.startsWith('"nm-noto-kufi-arabic"')) problems.push(`the Arabic text is drawn in ${drawn.family}`);
-      if (!drawn.shaped) problems.push('the Arabic font has no face for Arabic letters');
+      if (arabic.direction !== 'rtl') problems.push(`the Arabic text is drawn ${arabic.direction}, not right to left`);
+      if (!arabic.family.startsWith('"nm-noto-kufi-arabic"')) problems.push(`the Arabic text is drawn in ${arabic.family}`);
+      if (!arabic.shaped) problems.push('the Arabic font has no face for Arabic letters');
     }
     if (SHOTS) await canvasOf(page).screenshot({ path: path.join(OUT, 'shots', 'phase3-arabic-rtl--1440--light.png') }).catch(() => {});
     // A font whose file can't load: "Missing font" on the layer, in the Layers list and in the panel; never a silent swap.
@@ -826,7 +839,8 @@ function editorSteps() { return {
     if (b) {
       const c = await canvasOf(page).boundingBox(), s = c.width / 1536;
       await page.mouse.dblclick(c.x + (b.x + b.width / 2) * s, c.y + (b.y + b.height / 2) * s);
-      await page.locator('.canvas-text-editor').first().waitFor({ timeout: 5000 }).catch(() => {});
+      // Until the text box is open and has the focus (it takes it once shown), so Escape goes to it, not to the canvas.
+      await until(page, () => !!document.activeElement?.matches('.canvas-text-editor'));
       if (!(await page.locator('.canvas-text-editor').count())) problems.push('a double-click on curved text did not open the text box');
       await page.keyboard.press('Escape');
     }
@@ -954,11 +968,11 @@ function editorSteps() { return {
         await tab(page, 'Layers'); await rowName(page, one.text).click({ timeout: 5000 }); await tab(page, 'Design');
         await panelOf(page).locator('button.ds-font-button').first().click({ timeout: 5000 });
         await page.getByRole('dialog', { name: 'Fonts' }).waitFor({ timeout: 5000 }).catch(() => {});
-        await measure('font-popover', 1); await page.keyboard.press('Escape');
+        await measure('font-popover', 1); await focusInDialog(page); await page.keyboard.press('Escape');
         await page.getByRole('dialog', { name: 'Fonts' }).waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
         await panelOf(page).locator('[data-editor-section="text"] button.ds-colour-button').first().click({ timeout: 5000 });
         await page.getByRole('dialog').first().waitFor({ timeout: 5000 }).catch(() => {});
-        await measure('colour-popover', 1); await page.keyboard.press('Escape');
+        await measure('colour-popover', 1); await focusInDialog(page); await page.keyboard.press('Escape');
         await page.getByRole('dialog').first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
       }
       await tab(page, 'Layers');
@@ -1054,6 +1068,7 @@ function editorSteps() { return {
     else {
       const words = await sheet.innerText();
       for (const k of ['Ctrl+D', 'Ctrl+G', 'Ctrl+Z']) if (!words.includes(k)) problems.push(`the sheet does not list ${k}`);
+      await focusInDialog(page);
       await page.keyboard.press('Escape');
       await sheet.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
       await until(page, () => !!document.activeElement?.matches('.canvas-box'), null, 3000);
@@ -1169,6 +1184,7 @@ function editorSteps() { return {
     await closeTab(page);
     if (!(await studioHas(context, origin, held + 1))) problems.push(`the change made just before closing never reached the Studio (it holds ${await studioLayers(context, origin)} layers, not ${held + 1})`);
     const again = await journeyPage(context, problems);
+    let deviceHeld = null;
     try {
       await openEditor(again, EDITOR_VISUAL_ID);
       if (await layersOf(again) !== shown + 1) problems.push(`it reopened with ${await layersOf(again)} layers, not ${shown + 1}`);
@@ -1176,17 +1192,21 @@ function editorSteps() { return {
       // read, not waited for.
       const from = await canvasOf(again).getAttribute('data-opened-from');
       if (from !== 'studio' || await again.getByText('Restored your unsaved changes').count()) problems.push(`it said “Restored your unsaved changes” though the Studio had them (it opened from the ${from} copy)`);
-      // 2. Offline: a change, and the tab closes; nothing can go with it.
+      // 2. Offline: a change, and the tab closes; nothing can go with it. The reopened editor has nothing to send first.
+      await savedWithin(again, 12_000).catch(() => {});
       await context.setOffline(true);
       const off = await again.waitForFunction(() => !navigator.onLine, null, { timeout: 5000 }).then(() => true, () => false);
       if (!off) problems.push('the harness could not take the page offline');
       await press(again, 't');
       const status = await again.locator('.canvas-bar [data-save-status]').getAttribute('data-save-status');
       if (off && status !== 'offline') problems.push(`offline, the status was "${status}", not "offline"`);
+      // Until this device's copy holds the change (what the next opening restores), then the tab closes.
+      await until(again, ([id, n]) => { try { return Object.keys(JSON.parse(localStorage.getItem('nmesis.editor.draft.' + id) || 'null')?.doc?.layers || {}).length === n; } catch { return false; } }, [EDITOR_VISUAL_ID, held + 2]);
+      deviceHeld = await deviceCopyOf(again, EDITOR_VISUAL_ID);
       again.on('dialog', (d) => { void d.accept(); });
       await closeTab(again);
     } finally { await context.setOffline(false); await again.close().catch(() => {}); }
-    if (await studioLayers(context, origin) !== held + 1) problems.push('offline, the change still reached the Studio: the next check proves nothing');
+    if (await studioLayers(context, origin) !== held + 1) problems.push(`offline, the change still reached the Studio: the next check proves nothing (the Studio holds ${JSON.stringify(await studioDraftOf(context, origin))}, not ${held + 1} layers; this device held ${JSON.stringify(deviceHeld)} before the tab closed)`);
     const last = await journeyPage(context, problems);
     try {
       await openEditor(last, EDITOR_VISUAL_ID);
