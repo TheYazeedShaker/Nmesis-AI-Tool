@@ -366,7 +366,7 @@ async function runEditorJourneys() {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
       await editorSteps()[j.id](page, problems, run);
-    } catch (e) { problems.push(String(e.message || e).split('\n')[0].slice(0, 200)); }
+    } catch (e) { problems.push(errorLine(e)); }
     finally { await page.close().catch(() => {}); }
     out.push({ id: j.id, role: j.role, ok: !problems.length, problems });
   }
@@ -461,6 +461,21 @@ function focusIs(page, kind, arg = null) {
     if (k === 'name-field') return el.matches('input, textarea') && (([...(el.labels || [])].map((l) => l.textContent.trim()).join(' ') || el.getAttribute('aria-label') || '') === 'Layer name');
     return false;
   }, [kind, arg], 3000);
+}
+/** A journey's thrown error in one line: its first line and, for a browser action, what it waited for and the last thing
+ *  that stopped it (from the action's call log: an element over it, not visible, not enabled, not stable). */
+function errorLine(e) {
+  const lines = String(e?.message || e).split('\n').map((l) => l.trim());
+  const waited = lines.find((l) => /^- waiting for /.test(l));
+  const stopped = [...lines].reverse().find((l) => /intercepts pointer events|not visible|not enabled|not stable|not attached|outside of the viewport|not editable/.test(l));
+  return [lines[0], waited, stopped].filter(Boolean).join(' ').slice(0, 600);
+}
+/** Clicks a control once a person could: a toast lying over it (each stays 6 s, components/ds/toast.tsx) is waited out,
+ *  up to 10 s, and the harness's log says it was there. */
+async function clickWhenFree(loc, what) {
+  const over = await loc.evaluate((el) => { const r = el.getBoundingClientRect(), top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return top?.closest('.ds-toast') ? (top.closest('.ds-toast').textContent || '').trim().slice(0, 60) : null; }, null, { timeout: 5000 }).catch(() => null);
+  if (over) console.log(`  (${what} was under a toast, "${over}": waiting until it can be clicked)`);
+  await loc.click({ timeout: 10_000 });
 }
 /** Until the focus is inside an open dialog (it takes it once shown), so a key such as Escape goes to it. */
 function focusInDialog(page) { return until(page, () => !!document.activeElement?.closest('[role="dialog"]'), null, 3000); }
@@ -805,7 +820,7 @@ function editorSteps() { return {
     const none = await exportOf();
     for (const kind of ['shadow', 'outline', 'lift', 'neon', 'background', 'curve']) {
       const s0 = await stepsOf(page);
-      await panelOf(page).locator(`[data-editor-section="effects"] [role="radio"][data-effect="${kind}"]`).click({ timeout: 5000 });
+      await clickWhenFree(panelOf(page).locator(`[data-editor-section="effects"] [role="radio"][data-effect="${kind}"]`), `the ${kind} tile`);
       await stepped(page, s0);
       if (await stepsOf(page) !== s0 + 1) problems.push(`${kind}: picking the tile made ${(await stepsOf(page)) - s0} undo steps, not 1`);
       const checked = await panelOf(page).locator('[data-editor-section="effects"] [role="radio"][aria-checked="true"]').getAttribute('data-effect');
@@ -846,7 +861,8 @@ function editorSteps() { return {
     }
     // None takes the effect off, in one step.
     const s2 = await stepsOf(page);
-    await panelOf(page).locator('[data-editor-section="effects"] [role="radio"][data-effect="none"]').click({ timeout: 5000 });
+    await clickWhenFree(panelOf(page).locator('[data-editor-section="effects"] [role="radio"][data-effect="none"]'), 'the None tile');
+    await stepped(page, s2);
     if (await stepsOf(page) !== s2 + 1) problems.push('None did not take the effect off in one step');
   },
   // The eyedropper where the browser has none (as in Safari and Firefox): "From the canvas", then a click on the
