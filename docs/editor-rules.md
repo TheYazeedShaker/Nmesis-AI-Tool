@@ -13,7 +13,7 @@ follows the plans data.
 
 | # | Rule | Measured by `check:ui` |
 |---|---|---|
-| 1 | **The canvas is central.** Panels are fixed and never float over it. | `editorPanelOverCanvas` |
+| 1 | **The canvas is central.** Panels are fixed and never float over it. | `editorPanelOverCanvas`, `editorToastOverPanels` |
 | 2 | **Selection settings live in one place:** the right panel, 340 px, fixed width. | `editorPanelWidth` |
 | 3 | **Fixed section order:** Position & size → Appearance → Text → Effects → Arrange. W/H and X/Y stay together. | `editorSectionOrder` |
 | 4 | **Spacing uses tokens only:** 4 (label to control), 8 (within a section), 16 (panel padding), 24 (between sections). The container sets the spacing, never margins on single elements. | `editorSpacing` |
@@ -31,6 +31,19 @@ follows the plans data.
 1. The canvas column and the panels are grid tracks of `.canvas-body`. Nothing
    positioned (`fixed`, `absolute`, `sticky`) from a panel may cover the
    canvas box. Menus and dialogs opened by a person are not panels.
+   Toasts follow the design system's one rule (`components/ds/toast.tsx`): a
+   toast never covers a panel, a primary action (Generate, Save, Download) or
+   the page strip. Each layout declares its safe corner once with a
+   `ToastSlot`. The editor's is its canvas column between the notices and the
+   page strip, bottom right. The tools' (Key visual, Line-up, Film, Swap,
+   Story, all drawn by `EditorScreen`) is their stage above the versions
+   strip, top right. At most four toasts, six seconds each, over the light
+   table or the picture's corner while they show. The stack never leaves the
+   part of its slot that is on screen. Older toasts fold away and the newest's
+   words scroll rather than spill past it, and it stops short of a primary
+   button or a download link in its way. The exception: on a phone, a panel
+   opened from the menu is a sheet over the whole screen, so toasts lie over
+   it at the screen's bottom, as over a dialog.
 2. `.canvas-inspector` is `--ds-editor-panel` wide (340 px) at every desktop
    width, whatever is selected. Below 768 px the editor is not offered.
 3. Sections are `<section data-editor-section="…">` in that order; a section
@@ -159,8 +172,14 @@ Cmd while dragging moves freely. A group, or several layers, snap as one box.
 
 `check:ui` measures the rules it can on every editor page and in each kind of
 selection (nothing, a text, a picture, a shape, an icon, a line, a frame,
-several, and the Layers tab) at 1440 × 900, 1191 × 786 and 1024 × 768. The
-counts gate: each is held at zero, so any break fails the pull request.
+several, and the Layers tab) at 1440 × 900, 1191 × 786 and 1024 × 768, and
+with four toasts shown (with and without the left panel open) at 1440 × 900,
+1280 × 800 and 1024 × 768. `editorToastOverPanels` is measured on every page
+check, and with four toasts shown on every tool page at those sizes and on a
+phone (390 × 844), each counted under its own screen. Film, Swap and Story are
+Coming soon, so their pages send a person Home and are measured as Home until
+they open. The counts gate: each is held at zero, so any break fails the pull
+request.
 
 ## Spacing tokens
 

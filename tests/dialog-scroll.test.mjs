@@ -87,6 +87,7 @@ test('every scroll area in the design system is known, and none sits in a dialog
     ['.studio-side', 'the left navigation, when the window is too short for all of it (never in a dialog: on phones the drawer’s body scrolls)'],
     ['.studio-account-pop', 'the account menu over the page, on a very short window'],
     ['.studio-panel-body', 'the secondary panel (References, Brand, Elements, Uploads): a column beside the navigation, a sheet under the slim bar on phones; never a dialog'],
+    ['.ds-toasts[data-placed] .ds-toast-text', 'a toast’s words, only when its layout’s safe corner is shorter than they are (fix/editor-toasts): in the one toast region at the root, never in a dialog'],
   ]);
   const found = [];
   for (const f of SHEETS) for (const r of rules(read('app/' + f))) if (scrolls(r.body)) found.push(r.selector);

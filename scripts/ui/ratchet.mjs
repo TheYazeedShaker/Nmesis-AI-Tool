@@ -12,8 +12,11 @@ export const TOLERANCE = { focusWithoutIndicator: 5 };
 // The editor rules (docs/editor-rules.md; scripts/ui/checks.mjs editorRules): counted on every page
 // with the canvas editor, and on the editor's panel in each kind of selection (the rule states:
 // scripts/check-ui.mjs, journey editor-rule-states). Ratcheted at zero since the rebuilt panel
-// (feat/editor-panel-rules): one break of a measurable editor rule fails CI.
-export const EDITOR_RULES = ['editorPanelWidth', 'editorPanelOverCanvas', 'editorSectionOrder', 'editorSpacing', 'editorUnlabelled', 'editorNestedScroll', 'editorSaveStatus'];
+// (feat/editor-panel-rules): one break of a measurable editor rule fails CI. editorToastOverPanels
+// (fix/editor-toasts): a toast over a panel, a primary action or the page strip (the toasts' rule,
+// components/ds/toast.tsx), measured on every page check and with four toasts shown in the editor
+// (journey editor-toasts) and on every tool page (journey tool-toasts), each under its own screen.
+export const EDITOR_RULES = ['editorPanelWidth', 'editorPanelOverCanvas', 'editorToastOverPanels', 'editorSectionOrder', 'editorSpacing', 'editorUnlabelled', 'editorNestedScroll', 'editorSaveStatus'];
 export const RATCHETED = ['pagesZoomedOutOnPhones', 'editorBand', 'fixedOverSettings', 'controlsSpilling', 'providerNamesShown', 'pagesWithErrors', 'pagesWithSidewaysScroll', 'consoleErrors', 'httpErrors', 'axeCritical', 'axeSerious', 'focusWithoutIndicator', 'focusHiddenBySticky', 'targetsUnder24', 'overlapped', 'clippedWithoutEllipsis', 'ellipsisWithoutFullText', 'serverHostsBlocked', 'pagesOverCls01', 'menusUnderPanels', 'shellNotFilling', ...EDITOR_RULES];
 // Counted for the whole Studio process, not per page: in the totals only.
 const WHOLE_RUN = new Set(['serverHostsBlocked']);

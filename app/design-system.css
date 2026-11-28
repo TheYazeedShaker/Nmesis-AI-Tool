@@ -629,6 +629,17 @@
 @media (max-width: 768px) {
   .ds-toasts { right: var(--ds-space-16); left: var(--ds-space-16); width: auto; bottom: calc(var(--ds-phone-nav-h) + var(--ds-space-12)); }
 }
+/* A layout's safe corner for the stack (ToastSlot in components/ds/toast.tsx; the rule is written there): the
+   slot is an empty box that nothing hits; the stack, still the one fixed region, sits in its corner (the
+   provider measures the part on screen) and is never wider than the slot. The canvas editor's is its canvas
+   column, bottom right; the tools' is their stage, top right (docs/editor-rules.md, rule 1). */
+.ds-toast-slot { position: absolute; inset: 0; pointer-events: none; }
+.ds-toasts[data-placed] { left: auto; right: var(--ds-toasts-right); bottom: var(--ds-toasts-bottom); width: min(400px, var(--ds-toasts-room)); }
+.ds-toasts[data-placed="top"] { top: var(--ds-toasts-top); bottom: auto; }
+/* Older toasts that would reach past the room wait folded (the provider marks them) until there is room. */
+.ds-toasts[data-placed] > .ds-toast[data-folded] { display: none; }
+/* Never taller than the room either: in a short, narrow column the newest's words scroll inside the toast. */
+.ds-toasts[data-placed] .ds-toast-text { max-height: calc(var(--ds-toasts-room-h) - 2 * var(--ds-space-12)); overflow-y: auto; overscroll-behavior: contain; }
 
 /* ── Job card: queued / running / done / failed / cancelled ────────────── */
 .ds-job {

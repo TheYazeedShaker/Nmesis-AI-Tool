@@ -329,16 +329,15 @@ export function providerNamesOnPage({ source }) {
   return found.filter((f) => { const k = f.where + f.text; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 40);
 }
 
-// The editor rules that can be measured (docs/editor-rules.md), on any page with the
-// canvas editor: the right panel's width (rule 2), nothing from a panel over the canvas
-// (rule 1), the section order (rule 3), spacing from the four editor tokens and no margins
-// on single elements (rule 4), a plain-word label on every control (rule 5), one vertical
+// The editor rules that can be measured (docs/editor-rules.md). On every page: no toast over a
+// panel, a primary action or the page strip (rule 1, the toasts' rule in components/ds/toast.tsx).
+// On any page with the canvas editor: the right panel's width (rule 2), nothing from a panel over
+// the canvas (rule 1), the section order (rule 3), spacing from the four editor tokens and no
+// margins on single elements (rule 4), a plain-word label on every control (rule 5), one vertical
 // scroll with nothing nested or sideways (rule 8) and the save status in the canvas bar
 // (rule 9). Self-contained: it runs in the page. Each list holds what broke the rule.
 export function editorRules() {
-  const out = { editorPanelWidth: [], editorPanelOverCanvas: [], editorSectionOrder: [], editorSpacing: [], editorUnlabelled: [], editorNestedScroll: [], editorSaveStatus: [] };
-  const editor = document.querySelector('.canvas-editor:not(.canvas-editor-state)');
-  if (!editor || !editor.getBoundingClientRect().width) return out;
+  const out = { editorPanelWidth: [], editorPanelOverCanvas: [], editorToastOverPanels: [], editorSectionOrder: [], editorSpacing: [], editorUnlabelled: [], editorNestedScroll: [], editorSaveStatus: [] };
   const describe = (el) => {
     const cls = typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
     const name = (el.getAttribute('aria-label') || el.innerText || el.value || el.getAttribute('title') || '').trim().replace(/\s+/g, ' ').slice(0, 40);
@@ -348,6 +347,30 @@ export function editorRules() {
   // boxes: its text reads as empty, so its controls would look unlabelled. The rule states open each "More".
   const folded = (el) => { const d = el.closest('details:not([open])'); return !!d && !d.querySelector(':scope > summary')?.contains(el); };
   const shown = (el) => { const r = el.getBoundingClientRect(), cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none' && !el.closest('[hidden],[inert]') && !folded(el); };
+  // Rule 1, for toasts (fix/editor-toasts), on every screen: a toast never covers a panel (the left navigation and
+  // its panel, the phone's and the top bar, the editor's right panel, a tool's settings), a primary action (Generate, any primary
+  // button, a download link, a button or link named Save… or Download…) or the page strip (the editor's page strip,
+  // a tool's versions strip), nor the canvas bars, the editor's notices and keys line, or a tool's work in
+  // progress. One entry per toast and box it covers.
+  const toasts = [...document.querySelectorAll('.ds-toasts .ds-toast')].filter(shown);
+  if (toasts.length) {
+    const kept = [...document.querySelectorAll([
+      '.studio-side', '.studio-phonebar', '.studio-panel', '.studio-topbar', '.canvas-inspector', '.ds-editor-settings', '.ds-editor-rail',
+      '.canvas-bar', '.canvas-notice', '.canvas-pages', '.canvas-keys', '.ds-canvas-bar', '.editor-stage-history', '.ds-canvas-jobs',
+      '.ds-generate', '.ds-phone-generate', '.ds-btn.primary', 'a[download]',
+    ].join(', '))];
+    for (const b of document.querySelectorAll('button, a[href]')) if (/^(save|download)\b/i.test((b.getAttribute('aria-label') || b.innerText || '').trim())) kept.push(b);
+    const boxes = [...new Set(kept)].filter((el) => !el.closest('.ds-toasts') && shown(el));
+    for (const t of toasts) {
+      const a = t.getBoundingClientRect();
+      for (const el of boxes) {
+        const r = el.getBoundingClientRect();
+        if (a.left < r.right - 0.5 && a.right > r.left + 0.5 && a.top < r.bottom - 0.5 && a.bottom > r.top + 0.5) out.editorToastOverPanels.push({ toast: describe(t), over: describe(el) });
+      }
+    }
+  }
+  const editor = document.querySelector('.canvas-editor:not(.canvas-editor-state)');
+  if (!editor || !editor.getBoundingClientRect().width) return out;
   const words = (el) => !!el && shown(el) && el.innerText.trim().length > 0;
   const tokenPx = (name) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || NaN;
   const panel = editor.querySelector('.canvas-inspector'), box = editor.querySelector('.canvas-box');

@@ -3,6 +3,7 @@ import * as React from 'react';
 import {Clapperboard,Film,ImageIcon,Layers,Replace} from 'lucide-react';
 import {EditorLayout,GenerateButton,GenerateNotice,type GenerateBlocker} from '@/components/ds/editor';
 import {Fold} from '@/components/ds/layout';
+import {ToastSlot} from '@/components/ds/toast';
 import type {StudioPage} from '@/components/studio-topbar';
 import {KEY_VISUAL_HREF} from '@/components/studio-topbar';
 import {providerNames,useAccount} from '@/components/studio-account';
@@ -16,7 +17,11 @@ import {dayDate} from '@/lib/ds/words';
 // wireframe): the tools on the rail, the canvas or preview in the middle with
 // the version history under it, one settings panel on the right with Generate
 // and its credit cost, Save to project in the canvas bar. On phones the tools
-// are a strip, the settings a bottom sheet, Generate a sticky bar.
+// are a strip, the settings a bottom sheet, Generate a sticky bar. Its toasts'
+// safe corner (components/ds/toast.tsx, the rule) is the top right of the stage:
+// over the picture, the car view or the film, which every tool shows first,
+// never the settings and Generate, the canvas bar (Save, Download), the
+// actions under the picture or the versions strip.
 
 export type EditorTool='visuals'|'lineup'|'films'|'swap'|'storyboard';
 export const EDITOR_TOOLS:{id:EditorTool;label:string;href:string;icon:React.ReactNode}[]=[
@@ -73,7 +78,7 @@ export function EditorScreen({tool,onTool,bar,stage,history,jobs,settings,cost,v
  // One navigation: the Studio's left navigation (components/shell) replaces the editor's own tool rail; tools open from Home.
  return <EditorLayout loading={!!loading&&!late} name={`editor-${tool}`} tools={[]} tool={tool} onTool={id=>onTool(id as EditorTool)}
   canvasBar={bar}
-  canvas={<div className="editor-stage"><div className="editor-stage-main">{stage}</div><div className="editor-stage-history">{history}</div></div>}
+  canvas={<div className="editor-stage"><div className="editor-stage-main">{stage}<ToastSlot corner="top-right"/></div><div className="editor-stage-history">{history}</div></div>}
   jobs={jobs}
   notice={why&&<GenerateNotice blocked={why}/>}
   settings={settings}

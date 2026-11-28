@@ -41,7 +41,7 @@ import { initScript, quietFor, vitals, layoutChecks, shellOutsideProbe, focusSta
 import { PROVIDER_PATTERN } from '../lib/provider-words.ts';
 import { runPerf } from './ui/perf.mjs';
 import { VISUAL_ID } from '../lib/work-ref.ts';
-import { EDITOR_JOURNEYS, EDITOR_VISUAL_ID, V1_DESIGN_ID, RULE_STATE_SIZES, PERF_DESIGN_ID, PERF_PICTURE_ID, PERF_LAYERS } from './ui/screens.mjs';
+import { EDITOR_JOURNEYS, EDITOR_VISUAL_ID, V1_DESIGN_ID, RULE_STATE_SIZES, TOAST_SIZES, TOOL_TOAST_SIZES, TOOL_TOAST_PAGES, PERF_DESIGN_ID, PERF_PICTURE_ID, PERF_LAYERS } from './ui/screens.mjs';
 import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, FLOWS, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
 import { finish } from './ui/ratchet.mjs';
 import { decode as decodePngFile } from 'fast-png';
@@ -526,6 +526,51 @@ async function studioHas(context, origin, want, ms = 10_000) {
 }
 /** Closes the tab as a person does: its beforeunload and pagehide run; resolves once it is closed. */
 async function closeTab(page) { const closed = page.waitForEvent('close', { timeout: 15_000 }); await page.close({ runBeforeUnload: true }); await closed; }
+/**
+ * One tool page at one size for the tool-toasts journey: four toasts (with nothing open on the left, then with
+ * Elements open), each a rule state. The region's placement is cleared before they go in, so the wait reads the
+ * Studio's own placement of these four (it places them the frame after they arrive), not one left from before.
+ */
+async function toolToasts(page, problems, run, { screen, to, w, h, four }) {
+  await page.setViewportSize({ width: w, height: h });
+  await page.goto(to, { waitUntil: 'load', timeout: 30_000 });
+  await ready(page);
+  const elements = page.locator('.studio-side').getByRole('button', { name: 'Elements', exact: true });
+  const at = new URL(page.url()).pathname, tool = (await page.locator('.ds-editor').count()) > 0;
+  if (at === to && !tool) { problems.push(`${screen} at ${w} x ${h}: ${to} did not show the tool`); return; }
+  if (tool) await page.locator('.ds-editor:not([data-loading])').waitFor({ timeout: 10_000 }).catch(() => problems.push(`${screen} at ${w} x ${h}: the tool was still loading`));
+  const states = tool && w > 768 && (await elements.count()) ? ['four-toasts', 'four-toasts-elements-open'] : ['four-toasts'];
+  for (const state of states) {
+    const where = `${screen} ${state} at ${w} x ${h}`;
+    if (state === 'four-toasts-elements-open') {
+      await elements.click({ timeout: 5000 });
+      await page.locator('.studio-panel').waitFor({ timeout: 5000 }).catch(() => problems.push(`${where}: Elements did not open its panel`));
+    }
+    await page.evaluate((list) => {
+      const region = document.querySelector('.ds-toasts');
+      if (!region) return;
+      delete region.dataset.placed;
+      for (const m of list) {
+        const t = document.createElement('div');
+        t.className = `ds-toast ${m.kind}`; t.dataset.harness = '';
+        t.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg><p class="ds-toast-text"></p>'
+          + (m.action ? '<button type="button" class="ds-toast-action"></button>' : '')
+          + '<button type="button" class="ds-toast-close" aria-label="Dismiss"><svg aria-hidden="true" viewBox="0 0 24 24"></svg></button>';
+        t.querySelector('p').textContent = m.text;
+        if (m.action) t.querySelector('.ds-toast-action').textContent = m.action;
+        region.append(t);
+      }
+    }, four);
+    const n = await page.locator('.ds-toasts .ds-toast').count();
+    if (n !== 4) problems.push(`${where}: ${n} toasts, not 4`);
+    // On a tool, until the Studio has placed these in the stage's top right; Home has no slot (the window's corner).
+    if (tool) await page.locator('.ds-toasts[data-placed="top"]').waitFor({ state: 'attached', timeout: 5000 }).catch(() => problems.push(`${where}: the toasts are in the window's corner, not the stage's top right`));
+    if (!(await until(page, () => { const t = [...document.querySelectorAll('.ds-toasts .ds-toast:not([data-folded])')].pop(); return !!t && t.getBoundingClientRect().height > 0; }))) problems.push(`${where}: the newest toast is not shown`);
+    if (SHOTS) await page.screenshot({ path: path.join(OUT, 'shots', `${screen}-${state}${tool ? '' : '-home'}--${w}--light.png`) }).catch(() => {});
+    run.ruleStates.push({ screen, state: tool ? state : `${state}-home`, role: 'owner', w, h, theme: 'light', editorRules: await page.evaluate(editorRules) });
+    await page.evaluate(() => { for (const t of document.querySelectorAll('.ds-toasts [data-harness]')) t.remove(); });
+  }
+}
 /** Another tab in the same context, set up as the journeys' own. */
 async function journeyPage(context, problems) {
   const p = await context.newPage();
@@ -997,6 +1042,65 @@ function editorSteps() { return {
       await measure('layers-tab', three.length);
       await tab(page, 'Design');
       await measure('several', three.length);
+    }
+  },
+  // Toasts in the editor (fix/editor-toasts): four at once lie in the canvas column (the editor's ToastSlot, over
+  // its light table), never over the right panel, the left navigation or its panel, the canvas bar, a notice or
+  // the page strip: each size, with nothing open on the left and then with Elements open, is a rule state
+  // (editorToastOverPanels, ratcheted at zero under the editor screen). Ctrl+G with nothing selected says
+  // "Choose two or more layers…" and changes nothing, so four of them are four toasts and no undo step. Where
+  // the column is too short for four (as at 1024 x 768 with Elements open), the older ones fold; the newest shows.
+  'editor-toasts': async (page, problems, run) => {
+    const toasts = page.locator('.ds-toasts .ds-toast');
+    const elements = page.locator('.studio-side').getByRole('button', { name: 'Elements', exact: true });
+    for (const [w, h] of TOAST_SIZES) {
+      await page.setViewportSize({ width: w, height: h });
+      await openEditor(page, EDITOR_VISUAL_ID);
+      for (const state of ['four-toasts', 'four-toasts-elements-open']) {
+        if (state === 'four-toasts-elements-open') {
+          await elements.click({ timeout: 5000 });
+          await page.locator('.studio-panel').waitFor({ timeout: 5000 }).catch(() => problems.push(`Elements did not open its panel at ${w} x ${h}`));
+        }
+        const s0 = await stepsOf(page);
+        for (let i = 0; i < 4; i++) await press(page, 'Control+g');
+        await toasts.nth(3).waitFor({ timeout: 5000 }).catch(() => {});
+        const n = await toasts.count();
+        if (n !== 4) problems.push(`${state} at ${w} x ${h}: ${n} toasts, not 4`);
+        if (!(await page.locator('.ds-toasts .ds-toast:not([data-folded])').last().isVisible().catch(() => false))) problems.push(`${state} at ${w} x ${h}: the newest toast is not shown`);
+        if (await stepsOf(page) !== s0) problems.push(`${state} at ${w} x ${h}: Ctrl+G with nothing selected changed the design`);
+        if (!(await page.locator('.ds-toasts[data-placed]').count())) problems.push(`${state} at ${w} x ${h}: the toasts are in the window's corner, not the canvas column`);
+        if (SHOTS) await page.screenshot({ path: path.join(OUT, 'shots', `editor-${state}--${w}--light.png`) }).catch(() => {});
+        run.ruleStates.push({ screen: 'editor', state, role: 'owner', w, h, theme: 'light', editorRules: await page.evaluate(editorRules) });
+        // Dismissed newest first (older ones may be folded in a narrow column, and unfold as room comes back).
+        for (let i = 0; i < 6 && await toasts.count(); i++) await page.locator('.ds-toasts .ds-toast:not([data-folded]) .ds-toast-close').last().click({ timeout: 2000 }).catch(() => {});
+      }
+      if (await elements.getAttribute('aria-pressed') === 'true') await elements.click({ timeout: 5000 }).catch(() => {});
+    }
+  },
+  // Toasts on every tool page (fix/editor-toasts): the same rule (components/ds/toast.tsx). Four at once hang from
+  // the stage's top right (EditorScreen's ToastSlot), never over the settings or Generate, the canvas bar, a primary
+  // action, the versions strip or the left navigation and its panel: each page and size, with nothing open on the
+  // left and then with Elements open (not on the phone, where the navigation is a menu), is a rule state under the
+  // tool's own screen (editorToastOverPanels, at zero). A tool page has no action that shows a toast without
+  // changing work or downloading a file, so the journey puts four toasts of the Studio's own markup (two of them
+  // with the Studio's longest words and an action) into the one toast region, and the Studio places and folds them
+  // as it does its own; they are taken out after. Film, Swap and Story are Coming soon and send the person Home,
+  // which is measured as it is (the state says "-home"); once one opens, it is measured as the tool. Each page and
+  // size opens in a tab of its own, closed after: going from page to page in one tab cancels the pages' own link
+  // prefetches, which WebKit reports as uncaught errors of the page being left.
+  'tool-toasts': async (page, problems, run) => {
+    const four = [
+      { kind: 'ok', text: 'Saved to Spring campaign.' },
+      { kind: 'ok', text: 'Download requested. If no file appears, open the original and save it.', action: 'Open original' },
+      { kind: 'bad', text: 'That didn’t work. Try again.' },
+      { kind: 'ok', text: 'Area edit saved. Everything outside the selection is preserved.', action: 'Undo' },
+    ];
+    for (const { screen, path: to } of TOOL_TOAST_PAGES) {
+      for (const [w, h] of TOOL_TOAST_SIZES) {
+        const p = await journeyPage(page.context(), problems);
+        try { await toolToasts(p, problems, run, { screen, to, w, h, four }); }
+        finally { await p.close().catch(() => {}); }
+      }
     }
   },
   // The layers list with the keyboard only: Tab reaches the tabs and then the list (one tab stop), the arrow

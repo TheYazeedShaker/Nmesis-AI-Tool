@@ -10,6 +10,10 @@
 .editor-stage-main { flex: 1 1 auto; display: grid; place-items: center; min-height: 0; }
 .editor-stage-history { flex: none; }
 .ds-canvas-stage:has(.editor-stage) { place-items: stretch; }
+/* The toasts' safe corner (ToastSlot, top right, in components/editor/editor-screen.tsx): the slot fills the
+   stage's middle, so the stack hangs from its top right over the picture, above the actions under it and the
+   versions strip, never the settings, Generate or the canvas bar. */
+.editor-stage-main { position: relative; }
 
 /* Canvas bar: name, what is shown, the project, the result's own actions. */
 .editor-name .ds-input { min-width: 0; width: clamp(calc(var(--ds-space-64) * 2.5), 22vw, var(--ds-settings-w)); border-color: transparent; background: transparent; font-weight: var(--ds-weight-semibold); }

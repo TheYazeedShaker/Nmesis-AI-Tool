@@ -29,7 +29,10 @@
   background-image: radial-gradient(var(--ds-border-strong) var(--ds-border-width), transparent var(--ds-border-width));
   background-size: var(--ds-space-16) var(--ds-space-16);
 }
-.canvas-fit { flex: 1 1 auto; min-height: 0; width: 100%; display: grid; place-items: center; container-type: size; }
+/* Also the toasts' place in the editor (its ToastSlot fills it): what is left of the column between the notices
+   and the page strip. A toast lies in its bottom right corner, over the light table (and for its few seconds the
+   picture's corner, where the picture fills the column), never over a panel, the canvas bar or the page strip. */
+.canvas-fit { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; display: grid; place-items: center; container-type: size; }
 /* The picture's shape (--canvas-ratio, set by the editor), as large as fits: sized before the canvas loads. */
 .canvas-box { position: relative; width: min(100cqw, calc(100cqh * var(--canvas-ratio, 1.7778))); aspect-ratio: var(--canvas-ratio, 1.7778); line-height: 0; box-shadow: var(--ds-shadow-2); background: var(--ds-media-bg); }
 /* Typing on the canvas (components/canvas/text-editor.tsx): the box sits exactly over the text, in its font,
