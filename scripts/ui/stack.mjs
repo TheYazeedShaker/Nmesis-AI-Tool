@@ -2,17 +2,21 @@
 // against a disposable Postgres (TEST_DATABASE_URL, CI's service), a mocked
 // Supabase Auth (scripts/verify/auth-mock.mjs) and an in-memory S3 stand-in
 // (scripts/verify/s3-standin.mjs). The server process may not reach the
-// network at all (./no-network.mjs); no provider key is set.
+// network at all (./no-network.mjs); no provider key is set. Pixabay is answered
+// by a stand-in on this machine (./photo-standin.mjs, its own key).
 import { spawn } from 'node:child_process';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { startAuthMock } from '../verify/auth-mock.mjs';
 import { startS3 } from '../verify/s3-standin.mjs';
 import { prepareDatabase, seedAccounts, SEED_CARS } from './seed.mjs';
 import { startConfiguratorStandin } from './configurator-standin.mjs';
+import { STANDIN_KEY } from './photo-standin.mjs';
 
 const GUARD = fileURLToPath(new URL('./no-network.mjs', import.meta.url));
+// Pixabay's API and pictures, answered on this machine (editor Phase 5's Photos panel).
+const PHOTOS = fileURLToPath(new URL('./photo-standin.mjs', import.meta.url));
 // Provider and email settings a developer may have locally: never passed on.
-const DROP = /^(OPENAI_|GOOGLE_AI_|HIGGSFIELD_|TOPAZ_|EMAIL_|NMESIS_ALERT|SUPABASE_|S3_|DATABASE_URL|KEY_ENCRYPTION|STUDIO_PUBLIC_ORIGIN|VERCEL)/;
+const DROP = /^(OPENAI_|GOOGLE_AI_|HIGGSFIELD_|TOPAZ_|UNSPLASH_|PIXABAY_|PEXELS_|EMAIL_|NMESIS_ALERT|SUPABASE_|S3_|DATABASE_URL|KEY_ENCRYPTION|STUDIO_PUBLIC_ORIGIN|VERCEL)/;
 
 export async function startStack({ adminUrl, port = 3940, log = () => {} }) {
   if (!adminUrl) throw new Error('Set TEST_DATABASE_URL to a disposable Postgres (superuser), as CI does.');
@@ -25,7 +29,8 @@ export async function startStack({ adminUrl, port = 3940, log = () => {} }) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !DROP.test(k)));
   Object.assign(env, {
     NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1',
-    NODE_OPTIONS: `${env.NODE_OPTIONS || ''} --import=${pathToFileURL(GUARD).href}`.trim(),
+    NODE_OPTIONS: `${env.NODE_OPTIONS || ''} --import=${pathToFileURL(GUARD).href} --import=${pathToFileURL(PHOTOS).href}`.trim(),
+    UI_PHOTO_STANDIN: '1', PIXABAY_API_KEY: STANDIN_KEY,
     VERCEL_ENV: 'preview',
     DATABASE_URL: appUrl,
     SUPABASE_URL: auth.url, SUPABASE_PUBLISHABLE_KEY: 'mock-publishable-key', SUPABASE_SECRET_KEY: 'mock-secret-key', STUDIO_GOOGLE_SIGNIN: 'off',

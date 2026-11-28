@@ -204,6 +204,37 @@ style reads; the checks and their results are the same. In the full sweep the
 about 11 s around each call for Postgres to publish its statistics, about
 4 minutes, and the polling watch is 60 s); it runs only in the full sweep.
 
+### The editor journeys wait for signals, not for time
+
+The editor journeys never wait a fixed time (`tests/render-signal.test.mjs` fails on a `waitForTimeout` in their
+helpers or journeys). They wait for what the Studio says, then the check after the wait reads it. A wait that runs
+out says nothing itself; the check after it fails as before.
+
+- **The canvas says when it has drawn** (`lib/editor/render-signal.ts`, written by `components/canvas/stage.tsx` on
+  the stage's element):
+  - `data-render` is "drawing" from each change until the canvas has drawn it, with every text layer's font settled
+    (loaded, or missing and said so). Then it is "ready".
+  - `data-text-drawn` lists each text layer as last drawn: its effect, its drawer (`shaped` for curved Arabic, `path`
+    for other curved text, `text` for straight text), its font (`loaded`, `missing` or `loading`), and how much it
+    drew.
+  - `press`, `dragOn` and `openEditor` wait for "ready" (`drawn`). A change that makes an undo step waits for the
+    step, then for "ready" (`stepped`).
+  - The brand-fonts journey reads the drawer only after "ready". If curved Arabic is drawn by another drawer, or the
+    shaping drawer placed nothing, the check fails and names the drawer used. That is the Studio's drawing in that
+    browser, not timing.
+- **Other waits** are for the very thing the check reads:
+  - a tab selected;
+  - the focus on a row or a field;
+  - a dialog shown or hidden;
+  - the font list's active row;
+  - the font previews arrived;
+  - a credit faded in;
+  - a slider standing still;
+  - the layer count reached.
+- **The editor says which copy it opened from** (`data-opened-from` on the canvas: `studio` or `device`). So "it did
+  not say Restored…" is read, not waited for.
+- **The performance drag** moves once per drawn frame, as a pointer's moves reach a page.
+
 ## Mistakes the harness makes about itself
 
 Automated checks find part of the problems; the findings register adds what a

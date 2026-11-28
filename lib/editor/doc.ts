@@ -28,8 +28,15 @@ export type AssetKey=string;
 type Placed={id:string;name:string;pageId:string;parentId:string|null;index:number;locked?:boolean;hidden?:boolean};
 // Settings added after the first v2 designs are optional, so every design saved before them reads as it was.
 type Base=Box&Placed&{/** 0 (not seen) to 1 (solid); absent: 1. */opacity?:number};
+/**
+ * Who took a photo placed from a photo library (the Photos panel): the library's id ("unsplash",
+ * "pixabay"), the photographer's name, their page and the photo's own page, both on the library's
+ * own site (https://<library>.com, or www.). The one place a design keeps an address (photoCreditOk).
+ */
+export type PhotoCredit={provider:string;name:string;href:string;page:string};
 export type ImageLayer=Base&{kind:'image';asset:AssetKey;source:'logo'|'upload';
- /** Rounded corners, in picture pixels; absent: square. */radius?:number;/** Mirrored left to right / top to bottom. */flipX?:boolean;flipY?:boolean};
+ /** Rounded corners, in picture pixels; absent: square. */radius?:number;/** Mirrored left to right / top to bottom. */flipX?:boolean;flipY?:boolean;
+ /** A photo library's photo: who took it and where it is from; absent: the person's own picture. */credit?:PhotoCredit};
 export type TextStyle='heading'|'subheading'|'body';
 /** A text's one effect (one at a time). Every amount is 0–100 of what the effect can do, so it looks the same at any size (lib/editor/effects.ts draws it). */
 export type TextEffect=
@@ -52,9 +59,11 @@ export type ShapeLayer=Base&{kind:'shape';shape:ShapeKind;/** The solid fill (wi
  /** A gradient fill; absent: the solid fill. */gradient?:Gradient};
 export type LineLayer=Base&{kind:'line';dash:boolean;arrow:'none'|'end'|'both';stroke:string;strokeWidth:number};
 export type FrameLayer=Base&{kind:'frame';stroke:string;strokeWidth:number;radius:number};
-/** An icon from the Studio's icon set (lucide), kept as its vector paths on a 24 x 24 grid
- *  (lib/editor/icons.ts), so it draws sharp at any size and needs nothing else to reopen. */
-export type IconLayer=Base&{kind:'icon';icon:string;paths:string[];color:string;strokeWidth:number};
+/** An icon from one of the Studio's icon sets (lib/editor/icon-sets.ts), kept as its vector paths on its
+ *  set's grid (lib/editor/icons.ts), so it draws sharp at any size and needs nothing else to reopen. */
+export type IconLayer=Base&{kind:'icon';icon:string;paths:string[];color:string;strokeWidth:number;
+ /** The icon's own grid (its square viewBox); absent: ICON_GRID (24). */grid?:number;
+ /** Drawn filled in its colour (a solid icon set) rather than as lines; absent: lines of strokeWidth. */fill?:boolean};
 /** A group: its children are the layers whose parentId is its id. It has no box of its own (its children's is its). */
 export type GroupLayer=Placed&{kind:'group'};
 export type DrawnLayer=ImageLayer|TextLayer|ShapeLayer|LineLayer|FrameLayer|IconLayer;
@@ -65,14 +74,16 @@ export type EditorDoc={schemaVersion:typeof SCHEMA_VERSION;width:number;height:n
  /** The original picture the design was made on (its id): read only, never written. */base:string;
  pages:Page[];layers:Record<string,Layer>};
 
-/** What a panel asks the canvas to add (Brand, Elements, Text, Uploads). `src` is the Studio's own address of the picture. */
-export type CanvasAdd=
- |{kind:'image';src:string;assetId?:string;name:string;source:'logo'|'upload';naturalWidth?:number;naturalHeight?:number}
+/** What a panel asks the canvas to add (Brand, Elements, Text, Uploads, Photos, Icons). `src` is the Studio's own address of the picture.
+ *  `at` (a drop on the canvas) is where its middle goes, in picture pixels; absent: the middle of the page. */
+export type CanvasAdd=(
+ |{kind:'image';src:string;assetId?:string;name:string;source:'logo'|'upload';naturalWidth?:number;naturalHeight?:number;credit?:PhotoCredit}
  |{kind:'text';style:TextStyle;text?:string;font?:string;color?:string}
  |{kind:'shape';shape:ShapeKind;fill?:string}
  |{kind:'line';dash?:boolean;arrow?:'none'|'end'|'both'}
  |{kind:'frame';ratio:number;radius?:number}
- |{kind:'icon';icon:string;name:string;paths:string[];color?:string};
+ |{kind:'icon';icon:string;name:string;paths:string[];color?:string;grid?:number;fill?:boolean}
+)&{at?:{x:number;y:number}};
 
 /** Layers on one page; pages in one design. */
 export const MAX_LAYERS=200,MAX_PAGES=20,TEXT_MAX=500,NAME_MAX=80,ICON_PATHS_MAX=40,ICON_PATH_MAX=4000;
@@ -185,14 +196,21 @@ function renumber(d:D,pageId:string,parentId:string|null,ordered:string[]){order
 const childIds=(d:D|EditorDoc,pageId:string,parentId:string|null)=>siblings(d as EditorDoc,pageId,parentId).map(l=>l.id);
 function roomFor(d:D|EditorDoc,pageId:string,more:number){if(pageLayers(d as EditorDoc,pageId).length+more>MAX_LAYERS)throw new Error(`A page holds up to ${MAX_LAYERS} layers.`)}
 
-/** The layer an add makes, placed in the middle of the page at a size that reads well (not yet on a page). */
+/** The layer an add makes, at a size that reads well (not yet on a page): its middle on `add.at` (a drop,
+ *  kept on the page), else in the middle of the page. */
 export function layerFor(doc:{width:number;height:number},add:CanvasAdd,id:string,pageId=FIRST_PAGE):DrawnLayer{
+ const l=middleLayer(doc,add,id,pageId),p=add.at;
+ if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return l;
+ return {...l,x:round(clamp(p.x,0,doc.width)-l.width/2),y:round(clamp(p.y,0,doc.height)-l.height/2)};
+}
+function middleLayer(doc:{width:number;height:number},add:CanvasAdd,id:string,pageId:string):DrawnLayer{
  const short=Math.min(doc.width,doc.height),at={id,pageId,parentId:null,index:0};
  if(add.kind==='image'){
   const asset=add.assetId&&ID.test(add.assetId)&&add.source==='upload'?pictureKey(add.assetId):assetKeyOf(add.src);
   if(!asset)throw new Error('Only pictures from this Studio can go on a design.');
   const w=(add.source==='logo'?0.18:0.35)*doc.width,ratio=add.naturalWidth&&add.naturalHeight?add.naturalHeight/add.naturalWidth:add.source==='logo'?0.5:0.75;
-  return {...centred(doc,w,w*ratio),...at,kind:'image',name:(add.name||(add.source==='logo'?'Logo':'Picture')).slice(0,NAME_MAX),asset,source:add.source};
+  const credit=add.source==='upload'&&photoCreditOk(add.credit)?{credit:{provider:add.credit.provider,name:add.credit.name,href:add.credit.href,page:add.credit.page}}:{};
+  return {...centred(doc,w,w*ratio),...at,kind:'image',name:(add.name||(add.source==='logo'?'Logo':'Picture')).slice(0,NAME_MAX),asset,source:add.source,...credit};
  }
  if(add.kind==='text'){
   const s=TEXT_STYLES[add.style],fontSize=Math.max(8,Math.round(s.size*doc.height)),text=(add.text||s.sample).slice(0,TEXT_MAX);
@@ -200,7 +218,10 @@ export function layerFor(doc:{width:number;height:number},add:CanvasAdd,id:strin
   return {...centred(doc,width,fontSize*1.3),...at,kind:'text',name:s.label,text,style:add.style,font:add.font||FALLBACK_FONT,fontSize,fontWeight:s.weight,color:add.color||INK,align:'center'};
  }
  if(add.kind==='shape')return {...centred(doc,short*0.25,short*0.25),...at,kind:'shape',name:SHAPE_NAMES[add.shape],shape:add.shape,fill:add.fill||INK,stroke:'transparent',strokeWidth:0};
- if(add.kind==='icon'){const s=short*0.16;return {...centred(doc,s,s),...at,kind:'icon',name:(add.name||'Icon').slice(0,NAME_MAX),icon:add.icon,paths:add.paths.slice(0,ICON_PATHS_MAX),color:add.color||INK,strokeWidth:ICON_STROKE}}
+ if(add.kind==='icon'){
+  const s=short*0.16,grid=iconGridOk(add.grid)&&add.grid!==ICON_GRID?{grid:add.grid}:{};
+  return {...centred(doc,s,s),...at,kind:'icon',name:(add.name||'Icon').slice(0,NAME_MAX),icon:add.icon,paths:add.paths.slice(0,ICON_PATHS_MAX),color:add.color||INK,strokeWidth:ICON_STROKE,...grid,...(add.fill?{fill:true}:{})};
+ }
  if(add.kind==='line')return {...centred(doc,doc.width*0.3,Math.max(2,short*0.006)),...at,kind:'line',name:add.arrow&&add.arrow!=='none'?'Arrow':'Line',dash:!!add.dash,arrow:add.arrow||'none',stroke:INK,strokeWidth:Math.max(2,Math.round(short*0.006))};
  const h=short*0.4,w=clamp(h*add.ratio,8,doc.width*0.9);
  return {...centred(doc,w,h),...at,kind:'frame',name:'Frame',stroke:INK,strokeWidth:Math.max(2,Math.round(short*0.004)),radius:Math.round((add.radius||0)*short)};
@@ -496,13 +517,30 @@ const linkIn=(v:unknown,depth=0):boolean=>typeof v==='string'?LINKISH.test(v):Ar
 const PLACED_FIELDS=['id','name','kind','pageId','parentId','index','locked','hidden'],BOX_FIELDS=['x','y','width','height','rotation','opacity'];
 const FIELDS:Record<Layer['kind'],ReadonlySet<string>>={
  group:new Set(PLACED_FIELDS),
- image:new Set([...PLACED_FIELDS,...BOX_FIELDS,'asset','source','radius','flipX','flipY']),
+ image:new Set([...PLACED_FIELDS,...BOX_FIELDS,'asset','source','radius','flipX','flipY','credit']),
  text:new Set([...PLACED_FIELDS,...BOX_FIELDS,'text','style','font','fontSize','fontWeight','color','align','lineHeight','letterSpacing','italic','effect']),
  shape:new Set([...PLACED_FIELDS,...BOX_FIELDS,'shape','fill','stroke','strokeWidth','gradient']),
  line:new Set([...PLACED_FIELDS,...BOX_FIELDS,'dash','arrow','stroke','strokeWidth']),
  frame:new Set([...PLACED_FIELDS,...BOX_FIELDS,'stroke','strokeWidth','radius']),
- icon:new Set([...PLACED_FIELDS,...BOX_FIELDS,'icon','paths','color','strokeWidth']),
+ icon:new Set([...PLACED_FIELDS,...BOX_FIELDS,'icon','paths','color','strokeWidth','grid','fill']),
 };
+/** An icon grid the format holds: a whole number of units, 8 to 1024 (the sets draw on 24 and 256). */
+export function iconGridOk(v:unknown):v is number{return typeof v==='number'&&Number.isInteger(v)&&v>=8&&v<=1024}
+/** A credit link: https on the library's own site (<library>.com or www.<library>.com), no user, password or port,
+ *  plain path characters, and no query but the libraries' own utm_source and utm_medium. */
+function creditLink(v:unknown,provider:string):boolean{
+ if(typeof v!=='string'||v.length>300||/x-amz-|signature=/i.test(v))return false;
+ let u:URL;try{u=new URL(v)}catch{return false}
+ if(u.protocol!=='https:'||u.username||u.password||u.port||u.hash||(u.hostname!==provider+'.com'&&u.hostname!=='www.'+provider+'.com'))return false;
+ if(!/^\/[A-Za-z0-9/_.@~%-]*$/.test(u.pathname))return false;
+ return [...u.searchParams.keys()].every(k=>k==='utm_source'||k==='utm_medium');
+}
+/** A photo's credit as a design keeps it (PhotoCredit): only its own four fields, each in shape. */
+export function photoCreditOk(v:unknown):v is PhotoCredit{
+ const c=v as PhotoCredit;
+ if(!c||typeof c!=='object'||Array.isArray(c)||Object.keys(c).some(k=>!['provider','name','href','page'].includes(k)))return false;
+ return typeof c.provider==='string'&&/^[a-z0-9]{2,30}$/.test(c.provider)&&plain(c.name,80)&&c.name.trim().length>0&&creditLink(c.href,c.provider)&&creditLink(c.page,c.provider);
+}
 const num=(v:unknown,lo:number,hi:number)=>typeof v==='number'&&Number.isFinite(v)&&v>=lo&&v<=hi;
 const str=(v:unknown,max:number)=>typeof v==='string'&&v.length<=max&&!/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(v);
 const plain=(v:unknown,max:number)=>str(v,max)&&!LINKISH.test(v as string);
@@ -540,13 +578,13 @@ function checkLayerBody(l:Record<string,unknown>,span:number):string|null{
  // The optional settings: absent, or of the right kind and in range.
  const maybe=(v:unknown,ok:(v:unknown)=>boolean)=>v===undefined||ok(v);
  if(!maybe(l.opacity,v=>num(v,0,1)))return 'opacity';
- if(l.kind==='image')return isAssetKey(l.asset)&&(l.source==='logo'||l.source==='upload')&&maybe(l.radius,v=>num(v,0,span))&&flag(l.flipX)&&flag(l.flipY)?null:'image';
+ if(l.kind==='image')return isAssetKey(l.asset)&&(l.source==='logo'||l.source==='upload')&&maybe(l.radius,v=>num(v,0,span))&&flag(l.flipX)&&flag(l.flipY)&&maybe(l.credit,photoCreditOk)?null:'image';
  if(l.kind==='text')return str(l.text,TEXT_MAX)&&plain(l.font,60)&&num(l.fontSize,1,4000)&&num(l.fontWeight,1,1000)&&colour(l.color)&&['heading','subheading','body'].includes(l.style as string)&&['left','center','right'].includes(l.align as string)
   &&maybe(l.lineHeight,v=>num(v,0.5,4))&&maybe(l.letterSpacing,v=>num(v,-1000,1000))&&flag(l.italic)&&maybe(l.effect,v=>!effectProblem(v))?null:'text';
  if(l.kind==='shape')return SHAPES.includes(l.shape as ShapeKind)&&colour(l.fill)&&colour(l.stroke)&&num(l.strokeWidth,0,500)&&maybe(l.gradient,gradientOk)?null:'shape';
  if(l.kind==='line')return colour(l.stroke)&&num(l.strokeWidth,0,500)&&typeof l.dash==='boolean'&&['none','end','both'].includes(l.arrow as string)?null:'line';
  if(l.kind==='frame')return colour(l.stroke)&&num(l.strokeWidth,0,500)&&num(l.radius,0,span)?null:'frame';
- if(l.kind==='icon')return typeof l.icon==='string'&&ICON_NAME.test(l.icon)&&Array.isArray(l.paths)&&l.paths.length&&l.paths.length<=ICON_PATHS_MAX&&l.paths.every(p=>str(p,ICON_PATH_MAX)&&PATH_DATA.test(p as string))&&colour(l.color)&&l.color!=='transparent'&&num(l.strokeWidth,0.25,6)?null:'icon';
+ if(l.kind==='icon')return typeof l.icon==='string'&&ICON_NAME.test(l.icon)&&Array.isArray(l.paths)&&l.paths.length&&l.paths.length<=ICON_PATHS_MAX&&l.paths.every(p=>str(p,ICON_PATH_MAX)&&PATH_DATA.test(p as string))&&colour(l.color)&&l.color!=='transparent'&&num(l.strokeWidth,0.25,6)&&maybe(l.grid,iconGridOk)&&(l.fill===undefined||l.fill===true)?null:'icon';
  return 'kind';
 }
 
@@ -573,8 +611,9 @@ export function checkDoc(v:unknown):Checked{
   if(typeof l.pageId!=='string'||!pages.has(l.pageId)||!num(l.index,0,MAX_LAYERS*4)||!Number.isInteger(l.index)||!flag(l.locked)||!flag(l.hidden))return {ok:false,reason:'place'};
   perPage.set(l.pageId,(perPage.get(l.pageId)||0)+1);if(perPage.get(l.pageId)!>MAX_LAYERS)return {ok:false,reason:'layers'};
   if(l.parentId!==null){const g=d.layers[l.parentId as string] as Layer|undefined;if(typeof l.parentId!=='string'||!g||g.kind!=='group'||g.pageId!==l.pageId||l.parentId===key)return {ok:false,reason:'group'}}
-  // No address anywhere in a layer (a field of its own or one the format doesn't have), except typed words.
-  for(const [k,v] of Object.entries(l))if(k!=='text'&&linkIn(v))return {ok:false,reason:'link'};
+  // No address anywhere in a layer (a field of its own or one the format doesn't have), except typed words and a
+  // picture's photo credit (its two links, each checked to be on the library's own site, photoCreditOk).
+  for(const [k,v] of Object.entries(l))if(k!=='text'&&!(k==='credit'&&l.kind==='image'&&photoCreditOk(v))&&linkIn(v))return {ok:false,reason:'link'};
   if(l.kind==='group')continue;
   const bad=checkLayerBody(l,span);if(bad)return {ok:false,reason:bad};
  }

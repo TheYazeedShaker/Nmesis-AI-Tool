@@ -17,7 +17,7 @@ import { AffixInput, Input, Slider, Switch } from './field';
 // - a switch or a segmented choice where a dropdown would add a click (rule 7);
 // - rare settings under "More" (rule 6).
 
-export type InspectorSectionId = 'position' | 'appearance' | 'text' | 'effects' | 'arrange' | 'page' | 'brand';
+export type InspectorSectionId = 'position' | 'appearance' | 'text' | 'effects' | 'arrange' | 'credit' | 'page' | 'brand';
 
 /** A section of the panel, in the fixed order (the editor leaves out a section that doesn't apply; it never moves one). */
 export function InspectorSection({ section, title, children, more, level = 2 }: { section: InspectorSectionId; title: string; children: React.ReactNode; more?: React.ReactNode;

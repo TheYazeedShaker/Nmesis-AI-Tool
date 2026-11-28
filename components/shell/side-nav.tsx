@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import Link from 'next/link';
-import {Aperture,BarChart3,ChevronsUpDown,CircleHelp,CloudUpload,FolderOpen,Home,Images,LogOut,Menu as MenuIcon,Monitor,Moon,PanelLeftClose,PanelLeftOpen,Palette,Settings,Shapes,Sun,Type,UserRound} from 'lucide-react';
+import {Aperture,BarChart3,ChevronsUpDown,CircleHelp,CloudUpload,FolderOpen,Home,Image as ImageIcon,Images,LogOut,Menu as MenuIcon,Monitor,Moon,PanelLeftClose,PanelLeftOpen,Palette,Settings,Shapes,Smile,Sun,Type,UserRound} from 'lucide-react';
 import {Dialog} from '@/components/ds/dialog';
 import {Layer,anchorAbove} from '@/components/ds/layer';
 import {useRememberedOpen} from '@/components/ds/layout';
@@ -27,7 +27,7 @@ import {closePanel,togglePanel,useShell} from './shell-state';
 // made, Esc is pressed or the page is clicked (app/side-nav.css draws the rail
 // from the first paint, before this script runs, so nothing moves on load).
 
-const ICON:Record<NavKey,React.ReactNode>={home:<Home/>,projects:<FolderOpen/>,references:<Images/>,brand:<Palette/>,elements:<Shapes/>,text:<Type/>,uploads:<CloudUpload/>,settings:<Settings/>};
+const ICON:Record<NavKey,React.ReactNode>={home:<Home/>,projects:<FolderOpen/>,references:<Images/>,brand:<Palette/>,elements:<Shapes/>,text:<Type/>,photos:<ImageIcon/>,icons:<Smile/>,uploads:<CloudUpload/>,settings:<Settings/>};
 const hide=(icon:React.ReactNode)=>React.isValidElement(icon)?React.cloneElement(icon as React.ReactElement<{'aria-hidden'?:boolean}>,{'aria-hidden':true}):icon;
 
 function NavItems({current,onGo}:{current?:StudioPage;onGo?:()=>void}){

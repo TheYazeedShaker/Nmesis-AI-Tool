@@ -11,7 +11,7 @@ import {useToast} from '@/components/ds/toast';
 import {AccountNotices,accountKnown,loadAccount,useAccount} from '@/components/studio-account';
 import {WorkspaceFrame} from '@/components/workspace/frame';
 import {SharePanel} from '@/components/share/share-panel';
-import {closePanel,setCanvasSink} from '@/components/shell/shell-state';
+import {closePanel,dropCarried,isCarrying,setCanvasSink} from '@/components/shell/shell-state';
 import {can} from '@/lib/accounts/can';
 import {studioFetch} from '@/lib/studio-fetch';
 import {dateTime} from '@/lib/ds/words';
@@ -41,7 +41,7 @@ import {editedBy,usePresence} from './use-presence';
 import type {StageHandle} from './stage';
 
 // The canvas editor (/editor?visual=<id>): a generated picture on a canvas,
-// with the shell's Brand, Elements, Text and Uploads panels adding to it.
+// with the shell's Brand, Elements, Text, Photos, Icons and Uploads panels adding to it (a click: the middle of the page; Photos and Icons may also be dragged onto the canvas).
 // The design is format v2 (lib/editor/doc.ts): one or more pages of the same
 // size, layers by id, pictures by storage key. Every change goes through one
 // history of immer patches (lib/editor/history.ts): one undo step per gesture.
@@ -255,6 +255,8 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
  }
  function pickPage(id:string){setPageId(id);setPicked([]);setEditing(null)}
 
+ // A photo or an icon dragged over the canvas from its panel (the canvas shows where it will land).
+ const [dropping,setDropping]=React.useState(false);
  // The eyedropper where the browser has none (Safari, Firefox): the next click on the canvas gives its colour. Esc cancels.
  const [picking,setPicking]=React.useState<((hex:string|null)=>void)|null>(null);
  const pickFromCanvas=React.useCallback(()=>new Promise<string|null>(resolve=>{setPicking(()=>(hex:string|null)=>{setPicking(null);resolve(hex)})}),[]);
@@ -502,7 +504,14 @@ function Editor({opened,mayEdit,onRetry,onSwitched,onBack}:{opened:Ready;mayEdit
     {hint&&!readOnly&&<div className="ds-banner canvas-notice" role="note" data-editor-hint><Lightbulb aria-hidden="true"/><span>Click anything on the picture to change it on the right. Drag to move it, press T for text, and ? for every shortcut.</span><Button size="sm" kind="quiet" onClick={()=>{rememberHint();setHint(false);focusCanvas()}}>Got it</Button></div>}
     <div className="canvas-fit">
     <div ref={canvasBox} className="canvas-box" tabIndex={0} role="application" aria-roledescription="design canvas" data-editable={readOnly?undefined:'true'} data-undo-steps={history.past.length} data-selected-count={selection.length}
-     aria-label={`Canvas, page ${pageIndex(doc,page)+1} of ${doc.pages.length}, ${drawn.length} ${drawn.length===1?'layer':'layers'}${selectedWords}`} aria-describedby="canvas-keys" onKeyDown={onKey} style={{['--canvas-ratio' as string]:String(doc.width/doc.height)} as React.CSSProperties}>
+     aria-label={`Canvas, page ${pageIndex(doc,page)+1} of ${doc.pages.length}, ${drawn.length} ${drawn.length===1?'layer':'layers'}${selectedWords}`} aria-describedby="canvas-keys" onKeyDown={onKey} style={{['--canvas-ratio' as string]:String(doc.width/doc.height)} as React.CSSProperties}
+     data-dropping={dropping?'true':undefined}
+     // Which copy the design opened from: the Studio's, or this device's unsent one (then it says "Restored…").
+     data-opened-from={opened.unsent?'device':'studio'}
+     // A photo or an icon dragged from its panel lands where it is dropped (its middle on the pointer).
+     onDragOver={e=>{if(!isCarrying())return;e.preventDefault();e.dataTransfer.dropEffect='copy';if(!dropping)setDropping(true)}}
+     onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node|null))setDropping(false)}}
+     onDrop={e=>{setDropping(false);if(!isCarrying()||!(scaleNow>0))return;e.preventDefault();const r=e.currentTarget.getBoundingClientRect();dropCarried({x:(e.clientX-r.left)/scaleNow,y:(e.clientY-r.top)/scaleNow})}}>
      {shownWidth>0&&<CanvasStage doc={doc} pageId={page} shownWidth={shownWidth} selected={selection} reducedMotion={reduced} fonts={fonts} editing={editing} readOnly={readOnly} handle={handle}
       onSelect={(id,mode)=>select(id,mode)} onChange={(lid,patch,gesture)=>change(d=>edit.update(d,lid,patch),gesture)} onEditText={startTyping} onAltDrag={altDrag} onGestureEnd={endGesture}/>}
      {editingLayer&&shownWidth>0&&<TextEditor key={editingLayer.id+':'+session} layer={editingLayer} scale={shownWidth/doc.width} family={fonts.family(editingLayer.font,editingLayer.fontWeight,editingLayer.italic).family} onType={type} onDone={stopTyping}/>}

@@ -45,6 +45,7 @@ import { EDITOR_JOURNEYS, EDITOR_VISUAL_ID, V1_DESIGN_ID, RULE_STATE_SIZES, PERF
 import { ROLES, NO_PROVIDER_NAMES, SCREENS, STATES, FLOWS, ALL_VIEWPORTS, QUICK_VIEWPORTS, KEY_WIDTHS, SHOT_WIDTHS, THEMES, selectScreens, pageJobs, shardJobs } from './ui/screens.mjs';
 import { finish } from './ui/ratchet.mjs';
 import { decode as decodePngFile } from 'fast-png';
+import { PHOTO_HOSTS, standinPng } from './ui/photo-standin.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes('--' + n);
@@ -209,6 +210,8 @@ async function prepareContext(ctx) {
   await ctx.route('**/*', (route) => {
     const u = new URL(route.request().url());
     if (/^(localhost|127\.0\.0\.1)$/.test(u.hostname) || u.protocol === 'data:' || u.protocol === 'blob:') return route.continue();
+    // The photo library's pictures in the Photos panel's grid: the stand-in's (scripts/ui/photo-standin.mjs).
+    if (u.protocol === 'https:' && PHOTO_HOSTS.test(u.hostname)) return route.fulfill({ status: 200, contentType: 'image/png', body: standinPng() });
     if (FONT_SERVICE.test(u.hostname)) fontServiceRequests.push({ host: u.hostname, from: (() => { try { return new URL(route.request().frame().url()).pathname; } catch { return '?'; } })() });
     ctx.__blocked = ctx.__blocked || new Set(); ctx.__blocked.add(u.hostname);
     return route.abort('blockedbyclient');
@@ -363,7 +366,7 @@ async function runEditorJourneys() {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
       await editorSteps()[j.id](page, problems, run);
-    } catch (e) { problems.push(String(e.message || e).split('\n')[0].slice(0, 200)); }
+    } catch (e) { problems.push(errorLine(e)); }
     finally { await page.close().catch(() => {}); }
     out.push({ id: j.id, role: j.role, ok: !problems.length, problems });
   }
@@ -376,14 +379,54 @@ async function openEditor(page, id) {
   await page.goto('/editor?visual=' + id, { waitUntil: 'load', timeout: 30_000 });
   await canvasOf(page).locator('canvas').first().waitFor({ timeout: 20_000 });
   await ready(page);
+  await drawn(page);
 }
 async function layersOf(page) { return Number((/(\d+) layers?/.exec((await canvasOf(page).getAttribute('aria-label')) || '') || [])[1]); }
 async function stepsOf(page) { return Number(await canvasOf(page).getAttribute('data-undo-steps')); }
 function savedWithin(page, ms) { return page.waitForFunction(() => document.querySelector('.canvas-bar [data-save-status]')?.getAttribute('data-save-status') === 'saved', null, { timeout: ms }); }
-async function press(page, key) { await canvasOf(page).focus(); await page.keyboard.press(key); await page.waitForTimeout(250); }
+// The journeys wait for what the Studio says, never for a guessed time: the canvas says when it has drawn what it
+// holds now (data-render, data-text-drawn: lib/editor/render-signal.ts), and every other wait is for the very thing the
+// check after it reads. A wait that runs out says nothing itself; the check after it reports, as before.
+/** Until `test` (run in the page, with `arg`) holds; false after `ms`. */
+function until(page, test, arg = null, ms = 5000) { return page.waitForFunction(test, arg, { timeout: ms }).then(() => true, () => false); }
+/** What the canvas says about its drawing: "drawing" or "ready", and each text layer as it was last drawn. */
+async function drawnState(page) {
+  return page.evaluate(() => {
+    const el = document.querySelector('.canvas-box [data-render]');
+    if (!el) return null;
+    const texts = (el.getAttribute('data-text-drawn') || '').split(' ').filter(Boolean).map((t) => { const [id, effect, drawer, font, marks] = t.split(':'); return { id, effect, drawer, font, marks: Number(marks) }; });
+    return { render: el.getAttribute('data-render'), texts };
+  }).catch(() => null);
+}
+/** Until the canvas has drawn what it holds now, every text's font settled ("ready"); with `match`, until a text layer
+ *  was drawn so too (its effect, drawer and font, as data-text-drawn says). False after `ms`. */
+function drawn(page, match = null, ms = 10_000) {
+  return until(page, (m) => {
+    const el = document.querySelector('.canvas-box [data-render]');
+    if (!el || el.getAttribute('data-render') !== 'ready') return false;
+    if (!m) return true;
+    return (el.getAttribute('data-text-drawn') || '').split(' ').some((t) => { const [id, effect, drawer, font] = t.split(':'), p = { id, effect, drawer, font }; return Object.entries(m).every(([k, v]) => p[k] === v); });
+  }, match, ms);
+}
+/** Until the undo history has moved from `from` steps, then until the canvas has drawn it. */
+async function stepped(page, from, ms = 5000) {
+  await until(page, (n) => Number(document.querySelector('.canvas-box[data-editable="true"]')?.getAttribute('data-undo-steps')) !== n, from, ms);
+  await drawn(page);
+}
+/** Until the canvas says it holds `n` layers, then until it has drawn them. */
+async function layersReach(page, n, ms = 10_000) {
+  await until(page, (k) => { const l = /(\d+) layers?/.exec(document.querySelector('.canvas-box[data-editable="true"]')?.getAttribute('aria-label') || ''); return !!l && Number(l[1]) === k; }, n, ms);
+  await drawn(page);
+}
+/** The browser's next drawn frame. */
+function nextFrame(page) { return page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r()))); }
+async function press(page, key) { await canvasOf(page).focus(); await page.keyboard.press(key); await drawn(page); }
 // The rebuilt panel (feat/editor-panel-rules): its two tabs, the layers list's rows, the selection, the fields.
 function panelOf(page) { return page.locator('aside.canvas-inspector'); }
-async function tab(page, name) { await panelOf(page).getByRole('tab', { name, exact: true }).click({ timeout: 5000 }); await page.waitForTimeout(150); }
+async function tab(page, name) {
+  await panelOf(page).getByRole('tab', { name, exact: true }).click({ timeout: 5000 });
+  await until(page, (n) => [...document.querySelectorAll('aside.canvas-inspector [role="tab"]')].some((t) => t.textContent.trim() === n && t.getAttribute('aria-selected') === 'true'), name);
+}
 async function selectedOf(page) { return Number(await canvasOf(page).getAttribute('data-selected-count')) || 0; }
 /** A row's own name button (a group's row comes before the rows inside it). */
 function rowName(page, id) { return panelOf(page).locator(`li.canvas-layer-row[data-layer-id="${id}"]`).first().locator('.canvas-layer-name').first(); }
@@ -404,9 +447,42 @@ async function focusOf(page) {
     };
   });
 }
+/** Until the focus is where the check after it looks: the panel's tab named `arg` ("tab"), a selected tab ("selected"),
+ *  a layer row's name ("layer"), another layer's row than `arg` ("another-layer"), or the "Layer name" field ("name-field"). */
+function focusIs(page, kind, arg = null) {
+  return until(page, ([k, a]) => {
+    const el = document.activeElement;
+    if (!el || el === document.body) return false;
+    const row = el.matches('.canvas-layer-name') ? el.closest('li.canvas-layer-row')?.getAttribute('data-layer-id') : null;
+    if (k === 'tab') return el.getAttribute('role') === 'tab' && !!el.closest('aside.canvas-inspector') && el.textContent.trim() === a;
+    if (k === 'selected') return el.getAttribute('aria-selected') === 'true';
+    if (k === 'layer') return !!row;
+    if (k === 'another-layer') return !!row && row !== a;
+    if (k === 'name-field') return el.matches('input, textarea') && (([...(el.labels || [])].map((l) => l.textContent.trim()).join(' ') || el.getAttribute('aria-label') || '') === 'Layer name');
+    return false;
+  }, [kind, arg], 3000);
+}
+/** A journey's thrown error in one line: its first line and, for a browser action, what it waited for and the last thing
+ *  that stopped it (from the action's call log: an element over it, not visible, not enabled, not stable). */
+function errorLine(e) {
+  const lines = String(e?.message || e).split('\n').map((l) => l.trim());
+  const waited = lines.find((l) => /^- waiting for /.test(l));
+  const stopped = [...lines].reverse().find((l) => /intercepts pointer events|not visible|not enabled|not stable|not attached|outside of the viewport|not editable/.test(l));
+  return [lines[0], waited, stopped].filter(Boolean).join(' ').slice(0, 600);
+}
+/** Clicks a control once a person could: a toast lying over it (each stays 6 s, components/ds/toast.tsx) is waited out,
+ *  up to 10 s, and the harness's log says it was there. */
+async function clickWhenFree(loc, what) {
+  const over = await loc.evaluate((el) => { const r = el.getBoundingClientRect(), top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return top?.closest('.ds-toast') ? (top.closest('.ds-toast').textContent || '').trim().slice(0, 60) : null; }, null, { timeout: 5000 }).catch(() => null);
+  if (over) console.log(`  (${what} was under a toast, "${over}": waiting until it can be clicked)`);
+  await loc.click({ timeout: 10_000 });
+}
+/** Until the focus is inside an open dialog (it takes it once shown), so a key such as Escape goes to it. */
+function focusInDialog(page) { return until(page, () => !!document.activeElement?.closest('[role="dialog"]'), null, 3000); }
 /** Tab (only the Tab key) until the focus is what `want` accepts; false after `max` presses. */
 async function tabUntil(page, want, max = 80) {
-  for (let i = 0; i < max; i++) { await page.keyboard.press('Tab'); await page.waitForTimeout(30); if (want(await focusOf(page))) return true; }
+  // Tab moves the focus as part of the key press (the browser's own action), so it is read straight after.
+  for (let i = 0; i < max; i++) { await page.keyboard.press('Tab'); if (want(await focusOf(page))) return true; }
   return false;
 }
 /** The selected layer's centre, read from the X, Y, W and H fields of Position & size (picture pixels). */
@@ -424,13 +500,24 @@ async function dragOn(page, from, to, hold) {
   for (let i = 2; i <= 10; i++) await page.mouse.move(from[0] + ((to[0] - from[0]) * i) / 10, from[1] + ((to[1] - from[1]) * i) / 10);
   await page.mouse.up();
   if (hold) await page.keyboard.up(hold);
-  await page.waitForTimeout(300);
+  await drawn(page);
 }
 /** The layers in the Studio's draft of the editor's picture (-1: no draft), read with the context's own sign-in. */
 async function studioLayers(context, origin) {
   const r = await context.request.get(`${origin}/api/edits/${EDITOR_VISUAL_ID}/draft`, { timeout: 10_000, failOnStatusCode: false });
   const d = await r.json().catch(() => ({}));
   return d?.draft?.doc?.layers ? Object.keys(d.draft.doc.layers).length : -1;
+}
+/** The Studio's draft of the editor's picture, as a failure message says it: its layers, change count and session. */
+async function studioDraftOf(context, origin) {
+  const r = await context.request.get(`${origin}/api/edits/${EDITOR_VISUAL_ID}/draft`, { timeout: 10_000, failOnStatusCode: false }).catch(() => null);
+  if (!r) return 'unreachable';
+  const d = await r.json().catch(() => ({}));
+  return d?.draft?.doc?.layers ? { layers: Object.keys(d.draft.doc.layers).length, rev: d.draft.rev, session: d.draft.session ?? null } : { status: r.status() };
+}
+/** This device's copy of a picture's design (what the next opening may restore): its layers, change count and session. */
+function deviceCopyOf(page, id) {
+  return page.evaluate((k) => { try { const c = JSON.parse(localStorage.getItem('nmesis.editor.draft.' + k) || 'null'); return c ? { layers: Object.keys(c.doc?.layers || {}).length, rev: c.rev, session: c.session ?? null } : null; } catch { return 'unreadable'; } }, id).catch(() => 'unreadable');
 }
 /** Until the Studio's draft holds `want` layers (a request leaving with a closed page is on its own time). */
 async function studioHas(context, origin, want, ms = 10_000) {
@@ -462,6 +549,12 @@ async function openFontList(page, problems) {
   return dialog.getByRole('listbox');
 }
 async function fontButtonText(page) { return ((await panelOf(page).locator('button.ds-font-button > span').first().textContent().catch(() => '')) || '').trim(); }
+/** The canvas's text drawers in plain words (data-text-drawn, lib/editor/render-signal.ts). */
+function drawerName(d) { return { shaped: 'shaping', path: 'letter-by-letter (text on a path)', text: 'straight text' }[d]; }
+/** Until the font list's active row (the one Enter picks) is a family starting with `name`: the search has filtered it. */
+function activeFont(page, name) { return until(page, (n) => (document.querySelector('[role="listbox"][aria-label="Fonts"] [role="option"][data-active]')?.getAttribute('data-font') || '').startsWith(n), name); }
+/** Until the Text section's Font row names `name`. */
+function fontButtonSays(page, name) { return until(page, (n) => (document.querySelector('aside.canvas-inspector button.ds-font-button > span')?.textContent || '').trim() === n, name); }
 /** Until the page has loaded a face of this family (the catalogue's own file), up to 10 s. */
 async function fontReady(page, family) {
   return page.waitForFunction((f) => [...document.fonts].some((x) => x.family.replace(/"/g, '') === f && x.status === 'loaded'), family, { timeout: 10_000 }).then(() => true, () => false);
@@ -527,15 +620,16 @@ function editorSteps() { return {
     for (const t of ['In this design', 'All fonts']) if (!titles.includes(t)) problems.push(`the font list has no "${t}" section (${titles.join(', ')})`);
     const all = await list.locator('[role="option"]').count();
     if (all < 140) problems.push(`the font list shows ${all} names`);
-    // Each name in its own font from its tiny preview file, and only the rows on screen.
-    await page.waitForTimeout(600);
+    // Each name in its own font from its tiny preview file, and only the rows on screen: counted once the previews the
+    // list asked for have arrived (none still loading).
+    await until(page, () => { const p = [...document.fonts].filter((f) => f.family.replace(/"/g, '').startsWith('nm-preview-')); return p.length >= 4 && p.every((f) => f.status === 'loaded' || f.status === 'error'); }, null, 10_000);
     const previews = await page.evaluate(() => [...document.fonts].filter((f) => f.family.replace(/"/g, '').startsWith('nm-preview-') && f.status === 'loaded').length);
     if (previews < 4) problems.push(`only ${previews} names show in their own font`);
     if (previews > 60) problems.push(`${previews} previews loaded at once: the list should load only the rows on screen`);
     if (SHOTS) await page.screenshot({ path: path.join(OUT, 'shots', 'phase3-font-picker--1440--light.png') }).catch(() => {});
     const s0 = await stepsOf(page);
     await list.locator('[role="group"]').first().locator('[role="option"][data-font="Montserrat"]').click({ timeout: 5000 });
-    await page.waitForTimeout(400);
+    await stepped(page, s0);
     if (await stepsOf(page) !== s0 + 1) problems.push(`picking a font made ${(await stepsOf(page)) - s0} undo steps, not 1`);
     if (!(await fontReady(page, 'nm-montserrat'))) problems.push('the brand font Montserrat did not load from the Studio’s files');
     if ((await fontButtonText(page)) !== 'Montserrat') problems.push(`the Font row says ${await fontButtonText(page)}, not Montserrat`);
@@ -543,32 +637,32 @@ function editorSteps() { return {
     const again = await openFontList(page, problems);
     if (!again) return;
     await page.keyboard.type('Noto Kufi');
-    await page.waitForTimeout(200);
+    await activeFont(page, 'Noto Kufi');
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(400);
+    await fontButtonSays(page, 'Noto Kufi Arabic');
     if ((await fontButtonText(page)) !== 'Noto Kufi Arabic') problems.push(`Enter on the search picked ${await fontButtonText(page)}, not Noto Kufi Arabic`);
     const words = panelOf(page).locator('[data-editor-section="text"] textarea').first();
     await words.fill('سيارة جديدة للعائلة');
-    await page.waitForTimeout(500);
+    await drawn(page);
     if (!(await fontReady(page, 'nm-noto-kufi-arabic'))) problems.push('Noto Kufi Arabic did not load');
-    const drawn = await page.evaluate(() => {
+    const arabic = await page.evaluate(() => {
       const stage = window.Konva?.stages?.[0];
       const t = stage?.find('Text').find((n) => /[؀-ۿ]/.test(n.text()));
       if (!t) return null;
       return { direction: t.direction(), family: t.fontFamily(), shaped: document.fonts.check(`400 40px "nm-noto-kufi-arabic"`, 'س') };
     });
-    if (!drawn) problems.push('no text on the canvas holds the Arabic words');
+    if (!arabic) problems.push('no text on the canvas holds the Arabic words');
     else {
-      if (drawn.direction !== 'rtl') problems.push(`the Arabic text is drawn ${drawn.direction}, not right to left`);
-      if (!drawn.family.startsWith('"nm-noto-kufi-arabic"')) problems.push(`the Arabic text is drawn in ${drawn.family}`);
-      if (!drawn.shaped) problems.push('the Arabic font has no face for Arabic letters');
+      if (arabic.direction !== 'rtl') problems.push(`the Arabic text is drawn ${arabic.direction}, not right to left`);
+      if (!arabic.family.startsWith('"nm-noto-kufi-arabic"')) problems.push(`the Arabic text is drawn in ${arabic.family}`);
+      if (!arabic.shaped) problems.push('the Arabic font has no face for Arabic letters');
     }
     if (SHOTS) await canvasOf(page).screenshot({ path: path.join(OUT, 'shots', 'phase3-arabic-rtl--1440--light.png') }).catch(() => {});
     // A font whose file can't load: "Missing font" on the layer, in the Layers list and in the panel; never a silent swap.
     await page.route('**/fonts/lobster/**', (r) => r.abort('failed'));
     const third = await openFontList(page, problems);
     if (!third) return;
-    await page.keyboard.type('Lobster'); await page.waitForTimeout(200); await page.keyboard.press('Enter');
+    await page.keyboard.type('Lobster'); await activeFont(page, 'Lobster'); await page.keyboard.press('Enter');
     await page.waitForFunction(() => document.querySelectorAll('[data-missing-font]').length >= 2, null, { timeout: 15_000 }).catch(() => {});
     if (!(await panelOf(page).locator('[data-editor-section="text"] [data-missing-font]').count())) problems.push('the panel does not say "Missing font" for a font that couldn’t load');
     if (!(await canvasOf(page).locator('[data-missing-font]').count())) problems.push('the layer on the canvas does not say "Missing font"');
@@ -630,7 +724,7 @@ function editorSteps() { return {
     if (!(await page.getByRole('dialog', { name: 'Fonts' }).getByRole('button', { name: 'Upload a font' }).count())) problems.push('the font list has no "Upload a font" for an owner');
     const s0 = await stepsOf(page);
     await list.locator('[role="option"][data-font="brand:Demo Sans"]').first().click({ timeout: 5000 });
-    await page.waitForTimeout(400);
+    await stepped(page, s0);
     if (await stepsOf(page) !== s0 + 1) problems.push(`picking an uploaded font made ${(await stepsOf(page)) - s0} undo steps, not 1`);
     if ((await fontButtonText(page)) !== 'Demo Sans') problems.push(`the Font row says ${await fontButtonText(page)}, not Demo Sans`);
     await panelOf(page).locator('[data-editor-section="text"] textarea').first().fill('DEMO SUV');
@@ -652,14 +746,27 @@ function editorSteps() { return {
     await panelOf(page).locator('[data-editor-section="text"] textarea').first().fill('محمد سيارة');
     const effects = panelOf(page).locator('[data-editor-section="effects"]');
     await effects.locator('[role="radio"][data-effect="curve"]').click({ timeout: 5000 });
-    await page.waitForTimeout(600);
+    // The canvas says when it has drawn the curved text, its font settled (data-render and data-text-drawn,
+    // lib/editor/render-signal.ts); only then is the drawer read. Drawn by another drawer, or by the shaping drawer with
+    // nothing placed, is the Studio's own drawing in this browser, not the journey's timing.
+    const curvedDrawn = await drawn(page, { effect: 'curve' });
+    const curvedSaid = await drawnState(page), arcs = (curvedSaid?.texts || []).filter((t) => t.effect === 'curve');
+    if (!curvedDrawn) problems.push(`the canvas never said it had drawn the curved text, its font settled, within 10 s (it says ${JSON.stringify(curvedSaid)})`);
+    else for (const arc of arcs) {
+      if (arc.drawer !== 'shaped') problems.push(`curved Arabic was drawn by the ${drawerName(arc.drawer) || arc.drawer} drawer, not the shaping drawer (its font ${arc.font})`);
+      else if (!(arc.marks > 0)) problems.push(`the shaping drawer drew nothing for curved Arabic (its font ${arc.font})`);
+      if (arc.font !== 'loaded') problems.push(`curved Arabic was drawn with its font ${arc.font}, not in the uploaded Arabic font`);
+    }
     const shapedDrawer = () => page.evaluate(() => (window.Konva?.stages?.[0]?.find((n) => n.getClassName() === 'Shape' && n.getAttr('data-curve-shaped')) || []).length);
     if (!(await shapedDrawer())) problems.push('curved Arabic is not drawn by the shaping drawer');
     if (SHOTS) await canvasOf(page).screenshot({ path: path.join(OUT, 'shots', 'phase4-curved-arabic--1440--light.png') }).catch(() => {});
     // Laid flat (Curve 0), the drawer's letters must show exactly what this browser draws for the line whole, in the same
     // font and size: the same number of separate ink shapes. A letter drawn alone, or in another font, breaks a join.
     const curve = effects.getByRole('spinbutton', { name: /^Curve/ });
-    await curve.fill('0'); await curve.blur(); await page.waitForTimeout(500);
+    const sFlat = await stepsOf(page);
+    await curve.fill('0'); await curve.blur();
+    await stepped(page, sFlat);
+    await drawn(page, { effect: 'curve', drawer: 'shaped' });
     const flat = await page.evaluate((line) => {
       const shape = window.Konva?.stages?.[0]?.find((n) => n.getClassName() === 'Shape' && n.getAttr('data-curve-shaped'))[0];
       if (!shape) return null;
@@ -707,14 +814,14 @@ function editorSteps() { return {
     await press(page, 't');
     await tab(page, 'Design');
     await panelOf(page).locator('[data-editor-section="text"] textarea').first().fill('DEMO SUV');
-    await page.waitForTimeout(300);
+    await drawn(page);
     const box = await selectedBox(page);
     const exportOf = async () => decodePng(await downloadPng(page));
     const none = await exportOf();
     for (const kind of ['shadow', 'outline', 'lift', 'neon', 'background', 'curve']) {
       const s0 = await stepsOf(page);
-      await panelOf(page).locator(`[data-editor-section="effects"] [role="radio"][data-effect="${kind}"]`).click({ timeout: 5000 });
-      await page.waitForTimeout(300);
+      await clickWhenFree(panelOf(page).locator(`[data-editor-section="effects"] [role="radio"][data-effect="${kind}"]`), `the ${kind} tile`);
+      await stepped(page, s0);
       if (await stepsOf(page) !== s0 + 1) problems.push(`${kind}: picking the tile made ${(await stepsOf(page)) - s0} undo steps, not 1`);
       const checked = await panelOf(page).locator('[data-editor-section="effects"] [role="radio"][aria-checked="true"]').getAttribute('data-effect');
       if (checked !== kind) problems.push(`${kind}: the tile chosen is ${checked}`);
@@ -723,13 +830,14 @@ function editorSteps() { return {
       if (kind === 'shadow') {
         // One drag of the Blur slider is one undo step.
         const range = panelOf(page).locator('[data-editor-section="effects"] [data-editor-row]', { hasText: 'Blur' }).locator('input[type="range"]').first();
-        await range.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {}); await page.waitForTimeout(150);
+        // Until the slider is still (the same box two frames running), so the drag starts where it is drawn.
+        await range.scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {}); await range.hover({ trial: true, timeout: 3000 }).catch(() => {});
         const r = await range.boundingBox(), s1 = await stepsOf(page);
         if (!r) problems.push("the Blur slider is not on screen");
-        if (r) { await page.mouse.move(r.x + r.width * 0.2, r.y + r.height / 2); await page.mouse.down(); for (let i = 3; i <= 9; i++) await page.mouse.move(r.x + r.width * i / 10, r.y + r.height / 2); await page.mouse.up(); await page.waitForTimeout(200); }
+        if (r) { await page.mouse.move(r.x + r.width * 0.2, r.y + r.height / 2); await page.mouse.down(); for (let i = 3; i <= 9; i++) await page.mouse.move(r.x + r.width * i / 10, r.y + r.height / 2); await page.mouse.up(); await stepped(page, s1); }
         if (await stepsOf(page) !== s1 + 1) problems.push(`one drag of the Blur slider made ${(await stepsOf(page)) - s1} undo steps, not 1`);
       }
-      await page.waitForTimeout(300);
+      await drawn(page);
       const after = await selectedBox(page) || box;
       const file = await downloadPng(page);
       if (SHOTS) {
@@ -746,13 +854,15 @@ function editorSteps() { return {
     if (b) {
       const c = await canvasOf(page).boundingBox(), s = c.width / 1536;
       await page.mouse.dblclick(c.x + (b.x + b.width / 2) * s, c.y + (b.y + b.height / 2) * s);
-      await page.waitForTimeout(300);
+      // Until the text box is open and has the focus (it takes it once shown), so Escape goes to it, not to the canvas.
+      await until(page, () => !!document.activeElement?.matches('.canvas-text-editor'));
       if (!(await page.locator('.canvas-text-editor').count())) problems.push('a double-click on curved text did not open the text box');
       await page.keyboard.press('Escape');
     }
     // None takes the effect off, in one step.
     const s2 = await stepsOf(page);
-    await panelOf(page).locator('[data-editor-section="effects"] [role="radio"][data-effect="none"]').click({ timeout: 5000 });
+    await clickWhenFree(panelOf(page).locator('[data-editor-section="effects"] [role="radio"][data-effect="none"]'), 'the None tile');
+    await stepped(page, s2);
     if (await stepsOf(page) !== s2 + 1) problems.push('None did not take the effect off in one step');
   },
   // The eyedropper where the browser has none (as in Safari and Firefox): "From the canvas", then a click on the
@@ -782,7 +892,7 @@ function editorSteps() { return {
     }, at);
     const s0 = await stepsOf(page);
     await page.mouse.click(at[0], at[1]);
-    await page.waitForTimeout(400);
+    await stepped(page, s0);
     const now = (await fill.textContent()).trim();
     if (now === before) problems.push(`the fill is still ${before} after picking from the canvas`);
     if (want && !now.startsWith(want)) problems.push(`the fill is ${now}, not the canvas’s ${want} under the click`);
@@ -797,18 +907,20 @@ function editorSteps() { return {
     await tab(page, 'Design');
     const page1 = panelOf(page).locator('[data-editor-section="page"]');
     await page1.getByRole('radio', { name: 'A colour' }).click({ timeout: 5000 });
-    await page.waitForTimeout(200);
+    await drawn(page);
     await page1.locator('button.ds-colour-button').first().click({ timeout: 5000 });
     const pop = page.getByRole('dialog', { name: 'Background colour' });
     if (!(await pop.count())) { problems.push('the background colour picker did not open'); return; }
     const s0 = await stepsOf(page);
     await pop.getByRole('radio', { name: 'Linear' }).click({ timeout: 5000 });
-    await page.waitForTimeout(200);
+    await stepped(page, s0);
     if (await stepsOf(page) !== s0 + 1) problems.push(`Linear made ${(await stepsOf(page)) - s0} undo steps, not 1`);
     await pop.getByRole('button', { name: 'Add a stop' }).click({ timeout: 5000 });
     await pop.getByRole('spinbutton', { name: /^Angle/ }).fill('135');
     await pop.getByRole('spinbutton', { name: /^Angle/ }).blur();
-    await page.waitForTimeout(300);
+    // Until the canvas holds the third stop, then until it has drawn it.
+    await until(page, () => (window.Konva?.stages?.[0]?.findOne('.background')?.fillLinearGradientColorStops() || []).length / 2 >= 3);
+    await drawn(page);
     if (SHOTS) await page.screenshot({ path: path.join(OUT, 'shots', 'phase3-gradient-background--1440--light.png') }).catch(() => {});
     // The rule counts with the colour picker open (it lies over the panel, never the canvas).
     run.ruleStates.push({ screen: 'editor', state: 'colour-popover-gradient', role: 'owner', w: 1440, h: 900, theme: 'light', editorRules: await page.evaluate(editorRules) });
@@ -847,7 +959,9 @@ function editorSteps() { return {
       await page.setViewportSize({ width: w, height: h });
       await openEditor(page, V1_DESIGN_ID);
       const measure = async (state, want) => {
-        await page.waitForTimeout(150);
+        // Until the selection is what was picked and the canvas has drawn it.
+        await until(page, (k) => Number(document.querySelector('.canvas-box[data-editable="true"]')?.getAttribute('data-selected-count')) === k, want);
+        await drawn(page);
         const n = await selectedOf(page);
         if (n !== want) problems.push(`${state} at ${w} x ${h}: ${n} layers selected, not ${want}`);
         // The picture as a person first sees it (every "More" folded); then each "More" is opened, so the rules
@@ -869,9 +983,13 @@ function editorSteps() { return {
       if (one.text) {
         await tab(page, 'Layers'); await rowName(page, one.text).click({ timeout: 5000 }); await tab(page, 'Design');
         await panelOf(page).locator('button.ds-font-button').first().click({ timeout: 5000 });
-        await measure('font-popover', 1); await page.keyboard.press('Escape');
+        await page.getByRole('dialog', { name: 'Fonts' }).waitFor({ timeout: 5000 }).catch(() => {});
+        await measure('font-popover', 1); await focusInDialog(page); await page.keyboard.press('Escape');
+        await page.getByRole('dialog', { name: 'Fonts' }).waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
         await panelOf(page).locator('[data-editor-section="text"] button.ds-colour-button').first().click({ timeout: 5000 });
-        await measure('colour-popover', 1); await page.keyboard.press('Escape');
+        await page.getByRole('dialog').first().waitFor({ timeout: 5000 }).catch(() => {});
+        await measure('colour-popover', 1); await focusInDialog(page); await page.keyboard.press('Escape');
+        await page.getByRole('dialog').first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
       }
       await tab(page, 'Layers');
       await rowName(page, three[0]).click({ timeout: 5000 });
@@ -890,39 +1008,42 @@ function editorSteps() { return {
     await press(page, 'Escape');
     if (!(await tabUntil(page, (f) => !!f.tab))) { problems.push('Tab never reached the panel’s Design and Layers tabs'); return; }
     let f = await focusOf(page);
-    if (f.tab !== 'Layers') { await page.keyboard.press('ArrowRight'); await page.waitForTimeout(100); f = await focusOf(page); }
+    if (f.tab !== 'Layers') { await page.keyboard.press('ArrowRight'); await focusIs(page, 'tab', 'Layers'); f = await focusOf(page); }
     if (f.tab !== 'Layers' && !(await tabUntil(page, (x) => x.tab === 'Layers', 3))) { problems.push('neither Tab nor the arrow keys reach the Layers tab'); return; }
-    await page.keyboard.press('Enter'); await page.waitForTimeout(150);
+    await page.keyboard.press('Enter'); await focusIs(page, 'selected');
     if ((await focusOf(page)).selected !== 'true') problems.push('Enter on the Layers tab did not open it');
     if (!(await tabUntil(page, (x) => !!x.layer, 10))) { problems.push('Tab from the Layers tab never reached the list'); return; }
-    // One tab stop: Tab leaves the list, Shift+Tab comes back to it.
-    await page.keyboard.press('Tab'); await page.waitForTimeout(50);
+    // One tab stop: Tab leaves the list, Shift+Tab comes back to it (the browser moves the focus as part of the key press).
+    await page.keyboard.press('Tab');
     if ((await focusOf(page)).inList) problems.push('the list is more than one tab stop (Tab stayed in it)');
-    await page.keyboard.press('Shift+Tab'); await page.waitForTimeout(50);
+    await page.keyboard.press('Shift+Tab');
     const first = (await focusOf(page)).layer;
     if (!first) { problems.push('Shift+Tab did not come back to the list'); return; }
-    await page.keyboard.press('ArrowDown'); await page.waitForTimeout(100);
+    await page.keyboard.press('ArrowDown'); await focusIs(page, 'another-layer', first);
     const second = (await focusOf(page)).layer;
     if (!second || second === first) problems.push('ArrowDown did not move to the next layer');
-    await page.keyboard.press('Enter'); await page.waitForTimeout(150);
+    await page.keyboard.press('Enter');
+    await until(page, () => Number(document.querySelector('.canvas-box[data-editable="true"]')?.getAttribute('data-selected-count')) === 1 && document.activeElement?.getAttribute('aria-pressed') === 'true'); await drawn(page);
     if (await selectedOf(page) !== 1 || (await focusOf(page)).pressed !== 'true') problems.push(`Enter selected ${await selectedOf(page)} layers, not the one in focus`);
-    await page.keyboard.press('Shift+ArrowDown'); await page.waitForTimeout(150);
+    await page.keyboard.press('Shift+ArrowDown');
+    await until(page, () => Number(document.querySelector('.canvas-box[data-editable="true"]')?.getAttribute('data-selected-count')) === 2); await drawn(page);
     if (await selectedOf(page) !== 2) problems.push(`Shift+ArrowDown left ${await selectedOf(page)} layers selected, not 2`);
     const order = await topRowIds(page), s0 = await stepsOf(page);
-    await page.keyboard.press('Alt+ArrowUp'); await page.waitForTimeout(200);
+    await page.keyboard.press('Alt+ArrowUp'); await stepped(page, s0); await focusIs(page, 'layer');
     if (JSON.stringify(await topRowIds(page)) === JSON.stringify(order)) problems.push('Alt+ArrowUp did not move the layer');
     if (await stepsOf(page) !== s0 + 1) problems.push(`Alt+ArrowUp made ${(await stepsOf(page)) - s0} undo steps, not 1`);
     if (!(await focusOf(page)).layer) problems.push('the focus left the list when the layer moved');
-    await page.keyboard.press('F2'); await page.waitForTimeout(150);
+    await page.keyboard.press('F2'); await focusIs(page, 'name-field');
     if ((await focusOf(page)).field !== 'Layer name') { problems.push(`F2 did not open a field labelled "Layer name" (focus: ${JSON.stringify(await focusOf(page))})`); return; }
     await page.locator(':focus').fill('Renamed by keyboard');
-    await page.keyboard.press('Enter'); await page.waitForTimeout(200);
+    await page.keyboard.press('Enter');
+    await until(page, () => [...document.querySelectorAll('aside.canvas-inspector .canvas-layer-name')].some((n) => n.textContent.includes('Renamed by keyboard'))); await focusIs(page, 'layer');
     if (!(await panelOf(page).locator('.canvas-layer-name', { hasText: 'Renamed by keyboard' }).count())) problems.push('Enter did not keep the new name');
     if (!(await focusOf(page)).layer) problems.push('the focus did not come back to the layer after renaming');
-    await page.keyboard.press('F2'); await page.waitForTimeout(150);
+    await page.keyboard.press('F2'); await focusIs(page, 'name-field');
     if ((await focusOf(page)).field === 'Layer name') {
       await page.locator(':focus').fill('Not kept');
-      await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+      await page.keyboard.press('Escape'); await focusIs(page, 'layer');
       if (await panelOf(page).locator('.canvas-layer-name', { hasText: 'Not kept' }).count()) problems.push('Escape kept the name typed');
       if (!(await panelOf(page).locator('.canvas-layer-name', { hasText: 'Renamed by keyboard' }).count())) problems.push('Escape lost the name kept before');
       if (!(await focusOf(page)).layer) problems.push('the focus did not come back to the layer after Escape');
@@ -958,16 +1079,20 @@ function editorSteps() { return {
     await openEditor(page, EDITOR_VISUAL_ID);
     const sheet = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
     await press(page, '?');
+    await sheet.waitFor({ timeout: 5000 }).catch(() => {});
     if (!(await sheet.isVisible())) { problems.push('"?" did not open "Keyboard shortcuts"'); }
     else {
       const words = await sheet.innerText();
       for (const k of ['Ctrl+D', 'Ctrl+G', 'Ctrl+Z']) if (!words.includes(k)) problems.push(`the sheet does not list ${k}`);
-      await page.keyboard.press('Escape'); await page.waitForTimeout(250);
+      await focusInDialog(page);
+      await page.keyboard.press('Escape');
+      await sheet.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+      await until(page, () => !!document.activeElement?.matches('.canvas-box'), null, 3000);
       if (await sheet.isVisible()) problems.push('Escape did not close the sheet');
       else if (!(await focusOf(page)).canvas) problems.push('closing the sheet did not give the focus back to the canvas');
     }
     await page.getByRole('button', { name: /^Shortcuts/ }).first().click({ timeout: 5000 });
-    await page.waitForTimeout(250);
+    await sheet.waitFor({ timeout: 5000 }).catch(() => {});
     if (!(await sheet.isVisible())) problems.push('the Shortcuts button did not open the sheet');
     await page.keyboard.press('Escape');
   },
@@ -1002,7 +1127,7 @@ function editorSteps() { return {
     const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
     await page.mouse.move(cx, cy); await page.mouse.down();
     for (let i = 1; i <= 12; i++) await page.mouse.move(cx + i * 12, cy + i * 6);
-    await page.mouse.up(); await page.waitForTimeout(250);
+    await page.mouse.up(); await stepped(page, s0);
     const s1 = await stepsOf(page);
     if (s1 !== s0 + 1) problems.push(`a drag of twelve moves made ${s1 - s0} undo steps, not 1`);
     await press(page, 'Control+z');
@@ -1075,22 +1200,29 @@ function editorSteps() { return {
     await closeTab(page);
     if (!(await studioHas(context, origin, held + 1))) problems.push(`the change made just before closing never reached the Studio (it holds ${await studioLayers(context, origin)} layers, not ${held + 1})`);
     const again = await journeyPage(context, problems);
+    let deviceHeld = null;
     try {
       await openEditor(again, EDITOR_VISUAL_ID);
       if (await layersOf(again) !== shown + 1) problems.push(`it reopened with ${await layersOf(again)} layers, not ${shown + 1}`);
-      await again.waitForTimeout(500);
-      if (await again.getByText('Restored your unsaved changes').count()) problems.push('it said “Restored your unsaved changes” though the Studio had them');
-      // 2. Offline: a change, and the tab closes; nothing can go with it.
+      // The editor says which copy it opened from (the device's copy is the one that says "Restored…"), so this is
+      // read, not waited for.
+      const from = await canvasOf(again).getAttribute('data-opened-from');
+      if (from !== 'studio' || await again.getByText('Restored your unsaved changes').count()) problems.push(`it said “Restored your unsaved changes” though the Studio had them (it opened from the ${from} copy)`);
+      // 2. Offline: a change, and the tab closes; nothing can go with it. The reopened editor has nothing to send first.
+      await savedWithin(again, 12_000).catch(() => {});
       await context.setOffline(true);
       const off = await again.waitForFunction(() => !navigator.onLine, null, { timeout: 5000 }).then(() => true, () => false);
       if (!off) problems.push('the harness could not take the page offline');
       await press(again, 't');
       const status = await again.locator('.canvas-bar [data-save-status]').getAttribute('data-save-status');
       if (off && status !== 'offline') problems.push(`offline, the status was "${status}", not "offline"`);
+      // Until this device's copy holds the change (what the next opening restores), then the tab closes.
+      await until(again, ([id, n]) => { try { return Object.keys(JSON.parse(localStorage.getItem('nmesis.editor.draft.' + id) || 'null')?.doc?.layers || {}).length === n; } catch { return false; } }, [EDITOR_VISUAL_ID, held + 2]);
+      deviceHeld = await deviceCopyOf(again, EDITOR_VISUAL_ID);
       again.on('dialog', (d) => { void d.accept(); });
       await closeTab(again);
     } finally { await context.setOffline(false); await again.close().catch(() => {}); }
-    if (await studioLayers(context, origin) !== held + 1) problems.push('offline, the change still reached the Studio: the next check proves nothing');
+    if (await studioLayers(context, origin) !== held + 1) problems.push(`offline, the change still reached the Studio: the next check proves nothing (the Studio holds ${JSON.stringify(await studioDraftOf(context, origin))}, not ${held + 1} layers; this device held ${JSON.stringify(deviceHeld)} before the tab closed)`);
     const last = await journeyPage(context, problems);
     try {
       await openEditor(last, EDITOR_VISUAL_ID);
@@ -1099,21 +1231,148 @@ function editorSteps() { return {
       if (!(await studioHas(context, origin, held + 2, 15_000))) problems.push('the restored change never reached the Studio');
     } finally { await last.close().catch(() => {}); }
   },
+  // Editor Phase 5 (feat/editor-photos-icons): the Photos panel searches every library that is on (Pixabay,
+  // answered by scripts/ui/photo-standin.mjs; Unsplash has no key, so it says it is off), a photo is clicked in
+  // (the middle of the page) and another dragged onto the canvas (where it is dropped); each is copied into the
+  // Studio's storage and keeps its credit (shown in the right panel), never the library's address. The Icons
+  // panel: a search, an icon clicked in, another set opened and a solid icon dragged in. Then the export, where
+  // the dragged photo's colour is found, and every addition undone.
+  'editor-photos-icons': async (page, problems, run) => {
+    const { PHOTO_COLOUR } = await import('./ui/photo-standin.mjs');
+    await openEditor(page, EDITOR_VISUAL_ID);
+    await press(page, 'Escape');
+    const start = await layersOf(page), steps0 = await stepsOf(page);
+    const docWidth = await page.evaluate(() => { const s = window.Konva?.stages?.[0]; return s ? s.width() / s.scaleX() : 0; });
+    // The canvas as shown now: an open left panel narrows it, so it is measured right before each drop.
+    const boxNow = () => canvasOf(page).boundingBox();
+    // A drag onto the canvas at a share of its width and height; a failed one lets go of the mouse, so the
+    // checks after it report their own problems, not a button still held.
+    const dragOnCanvas = async (tile, share, what) => {
+      const box = await boxNow(), at = { x: box.width * share[0], y: box.height * share[1] };
+      await tile.dragTo(canvasOf(page), { targetPosition: at, timeout: 10_000 }).catch(async (e) => { problems.push(`dragging ${what} failed: ` + String(e.message).split('\n')[0]); await page.mouse.up().catch(() => {}); });
+      return { x: at.x * (docWidth / box.width), y: at.y * (docWidth / box.width) };
+    };
+    const landedAt = async (want, what) => {
+      const c = await centreOf(page);
+      if (!c.ok || Math.abs(c.x - want.x) > docWidth * 0.03 || Math.abs(c.y - want.y) > docWidth * 0.03) problems.push(`the dropped ${what}'s middle is at ${JSON.stringify(c)}, not where it was dropped (${Math.round(want.x)}, ${Math.round(want.y)})`);
+      return c;
+    };
+    const nav = (name) => page.locator('button.studio-side-item', { hasText: name }).first();
+    const shot = (name) => SHOTS ? page.screenshot({ path: path.join(OUT, 'shots', `phase5-${name}--1440--light.png`) }).catch(() => {}) : null;
+
+    // Photos: it opens with results for "cars" (written in the box, no typing), says which libraries are off,
+    // then a search with none, a search, the masonry grid.
+    await nav('Photos').click({ timeout: 5000 });
+    const panel = page.locator('#studio-panel');
+    await panel.getByRole('searchbox', { name: 'Search photos' }).waitFor({ timeout: 10_000 });
+    const opening = await panel.getByRole('searchbox', { name: 'Search photos' }).inputValue().catch(() => '');
+    if (opening !== 'cars') problems.push(`the Photos search box opens with ${JSON.stringify(opening)}, not "cars"`);
+    await panel.locator('button.photos-add').first().waitFor({ timeout: 15_000 }).catch(() => problems.push('the Photos panel opened with no results'));
+    await panel.locator('[data-library="unsplash"]').waitFor({ timeout: 10_000 }).catch(() => problems.push('the Photos panel did not say Unsplash is off'));
+    const offWords = ((await panel.locator('[data-library="unsplash"]').textContent().catch(() => '')) || '').trim();
+    if (!/Unsplash is off/.test(offWords)) problems.push(`Unsplash (no key) reads ${JSON.stringify(offWords)}, not that it is off`);
+    await shot('photos-start');
+    await panel.getByRole('searchbox', { name: 'Search photos' }).fill('nothing at all');
+    await panel.getByText(/No photos match/).first().waitFor({ timeout: 15_000 }).catch(() => problems.push('a search with no results did not say so'));
+    await shot('photos-none');
+    await panel.getByRole('searchbox', { name: 'Search photos' }).fill('demo road');
+    const tiles = panel.locator('button.photos-add');
+    await tiles.nth(5).waitFor({ timeout: 15_000 }).catch(() => problems.push('the search showed fewer than 6 photos'));
+    if (await tiles.count() < 6) return;
+    if (await panel.locator('img[src*="pixabay.com/get/"]').count() === 0) problems.push('the grid does not show the library\'s own pictures');
+    await tiles.first().hover();
+    // Until the credit over the photo has faded in (its own opacity), then it is read.
+    await until(page, () => { const el = document.querySelector('#studio-panel button.photos-add .photos-credit'); return !!el && Number(getComputedStyle(el).opacity) >= 0.9; }, null, 3000);
+    const credit = await tiles.first().locator('.photos-credit').evaluate((el) => ({ text: el.textContent, opacity: Number(getComputedStyle(el).opacity) })).catch(() => null);
+    if (!credit || credit.opacity < 0.9 || !/demo_maker/.test(credit.text) || !/Pixabay/.test(credit.text)) problems.push(`hovering a photo shows ${JSON.stringify(credit)}, not its photographer and library`);
+    await shot('photos-results');
+    // Infinite scroll: the end of the grid loads the next page.
+    const first = await tiles.count();
+    await panel.locator('.photos-end').scrollIntoViewIfNeeded().catch(() => {});
+    await page.waitForFunction((n) => document.querySelectorAll('#studio-panel button.photos-add').length > n, first, { timeout: 15_000 }).catch(() => problems.push('scrolling to the end of the photos loaded no more'));
+
+    // Click: the middle of the page; the layer keeps its credit, and the right panel says it.
+    await tiles.first().click({ timeout: 5000 });
+    await page.waitForFunction((n) => { const l = /(\d+) layers?/.exec(document.querySelector('.canvas-box[data-editable="true"]')?.getAttribute('aria-label') || ''); return l && Number(l[1]) === n; }, start + 1, { timeout: 30_000 }).catch(() => problems.push('clicking a photo added no layer'));
+    const creditSection = panelOf(page).locator('[data-editor-section="credit"]');
+    const creditWords = ((await creditSection.textContent({ timeout: 5000 }).catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+    if (!/Photo by demo_maker on Pixabay/.test(creditWords)) problems.push(`the right panel's credit reads ${JSON.stringify(creditWords)}`);
+    run.ruleStates.push({ screen: 'editor', state: 'photo-with-credit', role: 'owner', w: 1440, h: 900, theme: 'light', editorRules: await page.evaluate(editorRules) });
+
+    // Drag: where it is dropped (its middle on the pointer), in picture pixels.
+    const photoDrop = await dragOnCanvas(tiles.nth(1), [0.25, 0.3], 'a photo');
+    await page.waitForFunction((n) => { const l = /(\d+) layers?/.exec(document.querySelector('.canvas-box[data-editable="true"]')?.getAttribute('aria-label') || ''); return l && Number(l[1]) === n; }, start + 2, { timeout: 30_000 }).catch(() => problems.push('dropping a photo on the canvas added no layer'));
+    const dropped = await landedAt(photoDrop, 'photo');
+    await shot('photos-dropped');
+
+    // Icons: browsing a set (its file only now); then one search across every set (one list, each result
+    // labelled with its set, the exact name first), one clicked in; a solid icon found by its exact name, dragged in.
+    await nav('Icons').click({ timeout: 5000 });
+    const icons = panel.locator('button.icons-add');
+    await icons.first().waitFor({ timeout: 15_000 }).catch(() => problems.push('the Icons panel showed no icons'));
+    await panel.getByRole('button', { name: 'Phosphor' }).click({ timeout: 5000 });
+    await panel.getByRole('list', { name: 'Phosphor icons' }).locator('button.icons-add').first().waitFor({ timeout: 15_000 }).catch(() => problems.push('browsing Phosphor showed nothing'));
+    const search = panel.getByRole('searchbox', { name: 'Search icons' });
+    await search.fill('car');
+    const found = panel.locator('button.icons-add[data-set]');
+    await found.first().waitFor({ timeout: 15_000 }).catch(() => problems.push('searching every set for "car" found nothing'));
+    const sets = await found.evaluateAll((els) => [...new Set(els.slice(0, 40).map((e) => e.getAttribute('data-set')))]);
+    if (sets.length < 2) problems.push(`the search across every set shows ${JSON.stringify(sets)}, not several sets`);
+    if (await found.first().getAttribute('data-icon') !== 'car') problems.push(`the first result for "car" is ${await found.first().getAttribute('data-icon')}, not the exact name`);
+    if (!(await found.first().locator('.icons-set').count())) problems.push('a result does not say its set');
+    await found.first().locator('svg.icons-art').waitFor({ timeout: 15_000 }).catch(() => problems.push('a result\'s drawing did not load as it came into view'));
+    await shot('icons-search');
+    await found.first().click({ timeout: 5000 });
+    await layersReach(page, start + 3);
+    if (await layersOf(page) !== start + 3) problems.push(`clicking an icon left ${await layersOf(page)} layers, not ${start + 3}`);
+    if (!(await panelOf(page).locator('[data-editor-section="appearance"]').getByText('Colour').count())) problems.push('a placed icon has no Colour in the right panel');
+    await search.fill('star-fill');
+    const solid = panel.locator('button.icons-add[data-set="phosphor"][data-icon="star-fill"]');
+    await solid.waitFor({ timeout: 15_000 }).catch(() => problems.push('searching "star-fill" did not find Phosphor\'s'));
+    await solid.locator('svg.icons-art').waitFor({ timeout: 15_000 }).catch(() => {});
+    const iconDrop = await dragOnCanvas(solid, [0.75, 0.7], 'an icon');
+    await layersReach(page, start + 4);
+    if (await layersOf(page) !== start + 4) problems.push(`dropping an icon left ${await layersOf(page)} layers, not ${start + 4}`);
+    else await landedAt(iconDrop, 'icon');
+    if (await panelOf(page).getByText('Line weight').count()) problems.push('a solid icon offers a Line weight');
+    if (await stepsOf(page) !== steps0 + 4) problems.push(`four additions made ${(await stepsOf(page)) - steps0} undo steps, not 4`);
+
+    // The design keeps storage keys and credits, never a library's picture address.
+    await savedWithin(page, 20_000).catch(() => problems.push('the additions were not saved'));
+    const draft = await page.request.get(`/api/edits/${EDITOR_VISUAL_ID}/draft`, { failOnStatusCode: false }).then((r) => r.json()).catch(() => null);
+    const layers = Object.values(draft?.draft?.doc?.layers || {});
+    const photos = layers.filter((l) => l.kind === 'image' && l.credit?.provider === 'pixabay');
+    if (photos.length !== 2 || !photos.every((l) => /^images\//.test(l.asset))) problems.push(`the draft holds ${photos.length} credited photos in the Studio's storage, not 2`);
+    if (JSON.stringify(draft || {}).includes('pixabay.com/get')) problems.push('the draft holds a library picture address');
+    if (!layers.some((l) => l.kind === 'icon' && l.grid === 256 && l.fill === true)) problems.push('the solid icon was not kept with its grid and fill');
+
+    // The export: the dragged photo is in it, from the Studio's copy.
+    const exported = decodePng(await downloadPng(page));
+    const ek = exported.width / docWidth, [r, g, b] = sampleAt(exported, Math.round(dropped.x * ek), Math.round(dropped.y * ek), 1);
+    if ([r - PHOTO_COLOUR[0], g - PHOTO_COLOUR[1], b - PHOTO_COLOUR[2]].some((d) => Math.abs(d) > 16)) problems.push(`the export shows rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}) where the photo was dropped, not the photo`);
+
+    // Leave the design as it was for the journeys after this one.
+    for (let i = 0; i < 4; i++) await press(page, process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+    if (await layersOf(page) !== start) problems.push(`undoing the four additions left ${await layersOf(page)} layers, not ${start}`);
+    await savedWithin(page, 20_000).catch(() => {});
+  },
   // The editor under load: a design of 50 layers on a 3840 x 2160 picture (scripts/ui/seed.mjs perfDesign).
   // Timed: until the canvas holds every layer, until the picture has arrived, the frames during a 30-move drag
   // of the top layer (requestAnimationFrame, in the page), and Ctrl+A until the several-layers panel shows.
   // Fails only on a clear problem in Chromium (p95 frame over 50 ms, opening over 10 s); WebKit reports.
   'editor-performance': async (page, problems, run) => {
-    let pictureAt = 0;
+    let pictureAt = 0, pictureArrived = () => {};
+    const picture = new Promise((r) => { pictureArrived = r; });
     // The picture's own bytes (the Studio's address redirects to a signed link: the last request of the chain).
-    page.on('requestfinished', (r) => { if (!pictureAt && r.resourceType() === 'image' && r.url().includes(PERF_PICTURE_ID) && !r.redirectedTo()) pictureAt = Date.now(); });
+    page.on('requestfinished', (r) => { if (!pictureAt && r.resourceType() === 'image' && r.url().includes(PERF_PICTURE_ID) && !r.redirectedTo()) { pictureAt = Date.now(); pictureArrived(); } });
     const t0 = Date.now();
     await page.goto('/editor?visual=' + PERF_DESIGN_ID, { waitUntil: 'load', timeout: 30_000 });
     await canvasOf(page).locator('canvas').first().waitFor({ timeout: 20_000 });
     await page.waitForFunction((n) => new RegExp(`\\b${n} layers\\b`).test(document.querySelector('.canvas-box[data-editable="true"]')?.getAttribute('aria-label') || ''), PERF_LAYERS, { timeout: 20_000 })
       .catch(() => problems.push(`the design did not open with its ${PERF_LAYERS} layers`));
     const layersMs = Date.now() - t0;
-    for (let i = 0; i < 100 && !pictureAt; i++) await page.waitForTimeout(100);
+    // Until the picture's bytes have arrived (at most 10 s more, as before).
+    let cap; await Promise.race([picture, new Promise((r) => { cap = setTimeout(r, 10_000); })]); clearTimeout(cap);
     const pictureMs = pictureAt ? pictureAt - t0 : null;
     await ready(page);
     await tab(page, 'Design');
@@ -1121,8 +1380,9 @@ function editorSteps() { return {
     await page.evaluate(() => { window.__frames = []; window.__recording = true; let last = performance.now(); const tick = (t) => { window.__frames.push(t - last); last = t; if (window.__recording) requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
     const s0 = await stepsOf(page);
     await page.mouse.move(cx, cy); await page.mouse.down();
-    for (let i = 1; i <= 30; i++) { await page.mouse.move(cx + i * 8, cy + i * 4); await page.waitForTimeout(16); }
-    await page.mouse.up(); await page.waitForTimeout(250);
+    // One move a drawn frame, as a pointer's moves reach a page; then until the drop is a step and drawn.
+    for (let i = 1; i <= 30; i++) { await page.mouse.move(cx + i * 8, cy + i * 4); await nextFrame(page); }
+    await page.mouse.up(); await stepped(page, s0);
     const frames = await page.evaluate(() => { window.__recording = false; return window.__frames.slice(1); });
     if (await stepsOf(page) !== s0 + 1) problems.push('the drag of the top layer did not register (no undo step)');
     await press(page, 'Escape');

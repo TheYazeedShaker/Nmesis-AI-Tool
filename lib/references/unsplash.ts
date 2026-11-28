@@ -70,7 +70,9 @@ function known(value:unknown):Known|null{
  const credit=unsplashCredit(r.user);
  if(!thumb||!src||!raw||!credit)return null;
  const track=allowedUrl(r.links?.download_location,API_HOSTS)?.href??`${API}/photos/${r.id}/download`;
- return {photo:{id:r.id,provider:'unsplash',thumb,src,width:size(r.width),height:size(r.height),alt:clean(r.alt_description,200)||clean(r.description,200),credit},raw,track};
+ // The photo's own page, built from its id (an id is letters, digits, - and _), with the utm parameters.
+ const page=`https://unsplash.com/photos/${r.id}?${UTM}`;
+ return {photo:{id:r.id,provider:'unsplash',thumb,src,width:size(r.width),height:size(r.height),alt:clean(r.alt_description,200)||clean(r.description,200),credit:{...credit,page}},raw,track};
 }
 
 // Answers remembered for a while per server: Unsplash counts requests per hour

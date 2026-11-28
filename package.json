@@ -60,6 +60,11 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
+    "@iconify-json/lucide": "^1.2.159",
+    "@iconify-json/material-symbols": "^1.2.101",
+    "@iconify-json/ph": "^1.2.2",
+    "@iconify-json/ri": "^1.2.10",
+    "@iconify-json/tabler": "^1.2.47",
     "@tailwindcss/postcss": "4.3.5",
     "@types/node": "22.19.19",
     "@types/react": "19.3.0",

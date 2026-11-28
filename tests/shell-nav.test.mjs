@@ -92,9 +92,9 @@ test('menus open in a layer above every panel; panels sit on the panel layer', (
   assert.doesNotMatch(read('components/shell/panels.tsx'), /<Dialog/);
 });
 
-test('the canvas editor: its own panels (Brand, Elements, Text, Uploads), and the one way in for every panel', () => {
-  assert.deepEqual(navItems('editor').map((i) => i.label), ['Home', 'Projects', 'Brand', 'Elements', 'Text', 'Uploads', 'Settings']);
-  assert.deepEqual(panelsOn('editor'), ['brand', 'elements', 'text', 'uploads']);
+test('the canvas editor: its own panels (Brand, Elements, Text, Photos, Icons, Uploads), and the one way in for every panel', () => {
+  assert.deepEqual(navItems('editor').map((i) => i.label), ['Home', 'Projects', 'Brand', 'Elements', 'Text', 'Photos', 'Icons', 'Uploads', 'Settings']);
+  assert.deepEqual(panelsOn('editor'), ['brand', 'elements', 'text', 'photos', 'icons', 'uploads']);
   assert.equal(navSelection('editor', 'text'), 'text');
   assert.equal(navSelection('editor', 'references'), null, 'References is not an editor panel');
   assert.equal(toolOf('editor'), null, 'the editor takes no references, so it is no reference tool');

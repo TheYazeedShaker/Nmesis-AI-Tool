@@ -138,7 +138,7 @@ function LayerThumb({layer:l}:{layer:Layer}){
  if(l.kind==='image')return <span className="canvas-layer-thumb" aria-hidden="true"><img src={assetSrc(l.asset)+'?thumb=1'} alt="" loading="lazy" decoding="async"/></span>;
  if(l.kind==='text')return <span className="canvas-layer-thumb canvas-layer-thumb-text" aria-hidden="true" data-backdrop={backdrop} style={{color:l.color}}>Aa</span>;
  const svg=(body:React.ReactNode,box=`0 0 ${ICON_GRID} ${ICON_GRID}`)=><span className="canvas-layer-thumb" aria-hidden="true" data-backdrop={backdrop}><svg viewBox={box} preserveAspectRatio="xMidYMid meet">{body}</svg></span>;
- if(l.kind==='icon')return svg(l.paths.map((d,i)=><path key={i} d={d} fill="none" stroke={l.color} strokeWidth={l.strokeWidth} strokeLinecap="round" strokeLinejoin="round"/>));
+ if(l.kind==='icon')return svg(l.paths.map((d,i)=>l.fill?<path key={i} d={d} fill={l.color}/>:<path key={i} d={d} fill="none" stroke={l.color} strokeWidth={l.strokeWidth} strokeLinecap="round" strokeLinejoin="round"/>),`0 0 ${l.grid??ICON_GRID} ${l.grid??ICON_GRID}`);
  if(l.kind==='line')return svg(<line x1="2" y1="12" x2="22" y2="12" stroke={l.stroke} strokeWidth="2" strokeDasharray={l.dash?'4 3':undefined}/>);
  if(l.kind==='frame')return svg(<rect x="3" y="5" width="18" height="14" rx={l.radius?3:0} fill="none" stroke={l.stroke} strokeWidth="2"/>);
  const fill=l.fill==='transparent'?'none':l.fill,stroke=l.stroke==='transparent'?undefined:l.stroke;

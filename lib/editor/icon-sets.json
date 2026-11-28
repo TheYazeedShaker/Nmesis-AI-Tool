@@ -1,0 +1,58 @@
+[
+ {
+  "id": "lucide",
+  "label": "Lucide",
+  "style": "Line",
+  "licence": "ISC",
+  "spdx": "ISC",
+  "licenceUrl": "https://github.com/lucide-icons/lucide/blob/main/LICENSE",
+  "version": "1.2.159",
+  "count": 2154,
+  "grid": 24,
+  "file": "/icons/lucide.json",
+  "licenceFile": "/icons/lucide.LICENSE.txt",
+  "bytes": 360536
+ },
+ {
+  "id": "tabler",
+  "label": "Tabler",
+  "style": "Line and solid",
+  "licence": "MIT",
+  "spdx": "MIT",
+  "licenceUrl": "https://github.com/tabler/tabler-icons/blob/master/LICENSE",
+  "version": "3.52.0",
+  "count": 6111,
+  "grid": 24,
+  "file": "/icons/tabler.json",
+  "licenceFile": "/icons/tabler.LICENSE.txt",
+  "bytes": 1262901
+ },
+ {
+  "id": "phosphor",
+  "label": "Phosphor",
+  "style": "Regular and solid",
+  "licence": "MIT",
+  "spdx": "MIT",
+  "licenceUrl": "https://github.com/phosphor-icons/core/blob/main/LICENSE",
+  "version": "2.1.1",
+  "count": 2888,
+  "grid": 256,
+  "file": "/icons/phosphor.json",
+  "licenceFile": "/icons/phosphor.LICENSE.txt",
+  "bytes": 1130749
+ },
+ {
+  "id": "material",
+  "label": "Material Symbols",
+  "style": "Outline",
+  "licence": "Apache 2.0",
+  "spdx": "Apache-2.0",
+  "licenceUrl": "https://github.com/google/material-design-icons/blob/master/LICENSE",
+  "version": "1.2.101",
+  "count": 3973,
+  "grid": 24,
+  "file": "/icons/material.json",
+  "licenceFile": "/icons/material.LICENSE.txt",
+  "bytes": 1567622
+ }
+]
