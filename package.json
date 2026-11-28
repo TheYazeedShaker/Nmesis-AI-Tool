@@ -37,7 +37,7 @@
     "immer": "11.1.21",
     "input-otp": "^1.4.2",
     "jpeg-js": "0.4.4",
-    "konva": "10.9.1",
+    "konva": "10.10.0",
     "lucide-react": "^1.73.0",
     "mediabunny": "1.61.1",
     "next": "16.4.6",
